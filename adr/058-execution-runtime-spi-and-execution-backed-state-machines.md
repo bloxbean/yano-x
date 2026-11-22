@@ -1,7 +1,8 @@
 # ADR-058 — Execution runtime SPI and execution-backed state machines
 
 - **Status:** Accepted (2026-11-22; proposed 2026-11-21). M0–M3 are done; M4 (promotion into
-  yano-x) is implemented in #108, awaiting review.
+  yano-x) is implemented in #108, awaiting review. r10 adds per-block budgets (D5a), decided by the
+  maintainer after the M5 hostile tests.
 - **Issue:** [#103](https://github.com/bloxbean/yano-x/issues/103) (ExecutionBackedStateMachine and
   GraalVM polyglot plugins).
 - **Evidence:** the incubator repository
@@ -115,7 +116,8 @@ Non-goals:
 | Node operators | As in the consensus profile. Honest members agree on genesis. | Set node-local runtime options, JVM flags and stack sizes. These must never change a result. |
 
 What must hold: all honest nodes compute the same state root for every block (safety); no message
-content can stop block production (liveness); a program cannot read anything not in its inputs or
+content can stop block production (liveness), nor hold it up for longer than the block budget
+allows (D5a, r10); a program cannot read anything not in its inputs or
 reachable through host functions. There are no secrets in the guest: it holds no keys, and every
 input is already known to every member.
 
@@ -301,6 +303,7 @@ its later messages (M3 test: without the reset, message 86 of 400 messages of 60
 | Compute exhausted | discarded | 3 out of compute, `compute` |
 | Host fuel exhausted | discarded | 4 out of host fuel, `host-fuel` |
 | Host function rejected a call | discarded | 5 ABI violation, the host's code |
+| Not run: the block's budget is spent (D5a, descriptor version 2) | none; the guest is not invoked and the instance is untouched | 6 not run, `block-budget` |
 | Non-deterministic engine failure | the block is not applied; the node stops | none |
 
 Every outcome but the last is a deterministic function of program, input, budgets and state.
@@ -327,6 +330,57 @@ on usage.
 runtime converting host work into its own units (neither engine can add work to its own meter
 portably; Phase 0 showed 1,000 host calls cost only 12,016 WASM instructions).
 
+### D5a. Per-block budgets (added in r10)
+
+D5 bounds each invocation, but until r10 nothing bounded a block. A block holds up to Yano's
+`maxBlockMessages` (5,000 by default) messages, and each may run to its whole budget. The M5
+hostile devnet measured about 0.7 s per message that spins to the then-default budget of 50,000,000
+compute units, on either runtime. So one block of such messages would take about an hour on every
+member. Any sender the topic registry admits can send them, and `validate` does not help, because
+the program decides what it admits.
+
+**Rule.** Descriptor version 2 adds block budgets: block compute and block host fuel (D6, key 10).
+The adapter charges every transition of a block its whole transition budgets, compute and host
+fuel, before it runs. It charges effect results first, then messages, in block order (D4).
+
+- A message whose charge would take the block's total over either block budget is not run. It gets
+  receipt kind 6, `block-budget`, and leaves no writes and no effects. The guest is not invoked and
+  the block's instance is untouched. Every later message of the block gets the same receipt, so the
+  messages that run are always a prefix of the block's messages. A sender may submit the message
+  again.
+- Effect results always run, and they are charged. Refusing one would lose a result the chain has
+  already committed to. Their number per block is bounded by the effect settings (D8).
+- Each block budget must be at least the matching transition budget, or no message could run. The
+  decoder rejects a descriptor that breaks this.
+- A version 1 descriptor (no key 10) still decodes and has no block bound. The adapter warns at
+  start-up and reports `blockBudget: none` in its status. The tooling writes version 2.
+
+**Charging budgets, not usage.** Usage is not portable (D5), so it cannot decide which messages run.
+The price is that a block runs at most `min(block compute / transition compute, block host fuel /
+transition host fuel)` transitions, however cheap they are. The tooling's defaults therefore change
+together:
+
+| Budget | Before r10 | r10 default |
+|---|---|---|
+| Transition compute | 50,000,000 | 5,000,000 (what the conformance examples have always run under) |
+| Transition host fuel | 1,000,000 | 1,000,000 |
+| Block compute | none | 500,000,000 |
+| Block host fuel | none | 100,000,000 |
+
+So a block runs at most 100 transitions. At the measured rate of about 0.015 s per million compute
+units, a block of messages that all spin to their budget then takes about 7 s (an estimate from the
+M5 devnet; measured with the new defaults in §10: about 8 s). Chains that need more throughput raise both
+budgets, and the worst case grows with the block compute budget.
+
+*Rejected:* charging usage (not portable; GraalJS reports only exhaustion, D5). Carrying messages
+that did not run over to the next block: Yano makes blocks only when messages arrive, so a carried
+queue might never drain, and the queue would be state the guest cannot see. A wall-clock block
+deadline (not deterministic). Lower per-message budgets alone: the worst case still grows with
+`maxBlockMessages`. Proposer-side packing, so an honest proposer never puts more messages in a block
+than its budget runs, is a later improvement: senders would then not lose messages to
+`block-budget`. It needs a framework hook, and it cannot replace this rule, because the rule bounds
+execution whatever the proposer includes.
+
 ### D6. Everything consensus-relevant is pinned in genesis
 
 The execution descriptor is canonical CBOR in the chain settings
@@ -334,7 +388,7 @@ The execution descriptor is canonical CBOR in the chain settings
 
 | Key | Field |
 |---|---|
-| 0 | descriptor version (1) |
+| 0 | descriptor version (1, or 2 from r10) |
 | 1 | runtime id (`graaljs`, `chicory`) |
 | 2 | engine fingerprint: blake2b-256 of the canonical CBOR map of the runtime's fingerprint components |
 | 3 | program media type (`text/javascript`, `application/wasm`) |
@@ -344,6 +398,7 @@ The execution descriptor is canonical CBOR in the chain settings
 | 7 | guest memory limit in bytes, for runtimes that enforce one |
 | 8 | program config bytes, passed to every entry point |
 | 9 | whether receipts are written |
+| 10 | block budgets: block compute and block host fuel (version 2 only, required there; D5a) |
 
 Fingerprint components must include the runtime id, engine version, metering unit, and every
 option or internal limit that can change a result (for example a call-depth limit). The engine
@@ -393,7 +448,7 @@ means host and framework disagree, and the block fails as a whole (D7).
 ### D9. Receipts under `~exec/`; guests may not write any `~` key
 
 When the descriptor enables receipts, a discarded transition writes
-`receipt = {0: 1, 1: height, 2: kind 1..5, 3: code}` at `~exec/r/<message id>` (for
+`receipt = {0: 1, 1: height, 2: kind 1..6, 3: code}` (kind 6 is `block-budget`, D5a) at `~exec/r/<message id>` (for
 `apply_message`) or `~exec/fx/<blake2b-256 effect id hash>` (for `on_effect_result`). Guests are
 forbidden every key that starts with `~`. Today only `~fx/` is reserved in the trie
 (`FxKeys.RESERVED_PREFIX`); `~exec/` is reserved next to it at promotion, in M4 (Q3, decided in
@@ -589,6 +644,7 @@ adapter tests in the incubator).
 | I17 | The same engine has the same fingerprint on every JDK (added in r3). | D6, D14, D15 | runtime version tests; fingerprints probed on Liberica, Temurin and Oracle GraalVM; the two-node devnet on two JDKs |
 | I18 | A runtime that claims `DETERMINISTIC_LIMIT` stops guest memory at exactly the limit (added in r3). | D2, D15 | `memory.bounded` with the memory hog, with a broken-runtime self-test |
 | I19 | Guest memory carries between the committed transitions of one block and nowhere else: a new instance at every block and after every transition that is not `transition-ok`; `validate` and `query` on fresh instances (added in r5). | D4 | `isolation.instances` (runtimes keep memory within an instance); adapter `transitionsOfABlockShareOneInstanceUntilOneIsNotOk`; `InstanceScopeConformanceTest` on three runtimes; devnet `scope_scenario.py` |
+| I20 | A block runs a prefix of its messages whose summed transition budgets fit the block budgets; every later message gets a `block-budget` receipt and is never invoked. Effect results always run and are charged first (added in r10). | D4, D5a | adapter `blockComputeBudgetRunsAPrefixOfTheBlock`, `blockHostFuelBudgetBoundsTheBlockToo`, `effectResultsAlwaysRunAndAreCharged`, `retriedBlockGetsTheWholeBlockBudgetAgain`; `HostileConformanceTest` block-budget cases on both runtimes; devnet `hostile_scenario.py budget` |
 
 ## 7. Findings about the Yano API
 
@@ -622,6 +678,10 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 - **ABI versioning:** the host table is append-only. A new entry point, host function or field
   needs a new ABI version; a v1 decoder rejects unknown keys. A runtime declares the ABI versions it
   supports.
+- **Descriptor version 2** (r10) adds key 10, block budgets. Version 1 descriptors still decode
+  and keep their unbounded blocks; a v1 decoder rejects a version 2 descriptor, as it rejects any
+  unknown key. Receipt kind 6 is new, and receipts stay at version 1: a reader that knows kinds
+  1..5 sees a new kind only on a chain whose genesis chose version 2. The guest ABI does not change.
 - **Engine upgrades** change the fingerprint and are chain upgrades until a descriptor schedule
   exists (Q5).
 - **Java packages:** `org.yanoproject.x.executors.*` during incubation. At promotion the SPI moved to
@@ -641,7 +701,7 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 | M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | Done (`da9b093`, `ce0a7cf`, devnet `fc7d31f`; Q1 in `09969a6`): TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I17 and I19; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured and decided (Q1) |
 | M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | Done (`5ef2c58`, devnet `fc7d31f`): TCK passes with no WARN; Rust escrow on Chicory and JS escrow on GraalJS give identical roots for one message log; no SPI change (the TCK changes were re-run on GraalJS); I18 |
 | M4 | Promotion into yano-x (D13) | M3; this ADR Accepted (2026-11-22); Q3–Q6 decided (done in r7) | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided. Implemented in #108 (r9): yano-x gates pass; the reference runtime (fixture) and the GraalJS and Chicory bundles pass the TCK through the directory catalog, with the same roots as direct; two-node devnet agrees, also after a restart; `~exec/` reserved by `ExecutionKeys` |
-| M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests | M4 | Considered for a yano-x plugin pack in a later ADR |
+| M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests, descriptor schedule (Q5), security review | M4 | Considered for a yano-x plugin pack in a later ADR. Done so far (r10): hostile multi-node tests (§10) and per-block budgets (D5a, I20), implemented on top of #108 (yano-x change linked from the PR thread). Open: AOT with injected gas, the descriptor schedule, the security review |
 
 ## 10. Verification and test vectors
 
@@ -676,7 +736,23 @@ independent evidence:
 - **Multi-node.** A two-node devnet ran in M3 (r3): a JVM distribution from yano-x `main`, members
   on Oracle GraalVM and on Liberica, a JS escrow chain on GraalJS and a Rust escrow chain on
   Chicory. Roots agree, escrow state is byte-identical across nodes and runtimes, and the chain
-  still agrees after a member restart. Hostile multi-node tests are M5.
+  still agrees after a member restart.
+- **Hostile multi-node (M5, r10).** A hostile program in JavaScript and in Rust picks a misbehaviour
+  from the first byte of each message: reject, trap after a write, unbounded recursion, spin,
+  host-call flood, oversize value, reserved key, garbage output, memory growth. Under Yano's
+  conformance harness each runtime is deterministic over three replays including a restart, no
+  misbehaving write survives, and only committed messages count. On a two-node devnet (alice on
+  Oracle GraalVM, bob on Liberica with GraalJS interpreter-only) every misbehaviour gives the same
+  receipt on both members, and the codes are identical between GraalJS and Chicory. Mixed bursts and
+  a restart pass, and neighbouring escrow chains are unaffected. That run found the unbounded block
+  (D5a). With version 2 descriptors and the r10 defaults, a flood of 250 messages, nine in ten
+  spinning to their budget, ran at most 100 messages per block on both chains. The rest got
+  `block-budget` receipts, identical on both members, and only the counts that ran were counted. A
+  full block of 100 took 7.8 to 8.0 s from submission to final on either runtime, also after
+  restarting bob. Before r10, 50 spinning messages took 36.6 s (Chicory) and 37.4 s (GraalJS). The
+  conformance harness checks the same rule on both runtimes: with a budget of 8 transitions, blocks
+  of 30 messages run exactly their first 8, on every replay. Incubator branches `m5-hostile` and
+  `m5-block-budget`.
 
 Passing tests are not a security review. M5 includes one before any plugin-pack release.
 
@@ -693,6 +769,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 | R10 | Plugin packaging silently drops what a runtime needs: shaded jars lose service files and jar manifests (r3). | The bundle build merges service files itself and copies the GraalJS version; the runtimes refuse to open if a version they need is missing, so a broken bundle fails closed at start-up. |
 | R6 | 35 MB GraalJS bundle. | Never in yano-x Central; separate plugin pack after graduation. |
 | R7 | A runtime bug passes the TCK and diverges in production. | Two independent runtimes, differential examples, pinned fingerprints, multi-node tests (M5). |
+| R11 | A sender who floods a chain with spinning messages fills each block's budget, so other senders' messages in those blocks get `block-budget` receipts and must be submitted again (r10). The chain stays live, and each block takes at most the block budget's worth of compute. | Admission rate limits and topic writer policies decide who may send; proposer-side packing (D5a, later) would defer messages instead of refusing them. Fair sharing between senders is out of scope for v1. |
 | R8 | Effect budgets in composite chains are shared invisibly (finding 2). | Standalone chains only (Q4, decided in r7), enforced by the framework: composites accept only components with a transition kernel, and the adapter offers none. |
 
 ## 12. Open questions
@@ -775,3 +852,13 @@ All resolved by the maintainer (Q1 in r5, Q2–Q7 in r7); the table keeps the op
   allow-listing with the fingerprint checked at open, the facades, the module layout, and the guest
   SDKs staying in the incubator. D9: `~exec/` is reserved by API, not by a writer block. M4 exit
   evidence in §9. No change to the ABI, the SPI contract or any consensus rule.
+- r10 (2026-11-22; head before this revision `7430f9e7`). The M5 hostile multi-node tests found that
+  nothing bounded a block's compute: one block of spinning messages could take about an hour. The
+  maintainer chose per-block budgets. New D5a: descriptor version 2 adds block compute and block
+  host fuel (D6 key 10), every transition is charged its whole budgets, and messages that do not fit
+  get receipt kind 6, `block-budget` (D4 table, D9). The tooling's default transition compute drops
+  from 50,000,000 to 5,000,000, with block budgets of 500,000,000 compute and 100,000,000 host fuel
+  (at most 100 transitions per block). New I20 and R11; §3 liveness, §8, §9 M5 and §10 updated.
+  This is a consensus rule for chains that choose version 2; version 1 descriptors keep their
+  behaviour. The guest ABI does not change. Implemented on top of #108; incubator branch
+  `m5-block-budget`.
