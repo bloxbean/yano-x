@@ -84,6 +84,10 @@ public final class AssetAccounts {
     /**
      * Credits an admitted deposit: {@code amount} of the vault's asset and, for a native-token
      * vault, the deposit's incidental lovelace as the holder's min-ADA credit (D11).
+     *
+     * <p>{@code holderKeyHash} must come from the consumer's authoritative account record (the
+     * holder's registered owner credential), never from deposit data or a counterparty. A leaf is
+     * deleted when it empties, so the library cannot remember the key on its own.
      */
     public void credit(Hash32 vaultId, byte[] holderId, byte[] holderKeyHash, BigInteger amount,
                        BigInteger minAdaCredit) {
@@ -114,7 +118,8 @@ public final class AssetAccounts {
 
     /**
      * Moves {@code amount} of one vault's asset between holders. Totals are unchanged. The
-     * recipient's key hash is needed only if it has no leaf yet.
+     * recipient's key hash is always required and checked against an existing leaf; like
+     * {@link #credit}, it must come from the consumer's account record, never from the sender.
      */
     public void transfer(Hash32 vaultId, byte[] fromHolder, byte[] toHolder,
                          byte[] toHolderKeyHash, BigInteger amount) {
@@ -165,10 +170,17 @@ public final class AssetAccounts {
     /**
      * Replaces the key hash on a holder's leaf in one vault (owner rotation, D14a). This is the only
      * primitive that changes a leaf's key; {@link #credit} and {@link #transfer} reject a mismatch.
+     * Rotation is per vault: the consumer calls it for every vault in which the holder has a leaf.
+     * Returns whether a leaf existed.
      */
-    public void rotateHolderKey(Hash32 vaultId, byte[] holderId, byte[] newKeyHash) {
-        balance(vaultId, holderId).ifPresent(leaf -> store.put(exitLeafKey(vaultId, holderId),
-                new ExitLeafV1(newKeyHash, vaultId, leaf.amount(), leaf.vaultLovelace()).encode()));
+    public boolean rotateHolderKey(Hash32 vaultId, byte[] holderId, byte[] newKeyHash) {
+        if (newKeyHash == null || newKeyHash.length != ExitLeafV1.KEY_HASH_BYTES) {
+            throw new IllegalArgumentException("new key hash must be 28 bytes");
+        }
+        Optional<ExitLeafV1> leaf = balance(vaultId, holderId);
+        leaf.ifPresent(current -> store.put(exitLeafKey(vaultId, holderId),
+                new ExitLeafV1(newKeyHash, vaultId, current.amount(), current.vaultLovelace()).encode()));
+        return leaf.isPresent();
     }
 
     /** Records a confirmed payout of a reserved claim. */

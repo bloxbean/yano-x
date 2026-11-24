@@ -75,6 +75,13 @@ class AssetAccountsPropertyTest {
             int keyVariant = random.nextInt(10) == 0 ? 1 : 0;
             BigInteger amount = BigInteger.valueOf(random.nextInt(1_000));
             BigInteger lovelace = BigInteger.valueOf(random.nextInt(3) == 0 ? random.nextInt(2_000_000) : 0);
+            if (random.nextInt(5) == 0) {
+                // Use the holder's exact balance, so leaves empty, are deleted and are re-created.
+                amount = bal(model, holder)[0];
+                lovelace = bal(model, holder)[1];
+            }
+            final BigInteger amountF = amount;
+            final BigInteger lovelaceF = lovelace;
             Map<String, String> before = store.snapshot();
             int op = random.nextInt(5);
             // The model predicts the outcome BEFORE the library runs.
@@ -84,46 +91,46 @@ class AssetAccountsPropertyTest {
             switch (op) {
                 case 0 -> {
                     boolean keyOk = !model.keys.containsKey(holder) || model.keys.get(holder) == keyVariant;
-                    expectAccept = keyOk && (amount.signum() > 0 || lovelace.signum() > 0);
+                    expectAccept = keyOk && (amountF.signum() > 0 || lovelaceF.signum() > 0);
                     int variant = keyVariant;
-                    call = () -> accounts.credit(VAULT, id(holder), keyHash(holder, variant), amount, lovelace);
+                    call = () -> accounts.credit(VAULT, id(holder), keyHash(holder, variant), amountF, lovelaceF);
                     applyModel = () -> {
                         model.keys.putIfAbsent(holder, variant);
-                        bal(model, holder)[0] = bal(model, holder)[0].add(amount);
-                        bal(model, holder)[1] = bal(model, holder)[1].add(lovelace);
-                        model.counters[0] = model.counters[0].add(amount);
-                        model.counters[2] = model.counters[2].add(amount);
-                        model.counters[4] = model.counters[4].add(lovelace);
-                        model.counters[6] = model.counters[6].add(lovelace);
+                        bal(model, holder)[0] = bal(model, holder)[0].add(amountF);
+                        bal(model, holder)[1] = bal(model, holder)[1].add(lovelaceF);
+                        model.counters[0] = model.counters[0].add(amountF);
+                        model.counters[2] = model.counters[2].add(amountF);
+                        model.counters[4] = model.counters[4].add(lovelaceF);
+                        model.counters[6] = model.counters[6].add(lovelaceF);
                     };
                 }
                 case 1 -> {
                     int to = random.nextInt(5) == 0 ? holder : (holder + 1 + random.nextInt(3)) % 4;
                     int toVariant = model.keys.getOrDefault(to, 0);
-                    expectAccept = to != holder && amount.signum() > 0
-                            && bal(model, holder)[0].compareTo(amount) >= 0
+                    expectAccept = to != holder && amountF.signum() > 0
+                            && bal(model, holder)[0].compareTo(amountF) >= 0
                             && model.keys.containsKey(holder);
-                    call = () -> accounts.transfer(VAULT, id(holder), id(to), keyHash(to, toVariant), amount);
+                    call = () -> accounts.transfer(VAULT, id(holder), id(to), keyHash(to, toVariant), amountF);
                     applyModel = () -> {
                         model.keys.putIfAbsent(to, toVariant);
-                        bal(model, holder)[0] = bal(model, holder)[0].subtract(amount);
-                        bal(model, to)[0] = bal(model, to)[0].add(amount);
+                        bal(model, holder)[0] = bal(model, holder)[0].subtract(amountF);
+                        bal(model, to)[0] = bal(model, to)[0].add(amountF);
                     };
                 }
                 case 2 -> {
-                    expectAccept = (amount.signum() > 0 || lovelace.signum() > 0)
+                    expectAccept = (amountF.signum() > 0 || lovelaceF.signum() > 0)
                             && model.keys.containsKey(holder)
-                            && bal(model, holder)[0].compareTo(amount) >= 0
-                            && bal(model, holder)[1].compareTo(lovelace) >= 0;
-                    call = () -> accounts.reserve(VAULT, id(holder), amount, lovelace);
+                            && bal(model, holder)[0].compareTo(amountF) >= 0
+                            && bal(model, holder)[1].compareTo(lovelaceF) >= 0;
+                    call = () -> accounts.reserve(VAULT, id(holder), amountF, lovelaceF);
                     applyModel = () -> {
-                        bal(model, holder)[0] = bal(model, holder)[0].subtract(amount);
-                        bal(model, holder)[1] = bal(model, holder)[1].subtract(lovelace);
-                        model.counters[2] = model.counters[2].subtract(amount);
-                        model.counters[3] = model.counters[3].add(amount);
-                        model.counters[6] = model.counters[6].subtract(lovelace);
-                        model.counters[7] = model.counters[7].add(lovelace);
-                        openReservations.add(new BigInteger[] {amount, lovelace});
+                        bal(model, holder)[0] = bal(model, holder)[0].subtract(amountF);
+                        bal(model, holder)[1] = bal(model, holder)[1].subtract(lovelaceF);
+                        model.counters[2] = model.counters[2].subtract(amountF);
+                        model.counters[3] = model.counters[3].add(amountF);
+                        model.counters[6] = model.counters[6].subtract(lovelaceF);
+                        model.counters[7] = model.counters[7].add(lovelaceF);
+                        openReservations.add(new BigInteger[] {amountF, lovelaceF});
                     };
                 }
                 case 3 -> {
@@ -157,6 +164,10 @@ class AssetAccountsPropertyTest {
             assertThat(accepted).as("op %d step %d accept/reject", op, step).isEqualTo(expectAccept);
             if (accepted) {
                 applyModel.run();
+                // The library deletes an emptied leaf and forgets its key; so does the model.
+                model.balances.forEach((h, b) -> {
+                    if (b[0].signum() == 0 && b[1].signum() == 0) model.keys.remove(h);
+                });
             } else {
                 assertThat(store.snapshot()).as("a rejected op leaves no partial write").isEqualTo(before);
             }
@@ -226,6 +237,22 @@ class AssetAccountsPropertyTest {
         assertThat(accounts.balance(VAULT, id(0)).orElseThrow().holderKeyHash()).isEqualTo(keyHash(0, 1));
         accounts.credit(VAULT, id(0), keyHash(0, 1), BigInteger.ONE, BigInteger.ZERO);
         assertThat(accounts.balance(VAULT, id(0)).orElseThrow().amount()).isEqualTo(BigInteger.valueOf(11));
+    }
+
+    @Test
+    void anEmptiedLeafForgetsItsKeySoConsumersMustSupplyTheAuthoritativeKey() {
+        MapStore store = new MapStore();
+        AssetAccounts accounts = new AssetAccounts("pay/".getBytes(), store);
+        accounts.credit(VAULT, id(0), keyHash(0, 0), BigInteger.TEN, BigInteger.ZERO);
+        accounts.reserve(VAULT, id(0), BigInteger.TEN, BigInteger.ZERO);
+        assertThat(accounts.balance(VAULT, id(0))).isEmpty();
+        // The library cannot tell which key is authoritative once the leaf is gone; the consumer
+        // supplies it from the account record. Re-credit with the owner's key binds it again.
+        accounts.credit(VAULT, id(0), keyHash(0, 0), BigInteger.ONE, BigInteger.ZERO);
+        assertThat(accounts.balance(VAULT, id(0)).orElseThrow().holderKeyHash()).isEqualTo(keyHash(0, 0));
+        assertThat(accounts.rotateHolderKey(VAULT, id(3), keyHash(3, 0))).isFalse();
+        assertThatThrownBy(() -> accounts.rotateHolderKey(VAULT, id(0), null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

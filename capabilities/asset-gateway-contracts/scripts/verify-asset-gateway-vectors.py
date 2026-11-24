@@ -213,7 +213,8 @@ def main(path):
         print(f"MISMATCH {key}: committed={committed.get(key)} independent={expected.get(key)}")
     if failures:
         sys.exit(1)
-    print(f"ADR-059 golden vectors verified independently: {len(expected)} values")
+    oracle = "with cbor2 cross-check" if cbor2 is not None else "stdlib only; cbor2 not installed"
+    print(f"ADR-059 golden vectors verified independently ({oracle}): {len(expected)} values")
     check_negative(path.replace("golden-vectors.properties", "negative-vectors.properties"))
 
 
