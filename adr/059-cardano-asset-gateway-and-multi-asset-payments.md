@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-24, r4). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-25, r5). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -234,16 +234,23 @@ funds:
 
 The reference profile is labelled by its settlement mode (D8e).
 
-`FEDERATED_COSIGNED_WITH_PERMISSIONLESS_EXIT` is the default:
+`FEDERATED_COSIGNED_WITH_ESCAPE_HATCH` is the default:
 - payouts are co-signed by the threshold;
 - once a reserved, anchored claim is older than `exitDelayMs` (L1 time), anyone can pay it.
 
-`FEDERATED_CUSTODY_PERMISSIONLESS_RELAY` applies to `PROOF_ONLY`:
+`FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` applies to `PROOF_ONLY`:
 - anyone can relay a certified, matured claim.
 
-Both labels also carry:
-- exit for a claim the quorum never reserved or never anchored is not provided;
-- if the threshold's keys are lost, the anchor freezes and so does all custody (§11).
+Both labels also carry the escape hatch (D8g):
+- if operators censor a forced withdrawal or stop anchoring, anyone can put the vault into exit
+  mode;
+- in exit mode, every user withdraws their balance as of the last anchored root.
+
+Both labels also state two limits:
+- a colluding threshold can still steal by anchoring a false root. A future ZK validity profile
+  removes this (§13a);
+- if the threshold's keys are lost, the anchor stops advancing. The heartbeat timeout then lets
+  users exit through exit mode (§11).
 
 ## 4. Pinned references
 
@@ -374,11 +381,16 @@ the items before it:
 1. one-shot seeds;
 2. `GatewayDomain`;
 3. `VaultId`;
-4. shard thread policy (seeded per vault);
-5. vault script parameters (`VaultId` fields, the anchor identity, the shard policy and shard
-   script hash, the claim key prefix, profile parameters);
-6. vault script hash;
-7. vault address.
+4. shard thread policy, `ShardThreadPolicy(seed)`, one per vault;
+5. vault script parameters: the `VaultId` fields, the anchor identity, **`shardThreadPolicyId`
+   only**, the claim key prefix and profile parameters;
+6. vault script hash, and the vault's **enterprise** address (no stake credential);
+7. the shard validator `NullifierShardValidator(shardThreadPolicyId, vaultScriptHash)` and the
+   shard address.
+
+The vault never takes the shard's script hash; it identifies the shard by its thread token. This
+is the order `SettlementVaultValidator.java:54-60` already documents, and it breaks the
+`vaultScriptHash ↔ shardScriptHash` cycle that r2 reintroduced (R3-F1).
 
 The script hash is **not** part of `VaultId`. It is recorded in the registry next to it.
 
@@ -401,7 +413,7 @@ The bundle ships observer type `asset-vault-deposit-v1`.
 
 | Output at a vault address | Datum | Meaning |
 |---|---|---|
-| Deposit | `DepositDatumV1(beneficiaryAccount, …)`, with its own constructor tag | Creditable if admitted (D6) |
+| Deposit | `DepositDatumV1(beneficiaryAccount, refundAddress, refundKeyHash, …)`, with its own constructor tag | Creditable if admitted (D6). Spendable by `Settle` or `Exit` only after `Accept` (D8f). |
 | Continuation | `VaultContinuationV1(claimIds)`, a different tag | Created only by `Settle` or `Exit`. Never a deposit. |
 | Floor top-up | `FloorTopUpV1` | Operational ADA. Never credited. |
 | Anything else | none, or any other datum | Unattributed custody. Never credited. |
@@ -449,12 +461,19 @@ by that cost and by the journal's back-pressure, which halts intake rather than 
 the same path, so consumers stay unchanged. No callback or webhook can create a deposit
 (ADR-041 §7.1, l.402-404).
 
-**Vault additions.** Adding a vault after genesis is a coordinated configuration change:
-1. new observer settings are added, carrying an `activeFromSlot`;
-2. every member restarts with identical settings. `consensusIdentity` fails closed on a mismatch;
-3. a governed `ASSET_REGISTER` transition takes effect at the same slot.
+**Vault set (revised in r5, R3-F4).** In v1 the vault set is **fixed at genesis**.
 
-The v1 profile limits this to adding vaults. A vault binding is never changed in place (D14).
+Adding a vault after genesis would mean changing the observer settings. That changes
+`observerProfileDigest`, and on restart `L1ObservationJournal` refuses to start ("L1 observation
+journal profile differs from configuration", l.104). `AppChainEngine` also binds a single static
+observer digest for every height.
+
+Post-genesis vault addition, and with it the activation of a `MIGRATE` target, therefore waits on
+framework addition 7 (§7): observer profiles versioned by height, plus a journal profile
+transition. When that exists, a governed `ASSET_REGISTER` commits **before** the new vault's
+`activeFromSlot`, and admission checks `observation.slot ≥ entry.activeFromSlot`.
+
+A vault binding is never changed in place (D14).
 
 *Alternatives considered:*
 - A runtime codec SPI inside the observer. Rejected for v1: it enlarges the consensus surface.
@@ -519,10 +538,14 @@ When a consumer authorizes a withdrawal, the same `apply()` does the following:
    recipient, reservedHeight, reservedAtMs)`. `reservedAtMs` is the reserving block's
    `AppBlock.timestamp`. It is immutable. Status lives under a separate key, and the leaf
    is never deleted.
-4. **Effect.** It emits an `EffectIntent` of type `asset.settlement` with these settings:
-   - payload: `SettlementIntentV1(ClaimId)`;
-   - `FinalityGate.APP_FINAL`;
-   - `ResultPolicy.NONE`.
+4. **Effect** (revised in r5, R3-F9). The effect depends on the settlement mode:
+   - **Default mode.** Claims queue per shard. The ledger emits one `asset.settlement.batch`
+     effect per batch, triggered by a soft cap or by elapsed time. It is `APP_FINAL` and
+     `ResultPolicy.CHAIN`, as the EUTxO `l1.settlement` effect is. A failed or expired result
+     rewinds the batch cursor so the claims are batched again.
+   - **`PROOF_ONLY` mode.** One `asset.settlement` effect per claim, `APP_FINAL`,
+     `ResultPolicy.NONE`.
+   - **Effect results never change claim status** (D10).
 
 **Who authors a claim.** Every field of a claim comes from finalized state. A relayer chooses
 none of them.
@@ -562,8 +585,9 @@ instead (D8e).
 
 **Rules for both redeemers.** These are the safety rules shared by the two paths:
 
-- **V4 — nullifier bijection.** Exactly one shard input of this vault is spent, at the pinned
-  shard script with that vault's shard thread token. It is the shard named by `shardIndex`.
+- **V4 — nullifier bijection.** Exactly one input carries a token of this vault's
+  `shardThreadPolicyId`. It is the shard named by `shardIndex`. Spending it necessarily runs the
+  shard validator.
   - All claim ids route to that shard by their last nibble.
   - The ordered list of ids inserted by the shard redeemer **equals** the ordered list of claim
     ids paid. No insert is missing and none is extra.
@@ -574,7 +598,13 @@ instead (D8e).
   - Its value contains exactly `claim[i].AssetValue` of the vault's asset, plus at least
     `claim[i].vaultLovelace` lovelace.
   - The builder may add more lovelace from non-vault inputs.
-  - Recipients are never script addresses.
+  - Recipients are never script addresses, with one exception: a governed `MIGRATE` claim pays
+    the registered target vault's exact address, carrying `MigrationInV1` (D8d).
+  - **ADA vault.** `vaultLovelace` is always 0, and V6 reduces to a single lovelace equation,
+    `in − out = Σ claim.AssetValue`.
+  - **Withdrawing only a min-ADA credit.** From a token vault, a claim with an empty
+    `AssetValue` and `vaultLovelace = amount` withdraws the credit alone. `REQUEST_WITHDRAWAL`
+    names the `VaultId` explicitly (R3-F9).
 - **V6 — exact vault value equation.** Write `in` for the sum of all vault inputs and `out` for
   the continuation output. Then:
   - for the vault's asset: `in − out = Σ claim.AssetValue`;
@@ -586,7 +616,14 @@ instead (D8e).
   - Its datum is `VaultContinuationV1(claimIds in order)`.
   - No other output in the transaction pays this vault's address.
 - **V8 — script inputs.**
-  - The only script inputs are this vault's own UTxOs and the one shard input.
+  - The only script inputs are this vault's own UTxOs and the one input that carries the shard
+    thread token. Any other script input is rejected, including the anchor, another vault, or
+    dust at the shard address.
+  - `mint` must not contain `shardThreadPolicyId`. Certificates and withdrawals must be empty.
+  - **Exact addresses (R3-F6).** The continuation output's address must equal the pinned
+    enterprise vault address exactly, so a stake credential cannot be swapped in. No other output
+    may have this vault's script hash as its payment credential. The shard validator applies the
+    same rules to its own continuation.
   - The anchor is used as a reference input only.
   - Fees and collateral come from non-script inputs.
 
@@ -793,7 +830,7 @@ anchor still references.
 **Threads**
 - Each vault has 16 shard threads.
 - Their one-shot `ShardThreadPolicy` is seeded per vault.
-- The shard validator is parameterized by that vault's script hash.
+- The shard validator is parameterized by `(shardThreadPolicyId, vaultScriptHash)`, in the D4 order.
 - A vault therefore never accepts another vault's shard, and a payout can never insert into
   another vault's nullifier set (A-F9, B-F3).
 
@@ -820,9 +857,20 @@ claim:
 
 For these, a threshold-governed transition (the same governance as the asset registry, D14)
 creates a governed claim leaf:
-- `SWEEP_UNATTRIBUTED(depositId, recipient)`, bounded by that deposit's recorded value summary;
-- `SWEEP_OPERATIONAL(amount, recipient)`, bounded by the operational account;
-- `MIGRATE(VaultId → new vault address, AssetValue)`.
+- `SWEEP_UNATTRIBUTED(outpoint, sweepValue, recipient)`. It names the **exact unattributed
+  UTxO** and its full value, including any foreign tokens. That UTxO was never accepted (V10), so
+  it was never merged into custody. The spend takes that one input and sends `sweepValue` to the
+  recipient. V6 preservation does not apply to that input (R3-F5).
+- `SWEEP_OPERATIONAL(amount, recipient, terminal)`. When `terminal = true`, the ledger sets it only
+  if the vault's user liabilities, its unresolved deposits and its unpaid claims are all zero.
+  V6 and V7 then allow **no** continuation output, so the vault drains to zero and `RETIRED`
+  becomes reachable.
+- `MIGRATE(targetVaultId, AssetValue)`. It pays the registered target vault's exact address,
+  with a `MigrationInV1(sourceVaultId, ClaimId)` datum, which is D5's fifth output shape. The
+  target's observer treats that output as **accepted custody** for the migrated liabilities,
+  never as a deposit credit.
+  - It requires framework addition 7, so it is not available until then.
+  - Changing the settlement mode (D8e) also needs it.
 
 Governed claims:
 - are payable **only through `Exit`**, never through `Settle`, so they are always subject to the
@@ -832,8 +880,22 @@ Governed claims:
   payable;
 - appear in I3/I4 as explicit terms.
 
-`MIGRATE` moves the liability backing to the new `VaultId` in the same transition. Migrations are
-batched, because each needs one claim per input UTxO set.
+**Accounting (R3-F5).**
+- At reservation, governed claims move value into **separate** reserved counters:
+  - `reservedUnattributed`;
+  - `reservedOperational`;
+  - `migratingOut(V_old)`.
+
+  User liabilities and I4 are unaffected.
+- `MIGRATE` moves the liability backing to `V_new` only **when its payout is confirmed**
+  (`migratingOut → migratingIn → V_new` liabilities). Reconciliation therefore never sees a false
+  deficit, and never forces a `PAUSE` that would block the migration itself.
+
+**Enforcement against a colluding threshold.**
+- `Settle` enforces `claimKind == USER_WITHDRAWAL`, both in the script (the redeemer carries the
+  kind) and in the D9 body check. `Settle` proves nothing against the root.
+- So against a colluding threshold, I22 holds on chain only for `Exit`, and fully only in
+  `PROOF_ONLY` mode. §3 says so.
 
 **Limits.** If the threshold's keys are lost, the anchor freezes, so this profile has no recovery
 path. That is stated in the trust label and in §11 (#110 §3.1 asks for a safe migration plan;
@@ -845,8 +907,8 @@ The genesis profile setting `settlement.mode` takes one of two values:
 
 | Mode | `Settle` | `Exit` delay | Normal path | Trust label |
 |---|---|---|---|---|
-| `COSIGNED_WITH_PROOF_EXIT` (default) | accepted | `exitDelayMs`: default 24 h; on-chain bounds [6 h, 30 d] | co-signed batches | `FEDERATED_COSIGNED_WITH_PERMISSIONLESS_EXIT` |
-| `PROOF_ONLY` | **rejected by the script** | `exitDelayMs` is the maturity brake: default 30 min; on-chain bounds [10 min, 24 h]; must exceed 2 × the anchor's maximum interval (doctor check) | permissionless proof relay | `FEDERATED_CUSTODY_PERMISSIONLESS_RELAY` |
+| `COSIGNED_WITH_PROOF_EXIT` (default) | accepted | `exitDelayMs`: default 24 h; on-chain bounds [6 h, 30 d] | co-signed batches | `FEDERATED_COSIGNED_WITH_ESCAPE_HATCH` |
+| `PROOF_ONLY` | **rejected by the script** | `exitDelayMs` is the maturity brake: default 30 min; on-chain bounds [10 min, 24 h]; must exceed 2 × the anchor's maximum interval (doctor check) | permissionless proof relay | `FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` |
 
 **On-chain parameter.** The mode is a **vault script parameter**, so it is part of the vault's
 script hash.
@@ -875,6 +937,223 @@ proof-only by not running the co-sign service, but only a `PROOF_ONLY` script gu
 path's expected settlement deadline. Exits then fire only after the fast path has failed, and
 the two paths rarely race on shard UTxOs. If they do race, the second transaction simply fails
 (V4).
+
+### D8f. Deposit acceptance (new in r5)
+
+**Why acceptance is needed.** Exit mode (D8g) pays balances from the last anchored root, so that
+root has to account for every value that payouts can spend. A deposit that arrives after the
+root and is merged into the change output of a `Settle` would be unaccounted for, and the vault
+would become insolvent in exit mode.
+
+**Rule V10.** `Settle` and `Exit` may spend only **accepted** vault UTxOs: those whose datum is
+`VaultContinuationV1` or `FloorTopUpV1`. A deposit-shaped UTxO becomes spendable only through
+the `Accept` redeemer.
+
+| Redeemer | Mode | Rule |
+|---|---|---|
+| `Accept(deposits[k])`, co-signed | default mode, normal operation | A threshold of the current anchor datum's members signs (V9). Members sign only for deposits whose `CREDITED` record is at a height ≤ the referenced anchor height (D9 body check). The output is one continuation, with V6 and V7 applied to the accepted value. Expected batch size is about 16 or more, because there are no proofs. |
+| `Accept(deposits[k])`, proved | `PROOF_ONLY` mode, or exit mode | For each deposit, an inclusion proof of `deposit/<DepositId> = CREDITED` under the anchored root (or the frozen root in exit mode). Anyone may submit it. |
+| `Refund(deposit)` | exit mode only | Two proofs, both against the frozen root: an exclusion proof showing that `deposit/<DepositId>` is absent, and an inclusion proof of the frozen `DomainStatusV1`. It pays the deposit's own value to the address the depositor named in `DepositDatumV1`, and the transaction must be signed by the deposit datum's `refundKeyHash`. |
+
+**What acceptance does not do.**
+- It does not change when a deposit is **credited**. Credit still happens on the finalized
+  observation (D6), so deposits stay as fast as before.
+- Acceptance only moves value into spendable custody. Relayers batch it routinely.
+
+**Effect on Q3.** Q3 stays "direct deposits": there is no separate staging address. Deposits gain
+the acceptance step above, and a deposit that was never credited gains a refund path in exit
+mode.
+
+### D8g. Escape hatch: forced withdrawal and exit mode (new in r5)
+
+The proof path pays only claims that are already reserved and anchored. Three gaps remain:
+- the quorum censors a withdrawal request;
+- operators stop anchoring;
+- funds held only as a balance, with no claim.
+
+The escape hatch closes these gaps for operators who **disappear or censor**. It does not protect
+against a colluding threshold that fabricates a root; ZK validity proofs address that in a later
+PR.
+
+**1. Anchor heartbeat (framework addition 5).**
+- `anchor.ak` v2 adds `updatedAtMs` to the anchor datum and binds it to the transaction's
+  validity range, as `SettlementRootValidator` already does for its root.
+- The script anchor service sets `updatedAtMs` on every advance.
+- An anchor advance is required at least every `anchor.max-interval-minutes`, even with no new
+  app blocks, as a pure heartbeat.
+
+**2. Forced-withdrawal inbox.**
+- **Posting a request.** A user posts `ForcedWithdrawalV1(AccountId, AssetId, amount | ALL,
+  recipient, requestNonce)` to the domain's inbox address. The request carries a one-shot
+  request token minted by `ForcedRequestPolicy`, and the policy binds `postedAtMs` to the
+  minting transaction's validity range.
+- **Authorizing a request.** The transaction must be signed by the account's owner key hash.
+  The observer reads this from the transaction's required signers.
+- **Observation.** The `asset-forced-withdrawal-v1` observer reports finalized requests.
+- **What the consumer does.** It must process every finalized request deterministically. It
+  either:
+  - reserves a claim (D7) and writes `forced/<requestId> = RESERVED(ClaimId)`; or
+  - writes `forced/<requestId> = REJECTED(reason)`, where the reason is one of: insufficient
+    balance, unknown account, signer not the owner, or asset not registered.
+
+  Honest members therefore cannot skip a request. ADR-042's prefix verification requires
+  followers to see the same stable facts.
+- **Cleaning up the request UTxO.** Anyone can spend it once its `forced/` record appears under
+  an anchored root. The min-ADA goes back to the requester.
+
+**3. Exit-mode thread.** The domain has one `ExitModeV1` thread UTxO (one-shot token), created at
+bootstrap with `mode = NORMAL`.
+
+`EnterExitMode` moves the thread to `EXIT(frozenRoot, frozenHeight, frozenAtMs)`, taken from the
+current anchor. It is permissionless, and valid if either of two triggers holds:
+
+| Trigger | Condition |
+|---|---|
+| (a) Stale anchor | `lowerBound(validity) ≥ anchor.updatedAtMs + heartbeatTimeoutMs` |
+| (b) Censored forced request | A request UTxO is used as a reference input. `lowerBound ≥ postedAtMs + forcedDeadlineMs`. `anchor.updatedAtMs ≥ postedAtMs + forcedDeadlineMs`, so the anchor is recent enough that the request should be in it. An MPF **exclusion** proof shows `forced/<requestId>` is absent under the anchor's root. |
+
+**4. Rules that change while the thread is in `EXIT`.** Every vault redeemer takes the exit-mode
+thread as a reference input (rule V11). While it is in `EXIT`:
+
+- **`Settle` and co-signed `Accept` are rejected.**
+- **`Exit` for a claim reserved in the frozen root** is allowed with no delay. Its nullifier still
+  protects it.
+- **`BalanceExit(AccountId, AssetId, recipient)`** is a new redeemer. It requires:
+  - an inclusion proof of the account's `available` balance, its `minAdaCredit`, and its owner
+    credential, all under `frozenRoot`;
+  - the transaction to be signed by that owner key hash;
+  - an insert of the domain-separated id `blake2b-256("escape\0" ‖ AccountId ‖ AssetId)` into the
+    vault's shard set, so the balance can be exited only once.
+
+  It pays `available` of that asset, plus the `minAdaCredit`, to the recipient.
+- **Proved `Accept` and `Refund`** follow D8f.
+
+**5. Why exit mode stays solvent.**
+- **Rule V12:** `Settle` requires `claim.reservedHeight ≤ anchor.height` for the anchor it
+  references. Anchors only increase, so any `Settle` payout is for a claim that is `RESERVED` in
+  the frozen root. Its amount is therefore excluded from `available`, and its nullifier blocks a
+  second payment.
+- V10 means the vault's spendable custody is exactly the accepted value, which the frozen root
+  fully accounts for. The rest of the vault is deposit UTxOs that were never accepted:
+  - each one credited in the frozen root is pushed into custody by a proved `Accept`;
+  - each one not credited is refunded by `Refund`.
+- Activity after the frozen root is void: transfers, new reservations and credits. That is the
+  stated semantics of exit mode.
+
+**6. Data availability.**
+- **Client SDK.** It saves each user's balance, owner and claim proofs at every anchor height
+  that L1 confirms.
+- **Snapshot publication.** Each anchor's state snapshot is published by content hash to at least
+  two independent stores, using the existing S3 and IPFS connectors. A domain API route serves
+  proofs at any retained anchor height.
+- **The limit.** This is "best effort with mirrors". A user who saved no proof and finds every
+  mirror gone cannot exit. The trust label states this. The ZK PR revisits data availability.
+
+**7. Parameters.** All are script parameters with on-chain bounds:
+
+| Parameter | Default | Bounds |
+|---|---|---|
+| `heartbeatTimeoutMs` | 72 h | [24 h, 30 d] |
+| `forcedDeadlineMs` | 72 h | [24 h, 30 d] |
+
+Exit mode is **terminal** for the domain in v1. Recovery means a new deployment. The timeouts are
+generous so that an ordinary outage does not trigger exit mode.
+
+**8. What changes for users.** The trust labels are `FEDERATED_COSIGNED_WITH_ESCAPE_HATCH`
+and, for `PROOF_ONLY`, `FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` (D18). Customers can always withdraw
+their anchored balance if operators disappear or censor them. A colluding threshold can still
+steal by anchoring a false root. ZK validity proofs remove that later; the escape hatch is still
+needed with ZK, for liveness.
+
+### D8h. Co-sign safety, handoff, observers and the shard mirror (new in r5, review round 3)
+
+**1. Body checks must resolve every input (R3-F2).**
+
+The problem: members' keys are required signers for both `anchor.ak` and `Settle`, and an L1
+witness signs the whole body hash. A co-sign request that carries only the body would let a
+"liveness-only" owner smuggle the live anchor UTxO into a `Settle`-looking transaction and
+capture the anchor.
+
+The rule for **every** co-sign service (`Settle`, co-signed `Accept`, and anchor advances): a
+member signs only after doing all of the following:
+1. Resolve every `body.inputs` entry against its own `l1UtxoView()`. If any input is unknown,
+   refuse to sign.
+2. Check, for vault spends:
+   - at least one input is at this vault's pinned address;
+   - exactly one input carries this vault's shard thread token;
+   - no other input is a script input;
+   - for anchor advances, the only script input is the anchor UTxO.
+3. Check that `mint`, certificates and withdrawals are empty. For vault spends, also check that
+   `reference_inputs` include the pinned live anchor (and the exit-mode thread, V11).
+4. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
+   claims with `USER_WITHDRAWAL` kind and exact fields, at a reservation height at or below the
+   referenced anchor's height (V12). The domain must be `ACTIVE` and the exit-mode thread
+   `NORMAL`.
+
+The anchor side needs its own fix. `ScriptAnchorService.verifyAdvance` must apply the same
+"no other script input, no mint, certificates or withdrawals" rule. That is framework
+addition 6 (§7), and §12 gate 2 covers it.
+
+**2. Membership handoff (R3-F7).**
+
+`ScriptAnchorService` (l.877-885) refuses a datum whose members differ from the node's *current*
+epoch, which blocks D8b step 2. Framework addition 4 therefore also makes the leader and the
+followers recognize a **committed pending** membership epoch as the anchor's next member set.
+
+During the window between step 2 and step 4:
+- `Settle` signers are taken from the **referenced anchor datum's** member set (V9), not from
+  `context.members()`;
+- the co-sign round collects from that set.
+
+**3. New observers** (R3-F7; listed in D2, §7 and V5). Each has a claim schema and a consensus
+identity:
+
+| Observer | Reports |
+|---|---|
+| `asset-anchor-v1` | Stable anchor outputs: height, `updatedAtMs`, member set, threshold, state root. It feeds the D8b deposit gate, the handoff step 3, and the proof floor. |
+| `asset-shard-bootstrap-v1` | The 16 shard outputs per vault, each with an empty root and exactly one thread token. It feeds the D8c deposit gate. |
+| `asset-exit-mode-v1` | The exit-mode thread moving to `EXIT`. The ledger then freezes: no further intents, reservations or credits. Deposits that arrive later are refunded through `Refund`. |
+| `asset-forced-withdrawal-v1` | Inbox requests (D8g). |
+
+**4. Payout authentication hardening (R3-F6).** `asset-vault-payout-v1` accepts a transaction only
+when all of these hold:
+- `shardThreadPolicyId` does not appear in `tx.mint`;
+- **exactly one** output sits at the shard address;
+- that output carries exactly one token of the policy.
+
+The shard bootstrap transaction, which mints, can therefore never be read as a payout.
+
+**5. Proof floor (R3-F7).** `retainFrom` is tied to the **L1-stable** anchor height, as finalized
+by `asset-anchor-v1`, not to the tip-confirmed height. A rolled-back anchor advance therefore
+never leaves the restored anchor without proofs.
+
+**6. Shard mirror source (R3-F9).** The executor's mirror is built from three sources:
+- confirmed inserts, taken from `PAID` claims in committed state;
+- its **own** submitted inserts that are not yet stable. The executor built them, so it can apply
+  them optimistically. That lets it chain batches on one shard without waiting a stability
+  window;
+- a check against the live shard datum root in `UtxoState`.
+
+If that check finds a mismatch, the executor drops the optimistic part and waits for
+confirmations. A mismatch means a third-party `Exit` or a rollback.
+
+The domain API serves witnesses from the confirmed part, plus the live root. Throughput is 16
+shards in parallel, each chaining its own batches.
+
+**7. One executor per chain.** `AppChainEffectContext` has a single `BridgeDiffusionHandler`, and
+the last registration wins. So one `asset-settlement` executor serves every vault of a chain, and
+it cannot share a chain with the EUTxO bridge unless the handler is multiplexed.
+
+**8. Anchor datum validation (R3-F10).** `MpfAnchorLib` (V1, V9) checks two things before using
+the member set, as `anchor.ak` and `SettlementVaultValidator` do:
+- `member_keys` are strictly ascending, unique, and 32 bytes each;
+- `1 ≤ threshold ≤ count`.
+
+**9. Accounting units (R3-F9, R3-F10).**
+- `paid_lovelace` increases by `claim.vaultLovelace`, never by the lovelace actually in the
+  output, because a builder may have supplemented it.
+- D15's per-unit equations cover exactly `u ∈ {A, lovelace}`.
+- Foreign tokens on L1 are reported separately as unattributed.
 
 ### D9. Settlement executors: the co-sign owner and the exit relayer
 
@@ -1102,6 +1381,9 @@ separately (V3).
   share network id 0.
 - The derived `(kind, keyHash)` must equal the **registered owner credential** of the account
   named in the envelope. A valid signature by account A over an envelope naming account B fails.
+- **Exception for `ROTATE_OWNER` (R3-F8).** It carries **two** COSE signatures over the same
+  envelope. One must verify against the current owner credential and the other against the new
+  credential named in the body (D14a).
 - `AccountId` is stable: `blake2b-224("acct\0" ‖ initial credential kind ‖ keyHash)`, fixed at
   `REGISTER_ACCOUNT`. The current owner credential is stored separately, which allows rotation
   (D14a).
@@ -1226,7 +1508,18 @@ There is no administrative mint, no balance override and no withdrawal bypass (I
 machine configuration. They can only forbid. Integration with the ADR-031.3 policy plane is
 follow-up work, because it requires the machine to expose a `TransitionKernel`.
 
-**Receipts.** Each accepted or rejected intent writes `receipt/<IntentId>`, holding
+**Receipts (revised in r5, R3-F8).**
+- Only an **authenticated, not-yet-used** intent writes anything. It writes both of these:
+  - `used/<IntentId>`;
+  - `receipt/<IntentId>` once, whether its outcome is `ACCEPTED` or a business `REJECTED`.
+- An intent that is unauthenticated, expired or replayed writes nothing. It is dropped at
+  `validate` or skipped in `apply`, so a receipt can never be overwritten or pre-poisoned.
+- `used/` entries are pruned deterministically once `notAfter + maxForwardSkewMs` has passed. The
+  pruning is bounded per block.
+- Receipts are kept. Each tenfold growth adds less than one MPF level, since a level is 16-way,
+  and that depth feeds the `Exit` budget (Q15).
+
+A receipt holds
 `ReceiptV1(IntentId, AccountId, action, AssetId, amount, outcome, height)`. A typed **state**
 proof of that key against a finalized root proves both the outcome and the balance effect. A
 message-inclusion proof would not: it proves inclusion, not the outcome (B-F17;
@@ -1395,8 +1688,8 @@ against both `asset-payments` and `asset-escrow`.
 
 The profile descriptor carries a machine-readable trust label, chosen by the settlement mode
 (D8e):
-- `FEDERATED_COSIGNED_WITH_PERMISSIONLESS_EXIT` for the default mode;
-- `FEDERATED_CUSTODY_PERMISSIONLESS_RELAY` for `PROOF_ONLY`.
+- `FEDERATED_COSIGNED_WITH_ESCAPE_HATCH` for the default mode;
+- `FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` for `PROOF_ONLY`.
 
 These surfaces display it:
 - the capability catalog;
@@ -1406,7 +1699,8 @@ These surfaces display it:
 
 The wording follows ADR app-layer/utxo/001 l.350-352: the threshold can censor withdrawals, and
 can authorize an invalid root. The surfaces also state:
-- the maturity delay;
+- the exit delay and, in `PROOF_ONLY`, the maturity delay, both in L1 time;
+- the escape-hatch timeouts.
 - what happens if the threshold's keys are lost.
 
 ## 6. Invariants
@@ -1435,6 +1729,10 @@ can authorize an invalid root. The surfaces also state:
 | I20 | *(new in r3)* Both redeemers share one nullifier set and one `ClaimId`, and the output-shape rules V5-V8 apply to both. A claim is paid at most once, whichever path pays it. | D8, D8c |
 | I21 | *(new in r3)* The settlement mode is a vault script parameter. A `PROOF_ONLY` vault rejects `Settle` on chain. The mode cannot change without a new vault and governed `MIGRATE` claims. | D8e, D8d |
 | I22 | *(new in r3)* Governed claims are payable only through `Exit`. | D8d |
+| I23 | *(new in r5)* `Settle` and `Exit` spend only accepted UTxOs. A deposit becomes accepted only if its credit is anchored: by co-signing in normal operation, or by proof. | D8f |
+| I24 | *(new in r5)* Every finalized forced-withdrawal request is reserved or rejected, deterministically. If it is absent from a sufficiently recent anchored root past its deadline, anyone can trigger exit mode. | D8g |
+| I25 | *(new in r5)* In exit mode, the frozen root fully accounts for the vault: `Σ available + Σ minAdaCredit + Σ reserved-and-unpaid + floor + unattributed = accepted custody`, plus deposits that were never accepted, each of which is either credited (and then accepted by proof) or refunded. Each balance is exited at most once. | D8f, D8g |
+| I26 | *(new in r5)* `Settle` pays only claims reserved at or below the referenced anchor's height (V12). | D8g |
 
 ## 7. Compatibility
 
@@ -1458,8 +1756,15 @@ bytes and behaviour (I14).
 3. Pinned anchor identity for followers, instead of adopting it from the first sign request
    (D8b).
 4. Governed-membership activation gated on an L1-stable anchor handoff (D8b, Q14).
+5. `anchor.ak` v2 with `updatedAtMs` bound to the transaction's validity range, plus a heartbeat
+   advance at least every `anchor.max-interval-minutes` (D8g).
+6. `ScriptAnchorService.verifyAdvance` rejects any script input other than the anchor, and any
+   mint, certificate or withdrawal (D8h).
+7. Observer profiles versioned by height, with a journal profile transition, so vaults can be
+   added after genesis and `MIGRATE` targets activated (D5, D8d). Until it lands, the vault set
+   is fixed at genesis and `MIGRATE` is unavailable.
 
-Without 2–4, the profile is not safe to fund. They are M4 entry gates.
+Without 2–5, the profile is not safe to fund. Items 2–4 and 6 are M4 entry gates. Item 5 is the M4a entry gate. Item 7 gates M4b (`MIGRATE` and vault addition) only.
 
 **Distribution.** The bundles join the JVM ZIP like other optional bundles and stay off until
 selected. The ZIP and Central size budget is checked when they are added.
@@ -1473,6 +1778,8 @@ selected. The ZIP and Central size budget is checked when they are added.
 | M2 | `cardano-wallet-auth` | M1 (codecs) | V3 passes. The cryptographic oracles agree, or every disagreement is recorded. I10 and I11. |
 | M3 | Ingress: deposit observer, `DepositAdmission`, payment ledger without withdrawals, `asset-escrow` deposits | M1, M2 | On devnet, ADA and two native tokens are credited exactly once across restart and rescan. V5 fixtures A1-A10 never credit or halt. I1, I2, I13, I16. |
 | M4 | Settlement: vault, shard and policy validators; payout observer; relayer; brake; anchor pinning, handoff and proof floor | M3; framework additions 1-4 (§7); Q2 and Q14 decided | Co-signed `Settle` path, with each member running the body check. V6 negative suite for both redeemers, including that a `PROOF_ONLY` vault rejects `Settle`. Measured `Settle` and `Exit` batch caps and costs. On devnet, an `Exit` after the owner node is stopped. A `Settle` racing an `Exit` on the same claim: exactly one succeeds. Both modes run end to end. Partial and full devnet withdrawals in each asset while transfers continue. A third-party relayer pays a claim. The last liability is withdrawn from the last UTxO. A sub-minimum ADA request is rejected. A token payout supplemented by the builder succeeds. I5-I9, I12, I15, I17-I22. |
+| M4a | *(new in r5)* Escape hatch: anchor v2 heartbeat; forced-withdrawal inbox, policy and observer; exit-mode thread; `Accept`, `Refund` and `BalanceExit`; snapshot publication; SDK proof saving | M4; framework addition 5 | Devnet drills. (1) Stop all operators: after the heartbeat timeout anyone enters exit mode, and every account exits its frozen balance, every reserved claim is paid, every credited-but-unaccepted deposit is accepted by proof, and every uncredited deposit is refunded. Then the vault holds only the floor and unattributed value. (2) Censor one forced request: exit mode is triggered by trigger (b). (3) An honestly processed forced request cannot trigger exit mode. (4) A second `BalanceExit` fails. (5) `Settle` is rejected in exit mode. I23-I26. |
+| M4b | *(new in r5)* `MIGRATE`, post-genesis vault addition, and settlement-mode change through migration | Framework addition 7 | Devnet: migrate a vault, with both its liabilities and its custody, to a new vault and a new mode while transfers continue. Reconciliation shows no false deficit. |
 | M5 | Second consumer end to end, conformance kit, EUTxO helper adoption | M4 | `asset-escrow` passes the kit. EUTxO golden bytes unchanged (I14). Substitution passes, and an incompatible configuration fails closed. |
 | M6 | Hardening and qualification | M5 | Drills: multi-node failure, deep rollback (both D15b cases), relayer, signer and anchor outages, handoff under an anchor outage, contention. Wallet interoperability report covering Lace, Eternl, Yoroi and hardware wallets, mobile, user rejection, and unsupported `signData`. Metrics (D15a) running. Throughput, p50/p95/p99 finality latency, resource use and L1 costs reported for single-asset and multi-asset workloads. Trust and operations documentation. |
 | M7 | Production gate | M6 | §12. Not part of this experiment's acceptance. |
@@ -1557,7 +1864,30 @@ Evidence must be independent of the code under test.
 - A9: two deposits in one transaction.
 - A10: a deposit and a vault spend (`Settle` or `Exit`) in the same block, in both hash orders.
 
-**V6 — validators.** Each V1-V9 rule has at least one negative test:
+**V6 — validators.** Each V1-V12 rule has at least one negative test, including these review
+round 3 cases:
+- cross-protocol co-sign confusion: a `Settle`-looking body that spends the anchor UTxO, which
+  members must refuse;
+- a continuation output whose stake credential has been swapped;
+- a second output with the vault's payment credential;
+- dust at the shard address used as an extra input;
+- a spoofed payout in a bootstrap mint;
+- a governed claim in `Settle`;
+- a terminal sweep while liabilities remain;
+- a `MIGRATE` to an unregistered address;
+- a replayed intent overwriting a receipt.
+
+And these cases:
+- `Settle` spending a deposit that was never accepted;
+- co-signed `Accept` in exit mode;
+- `Refund` of a deposit that was credited;
+- `BalanceExit` without the owner's signature, twice, or against a non-frozen root;
+- `EnterExitMode` with a fresh anchor and no censored request;
+- `EnterExitMode` using a request that was processed;
+- a backdated `postedAtMs`;
+- `Settle` with `reservedHeight` above the anchor's height.
+
+The earlier cases remain:
 - `Settle` below threshold;
 - `Settle` signed by members of an older anchor datum;
 - `Settle` against a `PROOF_ONLY` vault;
@@ -1603,7 +1933,7 @@ Budgets are measured, not estimated.
 | A colluding member threshold steals | Stated trust label (D18). The brake makes theft visible but does not prevent it. A validity-proof profile is future work. |
 | Threshold keys are lost, so the anchor and all custody freeze | Stated. Key-management requirements and drills in M6. No in-profile recovery. |
 | Blind signing of intents | The client shows the decoded intent. Short TTL with single-use ids. Session limits. Documentation. |
-| Batch size limited by the MPF budget | Measured in M4. The co-signed batch path is a maintainer option. |
+| Batch size limited by the MPF budget | Affects only `Exit` and `PROOF_ONLY`. The co-signed `Settle` default avoids it. Measured in M4 (Q15). |
 | Anchor stalls or anchor churn | Liveness only. Anchor-age metric. Rebuild on churn. Maturity tuned to the measured interval. |
 | Handoff mistakes strand claims | D8b gate and doctor check. Drill under an anchor outage. |
 | Dust flood to vault addresses | Costs the attacker min-ADA per output. Journal back-pressure. Metric. |
@@ -1637,7 +1967,7 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
 | D8 | Reference vault paths | — | **Decided by the maintainer in r3:** co-signed `Settle` as the default normal path, with a per-claim delayed `Exit` as the fallback. `PROOF_ONLY` can be selected by genesis configuration (D8e). Changing mode means a new vault plus governed `MIGRATE`. |
 | Q1 | Who owns a token deposit's incidental lovelace? | — | **Decided by the maintainer in r4:** (b), an account-bound min-ADA credit (D11). It is not spendable as payment balance. |
 | Q2 | Who funds payout min-ADA? | — | **Decided in r4:** (b), the account's own credit. The builder may supplement it. |
-| Q3 | Direct deposits or staging and acceptance? | — | **Decided in r4:** (a), direct deposits for v1. A staging profile with depositor refunds may come later. |
+| Q3 | Direct deposits or staging and acceptance? | — | **Decided in r4, refined in r5:** direct deposits at the vault address, plus an acceptance step (D8f). No separate staging address. A deposit that was never credited can be refunded in exit mode. |
 | Q4 | Delay on the proof path? | — | **Decided in r2:** maturity plus status-leaf brake (D8a). |
 | Q5 | Accept `hashed: true` (hardware wallets)? | — | **Decided in r4:** (a), reject in v1. Revisit with the M6 interoperability results. |
 | Q6 | How do public users submit intents? | — | **Decided in r4:** (a), an application gateway with a `SUBMIT` credential. |
@@ -1655,7 +1985,76 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
 | Q12 | ADR-041's status versus code that already exists | Flagged for an ADR-041 status update. |
 | Q13 | — | **Decided in r2:** V2 binds the key and the value, with the composite key derivation pinned. |
 | Q15 | Use a two-level withdrawal root to make `Exit` cheaper? | **Decided in r4:** v1 ships a single-level `Exit`, which is simpler to audit; in the default mode `Exit` is only a fallback. If M4 measures fewer than 4 claims per `Exit` transaction, a two-level root becomes a `PROOF_ONLY` profile version under its own review. |
+| Q17 | *(new in r5)* Make exit mode recoverable, so a new root can resume after an outage? | **Not in v1.** Exit mode is terminal and its timeouts are generous. |
+| Q18 | *(new in r5)* Data-availability providers for snapshots | Two independent stores by default (the S3 and IPFS connectors). Revisit in the ZK PR. |
 | Q16 | Exit delay | **Decided in r4:** L1 time (`exitDelayMs`), read from the status leaf and bounded by script parameters. Default mode: 24 h, within [6 h, 30 d]. `PROOF_ONLY`: 30 min, within [10 min, 24 h]. |
+
+## 13a. Guarantees, and the future ZK validity profile (new in r5)
+
+### What this ADR guarantees
+
+| Threat | Guarantee | How |
+|---|---|---|
+| A relayer, an owner node, or anyone on L1 tries to pay the wrong amount, the wrong recipient, or pay twice | **Prevented on chain** | V4-V8, the nullifier bijection, and the exact value equation |
+| A minority of members (below threshold) tries to move funds | **Prevented** | V9 threshold. The anchor threshold. |
+| Operators go offline, stop anchoring, or censor withdrawals | **Funds are not locked** | Proof `Exit` for anchored claims. Forced-withdrawal inbox. Permissionless exit mode with `BalanceExit` (D8g). |
+| A ledger bug creates wrong claims | **Contained** | The maturity and status brake on `Exit`. Members refuse to `Settle`. The observer halts on mismatch. |
+| A **colluding threshold** anchors a fabricated root, or co-signs a false `Settle` | **Not prevented**: stated trust assumption | Reduced by independent operators, HSM-held keys, a high threshold and public monitoring. Removed by the ZK profile below. |
+| Every copy of the state data is lost | **Not guaranteed** | Client-side proof saving plus mirrored snapshots. Revisited with ZK. |
+
+The documentation and every user surface must state the last two rows plainly (D18).
+
+### The future ZK validity profile (separate ADR and PR)
+
+**Goal.** Remove the colluding-threshold theft assumption. L1 accepts a new anchored root only
+with a validity proof that it follows from the previous root under the ledger's rules. Those
+rules include every user signature check, so a quorum can no longer fabricate balances or
+claims.
+
+**What carries over unchanged**, so that this ADR does not paint ZK into a corner:
+- `ClaimLeafV1`, the claim key layout (V2), the nullifier shards, and the vault value rules
+  (V4-V8).
+- `Exit`, `Accept`, `Refund` and `BalanceExit`. The only change is that the root they prove
+  against becomes proof-validated.
+- The escape hatch (D8g). It stays necessary, because ZK proves that roots are correct but
+  cannot force operators to produce them. With ZK, exit mode becomes fully trustless, apart from
+  data availability.
+- Deposit observation, admission and accounting. These are deterministic and already shaped as
+  pure transitions.
+
+**What ZK adds**
+- **An anchor validator that verifies a proof.** It checks a Groth16 proof over BLS12-381 using
+  Plutus V3 builtins, alongside or instead of the member threshold.
+- **A circuit for the payment-ledger transition**, covering:
+  - balance updates and per-asset conservation;
+  - nonce and intent single-use;
+  - session limits;
+  - **wallet-signature verification**.
+- **A trusted-setup ceremony.**
+- **Data availability that is enforced** rather than best effort: for example, state diffs
+  posted to L1 or to an attested DA layer, as `ledgers/eutxo-zk/Z5_DATA_AVAILABILITY.md`
+  explores.
+- **Proving infrastructure and latency budgets.**
+
+**Prior art in the repository.** `ledgers/eutxo-zk`: a ZeroJ Groth16 validity-root pipeline for
+the EUTxO ledger. It covers batch circuit, prover, validity root, proof withdrawals and data
+availability (Z0–Z6). It is excluded from the build and is pre-production. ADR app-layer/utxo/001
+names "a direct ZeroJ validity proof" as the selected long-term settlement direction.
+
+**Known hard parts**
+- Verifying Ed25519 and CIP-8 COSE signatures in a circuit is expensive. Options:
+  - an in-circuit Ed25519 gadget;
+  - a zkVM;
+  - session keys on a SNARK-friendly curve, with only `AUTHORIZE_SESSION` signed by the wallet.
+- Proving latency against withdrawal latency.
+- Ceremony and audit cost.
+
+**Path**
+1. This ADR's M1-M6 land first.
+2. A follow-up ADR then specifies the circuit, the setup and data availability, reusing the
+   contracts and vault ABI defined here.
+3. Moving existing chains to the ZK profile follows the governed `MIGRATE` path, because the
+   anchor and vault identities change.
 
 ## 14. Alternatives considered (overall)
 
@@ -1752,3 +2151,38 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
     - V3 checks the transaction's validity lower bound.
     - The delay lives in the status leaf, with an on-chain floor and ceiling. This also enforces
       on chain the delay floor that ADR-UTXO-009 §13.1 lacks.
+- **r5** (2026-11-25): The maintainer requires that customers are never locked out. ZK validity
+  is deferred to a later PR. This revision adds:
+  - D8f, deposit acceptance (V10). It keeps exit mode solvent.
+  - D8g, an escape hatch, made up of:
+    - an anchor v2 heartbeat (framework addition 5);
+    - a forced-withdrawal inbox with deterministic processing;
+    - a permissionless `EnterExitMode`, triggered by a stale anchor or a censored forced
+      request;
+    - `BalanceExit` with per-account nullifiers;
+    - a proved `Accept` and an exclusion-proved `Refund`;
+    - V11 (every vault redeemer reads the exit-mode thread) and V12 (`Settle` only for claims at
+      or below the anchor height);
+    - snapshot publication and SDK proof saving for data availability.
+  - Invariants I23-I26, milestone M4a, and the matching V6 cases.
+  - Q3 refined. New open questions Q17 and Q18.
+  - Trust labels now name the escape hatch.
+  - New §13a: a guarantee table that states plainly what is and is not prevented, and the future ZK validity profile (what carries over, what it adds, prior art in `ledgers/eutxo-zk`, the hard parts, and the path to it).
+  - **Review round 3** (reviewer3, of `286d6861`):
+    - R3-F1: acyclic derivation, with the vault parameterized by `shardThreadPolicyId` only (D4,
+      V4, D8c).
+    - R3-F2: body checks resolve every input; anchor `verifyAdvance` hardened (D8h §1, framework
+      addition 6).
+    - R3-F3: already fixed in r4, where the delays moved to L1 time.
+    - R3-F4: the vault set is fixed at genesis; vault addition and `MIGRATE` gated on framework
+      addition 7, with milestone M4b.
+    - R3-F5: `SWEEP_UNATTRIBUTED` names an exact UTxO including foreign tokens; terminal sweep
+      makes `RETIRED` reachable; `MIGRATE` uses the `MigrationInV1` shape and moves backing on
+      confirmation; separate reserved counters; `Settle` restricted to `USER_WITHDRAWAL`.
+    - R3-F6: exact enterprise addresses; mint excluded from payout authentication.
+    - R3-F7: handoff recognized by the anchor service; `Settle` signs with the anchor datum's set;
+      new anchor, shard-bootstrap and exit-mode observers; L1-stable proof floor.
+    - R3-F8: receipts written once, only for authenticated intents; `used/` pruning.
+    - R3-F9: effect policy per mode; shard mirror source; ADA-vault and credit-only claim rules;
+      one executor per chain.
+    - R3-F10: stale lines fixed; delays surfaced; units stated; anchor datum validation.
