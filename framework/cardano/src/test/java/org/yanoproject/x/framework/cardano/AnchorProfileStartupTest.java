@@ -18,7 +18,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * ADR-059 additions 3 and 4 fail startup closed on configurations they cannot honour: a
  * pinned anchor identity on a metadata-mode anchor, an invalid anchor profile, and the
- * membership handoff gate on a static-membership chain.
+ * membership handoff gate on a static-membership chain, without a script anchor, or without
+ * an installed gate.
  */
 @Timeout(60)
 class AnchorProfileStartupTest {
@@ -49,10 +50,32 @@ class AnchorProfileStartupTest {
         assertStartFails(config, "membership.mode=governed");
     }
 
+    /**
+     * Review P2-3: the gate would freeze membership wherever it can never finalize, so
+     * startup fails without a script anchor to carry the set or a gate to finalize it.
+     */
+    @Test
+    void membershipHandoffFailsStartWithoutAScriptAnchorOrAGate() {
+        Map<String, String> governed = Map.of("membership.mode", "governed",
+                "membership.anchor-handoff", "true");
+        assertStartFails(config("handoff-metadata", governed, new AppChainConfig.AnchorConfig(
+                true, "aa".repeat(32), 10, 60, 7014)), "anchor.mode=script");
+        assertStartFails(config("handoff-no-l1", governed, null), "L1 access");
+        // Script anchor with L1 access, but the framework ships no gate.
+        assertStartFails(config("handoff-no-gate", governed, null), "handoff gate", node ->
+                node.wireL1(cbor -> "00".repeat(32), () -> null));
+    }
+
     private void assertStartFails(AppChainConfig config, String message) {
+        assertStartFails(config, message, node -> { });
+    }
+
+    private void assertStartFails(AppChainConfig config, String message,
+                                  java.util.function.Consumer<AppChainSubsystem> wiring) {
         AppChainSubsystem node = new AppChainSubsystem(config, 42, null, null,
                 directory.resolve(config.chainId()).toString(), null,
                 LoggerFactory.getLogger(AnchorProfileStartupTest.class));
+        wiring.accept(node);
         try {
             assertThatThrownBy(node::start).hasStackTraceContaining(message);
         } finally {

@@ -238,6 +238,13 @@ final class ScriptAnchorService {
     private volatile Supplier<Optional<MembershipHandoff>> pendingHandoff = Optional::empty;
     /** Wall clock for heartbeat scheduling (replaceable in tests). */
     private volatile LongSupplier wallClock = System::currentTimeMillis;
+    /** This node's configured UTxO storage filter (review P2-1); NONE when unfiltered. */
+    private volatile L1UtxoViewFilter utxoViewFilter = L1UtxoViewFilter.NONE;
+    /** Startup finding on {@link #utxoViewFilter} for status, or null. */
+    private volatile String utxoViewWarning;
+    /** Last co-sign request this member refused on the body rules, for status (review P2-1). */
+    private volatile BodyRefusal lastCosignRefusal;
+    private volatile long lastCosignRefusalAt;
 
     ScriptAnchorService(String chainId,
                         String applicationId,
@@ -329,6 +336,71 @@ final class ScriptAnchorService {
 
     void setWallClock(LongSupplier clock) {
         this.wallClock = Objects.requireNonNull(clock, "clock");
+    }
+
+    /**
+     * Check this node's configured UTxO storage filter against what script anchoring needs
+     * (review P2-1). Every member resolves every input of a co-sign body, including the
+     * leader's fee and collateral inputs, in its own UTxO view and refuses what it cannot
+     * resolve, so a filter that drops the leader's wallet makes the member refuse every
+     * advance. Fails (startup) where the misconfiguration is certain: this node's own anchor
+     * wallet (leader) or the known anchor script address is filtered out. Otherwise, with a
+     * filter on, records a prominent status warning: a follower cannot know the leader's
+     * wallet address, so the operator must make sure the filter admits it.
+     */
+    void checkUtxoViewFilter(L1UtxoViewFilter filter) {
+        this.utxoViewFilter = Objects.requireNonNull(filter, "filter");
+        if (!filter.filtering()) {
+            utxoViewWarning = null;
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        if (walletAddress != null && !filter.admits(walletAddress.getAddress(),
+                walletAddress.getPaymentCredentialHash().orElse(null))) {
+            missing.add("this node's anchor wallet " + walletAddress.getAddress());
+        }
+        byte[] scriptHash = ledger.metaBytes(META_SCRIPT_HASH);
+        if (scriptHash != null && scriptHash.length == 28) {
+            Address scriptAddress = AddressProvider.getEntAddress(Credential.fromScript(scriptHash), network);
+            if (!filter.admits(scriptAddress.getAddress(), scriptHash)) {
+                missing.add("the anchor script address " + scriptAddress.getAddress());
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("App-chain '" + chainId + "': script anchoring needs "
+                    + "every member's UTxO view to hold the anchor thread and the leader's fee and "
+                    + "collateral inputs, but " + L1UtxoViewFilter.ENABLED + "=true drops "
+                    + String.join(" and ", missing) + ". Add them to " + L1UtxoViewFilter.ADDRESSES
+                    + " or " + L1UtxoViewFilter.PAYMENT_CREDENTIALS + ", or disable the UTxO filter");
+        }
+        utxoViewWarning = L1UtxoViewFilter.ENABLED + "=true: this member co-signs an anchor "
+                + "advance only if its filtered UTxO view resolves every input, so the filter must "
+                + "admit the anchor leader's wallet address (fee and collateral inputs); otherwise "
+                + "every advance is refused as an unresolvable input";
+        logWarnSafely("Script-anchor: {}", utxoViewWarning);
+    }
+
+    /**
+     * ADR-059 review P3: the persisted anchor identity must have been made by the configured
+     * validator. An {@code anchor-profile.version} (or validator) switch on an existing thread
+     * would otherwise leave the node refusing every advance; fail startup with the cause.
+     */
+    void verifyPersistedScriptHash() {
+        byte[] policyId = ledger.metaBytes(META_SCRIPT_POLICY_ID);
+        byte[] persisted = ledger.metaBytes(META_SCRIPT_HASH);
+        if (policyId == null || policyId.length != 28 || persisted == null || persisted.length != 28) {
+            return;
+        }
+        byte[] configured = AnchorScriptArtifacts.scriptHash(artifacts.validator(policyId));
+        if (!Arrays.equals(configured, persisted)) {
+            throw new IllegalStateException("App-chain '" + chainId + "': the persisted script-anchor "
+                    + "identity (scriptHash " + HexUtil.encodeHexString(persisted) + ") was made by a "
+                    + "different validator than the configured anchor artifacts (scriptHash "
+                    + HexUtil.encodeHexString(configured) + ", anchor-profile.version="
+                    + artifacts.version() + "). An existing anchor thread keeps its ABI version and "
+                    + "validator: restore the previous anchor-profile.version / anchor.script.validator, "
+                    + "or start a new chain with a new anchor thread");
+        }
     }
 
     AnchorProfileSettings profile() {
@@ -591,10 +663,18 @@ final class ScriptAnchorService {
                 return null;
             }
             boolean dueByCount = tip - lastAnchored >= anchorConfig.everyBlocks();
-            boolean dueByTime = lastAnchorAttemptAt > 0
-                    ? System.currentTimeMillis() - lastAnchorAttemptAt
-                            >= anchorConfig.maxIntervalMinutes() * 60_000
-                    : true;
+            // v1: the interval runs from the last round START. v2 (review P2-4): from the anchor
+            // datum's updatedAtMs, which only an L1-confirmed advance or heartbeat moves, so a
+            // failed round never resets the time trigger and pending blocks never delay it.
+            boolean dueByTime;
+            if (profile.v2()) {
+                dueByTime = !dueByCount && (lastAnchorAttemptAt == 0 || anchorAgeDue());
+            } else {
+                dueByTime = lastAnchorAttemptAt > 0
+                        ? System.currentTimeMillis() - lastAnchorAttemptAt
+                                >= anchorConfig.maxIntervalMinutes() * 60_000
+                        : true;
+            }
             if (dueByCount || dueByTime) {
                 startCosignRound(null);
             }
@@ -643,7 +723,7 @@ final class ScriptAnchorService {
             SignerProfile signerProfile = signerProfile();
             Set<String> signers = signerSubsetHex != null
                     ? signerSubsetHex
-                    : new TreeSet<>(signerProfile.members());
+                    : initialSigners(signerProfile);
             int threshold = signerProfile.threshold();
             if (signers.size() < threshold) {
                 lastError = "Co-sign signer set (" + signers.size()
@@ -656,10 +736,11 @@ final class ScriptAnchorService {
                 return; // nothing to anchor / anchor UTxO not visible yet
             // Owner self-check (ADR-059 D8h §1, I28): the leader applies the members' body
             // rules to its own body before signing it.
-            String hazard = bodyHazard(built.tx().getBody(), built.anchorUtxo(),
+            BodyRefusal refusal = bodyHazard(built.tx().getBody(), built.anchorUtxo(),
                     built.scriptHash(), null);
-            if (hazard != null) {
-                lastError = "Script-anchor own advance body refused: " + hazard;
+            if (refusal != null) {
+                lastError = "Script-anchor own advance body refused (" + refusal.kind().label() + "): "
+                        + refusal.detail();
                 log.warn("Script-anchor: {}", lastError);
                 return;
             }
@@ -781,6 +862,24 @@ final class ScriptAnchorService {
         return new SignerProfile(new TreeSet<>(membersSupplier.get()), thresholdSupplier.getAsInt());
     }
 
+    /**
+     * The first round's signer set. Normally every authorizing member. With the D8b handoff
+     * the anchor datum's members can include keys that are not yet (or no longer) consensus
+     * members and so may not receive or answer sign requests; when the datum members that are
+     * also current consensus members (old ∩ new) still meet the datum threshold, the round
+     * starts with them instead of waiting out a timeout before the responsive-subset retry.
+     * The validator only counts datum members, so any subset meeting the threshold is valid.
+     */
+    private Set<String> initialSigners(SignerProfile signerProfile) {
+        Set<String> all = new TreeSet<>(signerProfile.members());
+        if (!handoffMode) {
+            return all;
+        }
+        Set<String> live = new TreeSet<>(all);
+        live.retainAll(membersSupplier.get());
+        return live.size() >= signerProfile.threshold() && live.size() < all.size() ? live : all;
+    }
+
     /** The anchor's next member set: a committed pending handoff, else the current epoch. */
     private SignerProfile nextMembership() {
         if (handoffMode) {
@@ -815,15 +914,29 @@ final class ScriptAnchorService {
 
     /** Anchor v2: the leader's heartbeat is due when the anchor's updatedAtMs is old enough. */
     private boolean heartbeatDue() {
+        AnchorDatumCodec.AnchorDatum current = currentV2Datum();
+        return current != null && current.height() >= 1 && aged(current);
+    }
+
+    /** Anchor v2: the on-L1 anchor is at least anchor.max-interval-minutes old (any height). */
+    private boolean anchorAgeDue() {
+        AnchorDatumCodec.AnchorDatum current = currentV2Datum();
+        return current != null && aged(current);
+    }
+
+    private boolean aged(AnchorDatumCodec.AnchorDatum current) {
+        return wallClock.getAsLong() - current.updatedAtMs()
+                >= anchorConfig.maxIntervalMinutes() * 60_000L;
+    }
+
+    private AnchorDatumCodec.AnchorDatum currentV2Datum() {
         Utxo anchorUtxo = findAnchorUtxo(ledger.metaBytes(META_SCRIPT_POLICY_ID),
                 ledger.metaBytes(META_SCRIPT_HASH));
         if (anchorUtxo == null) {
-            return false;
+            return null;
         }
         AnchorDatumCodec.AnchorDatum current = AnchorDatumCodec.decode(anchorUtxo.inlineDatum());
-        return current.version() == AnchorDatumCodec.ABI_VERSION_V2 && current.height() >= 1
-                && wallClock.getAsLong() - current.updatedAtMs()
-                        >= anchorConfig.maxIntervalMinutes() * 60_000L;
+        return current.version() == AnchorDatumCodec.ABI_VERSION_V2 ? current : null;
     }
 
     /** Anchor v2 validity window in slots: [lower, upper), upper − lower ≤ max-window-ms. */
@@ -1066,10 +1179,10 @@ final class ScriptAnchorService {
         }
         // 1a. ADR-059 D8h §1 / framework addition 6: every input resolved, no other script
         // input, nothing locked by my member key, no mint/certificate/withdrawal/vote/proposal.
-        String hazard = bodyHazard(body, anchorUtxo, scriptHash,
+        BodyRefusal refusal = bodyHazard(body, anchorUtxo, scriptHash,
                 Blake2bUtil.blake2bHash224(memberSigner.publicKey()));
-        if (hazard != null) {
-            log.warn("Script-anchor: sign request body refused — {}", hazard);
+        if (refusal != null) {
+            recordCosignRefusal(refusal);
             return false;
         }
         if (adopting && !validAdoptionBaseline(anchorUtxo)) {
@@ -1217,27 +1330,27 @@ final class ScriptAnchorService {
      * nothing else; null for the leader's self-check, whose fee inputs it chose itself); and
      * mint, certificates, withdrawals, votes and proposals are empty.
      */
-    private String bodyHazard(TransactionBody body, Utxo anchorUtxo, byte[] scriptHash,
-                              byte[] refuseKeyHash) {
+    private BodyRefusal bodyHazard(TransactionBody body, Utxo anchorUtxo, byte[] scriptHash,
+                                   byte[] refuseKeyHash) {
         if (body.getMint() != null && !body.getMint().isEmpty()) {
-            return "it mints or burns";
+            return BodyRefusal.hazard("it mints or burns");
         }
         if (body.getCerts() != null && !body.getCerts().isEmpty()) {
-            return "it carries certificates";
+            return BodyRefusal.hazard("it carries certificates");
         }
         if (body.getWithdrawals() != null && !body.getWithdrawals().isEmpty()) {
-            return "it withdraws rewards";
+            return BodyRefusal.hazard("it withdraws rewards");
         }
         if (body.getVotingProcedures() != null && body.getVotingProcedures().getVoting() != null
                 && !body.getVotingProcedures().getVoting().isEmpty()) {
-            return "it votes";
+            return BodyRefusal.hazard("it votes");
         }
         if (body.getProposalProcedures() != null && !body.getProposalProcedures().isEmpty()) {
-            return "it proposes";
+            return BodyRefusal.hazard("it proposes");
         }
         UtxoState utxoState = utxoStateSupplier.get();
         if (utxoState == null) {
-            return "no local UTxO view";
+            return BodyRefusal.unresolved("no local UTxO view");
         }
         List<com.bloxbean.cardano.client.transaction.spec.TransactionInput> inputs = new ArrayList<>();
         if (body.getInputs() != null) {
@@ -1257,8 +1370,10 @@ final class ScriptAnchorService {
                 resolved = null;
             }
             if (resolved == null) {
-                return "input " + input.getTransactionId() + "#" + input.getIndex()
-                        + " is not in my UTxO view";
+                return BodyRefusal.unresolved("input " + input.getTransactionId() + "#" + input.getIndex()
+                        + " is not in my UTxO view" + (utxoViewFilter.filtering()
+                                ? " (" + L1UtxoViewFilter.ENABLED + "=true: does the filter admit the "
+                                        + "leader's wallet?)" : ""));
             }
             Credential payment;
             try {
@@ -1267,18 +1382,61 @@ final class ScriptAnchorService {
                 payment = null;
             }
             if (payment == null) {
-                return "input " + input.getTransactionId() + "#" + input.getIndex()
-                        + " has no readable payment credential";
+                return BodyRefusal.hazard("input " + input.getTransactionId() + "#" + input.getIndex()
+                        + " has no readable payment credential");
             }
             if (payment.getType() == com.bloxbean.cardano.client.address.CredentialType.Script) {
                 if (!isAnchor || !java.util.Arrays.equals(payment.getBytes(), scriptHash)) {
-                    return "it spends a script input other than the anchor";
+                    return BodyRefusal.hazard("it spends a script input other than the anchor");
                 }
             } else if (refuseKeyHash != null && java.util.Arrays.equals(payment.getBytes(), refuseKeyHash)) {
-                return "it spends an input locked by my own member key";
+                return BodyRefusal.hazard("it spends an input locked by my own member key");
             }
         }
         return null;
+    }
+
+    /**
+     * Why a co-sign body was refused (review P2-1). {@link Kind#UNRESOLVED_INPUT} means this
+     * node's UTxO view lacks an input (a lagging or filtered view: an availability problem);
+     * {@link Kind#HAZARD} means the body itself is unsafe to sign. Both fail closed.
+     */
+    record BodyRefusal(Kind kind, String detail) {
+        enum Kind {
+            UNRESOLVED_INPUT("unresolvable-input"),
+            HAZARD("hazard");
+
+            private final String label;
+
+            Kind(String label) {
+                this.label = label;
+            }
+
+            String label() {
+                return label;
+            }
+        }
+
+        static BodyRefusal unresolved(String detail) {
+            return new BodyRefusal(Kind.UNRESOLVED_INPUT, detail);
+        }
+
+        static BodyRefusal hazard(String detail) {
+            return new BodyRefusal(Kind.HAZARD, detail);
+        }
+    }
+
+    private void recordCosignRefusal(BodyRefusal refusal) {
+        lastCosignRefusal = refusal;
+        lastCosignRefusalAt = System.currentTimeMillis();
+        if (refusal.kind() == BodyRefusal.Kind.UNRESOLVED_INPUT) {
+            lastError = "Co-sign refused: unresolvable input — " + refusal.detail()
+                    + " (this member's UTxO view must hold every input of the leader's body)";
+        } else {
+            lastError = "Co-sign refused: body hazard — " + refusal.detail();
+        }
+        log.warn("Script-anchor: sign request body refused ({}) — {}", refusal.kind().label(),
+                refusal.detail());
     }
 
     private boolean validAdoptionBaseline(Utxo anchorUtxo) {
@@ -2233,6 +2391,19 @@ final class ScriptAnchorService {
         if (handoffMode) {
             pendingHandoff.get().ifPresent(handoff ->
                     status.put("pendingHandoffMembers", handoff.members().size()));
+        }
+        if (utxoViewFilter.filtering()) {
+            status.put("utxoViewFiltered", true);
+            String warning = utxoViewWarning;
+            if (warning != null) {
+                status.put("utxoViewWarning", warning);
+            }
+        }
+        BodyRefusal refusal = lastCosignRefusal;
+        if (refusal != null) {
+            status.put("lastCosignRefusalKind", refusal.kind().label());
+            status.put("lastCosignRefusal", refusal.detail());
+            status.put("lastCosignRefusalAt", lastCosignRefusalAt);
         }
         status.put("lastAnchoredHeight", lastAnchoredHeight());
         status.put("observedAnchorCount", observedAnchorCount);

@@ -53,6 +53,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -93,6 +94,9 @@ class ScriptAnchorProfileTest {
     Path tempDir;
 
     private final List<byte[]> submitted = new ArrayList<>();
+    /** Leader submissions fail while set (a failed round); every attempt is counted. */
+    private final AtomicBoolean failSubmit = new AtomicBoolean();
+    private final AtomicInteger submitAttempts = new AtomicInteger();
     private final long[] tip = {5};
     private final AtomicLong l1Slot = new AtomicLong(500);
     private final AddressedUtxoState utxoState = new AddressedUtxoState();
@@ -136,9 +140,15 @@ class ScriptAnchorProfileTest {
         assertRefused(probe, witnesses, fixture, body -> body.getInputs().add(
                 new TransactionInput("ab".repeat(32), 0)));
 
-        // An input this node cannot resolve (fail closed), including collateral.
+        assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "hazard");
+
+        // An input this node cannot resolve (fail closed), including collateral. Status tells
+        // an unresolvable input (a lagging or filtered view) apart from a body hazard.
         assertRefused(probe, witnesses, fixture, body -> body.getInputs().add(
                 new TransactionInput("cd".repeat(32), 3)));
+        assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "unresolvable-input");
+        assertThat((String) probe.status().get("lastCosignRefusal")).contains("cd".repeat(32) + "#3");
+        assertThat((String) probe.status().get("lastError")).startsWith("Co-sign refused: unresolvable input");
         assertRefused(probe, witnesses, fixture, body -> body.setCollateral(new ArrayList<>(List.of(
                 new TransactionInput("cd".repeat(32), 4)))));
 
@@ -159,10 +169,84 @@ class ScriptAnchorProfileTest {
         assertRefused(probe, witnesses, fixture, body -> body.setWithdrawals(new ArrayList<>(List.of(
                 new Withdrawal(AddressProvider.getRewardAddress(Credential.fromKey(fill(28, 0x02)), NETWORK)
                         .getAddress(), BigInteger.ONE)))));
+        assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "hazard");
+        assertThat((String) probe.status().get("lastError")).startsWith("Co-sign refused: body hazard");
 
         // The honest body is still accepted afterwards.
         deliverRequest(probe, fixture.advance().getBody(), fixture);
         assertThat(witnesses).hasValue(2);
+    }
+
+
+    /** Review P2-1: a filtered UTxO store is checked at startup and surfaced in status. */
+    @Test
+    void filteredUtxoViewFailsWhereCertainAndWarnsWhereNot() throws Exception {
+        Pair pair = pair(AnchorProfileSettings.defaults(), false, () -> Optional.empty());
+        Fixture fixture = bootstrapAndAdvance(pair, 9);
+        String scriptCredential = fixture.scriptHash();
+
+        // Unfiltered (default, or enabled with no lists): nothing to report.
+        pair.leader().checkUtxoViewFilter(L1UtxoViewFilter.fromGlobals(Map.of()));
+        pair.leader().checkUtxoViewFilter(L1UtxoViewFilter.fromGlobals(Map.of(L1UtxoViewFilter.ENABLED, "true")));
+        assertThat(pair.leader().status()).doesNotContainKey("utxoViewFiltered");
+
+        // The leader's own wallet filtered out: certain misconfiguration, startup fails.
+        L1UtxoViewFilter scriptOnly = L1UtxoViewFilter.fromGlobals(Map.of(L1UtxoViewFilter.ENABLED, "true",
+                L1UtxoViewFilter.PAYMENT_CREDENTIALS, scriptCredential));
+        assertThatThrownBy(() -> pair.leader().checkUtxoViewFilter(scriptOnly))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("anchor wallet")
+                .hasMessageContaining(L1UtxoViewFilter.ADDRESSES);
+        // The known anchor script address filtered out: startup fails on any member that
+        // holds the identity.
+        L1UtxoViewFilter walletOnly = L1UtxoViewFilter.fromGlobals(Map.of(L1UtxoViewFilter.ENABLED, "true",
+                L1UtxoViewFilter.ADDRESSES, List.of(wallet)));
+        assertThatThrownBy(() -> pair.leader().checkUtxoViewFilter(walletOnly))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("anchor script address");
+
+        // Both admitted: the leader starts, with a prominent warning in status; a follower
+        // (which cannot know the leader's wallet) gets the same warning.
+        L1UtxoViewFilter both = L1UtxoViewFilter.fromGlobals(Map.of(L1UtxoViewFilter.ENABLED, "true",
+                L1UtxoViewFilter.ADDRESSES, wallet + ", " + fixture.scriptAddress()));
+        pair.leader().checkUtxoViewFilter(both);
+        pair.follower().checkUtxoViewFilter(both);
+        for (ScriptAnchorService node : List.of(pair.leader(), pair.follower())) {
+            assertThat(node.status()).containsEntry("utxoViewFiltered", true);
+            assertThat((String) node.status().get("utxoViewWarning")).contains("leader's wallet");
+        }
+
+        // A filtered follower that cannot resolve the leader's fee input refuses, and says why.
+        AtomicInteger witnesses = new AtomicInteger();
+        ScriptAnchorService probe = probe(AnchorProfileSettings.defaults(), false, Optional::empty,
+                followerSigner, witnesses);
+        probe.checkUtxoViewFilter(L1UtxoViewFilter.fromGlobals(Map.of(L1UtxoViewFilter.ENABLED, "true",
+                L1UtxoViewFilter.ADDRESSES, fixture.scriptAddress())));
+        assertRefused(probe, witnesses, fixture, body -> body.getInputs().add(
+                new TransactionInput("cd".repeat(32), 3)));
+        assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "unresolvable-input");
+        assertThat((String) probe.status().get("lastCosignRefusal")).contains(L1UtxoViewFilter.ENABLED);
+    }
+
+    /** Review P3: switching anchor-profile.version on an existing thread fails with its cause. */
+    @Test
+    void persistedIdentityFromAnotherValidatorVersionFailsStartup() throws Exception {
+        Pair pair = pair(AnchorProfileSettings.defaults(), false, Optional::empty);
+        bootstrapAndAdvance(pair, 9);
+        pair.leader().verifyPersistedScriptHash();
+        pair.follower().verifyPersistedScriptHash();
+
+        ScriptAnchorService switched = service(true, pair.leaderLedger(), leaderSigner,
+                new AnchorScriptArtifacts(AppChainConfig.AnchorScriptConfig.defaults(), V2), (topic, body) -> { });
+        switched.wireAnchorProfile(V2);
+        assertThatThrownBy(switched::verifyPersistedScriptHash)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("anchor-profile.version=2")
+                .hasMessageContaining("different validator");
+        // No identity yet: nothing to compare.
+        ScriptAnchorService fresh = service(true, ledger("fresh"), leaderSigner,
+                new AnchorScriptArtifacts(AppChainConfig.AnchorScriptConfig.defaults(), V2), (topic, body) -> { });
+        fresh.verifyPersistedScriptHash();
     }
 
     // =================================================================== addition 5
@@ -264,6 +348,59 @@ class ScriptAnchorProfileTest {
         pair.follower().onL1Rollback(250);
         assertThat(pair.follower().lastAnchoredHeight()).isEqualTo(9);
         assertThat(pair.follower().status()).containsEntry("lastAnchorTx", advanceHash);
+    }
+
+    /**
+     * Review P2-4: the v2 time trigger runs from the anchor's updatedAtMs, not from the last
+     * round start, so pending blocks below every-blocks and a failed round never let the
+     * anchor go stale for another full interval.
+     */
+    @Test
+    void v2TimeTriggerFollowsTheAnchorAgeThroughFailedRounds() throws Exception {
+        Pair pair = pair(V2, false, Optional::empty);
+        Fixture fixture = bootstrapAndAdvance(pair, 9);
+        AnchorDatumCodec.AnchorDatum advanced = AnchorDatumCodec.decode(
+                fixture.advanceOut().getInlineDatum().serializeToBytes());
+        utxoState.put(fixture.scriptAddress(), List.of(anchorUtxo(fixture.advanceHash(),
+                fixture.advanceOutIndex(), fixture.advanceOut(), fixture.policy(), 200)));
+        pair.leader().onL1Block(200, l1Hash(200), List.of(fixture.advanceHash()));
+        TransactionOutput change = outputTo(fixture.advance(), wallet);
+        utxoState.put(wallet, List.of(walletUtxo(fixture.advanceHash(),
+                fixture.advance().getBody().getOutputs().indexOf(change), change.getValue().getCoin().longValue())));
+        assertThat(pair.leader().lastAnchoredHeight()).isEqualTo(9);
+        // The confirmation journal is not L1-stable before slot 200; it is at 200.
+        assertThat(AnchorService.stableAnchorAbsenceReason(pair.leaderLedger(), 150))
+                .contains("l1.stability-depth deep");
+        assertThat(AnchorService.stableAnchorAbsenceReason(pair.leaderLedger(), 200)).isNull();
+
+        // Three pending blocks (below every-blocks 10) and a fresh anchor: no round.
+        tip[0] = 12;
+        AtomicLong now = new AtomicLong(advanced.updatedAtMs() + 30 * 60_000L);
+        pair.leader().setWallClock(now::get);
+        int attempts = submitAttempts.get();
+        pair.leader().tick();
+        assertThat(submitAttempts.get()).isEqualTo(attempts);
+
+        // The anchor is max-interval old: a round starts at once (the last round START was
+        // moments ago, which under the v1 rule would hold it back a full interval).
+        now.set(advanced.updatedAtMs() + 61 * 60_000L);
+        l1Slot.set(4_000);
+        failSubmit.set(true);
+        pair.leader().tick();
+        assertThat(submitAttempts.get()).isEqualTo(attempts + 1);
+        assertThat(pair.leader().status()).containsKey("lastError");
+
+        // The round failed; the anchor is still stale, so the very next tick retries.
+        pair.leader().tick();
+        assertThat(submitAttempts.get()).isEqualTo(attempts + 2);
+
+        failSubmit.set(false);
+        pair.leader().tick();
+        assertThat(submitted).hasSize(3);
+        AnchorDatumCodec.AnchorDatum next = AnchorDatumCodec.decode(outputTo(
+                Transaction.deserialize(submitted.get(2)), fixture.scriptAddress()).getInlineDatum().serializeToBytes());
+        assertThat(next.height()).isEqualTo(12);
+        assertThat(next.updatedAtMs()).isEqualTo(ZERO_TIME_MS + 4_600_000);
     }
 
     @Test
@@ -446,10 +583,18 @@ class ScriptAnchorProfileTest {
         TransactionOutput change = outputTo(advance, wallet);
         utxoState.put(wallet, List.of(walletUtxo(fixture.advanceHash(),
                 advance.getBody().getOutputs().indexOf(change), change.getValue().getCoin().longValue())));
+        // The datum's members include the newcomer, who is not yet a consensus member and may
+        // not answer: the round starts with old ∩ new (2, meeting the datum threshold) instead
+        // of waiting out a timeout, and completes at once.
         tip[0] = 20;
+        assertThat(pair.leader().status()).containsEntry("pendingHandoffMembers", 3);
         pair.leader().tick();
-        assertThat(pair.leader().status()).containsEntry("cosignPending", "2/3")
-                .containsEntry("pendingHandoffMembers", 3);
+        assertThat(submitted).hasSize(3);
+        Transaction handoffSigned = Transaction.deserialize(submitted.get(2));
+        assertThat(handoffSigned.getBody().getRequiredSigners()).hasSize(2);
+        assertThat(handoffSigned.getWitnessSet().getVkeyWitnesses()).hasSize(3);
+        assertThat(AnchorDatumCodec.decode(outputTo(handoffSigned, boot.scriptAddress()).getInlineDatum()
+                .serializeToBytes()).memberKeys()).hasSize(3);
     }
 
     // ================================================================= fixtures
@@ -510,6 +655,10 @@ class ScriptAnchorProfileTest {
                 : new AppChainConfig.AnchorConfig(false, "", 0, 0, 0);
         ScriptAnchorService service = new ScriptAnchorService(CHAIN_ID, "ordered-log", config, ledger,
                 leader ? cbor -> {
+                    submitAttempts.incrementAndGet();
+                    if (failSubmit.get()) {
+                        throw new IllegalStateException("submit rejected");
+                    }
                     submitted.add(cbor);
                     return txHash(cbor);
                 } : cbor -> {
