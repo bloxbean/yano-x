@@ -49,11 +49,11 @@ class AssetAccountsPropertyTest {
         }
     }
 
-    record Model(Map<Integer, BigInteger[]> balances, BigInteger[] counters) {
+    record Model(Map<Integer, BigInteger[]> balances, Map<Integer, Integer> keys, BigInteger[] counters) {
         static Model empty() {
             BigInteger[] zeros = new BigInteger[8];
             java.util.Arrays.fill(zeros, BigInteger.ZERO);
-            return new Model(new HashMap<>(), zeros);
+            return new Model(new HashMap<>(), new HashMap<>(), zeros);
         }
     }
 
@@ -71,28 +71,52 @@ class AssetAccountsPropertyTest {
         List<BigInteger[]> openReservations = new ArrayList<>();
         for (int step = 0; step < steps; step++) {
             int holder = random.nextInt(4);
+            // Occasionally use a second key for the same holder, to exercise key-mismatch rejection.
+            int keyVariant = random.nextInt(10) == 0 ? 1 : 0;
             BigInteger amount = BigInteger.valueOf(random.nextInt(1_000));
             BigInteger lovelace = BigInteger.valueOf(random.nextInt(3) == 0 ? random.nextInt(2_000_000) : 0);
             Map<String, String> before = store.snapshot();
-            try {
-                switch (random.nextInt(4)) {
-                    case 0 -> {
-                        accounts.credit(VAULT, id(holder), keyHash(holder), amount, lovelace);
+            int op = random.nextInt(5);
+            // The model predicts the outcome BEFORE the library runs.
+            boolean expectAccept;
+            Runnable call;
+            Runnable applyModel;
+            switch (op) {
+                case 0 -> {
+                    boolean keyOk = !model.keys.containsKey(holder) || model.keys.get(holder) == keyVariant;
+                    expectAccept = keyOk && (amount.signum() > 0 || lovelace.signum() > 0);
+                    int variant = keyVariant;
+                    call = () -> accounts.credit(VAULT, id(holder), keyHash(holder, variant), amount, lovelace);
+                    applyModel = () -> {
+                        model.keys.putIfAbsent(holder, variant);
                         bal(model, holder)[0] = bal(model, holder)[0].add(amount);
                         bal(model, holder)[1] = bal(model, holder)[1].add(lovelace);
                         model.counters[0] = model.counters[0].add(amount);
                         model.counters[2] = model.counters[2].add(amount);
                         model.counters[4] = model.counters[4].add(lovelace);
                         model.counters[6] = model.counters[6].add(lovelace);
-                    }
-                    case 1 -> {
-                        int to = (holder + 1 + random.nextInt(3)) % 4;
-                        accounts.transfer(VAULT, id(holder), id(to), keyHash(to), amount);
+                    };
+                }
+                case 1 -> {
+                    int to = random.nextInt(5) == 0 ? holder : (holder + 1 + random.nextInt(3)) % 4;
+                    int toVariant = model.keys.getOrDefault(to, 0);
+                    expectAccept = to != holder && amount.signum() > 0
+                            && bal(model, holder)[0].compareTo(amount) >= 0
+                            && model.keys.containsKey(holder);
+                    call = () -> accounts.transfer(VAULT, id(holder), id(to), keyHash(to, toVariant), amount);
+                    applyModel = () -> {
+                        model.keys.putIfAbsent(to, toVariant);
                         bal(model, holder)[0] = bal(model, holder)[0].subtract(amount);
                         bal(model, to)[0] = bal(model, to)[0].add(amount);
-                    }
-                    case 2 -> {
-                        accounts.reserve(VAULT, id(holder), amount, lovelace);
+                    };
+                }
+                case 2 -> {
+                    expectAccept = (amount.signum() > 0 || lovelace.signum() > 0)
+                            && model.keys.containsKey(holder)
+                            && bal(model, holder)[0].compareTo(amount) >= 0
+                            && bal(model, holder)[1].compareTo(lovelace) >= 0;
+                    call = () -> accounts.reserve(VAULT, id(holder), amount, lovelace);
+                    applyModel = () -> {
                         bal(model, holder)[0] = bal(model, holder)[0].subtract(amount);
                         bal(model, holder)[1] = bal(model, holder)[1].subtract(lovelace);
                         model.counters[2] = model.counters[2].subtract(amount);
@@ -100,24 +124,43 @@ class AssetAccountsPropertyTest {
                         model.counters[6] = model.counters[6].subtract(lovelace);
                         model.counters[7] = model.counters[7].add(lovelace);
                         openReservations.add(new BigInteger[] {amount, lovelace});
-                    }
-                    default -> {
-                        if (openReservations.isEmpty()) continue;
-                        BigInteger[] r = openReservations.remove(random.nextInt(openReservations.size()));
-                        accounts.consumeReserved(VAULT, r[0], r[1]);
+                    };
+                }
+                case 3 -> {
+                    if (openReservations.isEmpty()) continue;
+                    BigInteger[] r = openReservations.get(random.nextInt(openReservations.size()));
+                    expectAccept = true;
+                    call = () -> accounts.consumeReserved(VAULT, r[0], r[1]);
+                    applyModel = () -> {
+                        openReservations.remove(r);
                         model.counters[1] = model.counters[1].add(r[0]);
                         model.counters[3] = model.counters[3].subtract(r[0]);
                         model.counters[5] = model.counters[5].add(r[1]);
                         model.counters[7] = model.counters[7].subtract(r[1]);
-                    }
+                    };
                 }
-                assertModelValid(model);
-            } catch (ArithmeticException | IllegalArgumentException rejected) {
-                // Each case calls the library before touching the model, so a rejected operation
-                // leaves both unchanged; the store must be byte-for-byte as before.
-                assertThat(store.snapshot()).isEqualTo(before);
-                continue;
+                default -> {
+                    // Over-consume: more than is reserved must be rejected.
+                    BigInteger over = model.counters[3].add(BigInteger.ONE);
+                    expectAccept = false;
+                    call = () -> accounts.consumeReserved(VAULT, over, BigInteger.ZERO);
+                    applyModel = () -> { };
+                }
             }
+            boolean accepted;
+            try {
+                call.run();
+                accepted = true;
+            } catch (ArithmeticException | IllegalArgumentException rejected) {
+                accepted = false;
+            }
+            assertThat(accepted).as("op %d step %d accept/reject", op, step).isEqualTo(expectAccept);
+            if (accepted) {
+                applyModel.run();
+            } else {
+                assertThat(store.snapshot()).as("a rejected op leaves no partial write").isEqualTo(before);
+            }
+            assertModelValid(model);
             assertMatches(accounts, model);
             accounts.checkInvariant(VAULT);
         }
@@ -139,6 +182,9 @@ class AssetAccountsPropertyTest {
         BigInteger totalLovelace = BigInteger.ZERO;
         for (Map.Entry<Integer, BigInteger[]> e : model.balances.entrySet()) {
             Optional<ExitLeafV1> leaf = accounts.balance(VAULT, id(e.getKey()));
+            boolean modelEmpty = e.getValue()[0].signum() == 0 && e.getValue()[1].signum() == 0;
+            // An empty balance must be deleted, never stored as a zero leaf.
+            assertThat(leaf.isPresent()).as("leaf presence for holder %d", e.getKey()).isEqualTo(!modelEmpty);
             BigInteger amount = leaf.map(ExitLeafV1::amount).orElse(BigInteger.ZERO);
             BigInteger credit = leaf.map(ExitLeafV1::vaultLovelace).orElse(BigInteger.ZERO);
             assertThat(amount).isEqualTo(e.getValue()[0]);
@@ -165,6 +211,31 @@ class AssetAccountsPropertyTest {
         assertThat(c.credited()).isEqualTo(big.multiply(BigInteger.valueOf(3)));
         assertThat(c.paid()).isEqualTo(c.credited());
         accounts.checkInvariant(VAULT);
+    }
+
+    @Test
+    void creditWithADifferentKeyIsRejectedAndRotationIsExplicit() {
+        MapStore store = new MapStore();
+        AssetAccounts accounts = new AssetAccounts("pay/".getBytes(), store);
+        accounts.credit(VAULT, id(0), keyHash(0, 0), BigInteger.TEN, BigInteger.ZERO);
+        Map<String, String> before = store.snapshot();
+        assertThatThrownBy(() -> accounts.credit(VAULT, id(0), keyHash(0, 1), BigInteger.ONE, BigInteger.ZERO))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(store.snapshot()).isEqualTo(before);
+        accounts.rotateHolderKey(VAULT, id(0), keyHash(0, 1));
+        assertThat(accounts.balance(VAULT, id(0)).orElseThrow().holderKeyHash()).isEqualTo(keyHash(0, 1));
+        accounts.credit(VAULT, id(0), keyHash(0, 1), BigInteger.ONE, BigInteger.ZERO);
+        assertThat(accounts.balance(VAULT, id(0)).orElseThrow().amount()).isEqualTo(BigInteger.valueOf(11));
+    }
+
+    @Test
+    void u128CountersAreBoundedAndRoundTripAtTheEdges() {
+        AssetAccounts.VaultCounters top = new AssetAccounts.VaultCounters(Quantities.MAX_U128,
+                BigInteger.ONE.shiftLeft(127), BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO,
+                BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO);
+        assertThat(AssetAccounts.VaultCounters.decode(top.encode())).isEqualTo(top);
+        assertThatThrownBy(() -> Quantities.addU128(Quantities.MAX_U128, BigInteger.ONE, "x"))
+                .isInstanceOf(ArithmeticException.class);
     }
 
     @Test
@@ -195,8 +266,13 @@ class AssetAccountsPropertyTest {
     }
 
     private static byte[] keyHash(int holder) {
+        return keyHash(holder, 0);
+    }
+
+    private static byte[] keyHash(int holder, int variant) {
         byte[] hash = new byte[28];
         hash[0] = (byte) holder;
+        hash[1] = (byte) variant;
         return hash;
     }
 }

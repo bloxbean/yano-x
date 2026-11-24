@@ -23,4 +23,20 @@ class AssetGatewayGoldenVectorTest {
         committed.stringPropertyNames().forEach(name -> committedMap.put(name, committed.getProperty(name)));
         assertThat(committedMap).isEqualTo(AssetGatewayGoldenVectorGenerator.vectors());
     }
+
+    @Test
+    void everyNegativeVectorIsRejected() throws IOException {
+        Properties negative = new Properties();
+        try (InputStream in = getClass().getResourceAsStream(
+                "/META-INF/yano/contracts/asset-gateway/v1/negative-vectors.properties")) {
+            assertThat(in).as("negative vectors resource").isNotNull();
+            negative.load(in);
+        }
+        assertThat(negative).hasSizeGreaterThanOrEqualTo(12);
+        for (String name : negative.stringPropertyNames()) {
+            byte[] bytes = java.util.HexFormat.of().parseHex(negative.getProperty(name));
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> AssetValue.decode(bytes))
+                    .as(name).isInstanceOf(IllegalArgumentException.class);
+        }
+    }
 }

@@ -9,6 +9,11 @@ compared byte for byte. Usage: verify-asset-gateway-vectors.py <golden-vectors.p
 import hashlib
 import sys
 
+try:  # optional second oracle; the stdlib-only checks below always run
+    import cbor2
+except ImportError:  # pragma: no cover
+    cbor2 = None
+
 POLICY = bytes.fromhex("f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a")
 GENESIS = bytes.fromhex("6c1f3b1f9e5d2a0c4b8e7d6a5f4e3d2c1b0a99887766554433221100ffeeddcc")
 TX = bytes.fromhex("8d3f1c0e2b4a69788796a5b4c3d2e1f00112233445566778899aabbccddeeff0")
@@ -43,8 +48,17 @@ def enc(value):
     raise TypeError(type(value))
 
 
+def canonical(obj):
+    """Cross-check the hand-written encoder against cbor2 in canonical mode."""
+    mine = enc(obj)
+    if cbor2 is not None:
+        theirs = cbor2.dumps(obj, canonical=True)
+        assert mine == theirs, f"encoder disagreement: {mine.hex()} vs {theirs.hex()}"
+    return mine
+
+
 def b2b(tag, fields):
-    return hashlib.blake2b(tag.encode("ascii") + enc(fields), digest_size=32).digest()
+    return hashlib.blake2b(tag.encode("ascii") + canonical(fields), digest_size=32).digest()
 
 
 def asset(policy, name):
@@ -76,7 +90,7 @@ def compute():
 
     mixed = value([(b"", b"", 2_000_000), (POLICY, b"\x00\x00", 1),
                    (POLICY, b"\xff", MAX_U64), (POLICY, b"USDM", 49_504_950)])
-    out["value.mixed"] = enc(mixed).hex()
+    out["value.mixed"] = canonical(mixed).hex()
     out["value.empty"] = enc([]).hex()
 
     domain = b2b("yano-asset-gateway-domain-v1\0",
@@ -94,11 +108,93 @@ def compute():
     out["id.claim"] = claim.hex()
     out["id.intent"] = hashlib.blake2b(
         b"yano-asset-gateway-intent-v1\0" + bytes.fromhex("83010203"), digest_size=32).hexdigest()
-    out["id.escape"] = b2b("escape\0", [usdm_vault, KEY_HASH]).hex()
+    out["id.escape"] = hashlib.blake2b(b"escape\0" + usdm_vault + KEY_HASH, digest_size=32).hexdigest()
     out["leaf.claim"] = enc([1, claim, usdm_vault, 0, claim_value, 1_200_000, recipient,
                              1_234, 1_764_000_000_000]).hex()
     out["leaf.exit"] = enc([1, KEY_HASH, usdm_vault, 100, 1_150_770]).hex()
     return out
+
+
+def decode(data):
+    """Minimal decoder for the contract subset; raises ValueError on anything outside it."""
+    pos = 0
+
+    def arg(info):
+        nonlocal pos
+        if info < 24:
+            return info
+        size = {24: 1, 25: 2, 26: 4, 27: 8}.get(info)
+        if size is None or pos + size > len(data):
+            raise ValueError("bad head")
+        value = int.from_bytes(data[pos:pos + size], "big")
+        pos += size
+        return value
+
+    def item(depth):
+        nonlocal pos
+        if depth > 8 or pos >= len(data):
+            raise ValueError("depth or truncation")
+        initial = data[pos]
+        pos += 1
+        major, info = initial >> 5, initial & 0x1F
+        if major == 0:
+            return arg(info)
+        if major in (2, 3):
+            n = arg(info)
+            if pos + n > len(data):
+                raise ValueError("truncated")
+            raw = data[pos:pos + n]
+            pos += n
+            return raw if major == 2 else raw.decode("utf-8")
+        if major == 4:
+            return [item(depth + 1) for _ in range(arg(info))]
+        raise ValueError("outside the contract subset")
+
+    obj = item(1)
+    if pos != len(data):
+        raise ValueError("trailing bytes")
+    return obj
+
+
+def valid_asset_value(data):
+    """Independent re-statement of the AssetValue rules (ADR-059 D3)."""
+    try:
+        obj = decode(data)
+    except ValueError:
+        return False
+    if not isinstance(obj, list) or len(obj) > 16:
+        return False
+    previous = None
+    for entry in obj:
+        if not isinstance(entry, list) or len(entry) != 3:
+            return False
+        policy, name, qty = entry
+        if not isinstance(policy, bytes) or not isinstance(name, bytes) or not isinstance(qty, int):
+            return False
+        if isinstance(qty, bool) or qty < 1 or qty > MAX_U64:
+            return False
+        if len(policy) not in (0, 28) or len(name) > 32 or (len(policy) == 0 and len(name) != 0):
+            return False
+        key = enc([policy, name])
+        if previous is not None and previous >= key:
+            return False
+        previous = key
+    return enc(obj) == data  # canonical: re-encoding must reproduce the input exactly
+
+
+def check_negative(path):
+    count = 0
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            name, _, hexval = line.partition("=")
+            if valid_asset_value(bytes.fromhex(hexval)):
+                print(f"NEGATIVE VECTOR ACCEPTED independently: {name}")
+                sys.exit(1)
+            count += 1
+    print(f"ADR-059 negative vectors rejected independently: {count}")
 
 
 def main(path):
@@ -118,6 +214,7 @@ def main(path):
     if failures:
         sys.exit(1)
     print(f"ADR-059 golden vectors verified independently: {len(expected)} values")
+    check_negative(path.replace("golden-vectors.properties", "negative-vectors.properties"))
 
 
 if __name__ == "__main__":

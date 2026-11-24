@@ -15,7 +15,7 @@ positive_u64  = 1 .. 18446744073709551615
 asset_id      = [policy_id, asset_name]
 
 ; Sorted strictly ascending by asset_id encoding, no zero quantities, at most 16 entries.
-asset_value   = [* [policy_id, asset_name, positive_u64]]
+asset_value   = [0*16 [policy_id, asset_name, positive_u64]]
 
 claim_kind    = 0      ; USER_WITHDRAWAL
               / 1      ; SWEEP_UNATTRIBUTED
@@ -30,8 +30,8 @@ claim_leaf_v1 = [
   value: asset_value,
   vault_lovelace: u64,
   recipient: bytes .size (1 .. 128),
-  reserved_height: uint,
-  reserved_at_ms: uint,
+  reserved_height: 0 .. 9223372036854775807,
+  reserved_at_ms: 0 .. 9223372036854775807,
 ]
 
 exit_leaf_v1 = [
@@ -60,4 +60,5 @@ vault_counters = [
 ;           recipient: bytes .size (1..128), value: asset_value, vault_lovelace: u64,
 ;           sequence: uint]
 ; intent_id  tag "yano-asset-gateway-intent-v1\0"  preimage tag || exact signed envelope bytes
-; escape nullifier tag "escape\0"                   fields [vault_id, holder_id: bytes .size (1..64)]
+; escape nullifier: blake2b-256("escape\0" || vault_id(32 raw bytes) || holder_id(1..64 raw bytes)),
+;   a raw concatenation (no CBOR framing), reproduced by the vault script

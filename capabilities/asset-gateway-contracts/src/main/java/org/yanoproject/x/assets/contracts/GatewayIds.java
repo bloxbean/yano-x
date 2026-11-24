@@ -97,13 +97,20 @@ public final class GatewayIds {
         return Hash32.of(Blake2bUtil.blake2bHash256(preimage));
     }
 
-    /** The escape nullifier of one exit leaf (D8g §4). */
+    /**
+     * The escape nullifier of one exit leaf (D8g §4): {@code blake2b-256("escape\0" ‖ VaultId ‖
+     * holderId)} as a raw concatenation, which the vault script reproduces. VaultId is a fixed
+     * 32 bytes, so the concatenation is unambiguous.
+     */
     public static Hash32 escapeNullifier(Hash32 vaultId, byte[] holderId) {
         requireLength(holderId, 1, MAX_HOLDER_ID_BYTES, "holder id");
-        Array fields = new Array();
-        fields.add(AssetCbor.bstr(vaultId.bytes()));
-        fields.add(AssetCbor.bstr(holderId));
-        return digest(ESCAPE_TAG, fields);
+        byte[] tag = ESCAPE_TAG.getBytes(StandardCharsets.US_ASCII);
+        byte[] vault = vaultId.bytes();
+        byte[] preimage = new byte[tag.length + vault.length + holderId.length];
+        System.arraycopy(tag, 0, preimage, 0, tag.length);
+        System.arraycopy(vault, 0, preimage, tag.length, vault.length);
+        System.arraycopy(holderId, 0, preimage, tag.length + vault.length, holderId.length);
+        return Hash32.of(Blake2bUtil.blake2bHash256(preimage));
     }
 
     static Hash32 digest(String tag, Array fields) {
@@ -116,8 +123,16 @@ public final class GatewayIds {
     }
 
     private static UnicodeString text(String value, String name) {
-        if (value == null || value.isEmpty()
-                || value.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES) {
+        int length;
+        try {
+            length = value == null ? 0 : StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .encode(java.nio.CharBuffer.wrap(value)).remaining();
+        } catch (java.nio.charset.CharacterCodingException invalid) {
+            throw new IllegalArgumentException(name + " is not valid Unicode text");
+        }
+        if (length == 0 || length > MAX_TEXT_BYTES) {
             throw new IllegalArgumentException(name + " must be 1-64 bytes of UTF-8");
         }
         return new UnicodeString(value);

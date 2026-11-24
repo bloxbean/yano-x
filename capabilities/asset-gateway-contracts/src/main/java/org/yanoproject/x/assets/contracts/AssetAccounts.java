@@ -70,7 +70,11 @@ public final class AssetAccounts {
     }
 
     public Optional<ExitLeafV1> balance(Hash32 vaultId, byte[] holderId) {
-        return store.get(exitLeafKey(vaultId, holderId)).map(ExitLeafV1::decode);
+        Optional<ExitLeafV1> leaf = store.get(exitLeafKey(vaultId, holderId)).map(ExitLeafV1::decode);
+        if (leaf.isPresent() && !leaf.get().vaultId().equals(vaultId)) {
+            throw new IllegalStateException("exit leaf stored under the wrong vault");
+        }
+        return leaf;
     }
 
     public VaultCounters counters(Hash32 vaultId) {
@@ -90,7 +94,8 @@ public final class AssetAccounts {
         }
         ExitLeafV1 current = balance(vaultId, holderId)
                 .orElseGet(() -> new ExitLeafV1(holderKeyHash, vaultId, BigInteger.ZERO, BigInteger.ZERO));
-        ExitLeafV1 next = new ExitLeafV1(holderKeyHash, vaultId,
+        requireSameKey(current, holderKeyHash);
+        ExitLeafV1 next = current.withAmounts(
                 Quantities.addU64(current.amount(), amount, "balance"),
                 Quantities.addU64(current.vaultLovelace(), minAdaCredit, "min-ADA credit"));
         VaultCounters counters = counters(vaultId);
@@ -121,6 +126,7 @@ public final class AssetAccounts {
                 .orElseThrow(() -> new ArithmeticException("insufficient balance"));
         ExitLeafV1 to = balance(vaultId, toHolder)
                 .orElseGet(() -> new ExitLeafV1(toHolderKeyHash, vaultId, BigInteger.ZERO, BigInteger.ZERO));
+        requireSameKey(to, toHolderKeyHash);
         ExitLeafV1 nextFrom = from.withAmounts(Quantities.subU64(from.amount(), amount, "balance"),
                 from.vaultLovelace());
         ExitLeafV1 nextTo = to.withAmounts(Quantities.addU64(to.amount(), amount, "balance"),
@@ -156,10 +162,22 @@ public final class AssetAccounts {
         store.put(countersKey(vaultId), nextCounters.encode());
     }
 
+    /**
+     * Replaces the key hash on a holder's leaf in one vault (owner rotation, D14a). This is the only
+     * primitive that changes a leaf's key; {@link #credit} and {@link #transfer} reject a mismatch.
+     */
+    public void rotateHolderKey(Hash32 vaultId, byte[] holderId, byte[] newKeyHash) {
+        balance(vaultId, holderId).ifPresent(leaf -> store.put(exitLeafKey(vaultId, holderId),
+                new ExitLeafV1(newKeyHash, vaultId, leaf.amount(), leaf.vaultLovelace()).encode()));
+    }
+
     /** Records a confirmed payout of a reserved claim. */
     public void consumeReserved(Hash32 vaultId, BigInteger amount, BigInteger vaultLovelace) {
         Quantities.requireU64(amount, "amount");
         Quantities.requireU64(vaultLovelace, "vault lovelace");
+        if (amount.signum() == 0 && vaultLovelace.signum() == 0) {
+            throw new IllegalArgumentException("a payout must be positive");
+        }
         VaultCounters counters = counters(vaultId);
         VaultCounters next = new VaultCounters(
                 counters.credited(),
@@ -191,6 +209,12 @@ public final class AssetAccounts {
             store.delete(key);
         } else {
             store.put(key, leaf.encode());
+        }
+    }
+
+    private static void requireSameKey(ExitLeafV1 leaf, byte[] keyHash) {
+        if (keyHash == null || !java.util.Arrays.equals(leaf.holderKeyHash(), keyHash)) {
+            throw new IllegalArgumentException("holder key hash differs from the leaf; use rotateHolderKey");
         }
     }
 
