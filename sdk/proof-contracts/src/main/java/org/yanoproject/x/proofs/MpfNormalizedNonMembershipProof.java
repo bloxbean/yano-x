@@ -64,6 +64,11 @@ public record MpfNormalizedNonMembershipProof(
                 return false;
             }
             byte[] conflictPath = MpfNormalizedProof.nibbles(conflictingKeyHash);
+            // The folds authenticate only the query's path above the terminal, so the conflicting leaf must share
+            // that exact prefix and differ from the query below it.
+            if (!Arrays.equals(conflictPath, 0, terminalCursor, queryPath, 0, terminalCursor)) {
+                return false;
+            }
             byte[] expectedSuffix = MpfNormalizedProof.encodeLeafSuffix(
                     Arrays.copyOfRange(conflictPath, terminalCursor, conflictPath.length));
             if (!Arrays.equals(expectedSuffix, conflictingLeafSuffix)) {
