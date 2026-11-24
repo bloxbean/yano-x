@@ -16,6 +16,10 @@ import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.framework.api.appchain.AppStateWriter;
@@ -117,10 +121,24 @@ final class PaymentsHarness {
     }
 
     static AppStateMachine machine(Map<String, String> settings) {
+        return machine(settings, Optional.of(profile(0)));
+    }
+
+    static AppStateMachine machine(Map<String, String> settings, Optional<AppChainConsensusProfile> profile) {
         return new AssetPaymentsStateMachineProvider().create(new AppStateMachineContext() {
             @Override public String chainId() { return CHAIN; }
             @Override public Map<String, String> settings() { return settings; }
+            @Override public Optional<AppChainConsensusProfile> consensusProfile() { return profile; }
         });
+    }
+
+    /** A minimal v1 consensus profile with effects disabled and the default forward skew. */
+    static AppChainConsensusProfile profile(int l1StabilityDepth) {
+        int message = 64 * 1024;
+        return new AppChainConsensusProfile(AppChainConsensusProfile.SCHEMA_VERSION, message, 100,
+                message + AppChainConfig.BLOCK_ENVELOPE_HEADROOM_BYTES + AppChainConfig.MAX_FINALITY_CERT_HEADROOM_BYTES,
+                l1StabilityDepth, l1StabilityDepth, AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS,
+                false, false, 0, 0, 0, 0, FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, false, List.of());
     }
 
     record Message(String topic, byte[] body) { }

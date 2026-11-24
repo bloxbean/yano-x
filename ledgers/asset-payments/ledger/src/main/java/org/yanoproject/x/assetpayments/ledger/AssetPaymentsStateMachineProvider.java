@@ -9,8 +9,9 @@ import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 /**
  * Service-loaded provider of the {@code asset-payments} state machine (ADR-059 D14). Selected by a
  * chain's {@code state-machine: asset-payments} and configured under
- * {@code machines.asset-payments.*} (see {@link AssetPaymentsSettings}). Startup fails closed when
- * the chain's {@code l1.stability-depth} is below the profile minimum (D5).
+ * {@code machines.asset-payments.*} (see {@link AssetPaymentsSettings}). Startup fails closed without
+ * the chain's consensus profile, or when its {@code l1.stability-depth} is below the profile minimum
+ * (D5).
  */
 public final class AssetPaymentsStateMachineProvider implements AppStateMachineProvider {
     @Override
@@ -26,14 +27,12 @@ public final class AssetPaymentsStateMachineProvider implements AppStateMachineP
     @Override
     public AppStateMachine create(AppStateMachineContext context) {
         AssetPaymentsSettings settings = AssetPaymentsSettings.parse(context.chainId(), context.settings());
-        long skew = context.consensusProfile().map(AppChainConsensusProfile::blockMaxForwardSkewMs)
-                .orElse(AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS);
-        context.consensusProfile().ifPresent(profile -> {
-            if (profile.l1StabilityDepth() < settings.minStabilityDepth()) {
-                throw new IllegalArgumentException("asset-payments requires l1.stability-depth >= "
-                        + settings.minStabilityDepth());
-            }
-        });
-        return new AssetPaymentsStateMachine(settings, skew);
+        AppChainConsensusProfile profile = context.consensusProfile().orElseThrow(() ->
+                new IllegalArgumentException("asset-payments requires the chain's consensus profile"));
+        if (profile.l1StabilityDepth() < settings.minStabilityDepth()) {
+            throw new IllegalArgumentException("asset-payments requires l1.stability-depth >= "
+                    + settings.minStabilityDepth());
+        }
+        return new AssetPaymentsStateMachine(settings, profile.blockMaxForwardSkewMs());
     }
 }

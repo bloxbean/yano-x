@@ -286,6 +286,21 @@ class AssetPaymentsStateMachineTest {
         Map<String, String> wrongType = new HashMap<>(PaymentsHarness.settings());
         wrongType.put("observers." + OBSERVER + ".type", "eutxo-vault-deposit-v1");
         assertThatThrownBy(() -> PaymentsHarness.machine(wrongType)).hasMessageContaining("type");
+        // Fable P3: the observer's depth must be the ledger's, and the chain must meet it.
+        Map<String, String> deeperObserver = new HashMap<>(PaymentsHarness.settings());
+        deeperObserver.put("observers." + OBSERVER + ".min-stability-depth", "50");
+        assertThatThrownBy(() -> PaymentsHarness.machine(deeperObserver)).hasMessageContaining("min-stability-depth");
+        Map<String, String> defaultObserver = new HashMap<>(PaymentsHarness.settings());
+        defaultObserver.remove("observers." + OBSERVER + ".min-stability-depth");
+        assertThatThrownBy(() -> PaymentsHarness.machine(defaultObserver)).hasMessageContaining("min-stability-depth");
+        Map<String, String> deep = new HashMap<>(PaymentsHarness.settings());
+        deep.put("observers." + OBSERVER + ".min-stability-depth", "50");
+        deep.put("machines.asset-payments.min-stability-depth", "50");
+        assertThatThrownBy(() -> PaymentsHarness.machine(deep, java.util.Optional.of(PaymentsHarness.profile(49))))
+                .hasMessageContaining("l1.stability-depth");
+        assertThat(PaymentsHarness.machine(deep, java.util.Optional.of(PaymentsHarness.profile(50)))).isNotNull();
+        assertThatThrownBy(() -> PaymentsHarness.machine(PaymentsHarness.settings(), java.util.Optional.empty()))
+                .hasMessageContaining("consensus profile");
         Map<String, String> duplicate = new HashMap<>(PaymentsHarness.settings());
         duplicate.put("machines.asset-payments.vaults.2.asset", duplicate.get("machines.asset-payments.vaults.1.asset"));
         assertThatThrownBy(() -> PaymentsHarness.machine(duplicate)).hasMessageContaining("I29");

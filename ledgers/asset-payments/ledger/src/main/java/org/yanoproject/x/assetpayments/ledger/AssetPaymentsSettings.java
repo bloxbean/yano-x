@@ -40,8 +40,9 @@ import java.util.Set;
  * </pre>
  *
  * When the chain also configures {@code observers.<deposit-observer-id>.*}, its type must be
- * {@code asset-vault-deposit-v1} and its domain and vault settings must equal these, so the
- * observer and the ledger can never disagree about the domain or the vault set.
+ * {@code asset-vault-deposit-v1} and its domain, vault and {@code min-stability-depth} settings must
+ * equal these, so the observer and the ledger can never disagree about the domain, the vault set or
+ * the stability depth they assume.
  */
 record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkMagic, Hash32 genesisId,
                              String applicationId, String profileId, long profileVersion, Hash32 domainId,
@@ -156,6 +157,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         expected.put("domain.application-id", applicationId);
         expected.put("domain.profile-id", profileId);
         expected.put("domain.profile-version", String.valueOf(profileVersion));
+        // The observer's depth is part of its consensus identity; it must be the depth this ledger enforces.
+        expected.put("min-stability-depth", String.valueOf(minStabilityDepth));
         for (int index = 0; index < vaults.size(); index++) {
             PaymentsRecords.RegistryEntryV1 vault = vaults.get(index);
             expected.put("vaults." + index + ".asset", vault.asset().toString());
@@ -163,7 +166,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
             expected.put("vaults." + index + ".address", vault.vaultAddress());
         }
         Map<String, String> defaults = Map.of("domain.application-id", "asset-payments",
-                "domain.profile-id", "anchored-claim-vault-v1", "domain.profile-version", "1");
+                "domain.profile-id", "anchored-claim-vault-v1", "domain.profile-version", "1",
+                "min-stability-depth", "1");
         expected.forEach((key, value) -> {
             String actual = all.get(observer + key);
             actual = actual == null || actual.isBlank() ? defaults.get(key) : actual.trim();
