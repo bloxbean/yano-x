@@ -4,7 +4,14 @@ plugins {
 
 dependencies {
     compileOnly project(':framework:api')
-    implementation project(':capabilities:asset-gateway-cardano-support')
+    // Embed only this repository's code (as ledgers/eutxo does): cbor, CCL, yaci, BouncyCastle, Jackson and
+    // Guava come from the host, which loads plugins parent-first, so bundled copies would be dead weight.
+    implementation(project(':capabilities:asset-gateway-cardano-support')) {
+        transitive = false
+    }
+    implementation(project(':capabilities:asset-gateway-contracts')) {
+        transitive = false
+    }
     compileOnly libs.yaci.core
     compileOnly libs.cardano.client.address
     compileOnly libs.cardano.client.common
@@ -70,14 +77,19 @@ tasks.register('verifyAssetGatewayCardanoArtifactBoundaries') {
                 'com/bloxbean/cardano/client/',
                 'co/nstant/in/cbor/',
                 'org/julclang/',
-                'org/zeroj/'
+                'org/zeroj/',
+                'org/bouncycastle/',
+                'com/fasterxml/',
+                'com/google/',
+                'META-INF/versions/',
+                'META-INF/services/java.security.Provider'
         ]
         def forbidden = bundleEntries.findAll { entry ->
             forbiddenPrefixes.any { prefix -> entry.startsWith(prefix) }
         }
         if (!forbidden.isEmpty()) {
             throw new GradleException(
-                    'Asset-gateway bundle embeds host, Cardano, Julc, or ZeroJ classes: '
+                    'Asset-gateway bundle embeds host, Cardano, Julc, ZeroJ or third-party classes: '
                             + forbidden.toList().sort().take(10))
         }
         def contractClass = 'org/yanoproject/x/assets/contracts/AssetDepositClaimV1.class'

@@ -4,7 +4,17 @@ plugins {
 
 dependencies {
     compileOnly project(':framework:api')
-    implementation project(':ledgers:asset-payments:contracts')
+    // Embed only this repository's code (as ledgers/eutxo does): cbor, CCL, BouncyCastle, Jackson and Guava
+    // come from the host, which loads plugins parent-first, so bundled copies would be dead weight.
+    implementation(project(':ledgers:asset-payments:contracts')) {
+        transitive = false
+    }
+    implementation(project(':capabilities:cardano-wallet-auth')) {
+        transitive = false
+    }
+    implementation(project(':capabilities:asset-gateway-contracts')) {
+        transitive = false
+    }
     compileOnly libs.yaci.core
     compileOnly libs.cardano.client.crypto
     compileOnly libs.cbor
@@ -73,7 +83,12 @@ tasks.register('verifyAssetPaymentsLedgerArtifactBoundaries') {
                 'com/bloxbean/cardano/client/',
                 'co/nstant/in/cbor/',
                 // D2: the deterministic payment ledger never depends on the gateway bundle.
-                'org/yanoproject/x/assets/cardano/'
+                'org/yanoproject/x/assets/cardano/',
+                'org/bouncycastle/',
+                'com/fasterxml/',
+                'com/google/',
+                'META-INF/versions/',
+                'META-INF/services/java.security.Provider'
         ]
         def forbidden = bundleEntries.findAll { entry ->
             forbiddenPrefixes.any { prefix -> entry.startsWith(prefix) }
@@ -98,6 +113,36 @@ tasks.register('verifyAssetPaymentsLedgerArtifactBoundaries') {
     }
 }
 
+// Bundle load smoke: both ADR-059 bundles are loaded the way the host loads plugins (a child class
+// loader, parent-first, over only the integrated yano.jar) and their main paths run. This is what
+// shows that embedding only this repository's code (transitive = false) leaves nothing missing.
+def integratedYanoJar = project(':distribution:jvm').layout.buildDirectory.file('yano.jar')
+sourceSets {
+    bundleSmoke {
+        java.srcDir 'src/bundleSmoke/java'
+    }
+}
+dependencies {
+    bundleSmokeImplementation files(integratedYanoJar)
+}
+tasks.named('compileBundleSmokeJava') {
+    dependsOn ':distribution:jvm:quarkusBuild'
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+tasks.register('verifyAssetGatewayBundlesLoad', JavaExec) {
+    group = 'verification'
+    description = 'Loads the asset-gateway and asset-payments bundles over the integrated yano.jar and runs them'
+    def gatewayBundle = project(':capabilities:asset-gateway-cardano').tasks.named('shadowJar')
+    dependsOn tasks.named('shadowJar'), gatewayBundle, tasks.named('compileBundleSmokeJava'),
+            ':distribution:jvm:quarkusBuild'
+    classpath = files(integratedYanoJar) + sourceSets.bundleSmoke.output
+    mainClass = 'org.yanoproject.x.assetpayments.smoke.BundleSmoke'
+    argumentProviders.add({
+        [gatewayBundle.get().archiveFile.get().asFile.absolutePath,
+         tasks.named('shadowJar').get().archiveFile.get().asFile.absolutePath]
+    } as CommandLineArgumentProvider)
+}
+
 tasks.register('verifyAssetPaymentsLedgerDependencyGraph') {
     group = 'verification'
     description = 'D2: the payment ledger runtime graph never includes the gateway bundle, Julc or ZeroJ'
@@ -119,7 +164,8 @@ tasks.register('verifyAssetPaymentsLedgerDependencyGraph') {
 
 tasks.named('check') {
     dependsOn tasks.named('verifyAssetPaymentsLedgerArtifactBoundaries'),
-            tasks.named('verifyAssetPaymentsLedgerDependencyGraph')
+            tasks.named('verifyAssetPaymentsLedgerDependencyGraph'),
+            tasks.named('verifyAssetGatewayBundlesLoad')
 }
 
 publishing {
