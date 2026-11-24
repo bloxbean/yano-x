@@ -52,6 +52,23 @@
       "publishToCentral": false
     },
     {
+      "modulePath": ":ledgers:asset-payments:contracts",
+      "directory": "ledgers/asset-payments/contracts",
+      "artifactId": "yano-x-asset-payments-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:asset-payments:ledger",
+      "directory": "ledgers/asset-payments/ledger",
+      "artifactId": "yano-x-asset-payments-ledger",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "org.yanoproject.x.asset-payments",
+      "bundleArtifactId": "yano-x-asset-payments-ledger-bundle",
+      "publishToCentral": false
+    },
+    {
       "modulePath": ":capabilities:authenticated-map-validators",
       "directory": "capabilities/authenticated-map-validators",
       "artifactId": "yano-x-authenticated-map-validators",

@@ -1,0 +1,50 @@
+dependencies {
+    api project(':capabilities:asset-gateway-contracts')
+    api project(':capabilities:cardano-wallet-auth')
+    implementation libs.cbor
+
+    testImplementation libs.cardano.client.crypto
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.register('verifyAssetPaymentsContractArtifact') {
+    group = 'verification'
+    description = 'Verifies the asset-payments contracts stay a pure library'
+    dependsOn tasks.named('jar')
+    doLast {
+        def archive = tasks.named('jar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(archive).withCloseable { jar ->
+            if (jar.entries().any { it.name.startsWith('META-INF/services/')
+                    || it.name.startsWith('META-INF/yano/plugins/') }) {
+                throw new GradleException('Asset-payments contracts must not contain plugin manifests or services')
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyAssetPaymentsContractArtifact')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Payments Contracts'
+                description = 'Message, command, account, receipt and registry codecs of the asset-payments ledger (ADR-059 D14)'
+            }
+        }
+    }
+}

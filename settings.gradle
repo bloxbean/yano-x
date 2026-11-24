@@ -24,6 +24,8 @@ def yanoXModules = [
         ':capabilities:cardano-wallet-auth': 'capabilities/cardano-wallet-auth',
         ':capabilities:asset-gateway-cardano-support': 'capabilities/asset-gateway-cardano-support',
         ':capabilities:asset-gateway-cardano': 'capabilities/asset-gateway-cardano',
+        ':ledgers:asset-payments:contracts': 'ledgers/asset-payments/contracts',
+        ':ledgers:asset-payments:ledger': 'ledgers/asset-payments/ledger',
         ':capabilities:authenticated-map-validators': 'capabilities/authenticated-map-validators',
         ':tooling:appchain-formats': 'tooling/appchain-formats',
         ':tooling:devtools': 'tooling/devtools',

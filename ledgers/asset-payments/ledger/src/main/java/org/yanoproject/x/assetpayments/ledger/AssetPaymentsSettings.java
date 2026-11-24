@@ -1,0 +1,224 @@
+package org.yanoproject.x.assetpayments.ledger;
+
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import org.yanoproject.x.assetpayments.contracts.AssetPaymentsContract;
+import org.yanoproject.x.assetpayments.contracts.PaymentsRecords;
+import org.yanoproject.x.assets.contracts.AssetId;
+import org.yanoproject.x.assets.contracts.GatewayIds;
+import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.walletauth.IntentEnvelopeV1;
+
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Genesis configuration of an {@code asset-payments} chain, read from
+ * {@code yano.app-chain.machines.asset-payments.*} (ADR-059 D14). It is consensus configuration:
+ * every member must use identical values, and {@link #digest()} is written into state at genesis
+ * so a restart with different settings fails at startup instead of diverging (I13).
+ *
+ * <pre>
+ * domain.address-network-id, domain.network-magic, domain.genesis-id     required
+ * domain.application-id (asset-payments), domain.profile-id (anchored-claim-vault-v1),
+ * domain.profile-version (1)                                              GatewayDomain; chain id is the chain's
+ * deposit-observer-id                                                     required; the ~l1/&lt;id&gt; topic credited
+ * max-intent-ttl-ms (600000)                                              must exceed the forward clock skew
+ * min-stability-depth (1)                                                 the chain's l1.stability-depth must be ≥
+ * vaults.N.asset, vaults.N.script-hash, vaults.N.address                  the fixed vault set (I29), N = 0, 1, ...
+ * vaults.N.status (ACTIVE), vaults.N.ticker (""), vaults.N.decimals (0), vaults.N.active-from-slot (0)
+ * </pre>
+ *
+ * When the chain also configures {@code observers.<deposit-observer-id>.*}, its type must be
+ * {@code asset-vault-deposit-v1} and its domain and vault settings must equal these, so the
+ * observer and the ledger can never disagree about the domain or the vault set.
+ */
+record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkMagic, Hash32 genesisId,
+                             String applicationId, String profileId, long profileVersion, Hash32 domainId,
+                             String depositObserverId, long maxIntentTtlMs, int minStabilityDepth,
+                             List<PaymentsRecords.RegistryEntryV1> vaults) {
+    static final String PREFIX = "machines." + AssetPaymentsContract.STATE_MACHINE_ID + ".";
+    static final String OBSERVER_TYPE = "asset-vault-deposit-v1";
+
+    AssetPaymentsSettings {
+        vaults = List.copyOf(vaults);
+    }
+
+    static AssetPaymentsSettings parse(String chainId, Map<String, String> all) {
+        Map<String, String> settings = new LinkedHashMap<>();
+        all.forEach((key, value) -> {
+            if (key.startsWith(PREFIX)) settings.put(key.substring(PREFIX.length()), value);
+        });
+        int networkId = (int) bounded(required(settings, "domain.address-network-id"), 0, 15,
+                "domain.address-network-id");
+        long magic = bounded(required(settings, "domain.network-magic"), 0, 0xFFFF_FFFFL, "domain.network-magic");
+        Hash32 genesis = Hash32.of(hex(required(settings, "domain.genesis-id"), 32, "domain.genesis-id"));
+        String applicationId = optional(settings, "domain.application-id", "asset-payments");
+        String profileId = optional(settings, "domain.profile-id", "anchored-claim-vault-v1");
+        long profileVersion = bounded(optional(settings, "domain.profile-version", "1"), 0, Long.MAX_VALUE,
+                "domain.profile-version");
+        Hash32 domainId = GatewayIds.domainId(networkId, magic, chainId, genesis, applicationId, profileId,
+                profileVersion);
+        String observerId = required(settings, "deposit-observer-id");
+        long ttl = bounded(optional(settings, "max-intent-ttl-ms", "600000"), 1, 7L * 24 * 3_600_000,
+                "max-intent-ttl-ms");
+        int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 0, 100_000,
+                "min-stability-depth");
+
+        List<PaymentsRecords.RegistryEntryV1> vaults = new ArrayList<>();
+        Set<AssetId> assets = new HashSet<>();
+        for (int index = 0; settings.containsKey("vaults." + index + ".asset"); index++) {
+            if (index >= AssetPaymentsContract.MAX_VAULTS) throw new IllegalArgumentException("at most 16 vaults");
+            String prefix = "vaults." + index + ".";
+            AssetId asset = asset(required(settings, prefix + "asset"), prefix + "asset");
+            if (!assets.add(asset)) throw new IllegalArgumentException("v1 allows one vault per asset (I29)");
+            String address = required(settings, prefix + "address");
+            if (address.length() > 128 || !address.startsWith("addr")) {
+                throw new IllegalArgumentException(prefix + "address must be a bech32 Shelley address");
+            }
+            PaymentsRecords.AssetStatus status;
+            try {
+                status = PaymentsRecords.AssetStatus.valueOf(optional(settings, prefix + "status", "ACTIVE"));
+            } catch (IllegalArgumentException invalid) {
+                throw new IllegalArgumentException(prefix + "status is not a registry status", invalid);
+            }
+            vaults.add(new PaymentsRecords.RegistryEntryV1(GatewayIds.vaultId(domainId, asset, 0), asset,
+                    hex(required(settings, prefix + "script-hash"), 28, prefix + "script-hash"), address, status,
+                    bounded(optional(settings, prefix + "active-from-slot", "0"), 0, Long.MAX_VALUE,
+                            prefix + "active-from-slot"),
+                    0, optional(settings, prefix + "ticker", ""),
+                    (int) bounded(optional(settings, prefix + "decimals", "0"), 0, 19, prefix + "decimals")));
+        }
+        if (vaults.isEmpty()) throw new IllegalArgumentException(PREFIX + "vaults.0.* is required");
+        AssetPaymentsSettings parsed = new AssetPaymentsSettings(chainId, networkId, magic, genesis, applicationId,
+                profileId, profileVersion, domainId, observerId, ttl, minDepth, vaults);
+        parsed.checkObserver(all);
+        return parsed;
+    }
+
+    IntentEnvelopeV1.Domain intentDomain() {
+        return new IntentEnvelopeV1.Domain(networkMagic, addressNetworkId, chainId, genesisId, applicationId);
+    }
+
+    String depositTopic() {
+        return "~l1/" + depositObserverId;
+    }
+
+    PaymentsRecords.DomainRecordV1 domainRecord() {
+        return new PaymentsRecords.DomainRecordV1(domainId, addressNetworkId, networkMagic, chainId, genesisId,
+                applicationId, profileId, profileVersion, digest());
+    }
+
+    /** {@code blake2b-256} of every consensus value, length-delimited, in a fixed order. */
+    Hash32 digest() {
+        List<String> fields = new ArrayList<>(List.of(
+                "chain-id=" + chainId, "domain-id=" + domainId.hex(), "deposit-observer-id=" + depositObserverId,
+                "max-intent-ttl-ms=" + maxIntentTtlMs, "min-stability-depth=" + minStabilityDepth));
+        for (PaymentsRecords.RegistryEntryV1 vault : vaults) fields.add("vault=" + HexFormat.of().formatHex(vault.encode()));
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (DataOutputStream output = new DataOutputStream(bytes)) {
+                output.writeInt(fields.size());
+                for (String field : fields) {
+                    byte[] encoded = field.getBytes(StandardCharsets.UTF_8);
+                    output.writeInt(encoded.length);
+                    output.write(encoded);
+                }
+            }
+            return Hash32.of(Blake2bUtil.blake2bHash256(bytes.toByteArray()));
+        } catch (IOException impossible) {
+            throw new UncheckedIOException(impossible);
+        }
+    }
+
+    /** The observer and this ledger must describe the same domain and vault set. */
+    private void checkObserver(Map<String, String> all) {
+        String observer = "observers." + depositObserverId + ".";
+        if (!all.containsKey(observer + "type")) return;
+        if (!OBSERVER_TYPE.equals(all.get(observer + "type").trim())) {
+            throw new IllegalArgumentException(observer + "type must be " + OBSERVER_TYPE);
+        }
+        Map<String, String> expected = new LinkedHashMap<>();
+        expected.put("domain.address-network-id", String.valueOf(addressNetworkId));
+        expected.put("domain.network-magic", String.valueOf(networkMagic));
+        expected.put("domain.chain-id", chainId);
+        expected.put("domain.genesis-id", genesisId.hex());
+        expected.put("domain.application-id", applicationId);
+        expected.put("domain.profile-id", profileId);
+        expected.put("domain.profile-version", String.valueOf(profileVersion));
+        for (int index = 0; index < vaults.size(); index++) {
+            PaymentsRecords.RegistryEntryV1 vault = vaults.get(index);
+            expected.put("vaults." + index + ".asset", vault.asset().toString());
+            expected.put("vaults." + index + ".script-hash", HexFormat.of().formatHex(vault.scriptHash()));
+            expected.put("vaults." + index + ".address", vault.vaultAddress());
+        }
+        Map<String, String> defaults = Map.of("domain.application-id", "asset-payments",
+                "domain.profile-id", "anchored-claim-vault-v1", "domain.profile-version", "1");
+        expected.forEach((key, value) -> {
+            String actual = all.get(observer + key);
+            actual = actual == null || actual.isBlank() ? defaults.get(key) : actual.trim();
+            if (!value.equals(actual)) {
+                throw new IllegalArgumentException(observer + key + " differs from " + PREFIX + key);
+            }
+        });
+        if (all.containsKey(observer + "vaults." + vaults.size() + ".asset")) {
+            throw new IllegalArgumentException(observer + "vaults lists more vaults than the ledger registry");
+        }
+    }
+
+    static AssetId asset(String value, String field) {
+        if ("lovelace".equals(value)) return AssetId.ADA;
+        int dot = value.indexOf('.');
+        if (dot != 56 || !value.equals(value.toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException(field + " must be lovelace or <policy hex>.<asset name hex>");
+        }
+        try {
+            return AssetId.of(HexFormat.of().parseHex(value.substring(0, dot)),
+                    HexFormat.of().parseHex(value.substring(dot + 1)));
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalArgumentException(field + ": " + invalid.getMessage(), invalid);
+        }
+    }
+
+    private static String required(Map<String, String> settings, String key) {
+        String value = settings.get(key);
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(PREFIX + key + " is required");
+        return value.trim();
+    }
+
+    private static String optional(Map<String, String> settings, String key, String fallback) {
+        String value = settings.get(key);
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private static long bounded(String value, long min, long max, String field) {
+        try {
+            long parsed = Long.parseLong(value);
+            if (parsed < min || parsed > max) throw new IllegalArgumentException(PREFIX + field + " is out of range");
+            return parsed;
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException(PREFIX + field + " must be an integer", invalid);
+        }
+    }
+
+    private static byte[] hex(String value, int bytes, String field) {
+        if (value.length() != bytes * 2 || !value.equals(value.toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException(PREFIX + field + " must be " + bytes + "-byte lowercase hex");
+        }
+        try {
+            return HexFormat.of().parseHex(value);
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalArgumentException(PREFIX + field + " must be " + bytes + "-byte lowercase hex", invalid);
+        }
+    }
+}

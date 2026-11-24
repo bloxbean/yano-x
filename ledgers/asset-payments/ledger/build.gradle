@@ -1,0 +1,134 @@
+plugins {
+    id 'com.gradleup.shadow'
+}
+
+dependencies {
+    compileOnly project(':framework:api')
+    implementation project(':ledgers:asset-payments:contracts')
+    compileOnly libs.yaci.core
+    compileOnly libs.cardano.client.crypto
+    compileOnly libs.cbor
+
+    testImplementation project(':framework:api')
+    testImplementation rootProject.ext.yanoModule('yano-runtime')
+    // Yano's runtime no longer re-exports the X framework (ADR-064 D1).
+    testImplementation project(':framework:core')
+    // The in-process ingress test drives real L1 block bytes through the deposit observer.
+    testImplementation project(':capabilities:asset-gateway-cardano')
+    testImplementation libs.yaci.core
+    testImplementation libs.cardano.client.address
+    testImplementation libs.cardano.client.common
+    testImplementation libs.cardano.client.core
+    testImplementation libs.cardano.client.crypto
+    testImplementation libs.cbor
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.named('shadowJar') {
+    archiveBaseName.set(rootProject.ext.artifactByPath[project.path].artifactId.toString())
+    archiveClassifier.set('bundle')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+    mergeServiceFiles()
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
+    exclude 'com/bloxbean/cardano/yaci/**'
+    exclude 'com/bloxbean/cardano/client/**'
+    exclude 'co/nstant/in/cbor/**'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
+}
+
+tasks.register('verifyAssetPaymentsLedgerArtifactBoundaries') {
+    group = 'verification'
+    description = 'Verifies the asset-payments bundle embeds its contracts but no host, Cardano or gateway classes'
+    dependsOn tasks.named('jar'), tasks.named('shadowJar')
+    inputs.files(tasks.named('jar').flatMap { it.archiveFile },
+            tasks.named('shadowJar').flatMap { it.archiveFile })
+
+    doLast {
+        def entries = { File archive ->
+            new java.util.zip.ZipFile(archive).withCloseable { zip ->
+                zip.entries().collect { entry -> entry.name }.toSet()
+            }
+        }
+        def thinEntries = entries(tasks.named('jar').get().archiveFile.get().asFile)
+        def bundleEntries = entries(tasks.named('shadowJar').get().archiveFile.get().asFile)
+        def forbiddenPrefixes = [
+                'org/yanoproject/api/',
+                'org/yanoproject/x/framework/api/',
+                'org/yanoproject/x/framework/cardano/api/',
+                'com/bloxbean/cardano/yaci/',
+                'com/bloxbean/cardano/client/',
+                'co/nstant/in/cbor/',
+                // D2: the deterministic payment ledger never depends on the gateway bundle.
+                'org/yanoproject/x/assets/cardano/'
+        ]
+        def forbidden = bundleEntries.findAll { entry ->
+            forbiddenPrefixes.any { prefix -> entry.startsWith(prefix) }
+        }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException(
+                    'Asset-payments bundle embeds host, Cardano or gateway classes: '
+                            + forbidden.toList().sort().take(10))
+        }
+        def contractClass = 'org/yanoproject/x/assetpayments/contracts/PaymentsMessageV1.class'
+        def walletClass = 'org/yanoproject/x/walletauth/WalletAuthorizer.class'
+        def providerClass = 'org/yanoproject/x/assetpayments/ledger/AssetPaymentsStateMachineProvider.class'
+        if (thinEntries.contains(contractClass) || !bundleEntries.contains(contractClass)
+                || !bundleEntries.contains(walletClass)
+                || !thinEntries.contains(providerClass) || !bundleEntries.contains(providerClass)) {
+            throw new GradleException('Asset-payments thin/bundle class boundary is incomplete')
+        }
+        def manifests = bundleEntries.findAll { it.startsWith('META-INF/yano/plugins/') && it.endsWith('.json') }
+        if (manifests != ['META-INF/yano/plugins/org.yanoproject.x.asset-payments.json'] as Set) {
+            throw new GradleException("Asset-payments bundle manifests are not isolated: ${manifests}")
+        }
+    }
+}
+
+tasks.register('verifyAssetPaymentsLedgerDependencyGraph') {
+    group = 'verification'
+    description = 'D2: the payment ledger runtime graph never includes the gateway bundle, Julc or ZeroJ'
+
+    doLast {
+        def forbidden = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
+                .collect { component -> component.id.displayName }
+                .findAll { identity ->
+                    def lower = identity.toLowerCase(java.util.Locale.ROOT)
+                    lower.contains('julc') || lower.contains('zeroj')
+                            || lower.contains('asset-gateway-cardano')
+                }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException(
+                    "Asset-payments runtime dependency boundary is violated: ${forbidden.sort()}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyAssetPaymentsLedgerArtifactBoundaries'),
+            tasks.named('verifyAssetPaymentsLedgerDependencyGraph')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Payments Ledger'
+                description = 'The #109 multi-asset payment ledger state machine (ADR-059 D14), M3 ingress and transfers'
+            }
+        }
+    }
+}
