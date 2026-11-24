@@ -78,8 +78,11 @@ deposit_reason = 0    ; NONE (only with CREDITED)
                / 10   ; BALANCE_OVERFLOW
                / 11   ; INCONSISTENT_VALUE (ADA vault: registered_quantity != lovelace)
 
-; CONTINUATION and MIGRATION_IN outputs are vault custody: no record is written
-; (the stock observer does not report continuations at all). FLOOR_TOP_UP is
+; A CONTINUATION with a clean value (no foreign asset; for the ADA vault
+; registered_quantity == lovelace) is vault custody: no record is written and the
+; stock observer does not report it. A continuation carrying junk is recorded
+; UNATTRIBUTED (UNKNOWN_VAULT / MIXED_ASSETS / INCONSISTENT_VALUE). MIGRATION_IN
+; is recorded UNATTRIBUTED (NOT_A_DEPOSIT) until M4b authenticates migrations. FLOOR_TOP_UP is
 ; OPERATIONAL only for a registered vault, no other assets and, for a token
 ; vault, no vault token; otherwise it is UNATTRIBUTED (UNKNOWN_VAULT /
 ; MIXED_ASSETS / INCONSISTENT_VALUE) and sweepable.

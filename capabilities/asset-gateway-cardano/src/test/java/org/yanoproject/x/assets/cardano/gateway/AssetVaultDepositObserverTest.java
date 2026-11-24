@@ -318,6 +318,30 @@ class AssetVaultDepositObserverTest {
         assertThat(ledger.credits).isEmpty();
     }
 
+    static final AssetId NFT = AssetId.ofHex("cd".repeat(28), "4e4654");
+
+    /** Fable P2 probe: 2 ADA + 50 USDM + 1 foreign NFT, under each custody-like datum. */
+    @Test
+    void junkCarriedByContinuationsAndMigrationsIsReportedAndRecordedUnattributed() {
+        Ledger ledger = new Ledger();
+        List<L1Observation> observations = observe(block(List.of(), tx(0x1b,
+                output(USDM_VAULT, HexFormat.of().parseHex("d87a8180"), lovelace(2_000_000), token(USDM, 50),
+                        token(NFT, 1)),
+                output(USDM_VAULT, HexFormat.of().parseHex("d87c82" + "5820" + "11".repeat(32) + "5820"
+                        + "22".repeat(32)), lovelace(2_000_000), token(USDM, 50), token(NFT, 1)),
+                output(USDM_VAULT, HexFormat.of().parseHex("d87b80"), lovelace(2_000_000), token(USDM, 50),
+                        token(NFT, 1)),
+                output(ADA_VAULT, HexFormat.of().parseHex("d87a8180"), lovelace(2_000_000), token(NFT, 1)),
+                output(USDM_VAULT, HexFormat.of().parseHex("d87a8180"), lovelace(2_000_000), token(USDM, 50)))));
+        // The clean continuation (index 4) is the only output not reported.
+        assertThat(observations).extracting(L1Observation::eventOrdinal).containsExactly(0L, 1L, 2L, 3L);
+        assertThat(ledger.apply(observations)).extracting(o -> o.record().orElseThrow().status() + "/"
+                + o.record().orElseThrow().reason()).containsExactly(
+                "UNATTRIBUTED/MIXED_ASSETS", "UNATTRIBUTED/NOT_A_DEPOSIT", "UNATTRIBUTED/MIXED_ASSETS",
+                "UNATTRIBUTED/MIXED_ASSETS");
+        assertThat(ledger.credits).isEmpty();
+    }
+
     @Test
     void a9TwoDepositsInOneTransactionAreBothCreditedExactlyOnce() {
         Ledger ledger = new Ledger();

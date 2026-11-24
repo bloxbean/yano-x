@@ -28,9 +28,12 @@ import java.util.Optional;
  *
  * <p>Nothing about L1 content makes it throw. An envelope that fails steps 1–2 writes nothing and
  * returns {@link Disposition#IGNORED}; a replay returns {@link Disposition#DUPLICATE} and writes
- * nothing. A {@code CONTINUATION} or {@code MIGRATION_IN} output is the vault's own custody, never
- * a deposit and never unattributed (D5, I16): it returns {@link Disposition#VAULT_CUSTODY} and
- * writes nothing. The stock observer does not even report continuations. Every uncreditable deposit is recorded, never rejected. The {@link CreditCheck} must
+ * nothing. A {@code CONTINUATION} output with a clean value (see {@link #isCleanCustodyValue}) is
+ * the vault's own custody, never a deposit and never unattributed (D5, I16): it returns
+ * {@link Disposition#VAULT_CUSTODY} and writes nothing, and the stock observer does not even report
+ * it. A continuation carrying junk is recorded {@code UNATTRIBUTED} like a junk floor top-up, so a
+ * governed sweep can recover the junk. A {@code MIGRATION_IN} output is recorded
+ * {@code UNATTRIBUTED} until M4b can authenticate migrations. Every uncreditable deposit is recorded, never rejected. The {@link CreditCheck} must
  * refuse anything the consumer could not credit without throwing (an unknown beneficiary, a
  * balance overflow), so that the record and the credit always commit together.
  */
@@ -223,9 +226,10 @@ public final class DepositAdmission {
         Hash32 depositId = GatewayIds.depositId(claim.vaultId(), claim.txId(), claim.outputIndex());
         if (!depositId.equals(claim.depositId())) return Outcome.ignored("deposit id does not recompute");
 
-        // Vault custody (a Settle/Exit/Accept continuation, or a migration-in) is never a deposit and
-        // never unattributed: no record, so it neither inflates D15 nor leaves a leaf per spend.
-        if (claim.shape() == VaultOutputShape.CONTINUATION || claim.shape() == VaultOutputShape.MIGRATION_IN) {
+        // A clean continuation (Settle/Exit/Accept, or a donation) is vault custody: never a deposit and
+        // never unattributed, so no record, neither inflating D15 nor leaving a leaf per spend.
+        Optional<VaultBinding> vault = registry.vault(claim.vaultId());
+        if (claim.shape() == VaultOutputShape.CONTINUATION && custodyJunk(claim, vault) == Reason.NONE) {
             return new Outcome(Disposition.VAULT_CUSTODY, Optional.empty(), Optional.empty(), claim.shape().name());
         }
 
@@ -236,7 +240,6 @@ public final class DepositAdmission {
         }
 
         // Step 4: shape, creditability, registry status, then the consumer's check.
-        Optional<VaultBinding> vault = registry.vault(claim.vaultId());
         DepositRecordV1.Status status;
         Reason reason;
         CreditInstruction instruction = null;
@@ -248,7 +251,12 @@ public final class DepositAdmission {
             Reason junk = floorTopUpJunk(claim, vault);
             status = junk == Reason.NONE ? DepositRecordV1.Status.OPERATIONAL : DepositRecordV1.Status.UNATTRIBUTED;
             reason = junk == Reason.NONE ? Reason.FLOOR_TOP_UP : junk;
+        } else if (claim.shape() == VaultOutputShape.CONTINUATION) {
+            // Only reached with junk: the clean case returned VAULT_CUSTODY above.
+            status = DepositRecordV1.Status.UNATTRIBUTED;
+            reason = custodyJunk(claim, vault);
         } else if (claim.shape() != VaultOutputShape.DEPOSIT) {
+            // OTHER, and MIGRATION_IN until M4b authenticates it (D8d).
             status = DepositRecordV1.Status.UNATTRIBUTED;
             reason = Reason.NOT_A_DEPOSIT;
         } else {
@@ -285,6 +293,26 @@ public final class DepositAdmission {
         // Step 6: the credit the caller applies in the same transition.
         return new Outcome(Disposition.RECORDED, Optional.of(record), Optional.ofNullable(instruction),
                 status.name());
+    }
+
+    /**
+     * Whether a vault-custody output's value is clean: no asset other than the vault's own and, for
+     * the ADA vault, a registered quantity equal to the lovelace. Observers use the same rule to
+     * decide which continuations need not be reported.
+     */
+    public static boolean isCleanCustodyValue(AssetId vaultAsset, BigInteger registeredQuantity,
+                                              BigInteger lovelace, long otherAssetCount) {
+        return otherAssetCount == 0 && (!vaultAsset.isAda() || registeredQuantity.equals(lovelace));
+    }
+
+    /** Why a continuation is not clean vault custody, or {@link Reason#NONE}. */
+    private static Reason custodyJunk(AssetDepositClaimV1 claim, Optional<VaultBinding> vault) {
+        if (vault.isEmpty()) return Reason.UNKNOWN_VAULT;
+        if (vault.get().asset().isAda() && !claim.registeredQuantity().equals(claim.lovelace())) {
+            return Reason.INCONSISTENT_VALUE;
+        }
+        return isCleanCustodyValue(vault.get().asset(), claim.registeredQuantity(), claim.lovelace(),
+                claim.otherAssetCount()) ? Reason.NONE : Reason.MIXED_ASSETS;
     }
 
     /** Why a floor top-up is not clean operator ADA, or {@link Reason#NONE}. */

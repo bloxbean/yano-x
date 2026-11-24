@@ -7,6 +7,7 @@ import org.yanoproject.x.assets.cardano.support.ObserverIdentity;
 import org.yanoproject.x.assets.cardano.support.OutputValues;
 import org.yanoproject.x.assets.cardano.support.ValidTransactions;
 import org.yanoproject.x.assets.contracts.AssetDepositClaimV1;
+import org.yanoproject.x.assets.contracts.DepositAdmission;
 import org.yanoproject.x.assets.contracts.DepositDatumV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
@@ -27,8 +28,10 @@ import java.util.TreeMap;
  * creditability: for every phase-2-valid transaction it emits one {@link AssetDepositClaimV1} per
  * output at a configured vault address, anchored to the transaction, with
  * {@code eventOrdinal = output index}, whatever the output's value, except a
- * {@code VaultContinuationV1} output: that is the vault's own custody, created by {@code Settle},
- * {@code Exit} or {@code Accept} or donated, and never a deposit (D5, I16), so it is not reported.
+ * {@code VaultContinuationV1} output with a clean value ({@code DepositAdmission.isCleanCustodyValue}):
+ * that is the vault's own custody, created by {@code Settle}, {@code Exit} or {@code Accept} or
+ * donated, and never a deposit (D5, I16), so it is not reported. A continuation carrying junk is
+ * reported so the consumer records the junk as unattributed custody.
  * The consumer's {@code DepositAdmission} decides what to credit (D6).
  *
  * <p>Pure and deterministic, and it never throws on L1 content (I2): a datum outside the bounds
@@ -97,12 +100,16 @@ final class AssetVaultDepositObserver implements L1Observer {
         return List.copyOf(observations);
     }
 
-    /** The claim for one vault output, or null for a continuation (vault custody). */
+    /** The claim for one vault output, or null for a clean continuation (vault custody). */
     private AssetDepositClaimV1 claim(AssetVaultDepositSettings.Vault vault, Hash32 txId, int index, long slot,
                                       Hash32 blockId, TransactionOutput output) {
         byte[] datum = inlineDatum(output.getInlineDatum());
         VaultOutputShape shape = VaultOutputShape.classify(datum);
-        if (shape == VaultOutputShape.CONTINUATION) return null;
+        OutputValues.Summary summary = OutputValues.summary(OutputValues.of(output.getAmounts()), vault.asset());
+        if (shape == VaultOutputShape.CONTINUATION && DepositAdmission.isCleanCustodyValue(vault.asset(),
+                summary.registeredQuantity(), summary.lovelace(), summary.otherAssetCount())) {
+            return null;
+        }
         AssetDepositClaimV1.Beneficiary beneficiary;
         if (shape != VaultOutputShape.DEPOSIT) {
             beneficiary = new AssetDepositClaimV1.NotApplicable();
@@ -117,7 +124,6 @@ final class AssetVaultDepositObserver implements L1Observer {
             }
             beneficiary = decoded;
         }
-        OutputValues.Summary summary = OutputValues.summary(OutputValues.of(output.getAmounts()), vault.asset());
         return new AssetDepositClaimV1(GatewayIds.depositId(vault.vaultId(), txId, index), vault.vaultId(), txId,
                 index, slot, blockId, shape, beneficiary, summary.registeredQuantity(), summary.lovelace(),
                 summary.otherAssetCount(), summary.valueHash());

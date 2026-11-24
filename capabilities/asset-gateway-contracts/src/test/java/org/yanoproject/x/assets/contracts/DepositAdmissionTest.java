@@ -206,19 +206,43 @@ class DepositAdmissionTest {
         assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("00"))).isEqualTo(VaultOutputShape.OTHER);
     }
 
-    /** M3-F1: continuations and migration-ins are vault custody; nothing is recorded or counted. */
+    /** M3-F1: a clean continuation is vault custody; nothing is recorded or counted. */
     @Test
-    void vaultCustodyOutputsWriteNoRecordAndAreNeverUnattributed() {
-        for (VaultOutputShape shape : new VaultOutputShape[] {VaultOutputShape.CONTINUATION,
-                VaultOutputShape.MIGRATION_IN}) {
-            AssetDepositClaimV1 claim = claim(USDM_VAULT, 8, shape.code(), shape,
-                    new AssetDepositClaimV1.NotApplicable(), 1_000, 2_000_000, 0);
+    void cleanContinuationsWriteNoRecordAndAreNeverUnattributed() {
+        AssetDepositClaimV1 token = claim(USDM_VAULT, 8, 0, VaultOutputShape.CONTINUATION,
+                new AssetDepositClaimV1.NotApplicable(), 1_000, 2_000_000, 0);
+        AssetDepositClaimV1 ada = claim(ADA_VAULT, 8, 1, VaultOutputShape.CONTINUATION,
+                new AssetDepositClaimV1.NotApplicable(), 2_000_000, 2_000_000, 0);
+        for (AssetDepositClaimV1 claim : java.util.List.of(token, ada)) {
             DepositAdmission.Outcome outcome = admission.admit(store, observed(claim), 1, accept);
-            assertThat(outcome.disposition()).as(shape.name()).isEqualTo(DepositAdmission.Disposition.VAULT_CUSTODY);
+            assertThat(outcome.disposition()).isEqualTo(DepositAdmission.Disposition.VAULT_CUSTODY);
             assertThat(outcome.record()).isEmpty();
             assertThat(outcome.credit()).isEmpty();
         }
         assertThat(store.values).isEmpty();
+    }
+
+    /** Fable P2: custody is not value-blind; junk-bearing continuations and migration-ins are recorded. */
+    @Test
+    void junkContinuationsAndUnauthenticatedMigrationsAreRecordedUnattributed() {
+        // The review's probe: 2 ADA + 50 USDM + 1 foreign NFT at the USDM vault.
+        assertReason(claim(USDM_VAULT, 11, 0, VaultOutputShape.CONTINUATION, new AssetDepositClaimV1.NotApplicable(),
+                50, 2_000_000, 1), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.MIXED_ASSETS);
+        assertReason(claim(USDM_VAULT, 11, 1, VaultOutputShape.MIGRATION_IN, new AssetDepositClaimV1.NotApplicable(),
+                50, 2_000_000, 1), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.NOT_A_DEPOSIT);
+        assertReason(claim(USDM_VAULT, 11, 2, VaultOutputShape.MIGRATION_IN, new AssetDepositClaimV1.NotApplicable(),
+                50, 2_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.NOT_A_DEPOSIT);
+        assertReason(claim(USDM_VAULT, 11, 3, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
+                50, 2_000_000, 1), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.MIXED_ASSETS);
+        assertReason(claim(ADA_VAULT, 11, 4, VaultOutputShape.CONTINUATION, new AssetDepositClaimV1.NotApplicable(),
+                1, 2_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.INCONSISTENT_VALUE);
+        Hash32 foreign = GatewayIds.vaultId(GatewayIds.domainId(0, 42, "payments-2", Hash32.of(new byte[32]),
+                "asset-payments", "anchored-claim-vault-v1", 1), USDM, 0);
+        assertReason(claim(foreign, 11, 5, VaultOutputShape.CONTINUATION, new AssetDepositClaimV1.NotApplicable(),
+                50, 2_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.UNKNOWN_VAULT);
+        assertThat(DepositAdmission.isCleanCustodyValue(USDM, BigInteger.valueOf(50), BigInteger.TWO, 0)).isTrue();
+        assertThat(DepositAdmission.isCleanCustodyValue(USDM, BigInteger.valueOf(50), BigInteger.TWO, 1)).isFalse();
+        assertThat(DepositAdmission.isCleanCustodyValue(AssetId.ADA, BigInteger.ONE, BigInteger.TWO, 0)).isFalse();
     }
 
     /** M3-F2: only a clean lovelace top-up into a registered vault is operator floor. */
