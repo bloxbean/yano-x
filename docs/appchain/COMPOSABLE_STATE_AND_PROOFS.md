@@ -121,7 +121,12 @@ height is the highest app height covered by an anchor confirmed at least `l1.sta
 blocks below this node's tip, the same frontier the `L1_ANCHORED` effect gate uses. Until such an
 anchor exists, nothing is pruned. Applications that serve claim proofs against the anchor that L1
 still references, such as the ADR-059 asset gateway, set it so a rolled-back anchor advance never
-leaves the restored anchor without proofs.
+leaves the restored anchor without proofs. The floor also clamps operator pruning through
+`AppChainGateway.pruneStateProofsBefore`: a request above the L1-stable anchor height prunes only
+up to it, and nothing while no anchor is L1-stable. While the floor keeps everything, the status
+carries `floorBlockedReason` (for example `l1.stability-depth` is 0, the node has no anchor service
+or no stable L1 point yet, legacy metadata journal entries without an L1 inclusion block, or a
+256-entry confirmation journal holding only anchors newer than the stable point).
 
 ## MPF proof verification in a Cardano validator
 
