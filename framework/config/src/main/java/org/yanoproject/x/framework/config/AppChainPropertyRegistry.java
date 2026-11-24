@@ -419,6 +419,11 @@ public final class AppChainPropertyRegistry {
                 PropertyType.LONG, "5000", 1L,
                 AppChainConsensusProfile.MAX_BLOCK_MAX_FORWARD_SKEW_MS, Set.of(),
                 "Maximum ms a fresh proposal's timestamp may lead the voter's clock (ADR app-layer/039 D12)"));
+        definitions.add(coreParsed(AppChainConsensusProfile.BLOCK_MAX_BACKWARD_SKEW_SETTING,
+                PropertyType.LONG, "0", 0L,
+                AppChainConsensusProfile.MAX_BLOCK_MAX_BACKWARD_SKEW_MS, Set.of(),
+                "Opt-in: maximum ms a fresh proposal's timestamp may trail the voter's clock; 0 disables "
+                        + "(ADR-059 framework addition 8)"));
         definitions.add(coreParsed(TopicChainSettings.MODE, PropertyType.STRING, "disabled", null, null,
                 Set.of("disabled", "enabled"),
                 "Enable the topic registry at genesis; requires membership.mode=governed (ADR app-layer/039 D1)"));

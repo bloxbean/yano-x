@@ -105,6 +105,50 @@ class AppChainConsensusProfileCommitmentTest {
         }
     }
 
+    /** ADR-059 framework addition 8: an opt-in, flag-gated tail; unset profiles keep their bytes. */
+    @Test
+    void backwardSkewIsAFlagGatedTailThatLeavesUnboundedProfilesUnchanged() {
+        AppChainConsensusProfile unbounded = enabledProfile(List.of(SIGNER_1, SIGNER_2));
+        assertThat(unbounded.blockMaxBackwardSkewMs()).isZero();
+        assertThat(unbounded.blockBackwardSkewBounded()).isFalse();
+        assertThat(HexUtil.encodeHexString(AppChainConsensusProfileCommitment.encode(
+                unbounded.withBlockMaxBackwardSkewMs(0)))).isEqualTo(GOLDEN_BYTES);
+
+        AppChainConsensusProfile bounded = unbounded.withBlockMaxBackwardSkewMs(30_000);
+        byte[] encoded = AppChainConsensusProfileCommitment.encode(bounded);
+        String expected = GOLDEN_BYTES.substring(0, 72) + "0f" + GOLDEN_BYTES.substring(74)
+                + "0000000000007530";
+        assertThat(HexUtil.encodeHexString(encoded)).isEqualTo(expected);
+        assertThat(AppChainConsensusProfileCommitment.decode(encoded)).isEqualTo(bounded);
+        assertThat(AppChainConsensusProfileCommitment.digest(bounded))
+                .isNotEqualTo(AppChainConsensusProfileCommitment.digest(unbounded));
+
+        byte[] zeroTail = encoded.clone();
+        java.util.Arrays.fill(zeroTail, zeroTail.length - 8, zeroTail.length, (byte) 0);
+        assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(zeroTail))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(
+                java.util.Arrays.copyOf(encoded, encoded.length - 1)))
+                .isInstanceOf(IllegalArgumentException.class);
+        byte[] flagWithoutTail = HexUtil.decodeHexString(GOLDEN_BYTES);
+        flagWithoutTail[36] |= 0x08;
+        assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(flagWithoutTail))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(AppChainConsensusProfile.blockMaxBackwardSkewMs(Map.of())).isZero();
+        assertThat(AppChainConsensusProfile.blockMaxBackwardSkewMs(
+                Map.of("block-time.max-backward-skew-ms", " 750 "))).isEqualTo(750);
+        assertThatThrownBy(() -> AppChainConsensusProfile.blockMaxBackwardSkewMs(
+                Map.of("block-time.max-backward-skew-ms", "slow")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("block-time.max-backward-skew-ms");
+        for (long invalid : new long[] {-1, 600_001}) {
+            assertThatThrownBy(() -> unbounded.withBlockMaxBackwardSkewMs(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("blockMaxBackwardSkewMs");
+        }
+    }
+
     @Test
     void contextDefaultRemainsCompatibleAndReservedPrefixIsExact() {
         AppStateMachineContext oldStyle = new AppStateMachineContext() {

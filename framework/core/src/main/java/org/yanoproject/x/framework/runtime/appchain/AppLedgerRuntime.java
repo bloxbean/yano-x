@@ -4021,6 +4021,9 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         status.put("maxBlockBytes", consensusProfile.maxBlockBytes());
         status.put("l1StabilityDepth", consensusProfile.l1StabilityDepth());
         status.put("blockMaxForwardSkewMs", consensusProfile.blockMaxForwardSkewMs());
+        if (consensusProfile.blockBackwardSkewBounded()) {
+            status.put("blockMaxBackwardSkewMs", consensusProfile.blockMaxBackwardSkewMs());
+        }
         status.put("enforceSenderSeq", consensusProfile.enforceSenderSeq());
         status.put("effectsEnabled", consensusProfile.effectsEnabled());
         return status;

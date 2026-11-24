@@ -42,7 +42,8 @@ public final class AppChainConfigParser {
      */
     private static final Map<String, Set<String>> STRICT_OWNERSHIP_DOMAINS = Map.of(
             "effects.result.", Set.of("effects.result.signers"),
-            "block-time.", Set.of(AppChainConsensusProfile.BLOCK_MAX_FORWARD_SKEW_SETTING),
+            "block-time.", Set.of(AppChainConsensusProfile.BLOCK_MAX_FORWARD_SKEW_SETTING,
+                    AppChainConsensusProfile.BLOCK_MAX_BACKWARD_SKEW_SETTING),
             TopicChainSettings.PREFIX, TopicChainSettings.KEYS,
             "state.", Set.of(
                     StateCommitmentIdentity.PROFILE_SETTING,

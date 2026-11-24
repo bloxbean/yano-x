@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
 import org.yanoproject.x.framework.api.appchain.AppLedgerOperatingProfile;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 import org.yanoproject.x.framework.api.appchain.AppStateWriter;
@@ -42,7 +43,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -439,6 +443,69 @@ class AppChainEngineIdentityValidationTest {
             engine.close();
             engine.closeCompletion().toCompletableFuture().get(5, TimeUnit.SECONDS);
             ledger.close();
+        }
+    }
+
+    /** ADR-059 framework addition 8: the opt-in backward bound, and its absence by default. */
+    @Test
+    void backwardBlockTimeBoundRejectsBackdatedFreshProposalsOnlyWhenConfigured(@TempDir Path directory)
+            throws Exception {
+        AppMessageSigner proposer = new AppMessageSigner(HexUtil.encodeHexString(filled(53)));
+        AppMessageSigner follower = new AppMessageSigner(HexUtil.encodeHexString(filled(54)));
+        Set<String> members = Set.of(proposer.publicKeyHex(), follower.publicKeyHex());
+        for (boolean bounded : new boolean[] {false, true}) {
+            AppChainConfig config = AppChainConfig.builder(CHAIN)
+                    .signingKeyHex(HexUtil.encodeHexString(filled(54)))
+                    .memberKeysHex(members)
+                    .proposerKeyHex(proposer.publicKeyHex())
+                    .threshold(1)
+                    .stateCommitmentIdentity(TestStateCommitments.MPF)
+                    .pluginSettings(bounded
+                            ? Map.of(AppChainConsensusProfile.BLOCK_MAX_BACKWARD_SKEW_SETTING, "10000")
+                            : Map.of())
+                    .build();
+            Logger logger = mock(Logger.class);
+            AppLedgerStore ledger = new AppLedgerStore(
+                    directory.resolve("ledger-" + bounded).toString(), logger);
+            CountDownLatch voted = new CountDownLatch(1);
+            AppChainEngine engine = new AppChainEngine(
+                    config, ledger, new AppMsgPool(10), new NoOpMachine(), follower,
+                    new MemberGroup(members, 1), new AlwaysSequencer(), 60_000, 10,
+                    config.blockMaxBytes(), (topic, body) -> {
+                        if (ConsensusCodec.TOPIC_PREPARE.equals(topic)) {
+                            voted.countDown();
+                        }
+                        return null;
+                    }, logger);
+            engine.setWallClock(() -> 100_000);
+            try {
+                // Certified history is never judged against the voter's clock.
+                AppBlock first = certify(withConsensusProfileRoot(atTime(block(
+                        AppBlock.BLOCK_VERSION, CHAIN, List.of(), proposer.publicKey()), 50_000),
+                        config, ledger), proposer);
+                engine.onCertifiedBlocks(List.of(AppBlockCodec.serialize(first)));
+                awaitTip(ledger, 1);
+
+                engine.onConsensusMessage(proposal(proposer,
+                        nextBlock(first, 89_999, proposer.publicKey()), 2));
+                if (bounded) {
+                    verify(logger, timeout(5_000)).warn(
+                            "Proposal timestamp is more than {} ms behind the local clock at height {} "
+                                    + "— rejecting", 10_000L, 2L);
+                    assertThat(voted.getCount()).isEqualTo(1);
+                    // Exactly at the bound is valid.
+                    engine.onConsensusMessage(proposal(proposer,
+                            nextBlock(first, 90_000, proposer.publicKey()), 3));
+                }
+                assertThat(voted.await(5, TimeUnit.SECONDS)).isTrue();
+                verify(logger, bounded ? times(1) : never()).warn(
+                        eq("Proposal timestamp is more than {} ms behind the local clock at height {} "
+                                + "— rejecting"), any(Object.class), any(Object.class));
+            } finally {
+                engine.close();
+                engine.closeCompletion().toCompletableFuture().get(5, TimeUnit.SECONDS);
+                ledger.close();
+            }
         }
     }
 

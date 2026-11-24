@@ -88,6 +88,8 @@ public final class AppChainEngine implements AutoCloseable {
     private final long maxFutureViewLead;
     /** ADR app-layer/039 D12: how far a fresh proposal's timestamp may lead the voter's clock. */
     private final long maxForwardSkewMs;
+    /** ADR-059 framework addition 8: how far a fresh proposal's timestamp may trail the clock; 0 = off. */
+    private final long maxBackwardSkewMs;
     /** Wall clock for block timestamps and the D12 forward bound (replaceable in tests). */
     private volatile LongSupplier wallClock = System::currentTimeMillis;
     /** Partial rounds observed competing with our lock (008.2 §0 residual case). */
@@ -465,6 +467,7 @@ public final class AppChainEngine implements AutoCloseable {
         this.writeBatchFactory = Objects.requireNonNull(writeBatchFactory, "writeBatchFactory");
         this.effectsSettings = resolvedConsensus.settings();
         this.maxForwardSkewMs = resolvedConsensus.profile().blockMaxForwardSkewMs();
+        this.maxBackwardSkewMs = resolvedConsensus.profile().blockMaxBackwardSkewMs();
         this.consensusProfileGuard = new ConsensusProfileGuard(
                 resolvedConsensus.profile());
         this.consensusProfileGuard.verifyRetained(ledger, config.chainId());
@@ -1270,6 +1273,16 @@ public final class AppChainEngine implements AutoCloseable {
                 && recovery != RecoveryProposal.PREPARED_VALUE) {
             log.warn("Proposal timestamp is more than {} ms ahead of the local clock at height {} "
                     + "— rejecting", maxForwardSkewMs, block.height());
+            return;
+        }
+        // ADR-059 framework addition 8 (opt-in): a fresh value may trail this voter's
+        // clock by at most the profile's backward skew, so an idle chain's proposer
+        // cannot backdate block time. A re-proposed prepared value is exempt, as above.
+        if (maxBackwardSkewMs > 0
+                && block.timestamp() < wallClock.getAsLong() - maxBackwardSkewMs
+                && recovery != RecoveryProposal.PREPARED_VALUE) {
+            log.warn("Proposal timestamp is more than {} ms behind the local clock at height {} "
+                    + "— rejecting", maxBackwardSkewMs, block.height());
             return;
         }
         if (!verifyProposalL1Ref(envelope, block, parent)) {
