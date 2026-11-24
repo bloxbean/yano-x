@@ -302,6 +302,10 @@ public final class AppChainPropertyRegistry {
                 PropertyType.LONG, "3600", 1L, null, PropertyScope.NODE_LOCAL,
                 ChangePolicy.RESTART_REQUIRED,
                 "Interval between experimental MPF pruning passes"));
+        definitions.add(plain(AppChainPropertyKeys.STATE_PROOF_PRUNING_L1_STABLE_ANCHOR_FLOOR,
+                PropertyType.BOOLEAN, "false", PropertyScope.NODE_LOCAL,
+                ChangePolicy.RESTART_REQUIRED, true,
+                "Keep proofs from the latest L1-stable anchor height (ADR-059 framework addition 2)"));
         definitions.add(plain(AppChainPropertyKeys.ANCHOR_ENABLED, PropertyType.BOOLEAN,
                 "false", PropertyScope.CONSENSUS_SHARED, ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Enable Cardano L1 anchoring"));

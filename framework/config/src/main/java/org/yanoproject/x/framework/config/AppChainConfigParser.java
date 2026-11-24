@@ -52,7 +52,8 @@ public final class AppChainConfigParser {
                     StateCommitmentIdentity.L1_PROOF_REQUIRED_SETTING,
                     "state.proof-pruning.enabled",
                     "state.proof-pruning.retain-heights",
-                    "state.proof-pruning.interval-seconds"));
+                    "state.proof-pruning.interval-seconds",
+                    "state.proof-pruning.l1-stable-anchor-floor"));
 
     private AppChainConfigParser() {
     }

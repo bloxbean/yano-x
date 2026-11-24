@@ -284,6 +284,7 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
     private volatile long proofPruningLastStartedAt;
     private volatile long proofPruningLastCompletedAt;
     private volatile long proofPruningLastRetainFrom;
+    private volatile long proofPruningLastStableAnchorHeight;
     private volatile long proofPruningLastDeleted;
     private volatile QueryLane queryLane;
     private volatile EffectRuntime effectRuntime;
@@ -4054,6 +4055,10 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         pruning.put("experimental", true);
         pruning.put("retainHeights", proofPruningSettings.retainHeights());
         pruning.put("intervalSeconds", proofPruningSettings.intervalSeconds());
+        if (proofPruningSettings.l1StableAnchorFloor()) {
+            pruning.put("l1StableAnchorFloor", true);
+            pruning.put("lastStableAnchorHeight", proofPruningLastStableAnchorHeight);
+        }
         pruning.put("degraded", proofPruningDegraded.get());
         if (proofPruningFailure != null) {
             pruning.put("failure", proofPruningFailure);
@@ -4077,8 +4082,19 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                 if (currentLedger == null) {
                     throw new IllegalStateException("App-chain ledger is unavailable");
                 }
-                long retainFrom = proofPruningSettings.retainFrom(currentLedger.tipHeight());
+                long stableAnchorHeight = proofPruningSettings.l1StableAnchorFloor()
+                        ? stableAnchoredHeight() : 0L;
+                proofPruningLastStableAnchorHeight = stableAnchorHeight;
+                long retainFrom = proofPruningSettings.retainFrom(
+                        currentLedger.tipHeight(), stableAnchorHeight);
                 if (retainFrom == 0) {
+                    return new long[]{retainFrom, 0};
+                }
+                // The anchor floor can sit below an earlier tip-derived watermark (it was
+                // enabled later, or this node's stable view restarted behind it). The
+                // watermark never moves back, so that pass is a no-op, never a failure.
+                if (proofPruningSettings.l1StableAnchorFloor()
+                        && retainFrom <= currentLedger.mpfProofPruneWatermark()) {
                     return new long[]{retainFrom, 0};
                 }
                 return new long[]{retainFrom,
@@ -4586,9 +4602,10 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                     proofPruningSettings.intervalSeconds(),
                     proofPruningSettings.intervalSeconds(), TimeUnit.SECONDS);
             log.warn("App-chain '{}' experimental MPF proof pruning enabled "
-                            + "(retainHeights={}, intervalSeconds={})",
+                            + "(retainHeights={}, intervalSeconds={}, l1StableAnchorFloor={})",
                     config.chainId(), proofPruningSettings.retainHeights(),
-                    proofPruningSettings.intervalSeconds());
+                    proofPruningSettings.intervalSeconds(),
+                    proofPruningSettings.l1StableAnchorFloor());
         }
         exec.scheduleWithFixedDelay(() -> {
             pool.sweepExpired();
