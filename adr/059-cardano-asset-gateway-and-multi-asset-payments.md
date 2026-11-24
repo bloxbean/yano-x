@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r8). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-25, r9). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -674,6 +674,9 @@ v1 has no mode switch. A later, opt-in `PROOF_ONLY` option is recorded in D8e.
       ceiling parameters (D8e).
   - One extra inclusion proof, at a pinned key, must show that the domain status leaf under the
     same root is `ACTIVE` (D8a).
+  - **Maximum claim age (r9, Codex r7 F3).** Once `lb ≥ claim.reservedAtMs + exitDelayMs +
+    maxPauseMs`, a **user** claim no longer needs the status proof. Toggling `PAUSE` and `RESUME`
+    therefore cannot block an anchored user claim forever. Governed claims always need `ACTIVE`.
 
 **Why two paths**
 
@@ -1052,7 +1055,9 @@ Exit mode is terminal in v1 (Q17).
   `ExitLeafV1(holderKeyHash, VaultId, amount, vaultLovelace)`, at the script-computed key
   `exitKeyPrefix ‖ VaultId ‖ holderId` under `frozenRoot`. It requires:
   - `holderKeyHash` in `extraSignatories`;
-  - an insert of `blake2b-256("escape\0" ‖ VaultId ‖ holderId)` into that vault's shard set;
+  - a shard insert list that **equals exactly** the singleton
+    `[blake2b-256("escape\0" ‖ VaultId ‖ holderId)]`, computed by the script, so one exit can
+    never burn another holder's entitlement (r9, I17);
   - one output paying `amount` of the vault asset plus at least `vaultLovelace`;
   - the vault value equation V6 for the rest.
 
@@ -1076,18 +1081,19 @@ Exit mode is terminal in v1 (Q17).
 **6. Why exit mode stays solvent (I25), per vault and unit.**
 - **Custody** is all UTxOs at the vault address at the exit L1 point: accepted ones plus
   unaccepted deposits.
-- **The frozen root obliges** the following:
+- **The frozen root obliges** the following. These are liabilities only:
   - Σ exit leaves, minus those whose escape nullifier is already on L1;
-  - Σ claims `RESERVED` in the frozen root, minus those whose nullifier is already on L1;
-  - each `CREDITED` but unaccepted deposit. It is backed by its own UTxO and moved into custody
-    by a proved `Accept`.
+  - Σ claims `RESERVED` in the frozen root, minus those whose nullifier is already on L1.
+- **Backing for those liabilities** is accepted custody plus each `CREDITED` but unaccepted
+  deposit UTxO. That UTxO counts once, as backing. Its liability already sits in the holder's exit
+  leaf or claim. A proved `Accept` changes the form of the backing, not the obligation (r9).
 - **Uncredited or absent deposits** are refunded from their own UTxO and are outside the
   equation.
 - **The argument.** Under V12, every `Settle` before the freeze paid a claim reserved at or below
   some anchored height, which is ≤ `frozenHeight`. So that claim is `RESERVED` or `PAID` in the
   frozen root, never counted in an exit leaf, and its nullifier blocks a second payment. Accepted
-  custody therefore equals the obligations plus surplus, where surplus is the floor, donations
-  and unattributed value.
+  custody plus credited-but-unaccepted deposits therefore equals the obligations plus surplus,
+  where surplus is the floor, donations and unattributed value.
 - **What is left.** The floor and unattributed value remain stranded in a terminal exit-mode
   vault. That is stated.
 
@@ -1095,6 +1101,11 @@ Exit mode is terminal in v1 (Q17).
 - **State proofs.** The client SDK saves each user's exit-leaf proof and claim proofs at every
   L1-stable anchor. Snapshots are also published by content hash to at least two stores (S3 and
   IPFS connectors). The anchor datum's root identifies the snapshot.
+- **Publish before anchoring (r9, Codex r7 F5).** Before a member co-signs a root-changing anchor
+  advance, it checks that the snapshot for that root is retrievable from the designated stores,
+  using the root-to-snapshot lookup. So a root can never become final on L1 while its exit proofs
+  exist only on operator nodes. This adds publication latency to anchoring, but nothing to
+  `Settle`.
 - **Shard witnesses.** The SDK **rebuilds each shard trie from L1 alone**, by replaying shard
   spends from the bootstrap. Their redeemers carry the inserted ids, readable through any
   Cardano chain indexer. It then checks the result against the live shard root. No operator API
@@ -1783,14 +1794,14 @@ can authorize an invalid root. The surfaces also state:
 | I7 | A payout cannot move another asset, or another `VaultId`'s UTxOs or shards. The value equation V6 holds exactly. Lovelace leaves the vault only as the claims' `vaultLovelace`. | D8, D11 |
 | I8 | Reserved funds are never released while the claim may be redeemable. v1 has no release. | D7 |
 | I9 | Rotation of membership or the anchor never makes a reserved claim permanently unpayable, and never adds a spend path that bypasses I5-I7. Handoffs follow D8b. | D8b |
-| I10 | A user intent takes effect only if its signature verifies under D13's profile, the signer's credential equals the named account's owner credential, and the envelope binds every executed field. Replay across network, chain, application, action, account, authorizer or time fails. | D13 |
+| I10 | A user intent takes effect only if its signature verifies under D13's profile, the signer's credential equals the named account's owner credential, or the intent is session-signed under a registered, unrevoked and unexpired `grantId` whose limits it respects, and the envelope binds every executed field. Replay across network, chain, application, action, account, authorizer or time fails. | D13 |
 | I11 | A session never exceeds its limits, allowlists or expiry, including within one block. It never acts after its grant is revoked or replaced, and never withdraws or delegates unless explicitly granted. | D13 |
 | I12 | Effect results, operator commands, the executor and the domain API never change deposit or claim status. | D7, D9, D10 |
 | I13 | Identical genesis and observed L1 produce identical state roots on every member. Nothing consensus-relevant depends on local configuration. | D1, D5, D8b, D17 |
 | I14 | A chain that does not select gateway contributions behaves exactly as today. EUTxO bridge bytes and script hashes are unchanged. | D1, D16 |
 | I15 | Fees and collateral never come from a vault. Operational floor, min-ADA credits and customer ADA are separate accounts. | D11 |
 | I16 | *(new)* Outputs created by `Settle` or `Exit` are never deposit-shaped, and only deposit-shaped outputs are ever credited. | D5, D8 (V7) |
-| I17 | *(new)* The ordered nullifier inserts of a vault-spending transaction equal its ordered paid claim ids, within one shard of that vault. | D8c |
+| I17 | *(new; r9)* The ordered nullifier inserts of a vault-spending transaction equal its ordered paid claim ids, within one shard of that vault. For `BalanceExit`, the list is exactly the one script-derived escape id. | D8c, D8g |
 | I18 | *(new)* A payout confirmation is accepted only from a transaction carrying the vault's shard thread token. A confirmation of an already-`PAID` claim is a no-op. | D10 |
 | I19 | *(new)* Every reserved claim is payable by someone: the recipient is valid, ADA claims meet the minimum, and token payouts can be supplemented. | D7, D11 |
 | I20 | *(new in r3)* Both redeemers share one nullifier set and one `ClaimId`, and the output-shape rules V5-V8 apply to both. A claim is paid at most once, whichever path pays it. | D8, D8c |
@@ -1798,7 +1809,7 @@ can authorize an invalid root. The surfaces also state:
 | I22 | *(r3; r7)* Governed claims are payable only through `Exit`, only in `NORMAL`, and never in exit mode. | D8d, D8g |
 | I23 | *(r5; r7)* `Settle` and `Exit` spend only accepted UTxOs (V10). `Accept` and `Refund` compute `DepositId` from the spent outpoint. A credited deposit can never be refunded, and an uncredited one can never be accepted. Every vault input in a transaction carries one redeemer (V13). | D8f |
 | I24 | *(r5; r7)* Every request token that trigger (b) can reference gets exactly one record (R1–R3), even while `PAUSED`. Exit mode is triggered only by a stale anchor, a request unprocessed past its deadline, or a pause longer than `maxPauseMs`. | D8g |
-| I25 | *(r5; rewritten in r7)* Exit leaves partition all non-claim value of an escape-hatch consumer. At the exit L1 point, per vault and unit, custody covers: the exit leaves and frozen `RESERVED` claims, each net of nullifiers already on L1, plus credited but unaccepted deposits, each backed by its own UTxO. The remainder is surplus. Uncredited deposits are refunded from their own UTxO. Each exit leaf is redeemed at most once. | D8f, D8g |
+| I25 | *(r5; rewritten in r7)* Exit leaves partition all non-claim value of an escape-hatch consumer. At the exit L1 point, per vault and unit, custody covers: the exit leaves and frozen `RESERVED` claims, each net of nullifiers already on L1, with each credited but unaccepted deposit UTxO counted once, as backing. The remainder is surplus. Uncredited deposits are refunded from their own UTxO. Each exit leaf is redeemed at most once. | D8f, D8g |
 | I26 | *(new in r5)* `Settle` pays only claims reserved at or below the referenced anchor's height (V12). | D8g |
 | I27 | *(new in r7)* Every proved leaf is bound to its vault (`leaf.VaultId` equals the pinned value) and to a script-computed key. | D8 |
 | I28 | *(new in r7)* No co-signing member signs a body whose inputs, redeemers or datums it has not resolved and checked. That includes the owner. | D8h |
@@ -2328,3 +2339,10 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     - The `BalanceExit` recipient must be a payment address, and the ADA vault has
       `vaultLovelace = 0`.
     - The trust label is described in the singular.
+- **r9** (2026-11-25): Responds to Codex's re-review of r7 (review B). F1 and F4 were already
+  fixed in r8.
+  - F2: the `BalanceExit` insert list is exactly the single script-derived escape id (I17).
+  - F3: a maximum claim age, after which a user claim's `Exit` needs no status proof.
+  - F5: snapshots are published before members co-sign an anchor advance.
+  - F6: I25 counts each credited but unaccepted deposit once, as backing.
+  - I10 gains a session branch.
