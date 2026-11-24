@@ -132,8 +132,6 @@ class DepositAdmissionTest {
                 "asset-payments", "anchored-claim-vault-v1", 1), USDM, 0);
         assertReason(deposit(foreign, 4, 5, 100, 1_000_000),
                 DepositRecordV1.Status.UNCREDITED, DepositAdmission.Reason.UNKNOWN_VAULT);
-        assertReason(claim(USDM_VAULT, 4, 6, VaultOutputShape.CONTINUATION, new AssetDepositClaimV1.NotApplicable(),
-                100, 1_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.NOT_A_DEPOSIT);
         assertReason(claim(USDM_VAULT, 4, 7, VaultOutputShape.OTHER, new AssetDepositClaimV1.NotApplicable(),
                 0, 3_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.NOT_A_DEPOSIT);
         assertReason(claim(USDM_VAULT, 4, 8, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
@@ -197,13 +195,75 @@ class DepositAdmissionTest {
         byte[] deposit = new DepositDatumV1(ALICE, new byte[] {0x60, 1}, filled(28, 2)).encode();
         assertThat(VaultOutputShape.classify(deposit)).isEqualTo(VaultOutputShape.DEPOSIT);
         assertThat(VaultOutputShape.classify(null)).isEqualTo(VaultOutputShape.OTHER);
-        assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87a80"))).isEqualTo(VaultOutputShape.CONTINUATION);
+        assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87a8180"))).isEqualTo(VaultOutputShape.CONTINUATION);
         assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87b80"))).isEqualTo(VaultOutputShape.FLOOR_TOP_UP);
         assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87b9fff"))).isEqualTo(VaultOutputShape.FLOOR_TOP_UP);
         assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87b8100"))).isEqualTo(VaultOutputShape.OTHER);
-        assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87c80"))).isEqualTo(VaultOutputShape.MIGRATION_IN);
+        String hash = "5820" + "77".repeat(32);
+        assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87c82" + hash + hash)))
+                .isEqualTo(VaultOutputShape.MIGRATION_IN);
         assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("d87d80"))).isEqualTo(VaultOutputShape.OTHER);
         assertThat(VaultOutputShape.classify(HexFormat.of().parseHex("00"))).isEqualTo(VaultOutputShape.OTHER);
+    }
+
+    /** M3-F1: continuations and migration-ins are vault custody; nothing is recorded or counted. */
+    @Test
+    void vaultCustodyOutputsWriteNoRecordAndAreNeverUnattributed() {
+        for (VaultOutputShape shape : new VaultOutputShape[] {VaultOutputShape.CONTINUATION,
+                VaultOutputShape.MIGRATION_IN}) {
+            AssetDepositClaimV1 claim = claim(USDM_VAULT, 8, shape.code(), shape,
+                    new AssetDepositClaimV1.NotApplicable(), 1_000, 2_000_000, 0);
+            DepositAdmission.Outcome outcome = admission.admit(store, observed(claim), 1, accept);
+            assertThat(outcome.disposition()).as(shape.name()).isEqualTo(DepositAdmission.Disposition.VAULT_CUSTODY);
+            assertThat(outcome.record()).isEmpty();
+            assertThat(outcome.credit()).isEmpty();
+        }
+        assertThat(store.values).isEmpty();
+    }
+
+    /** M3-F2: only a clean lovelace top-up into a registered vault is operator floor. */
+    @Test
+    void floorTopUpsCarryingJunkStayUnattributedAndSweepable() {
+        assertReason(claim(USDM_VAULT, 9, 0, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
+                0, 3_000_000, 0), DepositRecordV1.Status.OPERATIONAL, DepositAdmission.Reason.FLOOR_TOP_UP);
+        assertReason(claim(ADA_VAULT, 9, 1, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
+                3_000_000, 3_000_000, 0), DepositRecordV1.Status.OPERATIONAL, DepositAdmission.Reason.FLOOR_TOP_UP);
+        assertReason(claim(USDM_VAULT, 9, 2, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
+                5, 3_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.MIXED_ASSETS);
+        assertReason(claim(ADA_VAULT, 9, 3, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
+                3_000_000, 3_000_000, 1), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.MIXED_ASSETS);
+        Hash32 foreign = GatewayIds.vaultId(GatewayIds.domainId(0, 42, "payments-2", Hash32.of(new byte[32]),
+                "asset-payments", "anchored-claim-vault-v1", 1), USDM, 0);
+        assertReason(claim(foreign, 9, 4, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
+                0, 3_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.UNKNOWN_VAULT);
+        assertReason(claim(ADA_VAULT, 9, 5, VaultOutputShape.FLOOR_TOP_UP, new AssetDepositClaimV1.NotApplicable(),
+                1, 3_000_000, 0), DepositRecordV1.Status.UNATTRIBUTED, DepositAdmission.Reason.INCONSISTENT_VALUE);
+    }
+
+    /** M3-F3a: an ADA-vault claim whose registered quantity is not its lovelace never credits. */
+    @Test
+    void anInconsistentAdaVaultClaimIsNeverCredited() {
+        assertReason(deposit(ADA_VAULT, 10, 0, 9_000_000, 2_000_000),
+                DepositRecordV1.Status.UNCREDITED, DepositAdmission.Reason.INCONSISTENT_VALUE);
+        assertReason(deposit(ADA_VAULT, 10, 1, 0, 2_000_000),
+                DepositRecordV1.Status.UNCREDITED, DepositAdmission.Reason.INCONSISTENT_VALUE);
+    }
+
+    /** M3-F3b: a constructor tag with the wrong field layout is OTHER, not a custody shape. */
+    @Test
+    void continuationAndMigrationLookAlikesClassifyAsOther() {
+        HexFormat hex = HexFormat.of();
+        String hash = "5820" + "77".repeat(32);
+        assertThat(VaultOutputShape.classify(hex.parseHex("d87a8180"))).isEqualTo(VaultOutputShape.CONTINUATION);
+        assertThat(VaultOutputShape.classify(hex.parseHex("d87a8182" + hash + hash))).isEqualTo(VaultOutputShape.CONTINUATION);
+        assertThat(VaultOutputShape.classify(hex.parseHex("d87a9f9f" + hash + "ffff"))).isEqualTo(VaultOutputShape.CONTINUATION);
+        assertThat(VaultOutputShape.classify(hex.parseHex("d87c9f" + hash + hash + "ff"))).isEqualTo(VaultOutputShape.MIGRATION_IN);
+        for (String lookAlike : java.util.List.of("d87aff", "d87a80", "d87a8100", "d87a81" + hash, "d87a8181" + hash + "00",
+                "d87a82" + "80" + "80", "d87a81815819" + "77".repeat(25), "d87a9f80", "d87a8181581f" + "77".repeat(31),
+                "d87a8198" + "41" + hash.repeat(65), "d87c80", "d87c81" + hash, "d87c82" + hash + "41ff",
+                "d87c83" + hash + hash + hash, "d87c9f" + hash + hash)) {
+            assertThat(VaultOutputShape.classify(hex.parseHex(lookAlike))).as(lookAlike).isEqualTo(VaultOutputShape.OTHER);
+        }
     }
 
     private void assertReason(AssetDepositClaimV1 claim, DepositRecordV1.Status status, DepositAdmission.Reason reason) {

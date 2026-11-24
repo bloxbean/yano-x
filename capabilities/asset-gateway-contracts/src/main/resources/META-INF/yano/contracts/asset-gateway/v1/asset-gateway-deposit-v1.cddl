@@ -15,9 +15,11 @@ deposit_datum_v1 = #6.121([
   refund_key_hash: bytes .size 28,
 ])
 
-vault_continuation_v1 = #6.122([* any])   ; M4; never a deposit
-floor_top_up_v1       = #6.123([])        ; exactly d87b80 or d87b9fff; operational ADA
-migration_in_v1       = #6.124([* any])   ; M4b; never a deposit
+; Lists may be definite or indefinite; byte strings definite, shortest head.
+; A tag with any other field layout classifies as OTHER.
+vault_continuation_v1 = #6.122([[0*64 hash32]])        ; claim ids; M4; vault custody
+floor_top_up_v1       = #6.123([])                     ; exactly d87b80 or d87b9fff
+migration_in_v1       = #6.124([source_vault_id: hash32, claim_id: hash32])  ; M4b; vault custody
 
 vault_output_shape = 0   ; DEPOSIT
                    / 1   ; CONTINUATION
@@ -74,6 +76,13 @@ deposit_reason = 0    ; NONE (only with CREDITED)
                / 8    ; ZERO_AMOUNT
                / 9    ; UNKNOWN_BENEFICIARY
                / 10   ; BALANCE_OVERFLOW
+               / 11   ; INCONSISTENT_VALUE (ADA vault: registered_quantity != lovelace)
+
+; CONTINUATION and MIGRATION_IN outputs are vault custody: no record is written
+; (the stock observer does not report continuations at all). FLOOR_TOP_UP is
+; OPERATIONAL only for a registered vault, no other assets and, for a token
+; vault, no vault token; otherwise it is UNATTRIBUTED (UNKNOWN_VAULT /
+; MIXED_ASSETS / INCONSISTENT_VALUE) and sweepable.
 
 deposit_record_v1 = [
   version: 1,

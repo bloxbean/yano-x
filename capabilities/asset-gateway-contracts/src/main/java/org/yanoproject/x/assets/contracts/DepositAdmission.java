@@ -21,13 +21,16 @@ import java.util.Optional;
  *   <li>applies the shape rule, the creditability rule and the registry status, then asks the
  *       consumer's {@link CreditCheck} whether it can apply the credit;</li>
  *   <li>writes the {@link DepositRecordV1}: {@code CREDITED}, {@code UNCREDITED(reason)},
- *       {@code UNATTRIBUTED} for non-deposit shapes, {@code OPERATIONAL} for floor top-ups;</li>
+ *       {@code UNATTRIBUTED} for outputs that are neither deposits nor vault custody, and
+ *       {@code OPERATIONAL} for clean floor top-ups;</li>
  *   <li>returns a {@link CreditInstruction} that the caller must apply in the same transition.</li>
  * </ol>
  *
  * <p>Nothing about L1 content makes it throw. An envelope that fails steps 1–2 writes nothing and
  * returns {@link Disposition#IGNORED}; a replay returns {@link Disposition#DUPLICATE} and writes
- * nothing. Every uncreditable deposit is recorded, never rejected. The {@link CreditCheck} must
+ * nothing. A {@code CONTINUATION} or {@code MIGRATION_IN} output is the vault's own custody, never
+ * a deposit and never unattributed (D5, I16): it returns {@link Disposition#VAULT_CUSTODY} and
+ * writes nothing. The stock observer does not even report continuations. Every uncreditable deposit is recorded, never rejected. The {@link CreditCheck} must
  * refuse anything the consumer could not credit without throwing (an unknown beneficiary, a
  * balance overflow), so that the record and the credit always commit together.
  */
@@ -47,7 +50,9 @@ public final class DepositAdmission {
         MIXED_ASSETS(7),
         ZERO_AMOUNT(8),
         UNKNOWN_BENEFICIARY(9),
-        BALANCE_OVERFLOW(10);
+        BALANCE_OVERFLOW(10),
+        /** The claim's ADA-vault summary is internally inconsistent (registered quantity ≠ lovelace). */
+        INCONSISTENT_VALUE(11);
 
         private final int code;
 
@@ -143,7 +148,12 @@ public final class DepositAdmission {
         /** The deposit id was already processed; nothing was written. */
         DUPLICATE,
         /** The envelope or claim failed steps 1–2; nothing was written. */
-        IGNORED
+        IGNORED,
+        /**
+         * A continuation or migration-in output: vault custody, neither a deposit nor unattributed
+         * value. Nothing was written, so it never inflates unattributed custody (D15).
+         */
+        VAULT_CUSTODY
     }
 
     public record Outcome(Disposition disposition, Optional<DepositRecordV1> record,
@@ -213,6 +223,12 @@ public final class DepositAdmission {
         Hash32 depositId = GatewayIds.depositId(claim.vaultId(), claim.txId(), claim.outputIndex());
         if (!depositId.equals(claim.depositId())) return Outcome.ignored("deposit id does not recompute");
 
+        // Vault custody (a Settle/Exit/Accept continuation, or a migration-in) is never a deposit and
+        // never unattributed: no record, so it neither inflates D15 nor leaves a leaf per spend.
+        if (claim.shape() == VaultOutputShape.CONTINUATION || claim.shape() == VaultOutputShape.MIGRATION_IN) {
+            return new Outcome(Disposition.VAULT_CUSTODY, Optional.empty(), Optional.empty(), claim.shape().name());
+        }
+
         // Step 3: exactly once, through staged reads.
         byte[] key = recordKey(depositId);
         if (store.get(key).isPresent()) {
@@ -227,8 +243,11 @@ public final class DepositAdmission {
         byte[] beneficiary = claim.beneficiary() instanceof AssetDepositClaimV1.Account account
                 ? account.accountId() : new byte[0];
         if (claim.shape() == VaultOutputShape.FLOOR_TOP_UP) {
-            status = DepositRecordV1.Status.OPERATIONAL;
-            reason = Reason.FLOOR_TOP_UP;
+            // Only a clean top-up (lovelace alone, into a registered vault) is operator floor; anything
+            // carrying junk stays unattributed so a governed sweep can recover it (D8f, V10).
+            Reason junk = floorTopUpJunk(claim, vault);
+            status = junk == Reason.NONE ? DepositRecordV1.Status.OPERATIONAL : DepositRecordV1.Status.UNATTRIBUTED;
+            reason = junk == Reason.NONE ? Reason.FLOOR_TOP_UP : junk;
         } else if (claim.shape() != VaultOutputShape.DEPOSIT) {
             status = DepositRecordV1.Status.UNATTRIBUTED;
             reason = Reason.NOT_A_DEPOSIT;
@@ -268,9 +287,27 @@ public final class DepositAdmission {
                 status.name());
     }
 
+    /** Why a floor top-up is not clean operator ADA, or {@link Reason#NONE}. */
+    private static Reason floorTopUpJunk(AssetDepositClaimV1 claim, Optional<VaultBinding> vault) {
+        if (vault.isEmpty()) return Reason.UNKNOWN_VAULT;
+        if (vault.get().asset().isAda() && !claim.registeredQuantity().equals(claim.lovelace())) {
+            return Reason.INCONSISTENT_VALUE;
+        }
+        if (claim.otherAssetCount() > 0
+                || (!vault.get().asset().isAda() && claim.registeredQuantity().signum() != 0)) {
+            return Reason.MIXED_ASSETS;
+        }
+        return Reason.NONE;
+    }
+
     /** D5's creditable-deposit rule plus the registry status, for a deposit-shaped claim. */
     private static Reason creditability(AssetDepositClaimV1 claim, Optional<VaultBinding> vault) {
         if (vault.isEmpty()) return Reason.UNKNOWN_VAULT;
+        // For the ADA vault the registered asset is lovelace: a claim whose two figures differ was not
+        // produced by a correct observer, so it is never credited.
+        if (vault.get().asset().isAda() && !claim.registeredQuantity().equals(claim.lovelace())) {
+            return Reason.INCONSISTENT_VALUE;
+        }
         if (!(claim.beneficiary() instanceof AssetDepositClaimV1.Account)) return Reason.DATUM_MALFORMED;
         if (!vault.get().depositsEnabled()) return Reason.DEPOSITS_PAUSED;
         BigInteger registered = vault.get().asset().isAda() ? claim.lovelace() : claim.registeredQuantity();
