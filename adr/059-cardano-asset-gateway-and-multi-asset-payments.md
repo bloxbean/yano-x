@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r7). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-25, r8). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -237,12 +237,12 @@ v1 (D8e):
 - the threshold co-signs payouts;
 - once a reserved, anchored claim is older than `exitDelayMs` (L1 time), anyone can pay it.
 
-Both labels also carry the escape hatch (D8g):
+The label also carries the escape hatch (D8g):
 - if operators censor a forced withdrawal or stop anchoring, anyone can put the vault into exit
   mode;
 - in exit mode, every user withdraws their balance as of the last anchored root.
 
-Both labels also state two limits:
+The label also states two limits:
 - a colluding threshold can still steal by anchoring a false root. A future ZK validity profile
   removes this (§13a);
 - if the threshold's keys are lost, the anchor stops advancing. The heartbeat timeout then lets
@@ -313,7 +313,7 @@ Names are provisional and are settled in M1 (Q11).
 | `capabilities/asset-gateway-contracts` | pure library | Asset and value types, identifiers, CDDL and canonical codecs, deposit/claim/payout/receipt records, the accounting helper (D12), invariant checkers, test vectors. No Cardano client dependency. |
 | `capabilities/asset-gateway-cardano-support` | pure library (no manifest) | Protocol-neutral helpers lifted from the EUTxO bridge (D16), plus the vault and shard transaction builder and the shard mirror (D9). |
 | `capabilities/asset-gateway-cardano` | runtime plugin bundle | Observers (D5, D10), relayer executor (D9), domain API (deposit instructions, unsigned deposit builder, claim and shard witnesses, reconciliation report, doctor). |
-| `capabilities/asset-gateway-onchain` | on-chain artifacts | Julc sources and checked `plutus.json` for: the vault, the shard validator, the shard thread policy, the exit-mode thread validator and policy, `ForcedRequestPolicy` and the inbox validator. `anchor.ak` v2 stays in `framework/cardano-onchain` (D8, D8c, D8g). |
+| `capabilities/asset-gateway-onchain` | on-chain artifacts | Julc sources and checked `plutus.json` for: the vault, the shard validator, the shard thread policy, the exit-mode thread validator and policy, `ForcedInboxValidator` (minting and spending). `anchor.ak` v2 stays in `framework/cardano-onchain` (D8, D8c, D8g). |
 | `capabilities/cardano-wallet-auth` | pure library plus a JS SDK piece | CIP-8 verifier, account credentials, intent envelope, session grants (D13). |
 | `ledgers/asset-payments/{contracts,ledger,client}` | contracts library, state-machine bundle, client | The #109 payment ledger (D14). |
 | `examples/asset-escrow` | example state-machine bundle | The second consumer (D17a). |
@@ -376,21 +376,18 @@ ASCII string ending in `\0`.
 the items before it:
 1. one-shot seeds;
 2. `GatewayDomain`;
-3. `VaultId`;
-4. shard thread policy, `ShardThreadPolicy(seed)`, one per vault;
+3. the domain-level scripts (moved here in r8, R7-F1). Neither needs the vault's hash:
+   - the exit-mode thread policy and validator, from their seed;
+   - **`ForcedInboxValidator(GatewayDomain, anchor identity, exitModeThreadPolicyId)`**: one
+     multi-purpose Plutus V3 script. Its policy id equals its script hash, which gives both the
+     request-token policy and the exact enterprise inbox address with no cycle;
+   - the escape-hatch timeouts;
+4. `VaultId`, then the shard thread policy, `ShardThreadPolicy(seed)`, one per vault;
 5. vault script parameters: the `VaultId` fields, the anchor identity, **`shardThreadPolicyId`
-   only**, the claim key prefix and profile parameters;
+   only**, `exitModeThreadPolicyId`, the claim key prefix and profile parameters;
 6. vault script hash, and the vault's **enterprise** address (no stake credential);
 7. the shard validator `NullifierShardValidator(shardThreadPolicyId, vaultScriptHash)` and the
    shard address.
-8. per domain (r7):
-   - the exit-mode thread policy, from its seed;
-   - `ForcedRequestPolicy(GatewayDomain, inboxAddress)`;
-   - the inbox validator, parameterized by the policy id and the anchor identity;
-   - the escape-hatch timeouts.
-
-   The vault script takes the exit-mode thread policy id as a parameter. These scripts never
-   need the vault's hash.
 
 The vault never takes the shard's script hash; it identifies the shard by its thread token. This
 is the order `SettlementVaultValidator.java:54-60` already documents, and it breaks the
@@ -991,16 +988,21 @@ colluding threshold that fabricates a root. §13a covers that case and the later
   `anchor.enabled`, is an M4a exit criterion.
 
 **2. Forced-withdrawal requests: rules R1–R5.**
-- **R1. `ForcedRequestPolicy` minting.** The policy is parameterized by `GatewayDomain` and the
-  exact enterprise inbox address. It allows minting exactly one token per transaction, under
-  these conditions:
+- **R1. `ForcedInboxValidator`, minting purpose.** It is one script with two purposes (D4 step 3).
+  A mint creates exactly one token, under these conditions:
   - the token name is `requestId = blake2b-256("forced\0" ‖ the first spent input's outRef)`;
   - the token goes to the inbox address in one output, with a well-formed and size-bounded
-    `ForcedWithdrawalV1(AccountId, VaultId, amount | ALL, recipient)` datum;
+    `ForcedWithdrawalV1(AccountId, VaultId, amount | ALL, recipient, requesterKeyHash)` datum;
   - `postedAtMs == upperBound(validity)`, with a window of at most `maxMintWindowMs` (10 min);
-  - the account owner's key hash is in `extraSignatories`.
-- **R2. Inbox validator.** It never lets the token move. It allows only a **burn** of the token,
-  with the min-ADA returned to the requester, in two cases:
+  - `requesterKeyHash` is in `extraSignatories`. The script cannot read app-ledger state, so it
+    does not check ownership. The ledger compares `requesterKeyHash` with the account's
+    **current** owner credential and records `REJECTED(NOT_OWNER)` on a mismatch (R3, R7-F2).
+
+  **Burns** are the token's only other mint action: −1 per spent inbox input, with no positive
+  mint in the same transaction. A burn is valid only together with the R2 spend.
+- **R2. `ForcedInboxValidator`, spending purpose.** It never lets the token move. It allows only
+  a **burn** of the token, with the min-ADA returned to an address whose payment credential is
+  `requesterKeyHash`, in two cases:
   - an inclusion proof shows `forced/<requestId>` under the referenced anchor's root;
   - the exit-mode thread is `EXIT`.
 - **R3. The ledger processes every request.** For every finalized inbox observation, the
@@ -1012,7 +1014,8 @@ colluding threshold that fabricates a root. §13a covers that case and the later
 
   Processing a request is a separate step from paying it. A `PAUSED` or `HALTED` domain still
   processes requests, and trigger (c) covers the payout.
-- **R4. Pruning.** A record is deleted after the token burn is observed. A burned token can never
+- **R4. Pruning.** `asset-forced-withdrawal-v1` also reports burns of the policy's tokens. A record
+  is deleted after the token burn is observed. A burned token can never
   be referenced again, so pruning cannot re-arm trigger (b), and state stays bounded.
 - **R5. Doctor check.** The doctor and genesis validation require that `forcedDeadlineMs` is at
   least 10 × (stability-depth time + anchor interval).
@@ -1033,7 +1036,7 @@ colluding threshold that fabricates a root. §13a covers that case and the later
 | Trigger | Condition (with `lb = lowerBound(validity)`) |
 |---|---|
 | (a) Stale anchor | `lb ≥ anchor.updatedAtMs + heartbeatTimeoutMs` |
-| (b) Censored request | All of: a reference input at the exact inbox address carrying a token of the pinned `ForcedRequestPolicy`; `requestId = token name`; `lb ≥ postedAtMs + forcedDeadlineMs`; `anchor.updatedAtMs ≥ postedAtMs + forcedDeadlineMs`; and an **exclusion** proof of `forcedPrefix ‖ requestId` under the anchor's root. |
+| (b) Censored request | All of: a reference input at the exact inbox address carrying a token of `ForcedInboxValidator`'s policy; `requestId = token name`; `lb ≥ postedAtMs + forcedDeadlineMs`; `anchor.updatedAtMs ≥ postedAtMs + forcedDeadlineMs`; and an **exclusion** proof of `forcedPrefix ‖ requestId` under the anchor's root. |
 | (c) Prolonged pause (R5-F1) | The anchored `DomainStatusV1` is `PAUSED` or `HALTED`, and `lb ≥ status.sinceMs + maxPauseMs` |
 
 Exit mode is terminal in v1 (Q17).
@@ -1044,7 +1047,8 @@ Exit mode is terminal in v1 (Q17).
 - **`Exit`** pays user claims that are `RESERVED` in `frozenRoot`:
   - no delay and **no status check**: liveness wins, and the timeouts are the detection window;
   - the nullifier still protects the claim.
-- **`BalanceExit(AccountId, recipient)`** proves one **exit leaf**,
+- **`BalanceExit(AccountId, recipient)`**, where `recipient` must be a non-script Shelley payment
+  address. It proves one **exit leaf**,
   `ExitLeafV1(holderKeyHash, VaultId, amount, vaultLovelace)`, at the script-computed key
   `exitKeyPrefix ‖ VaultId ‖ holderId` under `frozenRoot`. It requires:
   - `holderKeyHash` in `extraSignatories`;
@@ -1052,7 +1056,8 @@ Exit mode is terminal in v1 (Q17).
   - one output paying `amount` of the vault asset plus at least `vaultLovelace`;
   - the vault value equation V6 for the rest.
 
-  That is one state proof plus one shard proof.
+  That is one state proof plus one shard proof. For the ADA vault, `vaultLovelace` is always 0
+  (V5).
 - **Proved `Accept` and `Refund`** follow D8f.
 
 **5. Exit leaves.** Exit leaves are consumer-neutral and form a partition (I25):
@@ -1131,15 +1136,14 @@ it signs itself** (r7).
    the **member's own** key hash, so the member's witness authorizes nothing else.
 2. Check, for vault spends:
    - at least one input is at this vault's pinned address;
-   - exactly one input carries this vault's shard thread token;
-   - no other input is a script input;
+   - no script input other than this vault's own and, for `Settle` only, the shard input of step 5;
    - for anchor advances, the only script input is the anchor UTxO.
 3. Check that `mint`, certificates and withdrawals are empty. For vault spends, also check that
    `reference_inputs` include the pinned live anchor (and the exit-mode thread, V11).
 4. **For `Accept`:** check that the inputs are only deposit-shaped, there is no shard input and
    no claims, there is one exact continuation, and each deposit is `CREDITED` at or below the
    referenced anchor's height.
-5. **For `Settle`:** check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
+5. **For `Settle`:** check that exactly one input carries this vault's shard thread token. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
    claims with `USER_WITHDRAWAL` kind and exact fields, at a reservation height at or below the
    referenced anchor's height (V12). The domain must be `ACTIVE` and the exit-mode thread
    `NORMAL`.
@@ -1540,7 +1544,7 @@ status, `activeFromSlot` and `addedAtHeight`.
 | `DEPOSITS_PAUSED` | Deposits are not credited. |
 | `TRANSFERS_PAUSED` | Transfers are refused. |
 | `WIND_DOWN` | Withdrawals only. |
-| `RETIRED` | Requires zero liabilities, zero unresolved deposits, zero unpaid claims, and a swept floor. |
+| `RETIRED` | Requires zero liabilities, zero unresolved deposits and zero unpaid claims. The operator floor UTxO stays (D8d). |
 
 Registry changes:
 - Genesis supplies the initial set.
@@ -2023,7 +2027,7 @@ No real-value deployment until all of these are done:
    - the vault (`Settle`, `Exit`, `Accept`, `Refund`, `BalanceExit`, governed claims);
    - the shard validator and the shard thread policy;
    - the exit-mode thread validator and its policy;
-   - `ForcedRequestPolicy` and the inbox validator;
+   - `ForcedInboxValidator`, both purposes;
    - `anchor.ak` v2;
 1a. independent review of the co-sign body checks (D8h §1), which are custody-critical;
 2. independent review of `anchor.ak` and the `ScriptAnchorService` co-sign checks, which become
@@ -2311,3 +2315,16 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     paths, and an on-chain deposit accumulator.
   - **Deep rollback.** Declared out of model, with an incident procedure.
   - Stale wording fixed (Fable R5-F13). New invariants I27–I30.
+- **r8** (2026-11-25): Responds to reviewer3's review of r7 (`d6b3c81d`).
+  - **R7-F1.** The request policy and the inbox validator merge into one multi-purpose
+    `ForcedInboxValidator`, whose policy id equals its script hash. D4 is reordered so the
+    domain-level scripts come before the vault's parameters.
+  - **R7-F2.** `requesterKeyHash` is added to `ForcedWithdrawalV1` and checked on chain as a
+    signer. The ledger compares it with the current owner (`NOT_OWNER`). The burn branch is
+    explicit, and the observer reports burns so R4 pruning can run.
+  - **R7-F3.**
+    - The shard-input check moves to the `Settle` step of D8h §1.
+    - `RETIRED` keeps the floor.
+    - The `BalanceExit` recipient must be a payment address, and the ADA vault has
+      `vaultLovelace = 0`.
+    - The trust label is described in the singular.
