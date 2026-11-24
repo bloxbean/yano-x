@@ -7,12 +7,14 @@ import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -33,7 +35,7 @@ import java.util.Set;
  * vaults.N.vault-id           optional; must equal the derived VaultId
  * datum.max-bytes             default 16384
  * datum.max-depth             default 16
- * min-stability-depth         default 1; the consuming machine checks the chain's l1.stability-depth
+ * min-stability-depth         1..100000, default 1; the consuming machine checks the chain's l1.stability-depth
  * </pre>
  *
  * v1 has exactly one vault per asset (I29) and vault ordinal 0. Every value is part of the
@@ -56,6 +58,24 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
         @Override
         public byte[] scriptHash() {
             return scriptHash.clone();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Vault that && vaultId.equals(that.vaultId) && asset.equals(that.asset)
+                    && assetSetting.equals(that.assetSetting) && Arrays.equals(scriptHash, that.scriptHash)
+                    && address.equals(that.address);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(vaultId, asset, assetSetting, Arrays.hashCode(scriptHash), address);
+        }
+
+        @Override
+        public String toString() {
+            return "Vault[vaultId=" + vaultId + ", asset=" + asset + ", scriptHash="
+                    + HexFormat.of().formatHex(scriptHash) + ", address=" + address + "]";
         }
     }
 
@@ -122,7 +142,8 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
                         1, 65_536, "datum.max-bytes"),
                 (int) bounded(optional(settings, "datum.max-depth", String.valueOf(DatumPreflight.DEFAULT_MAX_DEPTH)),
                         1, 64, "datum.max-depth"));
-        int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 0, 100_000,
+        // Depth 0 would credit deposits from blocks that can still roll back (ADR-059 D5).
+        int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 1, 100_000,
                 "min-stability-depth");
         return new AssetVaultDepositSettings(networkId, magic, chainId, genesis, applicationId, profileId,
                 profileVersion, domainId, vaults, bounds, minDepth);

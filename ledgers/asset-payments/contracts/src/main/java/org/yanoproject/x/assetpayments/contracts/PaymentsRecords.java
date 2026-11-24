@@ -100,6 +100,17 @@ public final class PaymentsRecords {
             return scriptHash.clone();
         }
 
+        /** Equal exactly when the canonical encodings are equal. */
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof RegistryEntryV1 that && Arrays.equals(encode(), that.encode());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(encode());
+        }
+
         public byte[] encode() {
             Array array = new Array();
             array.add(AssetCbor.uint(1));
@@ -151,6 +162,17 @@ public final class PaymentsRecords {
         @Override
         public byte[] keyHash() {
             return keyHash.clone();
+        }
+
+        /** Equal exactly when the canonical encodings are equal. */
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof AccountRecordV1 that && Arrays.equals(encode(), that.encode());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(encode());
         }
 
         public AccountRecordV1 withGrants(List<Hash32> newGrants) {

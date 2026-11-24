@@ -12,8 +12,10 @@ import org.yanoproject.x.walletauth.SessionGrantV1;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Canonical action bodies carried in {@code IntentEnvelopeV1.body} (ADR-059 D13 §3, D14). Each is
@@ -100,6 +102,15 @@ public final class PaymentsBodies {
                     || recipients.size() > MAX_LIST || notAfterMs < 0) {
                 throw new IllegalArgumentException("session grant lists are bounded and need an action");
             }
+            // The grant built from this body rejects duplicates too; rejecting them here makes such a
+            // body BAD_BODY at decode time instead of a later failure.
+            if (new HashSet<>(actions).size() != actions.size()) {
+                throw new IllegalArgumentException("duplicate session action");
+            }
+            Set<Hash32> vaults = new HashSet<>();
+            for (SessionGrantV1.Limit limit : limits) {
+                if (!vaults.add(limit.vaultId())) throw new IllegalArgumentException("duplicate limit for a vault");
+            }
             List<byte[]> copied = new ArrayList<>();
             for (byte[] recipient : recipients) copied.add(AssetPaymentsContract.requireAccount(recipient).clone());
             recipients = List.copyOf(copied);
@@ -114,6 +125,16 @@ public final class PaymentsBodies {
         @Override
         public List<byte[]> recipients() {
             return recipients.stream().map(byte[]::clone).toList();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof AuthorizeSession that && Arrays.equals(encode(), that.encode());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(encode());
         }
 
         public byte[] encode() {

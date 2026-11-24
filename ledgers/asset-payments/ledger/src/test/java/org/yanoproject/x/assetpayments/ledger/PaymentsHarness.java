@@ -86,14 +86,14 @@ final class PaymentsHarness {
         settings.put(m + "domain.network-magic", String.valueOf(NETWORK_MAGIC));
         settings.put(m + "domain.genesis-id", GENESIS);
         settings.put(m + "deposit-observer-id", OBSERVER);
-        settings.put(m + "min-stability-depth", "0");
+        settings.put(m + "min-stability-depth", "1");
         String o = "observers." + OBSERVER + ".";
         settings.put(o + "type", "asset-vault-deposit-v1");
         settings.put(o + "domain.address-network-id", "0");
         settings.put(o + "domain.network-magic", String.valueOf(NETWORK_MAGIC));
         settings.put(o + "domain.chain-id", CHAIN);
         settings.put(o + "domain.genesis-id", GENESIS);
-        settings.put(o + "min-stability-depth", "0");
+        settings.put(o + "min-stability-depth", "1");
         String[][] vaults = {{"lovelace", HexFormat.of().formatHex(ADA_HASH), ADA_ADDRESS, "ADA", "6"},
                 {POLICY + ".5553444d", HexFormat.of().formatHex(USDM_HASH), USDM_ADDRESS, "USDM", "6"},
                 {POLICY + ".45555243", HexFormat.of().formatHex(EURC_HASH), EURC_ADDRESS, "EURC", "2"}};
@@ -121,7 +121,7 @@ final class PaymentsHarness {
     }
 
     static AppStateMachine machine(Map<String, String> settings) {
-        return machine(settings, Optional.of(profile(0)));
+        return machine(settings, Optional.of(profile(1)));
     }
 
     static AppStateMachine machine(Map<String, String> settings, Optional<AppChainConsensusProfile> profile) {

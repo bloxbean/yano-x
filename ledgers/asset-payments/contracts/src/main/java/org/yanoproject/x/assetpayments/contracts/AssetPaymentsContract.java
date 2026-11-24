@@ -23,6 +23,13 @@ import java.util.Set;
  * ap/used-queue-meta             [head, tail]
  * ap/receipt/&lt;IntentId&gt;          ReceiptV1           write-once, kept
  * </pre>
+ *
+ * <p>The used-intent queue is FIFO by insertion. Because every accepted intent expires within
+ * {@code max-intent-ttl-ms} of its block, a marker becomes prunable at most
+ * {@code max-intent-ttl-ms} plus the forward clock skew after the block that wrote it, even when an
+ * older marker that expires later sits ahead of it. Expired session grants are dropped from an
+ * account (with their usage counters) when the owner authorizes a new session, so they never hold
+ * one of the {@link #MAX_GRANTS_PER_ACCOUNT} slots.
  */
 public final class AssetPaymentsContract {
     public static final String STATE_MACHINE_ID = "asset-payments";

@@ -165,7 +165,20 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         }
     }
 
-    /** Deletes up to {@link AssetPaymentsContract#MAX_PRUNE_PER_BLOCK} expired single-use markers, oldest first. */
+    /**
+     * Deletes up to {@link AssetPaymentsContract#MAX_PRUNE_PER_BLOCK} expired single-use markers,
+     * oldest first.
+     *
+     * <p>The queue is FIFO by insertion, not ordered by expiry: the state offers only point reads, so
+     * an expiry-ordered queue would need its own persisted index. A marker with a short
+     * {@code notAfterMs} can therefore wait behind an older one that expires later, but only for a
+     * bounded time. Every intent is accepted only with {@code notAfterMs <= blockTime + maxIntentTtlMs}
+     * ({@link WalletAuthorizer}) and block timestamps never decrease, so every entry ahead of a marker
+     * written at block time {@code t} expires by {@code t + maxIntentTtlMs + maxForwardSkewMs}. A marker
+     * is thus prunable no later than that (at {@code MAX_PRUNE_PER_BLOCK} per block): at most
+     * {@code maxIntentTtlMs} longer than an expiry-ordered queue would keep it. Keeping a marker longer
+     * is safe, since it only rejects replays of an intent that has expired anyway.
+     */
     private void pruneUsedIntents(AssetAccounts.Store state, long blockTimeMs) {
         long[] meta = state.get(AssetPaymentsContract.usedQueueMetaKey())
                 .map(bytes -> PaymentsRecords.decodeU64s(bytes, 2)).orElse(new long[] {0, 0});
@@ -341,7 +354,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         }
         if (body.notAfterMs() < blockTimeMs) return Result.rejected("GRANT_EXPIRED");
         byte[] accountId = authorized.envelope().accountId();
-        AccountRecordV1 account = account(state, accountId).orElseThrow();
+        AccountRecordV1 account = pruneExpiredGrants(state, account(state, accountId).orElseThrow(), accountId,
+                blockTimeMs);
         if (account.grants().size() >= AssetPaymentsContract.MAX_GRANTS_PER_ACCOUNT) {
             return Result.rejected("TOO_MANY_GRANTS");
         }
@@ -353,6 +367,32 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         grants.add(grantId);
         state.put(AssetPaymentsContract.accountKey(accountId), account.withGrants(grants).encode());
         return Result.accepted();
+    }
+
+    /**
+     * Drops the account's grants that expired before {@code blockTimeMs} (the block timestamp, the
+     * only clock), with their usage counters, in the account's own grant order, so an expired grant
+     * never holds one of the {@link AssetPaymentsContract#MAX_GRANTS_PER_ACCOUNT} slots. Such a grant
+     * can no longer authorize anything ({@link SessionGrantV1#checkPayment} uses the same bound). The
+     * writes land in the action's staged store, so they persist only if the new grant is accepted.
+     */
+    private AccountRecordV1 pruneExpiredGrants(StagedStore state, AccountRecordV1 account, byte[] accountId,
+                                               long blockTimeMs) {
+        List<Hash32> live = new ArrayList<>();
+        for (Hash32 grantId : account.grants()) {
+            Optional<SessionGrantV1> grant = state.get(AssetPaymentsContract.grantKey(grantId))
+                    .map(SessionGrantV1::decode);
+            if (grant.isEmpty()) continue; // no grant record: the id authorizes nothing
+            if (grant.get().notAfterMs() < blockTimeMs) {
+                deleteGrant(state, grant.get());
+            } else {
+                live.add(grantId);
+            }
+        }
+        if (live.size() == account.grants().size()) return account;
+        AccountRecordV1 pruned = account.withGrants(live);
+        state.put(AssetPaymentsContract.accountKey(accountId), pruned.encode());
+        return pruned;
     }
 
     private Result revokeSession(StagedStore state, byte[] accountId, byte[] body) {

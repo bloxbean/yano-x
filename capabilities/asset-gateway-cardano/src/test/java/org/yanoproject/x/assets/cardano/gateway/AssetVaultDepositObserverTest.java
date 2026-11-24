@@ -440,6 +440,34 @@ class AssetVaultDepositObserverTest {
     }
 
     @Test
+    void minStabilityDepthZeroIsRejected() {
+        // ADR-059 D5: a deposit observer never credits from a block that can still roll back.
+        assertRejected("min-stability-depth", "0");
+        assertRejected("min-stability-depth", "-1");
+        Map<String, String> one = new HashMap<>(settings("payments-1"));
+        one.put("min-stability-depth", "1");
+        assertThat(new AssetVaultDepositObserver(OBSERVER, one).settings().minStabilityDepth()).isEqualTo(1);
+        assertThat(new AssetVaultDepositObserver(OBSERVER, settings("payments-1")).settings().minStabilityDepth())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void settingsAndVaultsCompareByContent() {
+        AssetVaultDepositSettings first = AssetVaultDepositSettings.parse(settings("payments-1"));
+        AssetVaultDepositSettings second = AssetVaultDepositSettings.parse(settings("payments-1"));
+        assertThat(first.vaults().get(1)).isEqualTo(second.vaults().get(1))
+                .hasSameHashCodeAs(second.vaults().get(1));
+        assertThat(first).isEqualTo(second).hasSameHashCodeAs(second);
+        assertThat(first.vaults().get(1)).isNotEqualTo(first.vaults().get(2));
+        AssetVaultDepositSettings.Vault vault = first.vaults().get(1);
+        byte[] otherHash = vault.scriptHash();
+        otherHash[0] ^= 1;
+        assertThat(new AssetVaultDepositSettings.Vault(vault.vaultId(), vault.asset(), vault.assetSetting(),
+                otherHash, vault.address())).isNotEqualTo(vault);
+        assertThat(AssetVaultDepositSettings.parse(settings("payments-2"))).isNotEqualTo(first);
+    }
+
+    @Test
     void observeNeverThrowsOnUnreadableBlocks() {
         TransactionBody noHash = TransactionBody.builder().txHash("zz").outputs(List.of(
                 output(USDM_VAULT, depositDatum(ALICE), lovelace(1)))).build();

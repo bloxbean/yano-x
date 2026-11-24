@@ -37,6 +37,21 @@ public final class DatumPreflight {
         return maxDepth;
     }
 
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof DatumPreflight that && maxBytes == that.maxBytes && maxDepth == that.maxDepth;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * maxBytes + maxDepth;
+    }
+
+    @Override
+    public String toString() {
+        return "DatumPreflight[maxBytes=" + maxBytes + ", maxDepth=" + maxDepth + "]";
+    }
+
     /** True when {@code data} is exactly one well-formed CBOR item inside the bounds. */
     public boolean accepts(byte[] data) {
         if (data == null || data.length == 0 || data.length > maxBytes) return false;
@@ -75,8 +90,10 @@ public final class DatumPreflight {
                 int size = 1 << (info - 24);
                 if (pos + size > data.length) return false;
                 argument = 0;
+                // An 8-byte argument >= 2^63 reads as negative here. That is fine for scalars
+                // (uint64, large negatives, 64-bit tags, doubles); only a length or count that
+                // large is out of range, and the string and container cases below reject it.
                 for (int i = 0; i < size; i++) argument = (argument << 8) | (data[pos++] & 0xff);
-                if (argument < 0) return false; // beyond any bounded length
             } else if (info == 31 && major >= 2 && major <= 5) {
                 argument = -1;
                 indefinite = true;
@@ -93,13 +110,15 @@ public final class DatumPreflight {
                         left[depth] = -1;
                         chunk[depth] = major;
                     } else {
-                        if (argument > data.length - pos) return false;
+                        if (argument < 0 || argument > data.length - pos) return false;
                         pos += (int) argument;
                     }
                 }
                 case 4, 5 -> {
                     long count = indefinite ? -1 : (major == 5 ? argument * 2 : argument);
-                    if (!indefinite && (argument > data.length || count > data.length - pos)) return false;
+                    if (!indefinite && (argument < 0 || argument > data.length || count > data.length - pos)) {
+                        return false;
+                    }
                     if (depth + 1 > maxDepth) return false;
                     depth++;
                     left[depth] = count;

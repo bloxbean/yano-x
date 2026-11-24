@@ -32,6 +32,17 @@ public sealed interface PaymentsMessageV1 {
 
         @Override public byte[] coseSign1() { return coseSign1.clone(); }
         @Override public byte[] coseKey() { return coseKey.clone(); }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Owner that && Arrays.equals(coseSign1, that.coseSign1)
+                    && Arrays.equals(coseKey, that.coseKey);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * Arrays.hashCode(coseSign1) + Arrays.hashCode(coseKey);
+        }
     }
 
     record Session(byte[] envelope, byte[] signature) implements PaymentsMessageV1 {
@@ -45,6 +56,17 @@ public sealed interface PaymentsMessageV1 {
 
         @Override public byte[] envelope() { return envelope.clone(); }
         @Override public byte[] signature() { return signature.clone(); }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Session that && Arrays.equals(envelope, that.envelope)
+                    && Arrays.equals(signature, that.signature);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * Arrays.hashCode(envelope) + Arrays.hashCode(signature);
+        }
     }
 
     record Rotation(byte[] currentSign1, byte[] currentKey, byte[] newSign1, byte[] newKey)
@@ -60,6 +82,18 @@ public sealed interface PaymentsMessageV1 {
         @Override public byte[] currentKey() { return currentKey.clone(); }
         @Override public byte[] newSign1() { return newSign1.clone(); }
         @Override public byte[] newKey() { return newKey.clone(); }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Rotation that && Arrays.equals(currentSign1, that.currentSign1)
+                    && Arrays.equals(currentKey, that.currentKey) && Arrays.equals(newSign1, that.newSign1)
+                    && Arrays.equals(newKey, that.newKey);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.deepHashCode(new Object[] {currentSign1, currentKey, newSign1, newKey});
+        }
     }
 
     default byte[] encode() {

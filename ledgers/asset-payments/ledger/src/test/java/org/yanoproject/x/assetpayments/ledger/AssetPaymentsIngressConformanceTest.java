@@ -10,7 +10,16 @@ import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.DepositDatumV1;
 import org.yanoproject.x.assets.contracts.ExitLeafV1;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineResolver;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValidatorResolver;
 import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationProfileV1;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.x.framework.api.appchain.l1view.L1Observer;
 import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
 import org.yanoproject.x.walletauth.IntentEnvelopeV1;
@@ -22,6 +31,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.yanoproject.x.assetpayments.ledger.PaymentsHarness.*;
@@ -121,7 +131,7 @@ class AssetPaymentsIngressConformanceTest {
         script.put(6L, List.of(l1(second.getFirst())));
 
         AssetAccounts keys = PaymentsHarness.KEYS;
-        StateMachineConformance.Builder builder = StateMachineConformance.builder(new AssetPaymentsStateMachineProvider())
+        StateMachineConformance.Builder builder = StateMachineConformance.builder(new StableChainProvider())
                 .chainId(CHAIN)
                 .settings(PaymentsHarness.settings())
                 .blocks(8)
@@ -175,5 +185,50 @@ class AssetPaymentsIngressConformanceTest {
 
     static AssetAccounts.VaultCounters counters(Map<String, String> values, String name) {
         return AssetAccounts.VaultCounters.decode(HexFormat.of().parseHex(values.get(name)));
+    }
+
+    /**
+     * The conformance harness builds its consensus profile with {@code l1.stability-depth} 0, which
+     * no real chain may run with (ADR-059 D5) and the ledger refuses. This provider hands the ledger
+     * the same profile at depth 1, the depth the test settings require; everything else is passed on.
+     */
+    static final class StableChainProvider implements AppStateMachineProvider {
+        private final AssetPaymentsStateMachineProvider delegate = new AssetPaymentsStateMachineProvider();
+
+        @Override public String id() { return delegate.id(); }
+        @Override public AppStateMachine create() { return delegate.create(); }
+
+        @Override
+        public AppStateMachine create(AppStateMachineContext context) {
+            return delegate.create(new AppStateMachineContext() {
+                @Override public String chainId() { return context.chainId(); }
+                @Override public Map<String, String> settings() { return context.settings(); }
+                @Override public Optional<AppStateMachineResolver> stateMachineResolver() {
+                    return context.stateMachineResolver();
+                }
+                @Override public Optional<AppChainConsensusProfile> consensusProfile() {
+                    return context.consensusProfile().map(StableChainProvider::atDepthOne);
+                }
+                @Override public Optional<ObservationProfileV1> observationProfile() {
+                    return context.observationProfile();
+                }
+                @Override public Optional<AppChainMembershipView> membershipView() { return context.membershipView(); }
+                @Override public Optional<StateCommitmentIdentity> stateCommitmentIdentity() {
+                    return context.stateCommitmentIdentity();
+                }
+                @Override public Optional<AuthenticatedMapValidatorResolver> authenticatedMapValidatorResolver() {
+                    return context.authenticatedMapValidatorResolver();
+                }
+            });
+        }
+
+        static AppChainConsensusProfile atDepthOne(AppChainConsensusProfile p) {
+            int depth = Math.max(1, p.l1StabilityDepth());
+            return new AppChainConsensusProfile(p.schemaVersion(), p.maxMessageBytes(), p.maxBlockMessages(),
+                    p.maxBlockBytes(), depth, Math.max(depth, p.epochStabilityDepth()), p.blockMaxForwardSkewMs(),
+                    p.enforceSenderSeq(), p.effectsEnabled(), p.effectsMaxPerBlock(), p.effectsMaxPayloadBytes(),
+                    p.effectsMaxExpiryBlocks(), p.effectsResultWindowBlocks(), p.effectsDefaultGate(),
+                    p.effectsOutcomeCommitment(), p.effectsStrictReservedPrefix(), p.effectResultSigners());
+        }
     }
 }

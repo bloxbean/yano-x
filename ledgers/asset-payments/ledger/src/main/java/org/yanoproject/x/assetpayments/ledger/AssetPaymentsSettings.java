@@ -34,8 +34,9 @@ import java.util.Set;
  * domain.profile-version (1)                                              GatewayDomain; chain id is the chain's
  * deposit-observer-id                                                     required; the ~l1/&lt;id&gt; topic credited
  * max-intent-ttl-ms (600000)                                              must exceed the forward clock skew
- * min-stability-depth (1)                                                 the chain's l1.stability-depth must be ≥
+ * min-stability-depth (1, at least 1)                                    the chain's l1.stability-depth must be ≥
  * vaults.N.asset, vaults.N.script-hash, vaults.N.address                  the fixed vault set (I29), N = 0, 1, ...
+ *                                                                         contiguous; distinct addresses, no other keys
  * vaults.N.status (ACTIVE), vaults.N.ticker (""), vaults.N.decimals (0), vaults.N.active-from-slot (0)
  * </pre>
  *
@@ -50,6 +51,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                              List<PaymentsRecords.RegistryEntryV1> vaults) {
     static final String PREFIX = "machines." + AssetPaymentsContract.STATE_MACHINE_ID + ".";
     static final String OBSERVER_TYPE = "asset-vault-deposit-v1";
+    private static final Set<String> VAULT_SETTINGS = Set.of("asset", "script-hash", "address", "status", "ticker",
+            "decimals", "active-from-slot");
 
     AssetPaymentsSettings {
         vaults = List.copyOf(vaults);
@@ -73,11 +76,14 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         String observerId = required(settings, "deposit-observer-id");
         long ttl = bounded(optional(settings, "max-intent-ttl-ms", "600000"), 1, 7L * 24 * 3_600_000,
                 "max-intent-ttl-ms");
-        int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 0, 100_000,
+        // Depth 0 would credit deposits from blocks that can still roll back (ADR-059 D5).
+        int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 1, 100_000,
                 "min-stability-depth");
 
         List<PaymentsRecords.RegistryEntryV1> vaults = new ArrayList<>();
         Set<AssetId> assets = new HashSet<>();
+        Set<String> addresses = new HashSet<>();
+        Set<String> scriptHashes = new HashSet<>();
         for (int index = 0; settings.containsKey("vaults." + index + ".asset"); index++) {
             if (index >= AssetPaymentsContract.MAX_VAULTS) throw new IllegalArgumentException("at most 16 vaults");
             String prefix = "vaults." + index + ".";
@@ -87,6 +93,11 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
             if (address.length() > 128 || !address.startsWith("addr")) {
                 throw new IllegalArgumentException(prefix + "address must be a bech32 Shelley address");
             }
+            if (!addresses.add(address)) throw new IllegalArgumentException("vault addresses must be distinct");
+            byte[] scriptHash = hex(required(settings, prefix + "script-hash"), 28, prefix + "script-hash");
+            if (!scriptHashes.add(HexFormat.of().formatHex(scriptHash))) {
+                throw new IllegalArgumentException("vault script hashes must be distinct");
+            }
             PaymentsRecords.AssetStatus status;
             try {
                 status = PaymentsRecords.AssetStatus.valueOf(optional(settings, prefix + "status", "ACTIVE"));
@@ -94,13 +105,28 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                 throw new IllegalArgumentException(prefix + "status is not a registry status", invalid);
             }
             vaults.add(new PaymentsRecords.RegistryEntryV1(GatewayIds.vaultId(domainId, asset, 0), asset,
-                    hex(required(settings, prefix + "script-hash"), 28, prefix + "script-hash"), address, status,
+                    scriptHash, address, status,
                     bounded(optional(settings, prefix + "active-from-slot", "0"), 0, Long.MAX_VALUE,
                             prefix + "active-from-slot"),
                     0, optional(settings, prefix + "ticker", ""),
                     (int) bounded(optional(settings, prefix + "decimals", "0"), 0, 19, prefix + "decimals")));
         }
         if (vaults.isEmpty()) throw new IllegalArgumentException(PREFIX + "vaults.0.* is required");
+        // A gapped index (vaults.0, vaults.2) or a misspelt suffix would otherwise be silently ignored.
+        for (String key : settings.keySet()) {
+            if (!key.startsWith("vaults.")) continue;
+            String rest = key.substring("vaults.".length());
+            int dot = rest.indexOf('.');
+            int index;
+            try {
+                index = dot < 0 ? -1 : Integer.parseInt(rest.substring(0, dot));
+            } catch (NumberFormatException invalid) {
+                index = -1;
+            }
+            if (index < 0 || index >= vaults.size() || !VAULT_SETTINGS.contains(rest.substring(dot + 1))) {
+                throw new IllegalArgumentException("unknown vault setting " + PREFIX + key);
+            }
+        }
         AssetPaymentsSettings parsed = new AssetPaymentsSettings(chainId, networkId, magic, genesis, applicationId,
                 profileId, profileVersion, domainId, observerId, ttl, minDepth, vaults);
         parsed.checkObserver(all);

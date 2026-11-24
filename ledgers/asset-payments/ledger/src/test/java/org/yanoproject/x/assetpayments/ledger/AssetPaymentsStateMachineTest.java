@@ -291,7 +291,8 @@ class AssetPaymentsStateMachineTest {
         deeperObserver.put("observers." + OBSERVER + ".min-stability-depth", "50");
         assertThatThrownBy(() -> PaymentsHarness.machine(deeperObserver)).hasMessageContaining("min-stability-depth");
         Map<String, String> defaultObserver = new HashMap<>(PaymentsHarness.settings());
-        defaultObserver.remove("observers." + OBSERVER + ".min-stability-depth");
+        defaultObserver.put("machines.asset-payments.min-stability-depth", "2");
+        defaultObserver.remove("observers." + OBSERVER + ".min-stability-depth"); // the observer's default is 1
         assertThatThrownBy(() -> PaymentsHarness.machine(defaultObserver)).hasMessageContaining("min-stability-depth");
         Map<String, String> deep = new HashMap<>(PaymentsHarness.settings());
         deep.put("observers." + OBSERVER + ".min-stability-depth", "50");
@@ -304,6 +305,131 @@ class AssetPaymentsStateMachineTest {
         Map<String, String> duplicate = new HashMap<>(PaymentsHarness.settings());
         duplicate.put("machines.asset-payments.vaults.2.asset", duplicate.get("machines.asset-payments.vaults.1.asset"));
         assertThatThrownBy(() -> PaymentsHarness.machine(duplicate)).hasMessageContaining("I29");
+    }
+
+    IntentEnvelopeV1 grantIntent(byte[] sessionKey, long notAfter, SessionGrantV1.Limit... limits) {
+        return env(alice, WalletAuthorizer.AUTHORIZE_SESSION, new PaymentsBodies.AuthorizeSession(sessionKey,
+                List.of(AssetPaymentsContract.TRANSFER), List.of(limits), List.of(), notAfter).encode());
+    }
+
+    PaymentsRecords.AccountRecordV1 account(TestWallet wallet) {
+        return ledger.get(AssetPaymentsContract.accountKey(wallet.accountId()))
+                .map(PaymentsRecords.AccountRecordV1::decode).orElseThrow();
+    }
+
+    @Test
+    void expiredGrantsArePrunedBeforeTheGrantLimitIsCounted() {
+        fund();
+        byte[] sessionSeed = filled(32, 0x55);
+        byte[] sessionKey = com.bloxbean.cardano.client.crypto.KeyGenUtil.getPublicKeyFromPrivateKey(sessionSeed);
+        SessionGrantV1.Limit limit = new SessionGrantV1.Limit(USDM_VAULT, BigInteger.TEN, BigInteger.TEN);
+        // 15 grants expire at T0 + 50 000; the 16th lives exactly until T0 + 50 001.
+        List<IntentEnvelopeV1> grants = new java.util.ArrayList<>();
+        for (int i = 0; i < AssetPaymentsContract.MAX_GRANTS_PER_ACCOUNT - 1; i++) {
+            grants.add(grantIntent(sessionKey, T0 + 50_000, limit));
+        }
+        IntentEnvelopeV1 lasting = grantIntent(sessionKey, T0 + 50_001, limit);
+        grants.add(lasting);
+        ledger.block(T0 + 2_000, grants.stream().map(g -> intent(owner(alice, g))).toArray(Message[]::new));
+        assertThat(account(alice).grants()).hasSize(AssetPaymentsContract.MAX_GRANTS_PER_ACCOUNT);
+
+        // One spend leaves a usage counter behind for the first (soon expired) grant.
+        Hash32 firstGrant = intentId(grants.getFirst());
+        IntentEnvelopeV1 spend = envelope(alice.accountId(), AssetPaymentsContract.TRANSFER,
+                new IntentEnvelopeV1.Session(firstGrant), ++nonce, EXPIRY, transferBody(USDM, bob, 3));
+        ledger.block(T0 + 3_000, intent(session(sessionSeed, spend)));
+        assertThat(ledger.receipt(spend).orElseThrow().outcome()).isEqualTo(PaymentsRecords.Outcome.ACCEPTED);
+        assertThat(ledger.get(AssetPaymentsContract.usageKey(firstGrant, USDM_VAULT))).isPresent();
+
+        // While all 16 are live, a 17th is refused and nothing is pruned.
+        IntentEnvelopeV1 refused = grantIntent(sessionKey, T0 + 100_000, limit);
+        ledger.block(T0 + 4_000, intent(owner(alice, refused)));
+        assertThat(ledger.receipt(refused).orElseThrow().reason()).isEqualTo("TOO_MANY_GRANTS");
+
+        // After 15 expired, a new grant takes a slot: the expired ones and their usage are deleted,
+        // the one that is still valid at this block time stays.
+        IntentEnvelopeV1 fresh = grantIntent(sessionKey, T0 + 100_000, limit);
+        ledger.block(T0 + 50_001, intent(owner(alice, fresh)));
+        assertThat(ledger.receipt(fresh).orElseThrow().outcome()).isEqualTo(PaymentsRecords.Outcome.ACCEPTED);
+        assertThat(account(alice).grants()).containsExactly(intentId(lasting), intentId(fresh));
+        for (IntentEnvelopeV1 expired : grants.subList(0, grants.size() - 1)) {
+            assertThat(ledger.get(AssetPaymentsContract.grantKey(intentId(expired)))).isEmpty();
+        }
+        assertThat(ledger.get(AssetPaymentsContract.usageKey(firstGrant, USDM_VAULT))).isEmpty();
+        assertThat(ledger.get(AssetPaymentsContract.grantKey(intentId(lasting)))).isPresent();
+        assertThat(ledger.get(AssetPaymentsContract.grantKey(intentId(fresh)))).isPresent();
+        ledger.checkInvariants();
+    }
+
+    @Test
+    void duplicateVaultLimitsInASessionBodyAreBadBody() {
+        fund();
+        byte[] sessionKey = com.bloxbean.cardano.client.crypto.KeyGenUtil.getPublicKeyFromPrivateKey(filled(32, 0x66));
+        byte[] distinct = new PaymentsBodies.AuthorizeSession(sessionKey, List.of(AssetPaymentsContract.TRANSFER),
+                List.of(new SessionGrantV1.Limit(USDM_VAULT, BigInteger.TEN, BigInteger.TEN),
+                        new SessionGrantV1.Limit(EURC_VAULT, BigInteger.TEN, BigInteger.TEN)),
+                List.of(), T0 + 50_000).encode();
+        byte[] duplicated = HexFormat.of().parseHex(HexFormat.of().formatHex(distinct)
+                .replace(EURC_VAULT.hex(), USDM_VAULT.hex()));
+        IntentEnvelopeV1 grant = env(alice, WalletAuthorizer.AUTHORIZE_SESSION, duplicated);
+        ledger.block(T0 + 2_000, intent(owner(alice, grant)));
+        assertThat(ledger.receipt(grant).orElseThrow().reason()).isEqualTo("BAD_BODY");
+        assertThat(account(alice).grants()).isEmpty();
+    }
+
+    @Test
+    void usedIntentQueueIsFifoAndAMarkerWaitsAtMostTheMaxTtlBehindALongerOne() {
+        fund();
+        long skew = 5_000;
+        long maxTtl = 600_000;
+        IntentEnvelopeV1 longLived = envelope(alice.accountId(), AssetPaymentsContract.TRANSFER, OWNER, ++nonce,
+                T0 + 2_000 + maxTtl, transferBody(USDM, bob, 1));
+        ledger.block(T0 + 2_000, intent(owner(alice, longLived)));
+        IntentEnvelopeV1 shortLived = env(alice, AssetPaymentsContract.TRANSFER, transferBody(USDM, bob, 1));
+        ledger.block(T0 + 3_000, intent(owner(alice, shortLived)));
+        // The short marker has expired but waits behind the head of the queue.
+        ledger.block(EXPIRY + skew + 1);
+        assertThat(ledger.get(AssetPaymentsContract.usedKey(intentId(shortLived)))).isPresent();
+        assertThat(ledger.get(AssetPaymentsContract.usedKey(intentId(longLived)))).isPresent();
+        // Still held while the head is unexpired; the documented bound is the short marker's own block
+        // time + max-intent-ttl-ms + skew, by which every entry ahead of it has expired too.
+        ledger.block(T0 + 2_000 + maxTtl + skew);
+        assertThat(ledger.get(AssetPaymentsContract.usedKey(intentId(shortLived)))).isPresent();
+        ledger.block(T0 + 3_000 + maxTtl + skew + 1);
+        assertThat(ledger.get(AssetPaymentsContract.usedKey(intentId(shortLived)))).isEmpty();
+        assertThat(ledger.get(AssetPaymentsContract.usedKey(intentId(longLived)))).isEmpty();
+        assertThat(ledger.receipt(shortLived)).isPresent();
+    }
+
+    @Test
+    void settingsRejectDepthZeroDuplicateAddressesAndUnknownOrGappedVaultKeys() {
+        String m = "machines.asset-payments.";
+        String o = "observers." + OBSERVER + ".";
+        Map<String, String> depthZero = new HashMap<>(PaymentsHarness.settings());
+        depthZero.put(m + "min-stability-depth", "0");
+        depthZero.remove(o + "type"); // the ledger's own bound, not the observer cross-check
+        assertThatThrownBy(() -> PaymentsHarness.machine(depthZero, java.util.Optional.of(PaymentsHarness.profile(0))))
+                .hasMessageContaining("min-stability-depth");
+
+        Map<String, String> sameAddress = new HashMap<>(PaymentsHarness.settings());
+        sameAddress.put(m + "vaults.2.address", USDM_ADDRESS);
+        assertThatThrownBy(() -> PaymentsHarness.machine(sameAddress)).hasMessageContaining("distinct");
+        Map<String, String> sameHash = new HashMap<>(PaymentsHarness.settings());
+        sameHash.put(m + "vaults.2.script-hash", HexFormat.of().formatHex(USDM_HASH));
+        assertThatThrownBy(() -> PaymentsHarness.machine(sameHash)).hasMessageContaining("distinct");
+
+        Map<String, String> gapped = new HashMap<>(PaymentsHarness.settings());
+        gapped.put(m + "vaults.4.asset", POLICY + ".4142");
+        gapped.put(m + "vaults.4.script-hash", "04".repeat(28));
+        gapped.put(m + "vaults.4.address", enterprise(filled(28, 4)));
+        assertThatThrownBy(() -> PaymentsHarness.machine(gapped)).hasMessageContaining("unknown vault setting");
+        for (String key : List.of("vaults.0.tickr", "vaults.x.asset", "vaults.0", "vaults.0.ordinal")) {
+            Map<String, String> unknown = new HashMap<>(PaymentsHarness.settings());
+            unknown.put(m + key, "1");
+            assertThatThrownBy(() -> PaymentsHarness.machine(unknown)).as(key)
+                    .hasMessageContaining("unknown vault setting");
+        }
+        assertThat(PaymentsHarness.machine(PaymentsHarness.settings())).isNotNull();
     }
 
     @Test

@@ -61,6 +61,33 @@ class SupportHelpersTest {
     }
 
     @Test
+    void preflightAcceptsScalarsWithArgumentsAtOrAbove2To63ButNotSuchLengths() {
+        DatumPreflight preflight = DatumPreflight.defaults();
+        HexFormat hex = HexFormat.of();
+        // major 0: uint64 2^63 and 2^64-1
+        assertThat(preflight.accepts(hex.parseHex("1b8000000000000000"))).isTrue();
+        assertThat(preflight.accepts(hex.parseHex("1bffffffffffffffff"))).isTrue();
+        // major 1: -2^63-1 and -2^64
+        assertThat(preflight.accepts(hex.parseHex("3b8000000000000000"))).isTrue();
+        assertThat(preflight.accepts(hex.parseHex("3bffffffffffffffff"))).isTrue();
+        // major 6: a 64-bit tag over an unsigned int
+        assertThat(preflight.accepts(hex.parseHex("dbffffffffffffffff01"))).isTrue();
+        // major 7: a negative double (-1.0) and -infinity
+        assertThat(preflight.accepts(hex.parseHex("fbbff0000000000000"))).isTrue();
+        assertThat(preflight.accepts(hex.parseHex("fbfff0000000000000"))).isTrue();
+        // all of them inside a Plutus constructor, as a vault datum would carry them
+        assertThat(preflight.accepts(hex.parseHex(
+                "d87984" + "1bffffffffffffffff" + "3b8000000000000000"
+                        + "dbffffffffffffffff01" + "fbbff0000000000000"))).isTrue();
+        // lengths and counts with the same arguments still fail
+        assertThat(preflight.accepts(hex.parseHex("5b8000000000000000"))).isFalse(); // bytes
+        assertThat(preflight.accepts(hex.parseHex("7bffffffffffffffff"))).isFalse(); // text
+        assertThat(preflight.accepts(hex.parseHex("9b8000000000000000"))).isFalse(); // array
+        assertThat(preflight.accepts(hex.parseHex("bbffffffffffffffff"))).isFalse(); // map
+        assertThat(preflight.accepts(hex.parseHex("9f5b8000000000000000ff"))).isFalse(); // in indefinite
+    }
+
+    @Test
     void outputValuesSummariseTheRegisteredAssetAndHashTheFullValue() {
         OutputValues.ObservedValue value = OutputValues.of(List.of(lovelace(1_500_000),
                 token(POLICY, "5553444d", BigInteger.valueOf(100)), token(POLICY, "ff", BigInteger.ONE)));
