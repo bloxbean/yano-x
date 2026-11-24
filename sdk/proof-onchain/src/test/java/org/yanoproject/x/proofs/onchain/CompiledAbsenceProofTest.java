@@ -16,11 +16,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Evaluates the compiled MPF absence verifiers as UPLC. Julc before 0.1.0-pre17 discarded a {@code return false}
  * inside an {@code if/else} that had statements after it, so the conflicting-leaf checks of {@code verifyAbsence}
- * never ran: a present key's own leaf was accepted as the "conflicting" leaf that proves it absent.
+ * never ran: a present key's own leaf was accepted as the "conflicting" leaf that proves it absent. The public
+ * {@code MpfOnChainVerifier.verifyAbsence} (ADR-059 framework addition 9) is the same check, lifted, and runs the same
+ * cases.
  */
 class CompiledAbsenceProofTest extends ContractTest {
     private static final List<Class<?>> VERIFIERS = List.of(
-            MpfPairOnChainVerifier.class, AuthenticatedSnapshotOnChainVerifier.class);
+            MpfOnChainVerifier.class, MpfPairOnChainVerifier.class, AuthenticatedSnapshotOnChainVerifier.class);
     private static MpfTestTrie trie;
 
     @BeforeAll

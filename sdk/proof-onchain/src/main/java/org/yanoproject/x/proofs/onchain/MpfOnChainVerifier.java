@@ -6,7 +6,14 @@ import org.julclang.stdlib.annotation.OnchainLibrary;
 
 import java.math.BigInteger;
 
-/** Bounded MPF inclusion verifier reusable by application validators. */
+/**
+ * Bounded MPF inclusion and exclusion verifiers reusable by application validators.
+ *
+ * <p>{@link #verifyAbsence} is the exclusion check lifted unchanged from
+ * {@code MpfPairOnChainVerifier}'s private helper (ADR-059 §7 framework addition 9). Its
+ * {@link AbsenceProof} has the same seven-field layout as {@code MpfPairOnChainVerifier.Proof}, so
+ * one off-chain encoder serves both.
+ */
 @OnchainLibrary
 public final class MpfOnChainVerifier {
     public static final long PATH_NIBBLES = 64;
@@ -34,7 +41,103 @@ public final class MpfOnChainVerifier {
     ) {
     }
 
+    /**
+     * An exclusion proof of {@code key}. {@code value} is unused and should be empty. An empty
+     * {@code leafSuffix} means the path ends at an empty branch slot; otherwise it ends at a
+     * different leaf, whose key hash and value hash are given. {@code terminalCursor} is the path
+     * depth, in nibbles, at which the folds start.
+     */
+    public record AbsenceProof(
+            byte[] key,
+            byte[] value,
+            byte[] leafSuffix,
+            JulcList<InclusionFold> folds,
+            BigInteger terminalCursor,
+            byte[] conflictingKeyHash,
+            byte[] conflictingValueHash
+    ) {
+    }
+
     private MpfOnChainVerifier() {
+    }
+
+    /** True when {@code proof.key()} is absent from the mpf-blake2b256-v1 trie with root {@code expectedRoot}. */
+    public static boolean verifyAbsence(AbsenceProof proof, byte[] expectedRoot) {
+        long keyLength = Builtins.lengthOfByteString(proof.key());
+        long suffixLength = Builtins.lengthOfByteString(proof.leafSuffix());
+        long cursorEnd = proof.terminalCursor().longValue();
+        if (Builtins.lengthOfByteString(expectedRoot) != 32
+                || keyLength < 1 || keyLength > MAX_KEY_BYTES
+                || cursorEnd < 0 || cursorEnd > PATH_NIBBLES
+                || proof.folds().size() > MAX_FOLDS) return false;
+        byte[] queryPath = Builtins.blake2b_256(proof.key());
+        boolean missing = suffixLength == 0;
+        if (missing) {
+            if (Builtins.lengthOfByteString(proof.conflictingKeyHash()) != 0
+                    || Builtins.lengthOfByteString(proof.conflictingValueHash()) != 0) return false;
+        } else {
+            if (suffixLength > 33
+                    || Builtins.lengthOfByteString(proof.conflictingKeyHash()) != 32
+                    || Builtins.lengthOfByteString(proof.conflictingValueHash()) != 32
+                    || Builtins.equalsByteString(queryPath, proof.conflictingKeyHash())
+                    || !validLeafSuffix(proof.conflictingKeyHash(), cursorEnd,
+                    proof.leafSuffix())) return false;
+        }
+        byte[] child = missing ? new byte[]{0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0}
+                : hash(proof.leafSuffix(), proof.conflictingValueHash());
+        return Builtins.equalsByteString(expectedRoot,
+                foldAbsence(queryPath, child, cursorEnd, proof.folds()));
+    }
+
+    /**
+     * Folds an exclusion path up to the root, under the same per-fold rules as {@link #verifyInclusion}; a
+     * malformed fold, or a path that does not end at cursor 0, yields an empty (never matching) root.
+     */
+    private static byte[] foldAbsence(byte[] queryPath, byte[] child, long cursorEnd,
+                                      JulcList<InclusionFold> folds) {
+        if (folds.isEmpty()) {
+            return cursorEnd == 0 ? child : Builtins.emptyByteString();
+        }
+        InclusionFold fold = folds.head();
+        long cursor = fold.cursor().longValue();
+        long prefixLength = Builtins.lengthOfByteString(fold.prefix());
+        long nibble = fold.nibble().longValue();
+        if (cursor < 0 || nibble < 0 || nibble > 15
+                || cursor + prefixLength + 1 != cursorEnd
+                || !validPrefix(queryPath, cursor, fold.prefix())
+                || pathNibble(queryPath, cursor + prefixLength) != nibble
+                || !hashLength(fold.neighbor1()) || !hashLength(fold.neighbor2())
+                || !hashLength(fold.neighbor3()) || !hashLength(fold.neighbor4())
+                || (Builtins.lengthOfByteString(fold.branchValueHash()) != 0
+                && !hashLength(fold.branchValueHash()))) {
+            return Builtins.emptyByteString();
+        }
+        byte[] branch = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
+                fold.neighbor3(), fold.neighbor4());
+        byte[] merkle = Builtins.lengthOfByteString(fold.branchValueHash()) == 32
+                ? hash(branch, hash(Builtins.consByteString(
+                        255, Builtins.emptyByteString()), fold.branchValueHash()))
+                : branch;
+        return foldAbsence(queryPath, hash(fold.prefix(), merkle), cursor, folds.tail());
+    }
+
+    private static boolean validLeafSuffix(byte[] pathHash, long cursorEnd, byte[] encoded) {
+        long encodedLength = Builtins.lengthOfByteString(encoded);
+        long marker = Builtins.indexByteString(encoded, 0);
+        boolean odd = marker == 0;
+        long suffixNibbles = odd ? 1 + (encodedLength - 2) * 2
+                : (encodedLength - 1) * 2;
+        return (marker == 0 || marker == 255) && (!odd || encodedLength >= 2)
+                && cursorEnd + suffixNibbles == PATH_NIBBLES
+                && (!odd || Builtins.indexByteString(encoded, 1)
+                == pathNibble(pathHash, cursorEnd))
+                && Builtins.equalsByteString(Builtins.sliceByteString(
+                odd ? 2 : 1, encodedLength - (odd ? 2 : 1), encoded),
+                Builtins.sliceByteString(odd ? (cursorEnd + 1) / 2 : cursorEnd / 2,
+                        encodedLength - (odd ? 2 : 1), pathHash));
     }
 
     /** Reconstruct the exact mpf-blake2b256-v1 root under hostile redeemer bounds. */
