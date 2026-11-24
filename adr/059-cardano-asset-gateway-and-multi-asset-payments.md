@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r5). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-25, r6). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -232,14 +232,10 @@ funds:
 
 ### Trust labels (D18)
 
-The reference profile is labelled by its settlement mode (D8e).
-
-`FEDERATED_COSIGNED_WITH_ESCAPE_HATCH` is the default:
-- payouts are co-signed by the threshold;
+The reference profile is labelled `FEDERATED_COSIGNED_WITH_ESCAPE_HATCH`. Every chain uses it in
+v1 (D8e):
+- the threshold co-signs payouts;
 - once a reserved, anchored claim is older than `exitDelayMs` (L1 time), anyone can pay it.
-
-`FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` applies to `PROOF_ONLY`:
-- anyone can relay a certified, matured claim.
 
 Both labels also carry the escape hatch (D8g):
 - if operators censor a forced withdrawal or stop anchoring, anyone can put the vault into exit
@@ -538,13 +534,10 @@ When a consumer authorizes a withdrawal, the same `apply()` does the following:
    recipient, reservedHeight, reservedAtMs)`. `reservedAtMs` is the reserving block's
    `AppBlock.timestamp`. It is immutable. Status lives under a separate key, and the leaf
    is never deleted.
-4. **Effect** (revised in r5, R3-F9). The effect depends on the settlement mode:
-   - **Default mode.** Claims queue per shard. The ledger emits one `asset.settlement.batch`
+4. **Effect** (revised in r5 and r6, R3-F9). Claims queue per shard. The ledger emits one `asset.settlement.batch`
      effect per batch, triggered by a soft cap or by elapsed time. It is `APP_FINAL` and
      `ResultPolicy.CHAIN`, as the EUTxO `l1.settlement` effect is. A failed or expired result
      rewinds the batch cursor so the claims are batched again.
-   - **`PROOF_ONLY` mode.** One `asset.settlement` effect per claim, `APP_FINAL`,
-     `ResultPolicy.NONE`.
    - **Effect results never change claim status** (D10).
 
 **Who authors a claim.** Every field of a claim comes from finalized state. A relayer chooses
@@ -567,21 +560,18 @@ L1 (I8). Expiry with enforceable invalidation is Q7.
 
 ### D8. Reference custody profile: `anchored-claim-vault-v1` (rewritten in r3)
 
-**Decided by the maintainer (2026-11-24, r3).** The default is co-signed batch settlement on the
-normal path, with a per-claim proof exit as the fallback. A deployment can choose proof-only
-instead (D8e).
+**Decided by the maintainer** (2026-11-24 in r3; simplified 2026-11-25 in r6). **Every chain**
+uses co-signed batch settlement on the normal path, with a per-claim proof exit as the fallback.
+v1 has no mode switch. A later, opt-in `PROOF_ONLY` option is recorded in D8e.
 
 **Vault layout**
-- Each registered asset has its own vault script, parameterized as described in D4. The
-  parameters include the settlement mode (D8e).
+- Each registered asset has its own vault script, parameterized as described in D4.
 - Each vault has its own 16 nullifier shard threads (D8c).
 - A vault may hold many UTxOs.
 
 **Redeemers.**
 - `Settle(claims[k], shardIndex)` is the co-signed fast path, with 1 ≤ k ≤ `maxSettleBatch`.
 - `Exit(claims[k], shardIndex)` is the proof path, with 1 ≤ k ≤ `maxExitBatch`.
-
-`Settle` is rejected outright when the script's mode parameter is `PROOF_ONLY`.
 
 **Rules for both redeemers.** These are the safety rules shared by the two paths:
 
@@ -729,15 +719,14 @@ instead (D8e).
 
 *Alternatives considered:*
 
-- **Proof-only as the only design (r1/r2).** Kept as a configurable mode (D8e), not as the
-  default. Its throughput cost is too high for the normal path.
+- **Proof-only as the only design (r1/r2).** Rejected as the normal path, because its throughput
+  cost is too high. Recorded as a future opt-in option (D8e).
 - **On-chain Ed25519 verification of a per-claim threshold certificate.** Rejected for v1. Signer
   epochs would have to be verified on chain, which duplicates the anchor.
 - **The EUTxO bridge's separate settlement root thread.** Rejected. The generic anchor already
   carries both the members and the root, and nothing advances the bridge's root thread at
   runtime.
-- **A two-level withdrawal root, to make `Exit` cheaper.** Kept as an optimization (Q15), and
-  most useful for `PROOF_ONLY` deployments.
+- **A two-level withdrawal root, to make `Exit` cheaper.** Kept as an optimization (Q15).
 
 ### D8a. The L1 brake: maturity plus a domain status leaf (new in r2; answers Q4)
 
@@ -755,7 +744,7 @@ became irreversible within one anchor interval (A-F5). r2 adds a brake that L1 c
     which is L1 time;
   - the status leaf must be `ACTIVE` under the same root.
 
-  In `PROOF_ONLY` mode, `exitDelayMs` is the short maturity delay (D8e).
+
 - **How the brake takes effect.**
   - A pause committed at height `h` takes effect on L1 at the first anchor of height `h` or
     later. That anchor spends the previous one, so older roots can no longer be referenced.
@@ -870,7 +859,7 @@ creates a governed claim leaf:
   target's observer treats that output as **accepted custody** for the migrated liabilities,
   never as a deposit credit.
   - It requires framework addition 7, so it is not available until then.
-  - Changing the settlement mode (D8e) also needs it.
+
 
 Governed claims:
 - are payable **only through `Exit`**, never through `Settle`, so they are always subject to the
@@ -895,48 +884,39 @@ Governed claims:
 - `Settle` enforces `claimKind == USER_WITHDRAWAL`, both in the script (the redeemer carries the
   kind) and in the D9 body check. `Settle` proves nothing against the root.
 - So against a colluding threshold, I22 holds on chain only for `Exit`, and fully only in
-  `PROOF_ONLY` mode. §3 says so.
+  a future `PROOF_ONLY` option (D8e). §3 says so.
 
 **Limits.** If the threshold's keys are lost, the anchor freezes, so this profile has no recovery
 path. That is stated in the trust label and in §11 (#110 §3.1 asks for a safe migration plan;
 this is that plan, together with its limit).
 
-### D8e. Settlement mode is fixed per vault, on chain (new in r3)
+### D8e. One settlement configuration for every chain; `PROOF_ONLY` is a future option (rewritten in r6)
 
-The genesis profile setting `settlement.mode` takes one of two values:
+**v1.** The maintainer decided on 2026-11-25 that every chain uses the same design:
+- co-signed `Settle` on the normal path;
+- delayed proof `Exit` as the fallback;
+- the escape hatch (D8g).
 
-| Mode | `Settle` | `Exit` delay | Normal path | Trust label |
-|---|---|---|---|---|
-| `COSIGNED_WITH_PROOF_EXIT` (default) | accepted | `exitDelayMs`: default 24 h; on-chain bounds [6 h, 30 d] | co-signed batches | `FEDERATED_COSIGNED_WITH_ESCAPE_HATCH` |
-| `PROOF_ONLY` | **rejected by the script** | `exitDelayMs` is the maturity brake: default 30 min; on-chain bounds [10 min, 24 h]; must exceed 2 × the anchor's maximum interval (doctor check) | permissionless proof relay | `FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` |
+There is no `settlement.mode` setting, no mode parameter in the vault script, and one trust label.
+This keeps one validator, one effect policy (batch effects, D7) and one executor shape.
 
-**On-chain parameter.** The mode is a **vault script parameter**, so it is part of the vault's
-script hash.
-- A `PROOF_ONLY` vault cannot be spent by `Settle`, even if a threshold colludes to co-sign one.
-- Anyone can verify the mode from L1.
+**Exit delay.**
+- Default 24 h, within on-chain bounds of [6 h, 30 d]. These follow ADR-UTXO-009 §9.
+- The floor and ceiling are script parameters. The current value is carried in the status leaf.
+- `exitDelayMs` must exceed the fast path's settlement deadline, so exits fire only when the fast
+  path has failed. If the two paths do race, the second transaction simply fails (V4).
 
-A setting that is only node-local cannot give this guarantee. A co-signed vault can be operated
-proof-only by not running the co-sign service, but only a `PROOF_ONLY` script guarantees it.
+**Future option: `PROOF_ONLY`.** This is recorded, not implemented. A later revision may let a
+deployment disable `Settle`. The design would be:
+- a vault script parameter that rejects `Settle`, which makes the choice part of the script
+  hash so that L1 can verify it;
+- a short maturity delay in place of the 24 h exit delay;
+- per-claim relay effects;
+- its own trust label.
 
-**Consensus and configuration.**
-- `settlement.mode` and the delay bounds are consensus-shared and pinned with the profile, like
-  the rest of D17.
-- The ledger behaves per mode:
-  - in `COSIGNED_WITH_PROOF_EXIT` it emits settlement batches for the co-sign executor;
-  - in `PROOF_ONLY` it emits per-claim relay effects.
-- Startup fails closed in these cases:
-  - a node's executor configuration does not match the mode, for example a co-sign owner on a
-    `PROOF_ONLY` chain;
-  - a registered vault's script hash does not match the mode parameter.
-
-**Changing the mode.** The mode cannot be changed in place. Changing it means:
-1. register a new vault whose script carries the new mode;
-2. move the liabilities with governed `MIGRATE` claims (D8d).
-
-**Delays.** The defaults and bounds follow ADR-UTXO-009 §9: 24 h, within [6 h, 30 d]. Here the floor and ceiling are script parameters, so they are enforced on chain. This closes the gap ADR-UTXO-009 records in §13.1, where the floor was not enforced on chain. In the default mode, `exitDelayMs` must be greater than the fast
-path's expected settlement deadline. Exits then fire only after the fast path has failed, and
-the two paths rarely race on shard UTxOs. If they do race, the second transaction simply fails
-(V4).
+Changing an existing chain to that option would need a new vault and governed `MIGRATE` claims
+(D8d), so it depends on framework addition 7. Nothing in v1 prevents adding it later. Rules V1–V8
+and V10–V12 already hold for `Exit` alone.
 
 ### D8f. Deposit acceptance (new in r5)
 
@@ -952,7 +932,7 @@ the `Accept` redeemer.
 | Redeemer | Mode | Rule |
 |---|---|---|
 | `Accept(deposits[k])`, co-signed | default mode, normal operation | A threshold of the current anchor datum's members signs (V9). Members sign only for deposits whose `CREDITED` record is at a height ≤ the referenced anchor height (D9 body check). The output is one continuation, with V6 and V7 applied to the accepted value. Expected batch size is about 16 or more, because there are no proofs. |
-| `Accept(deposits[k])`, proved | `PROOF_ONLY` mode, or exit mode | For each deposit, an inclusion proof of `deposit/<DepositId> = CREDITED` under the anchored root (or the frozen root in exit mode). Anyone may submit it. |
+| `Accept(deposits[k])`, proved | exit mode, or as a fallback when the co-sign round fails | For each deposit, an inclusion proof of `deposit/<DepositId> = CREDITED` under the anchored root (or the frozen root in exit mode). Anyone may submit it. |
 | `Refund(deposit)` | exit mode only | Two proofs, both against the frozen root: an exclusion proof showing that `deposit/<DepositId>` is absent, and an inclusion proof of the frozen `DomainStatusV1`. It pays the deposit's own value to the address the depositor named in `DepositDatumV1`, and the transaction must be signed by the deposit datum's `refundKeyHash`. |
 
 **What acceptance does not do.**
@@ -1060,7 +1040,7 @@ Exit mode is **terminal** for the domain in v1. Recovery means a new deployment.
 generous so that an ordinary outage does not trigger exit mode.
 
 **8. What changes for users.** The trust labels are `FEDERATED_COSIGNED_WITH_ESCAPE_HATCH`
-and, for `PROOF_ONLY`, `FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` (D18). Customers can always withdraw
+(D18). Customers can always withdraw
 their anchored balance if operators disappear or censor them. A colluding threshold can still
 steal by anchoring a false root. ZK validity proofs remove that later; the escape hatch is still
 needed with ZK, for liveness.
@@ -1686,10 +1666,8 @@ against both `asset-payments` and `asset-escrow`.
 
 ### D18. Trust labels are data
 
-The profile descriptor carries a machine-readable trust label, chosen by the settlement mode
-(D8e):
-- `FEDERATED_COSIGNED_WITH_ESCAPE_HATCH` for the default mode;
-- `FEDERATED_PROOF_RELAY_WITH_ESCAPE_HATCH` for `PROOF_ONLY`.
+The profile descriptor carries the machine-readable trust label
+`FEDERATED_COSIGNED_WITH_ESCAPE_HATCH`.
 
 These surfaces display it:
 - the capability catalog;
@@ -1699,7 +1677,7 @@ These surfaces display it:
 
 The wording follows ADR app-layer/utxo/001 l.350-352: the threshold can censor withdrawals, and
 can authorize an invalid root. The surfaces also state:
-- the exit delay and, in `PROOF_ONLY`, the maturity delay, both in L1 time;
+- the exit delay, in L1 time;
 - the escape-hatch timeouts.
 - what happens if the threshold's keys are lost.
 
@@ -1727,7 +1705,7 @@ can authorize an invalid root. The surfaces also state:
 | I18 | *(new)* A payout confirmation is accepted only from a transaction carrying the vault's shard thread token. A confirmation of an already-`PAID` claim is a no-op. | D10 |
 | I19 | *(new)* Every reserved claim is payable by someone: the recipient is valid, ADA claims meet the minimum, and token payouts can be supplemented. | D7, D11 |
 | I20 | *(new in r3)* Both redeemers share one nullifier set and one `ClaimId`, and the output-shape rules V5-V8 apply to both. A claim is paid at most once, whichever path pays it. | D8, D8c |
-| I21 | *(new in r3)* The settlement mode is a vault script parameter. A `PROOF_ONLY` vault rejects `Settle` on chain. The mode cannot change without a new vault and governed `MIGRATE` claims. | D8e, D8d |
+| I21 | *(r3; reworded in r6)* Every vault in v1 accepts both `Settle` and `Exit`. No node-local setting can disable `Exit`. | D8, D8e |
 | I22 | *(new in r3)* Governed claims are payable only through `Exit`. | D8d |
 | I23 | *(new in r5)* `Settle` and `Exit` spend only accepted UTxOs. A deposit becomes accepted only if its credit is anchored: by co-signing in normal operation, or by proof. | D8f |
 | I24 | *(new in r5)* Every finalized forced-withdrawal request is reserved or rejected, deterministically. If it is absent from a sufficiently recent anchored root past its deadline, anyone can trigger exit mode. | D8g |
@@ -1777,7 +1755,7 @@ selected. The ZIP and Central size budget is checked when they are added.
 | M1 | Contracts: types, ids, codecs, CDDL, `AssetAccounts`, invariant checker | M0 | V1, V2 and V4 pass. Property tests for I3 and I4. Contract freeze reviewed against `asset-payments` and `asset-escrow` (D17a). Module names fixed. |
 | M2 | `cardano-wallet-auth` | M1 (codecs) | V3 passes. The cryptographic oracles agree, or every disagreement is recorded. I10 and I11. |
 | M3 | Ingress: deposit observer, `DepositAdmission`, payment ledger without withdrawals, `asset-escrow` deposits | M1, M2 | On devnet, ADA and two native tokens are credited exactly once across restart and rescan. V5 fixtures A1-A10 never credit or halt. I1, I2, I13, I16. |
-| M4 | Settlement: vault, shard and policy validators; payout observer; relayer; brake; anchor pinning, handoff and proof floor | M3; framework additions 1-4 (§7); Q2 and Q14 decided | Co-signed `Settle` path, with each member running the body check. V6 negative suite for both redeemers, including that a `PROOF_ONLY` vault rejects `Settle`. Measured `Settle` and `Exit` batch caps and costs. On devnet, an `Exit` after the owner node is stopped. A `Settle` racing an `Exit` on the same claim: exactly one succeeds. Both modes run end to end. Partial and full devnet withdrawals in each asset while transfers continue. A third-party relayer pays a claim. The last liability is withdrawn from the last UTxO. A sub-minimum ADA request is rejected. A token payout supplemented by the builder succeeds. I5-I9, I12, I15, I17-I22. |
+| M4 | Settlement: vault, shard and policy validators; payout observer; relayer; brake; anchor pinning, handoff and proof floor | M3; framework additions 1-4 (§7); Q2 and Q14 decided | Co-signed `Settle` path, with each member running the body check. V6 negative suite for both redeemers. Measured `Settle` and `Exit` batch caps and costs. On devnet, an `Exit` after the owner node is stopped. A `Settle` racing an `Exit` on the same claim: exactly one succeeds. Partial and full devnet withdrawals in each asset while transfers continue. A third-party relayer pays a claim. The last liability is withdrawn from the last UTxO. A sub-minimum ADA request is rejected. A token payout supplemented by the builder succeeds. I5-I9, I12, I15, I17-I22. |
 | M4a | *(new in r5)* Escape hatch: anchor v2 heartbeat; forced-withdrawal inbox, policy and observer; exit-mode thread; `Accept`, `Refund` and `BalanceExit`; snapshot publication; SDK proof saving | M4; framework addition 5 | Devnet drills. (1) Stop all operators: after the heartbeat timeout anyone enters exit mode, and every account exits its frozen balance, every reserved claim is paid, every credited-but-unaccepted deposit is accepted by proof, and every uncredited deposit is refunded. Then the vault holds only the floor and unattributed value. (2) Censor one forced request: exit mode is triggered by trigger (b). (3) An honestly processed forced request cannot trigger exit mode. (4) A second `BalanceExit` fails. (5) `Settle` is rejected in exit mode. I23-I26. |
 | M4b | *(new in r5)* `MIGRATE`, post-genesis vault addition, and settlement-mode change through migration | Framework addition 7 | Devnet: migrate a vault, with both its liabilities and its custody, to a new vault and a new mode while transfers continue. Reconciliation shows no false deficit. |
 | M5 | Second consumer end to end, conformance kit, EUTxO helper adoption | M4 | `asset-escrow` passes the kit. EUTxO golden bytes unchanged (I14). Substitution passes, and an incompatible configuration fails closed. |
@@ -1790,15 +1768,15 @@ selected. The ZIP and Central size budget is checked when they are added.
 - One audited path for deposits, payouts and confirmation, instead of one per application.
 - The normal path settles batches of about 16 with no proof cost.
 - Certified, anchored claims can be paid without the operators after `exitDelayMs`, even if the app ledger has stopped producing blocks.
-- `PROOF_ONLY` stays available by configuration for deployments that do not want co-signing.
+- One configuration for every chain keeps v1 simple. `PROOF_ONLY` stays a recorded future option.
 - The L1 brake contains bugs.
 - The payment ledger and other consumers share code but not custody, state or liquidity.
 
 **Costs**
 - Two spending paths to audit, plus the co-sign service.
-- In the default mode, a common-mode bug in the member body check can pay out wrongly. The
+- A common-mode bug in the member body check can pay out wrongly. The
   script does not catch it.
-- Exit, and every withdrawal in `PROOF_ONLY`, waits at least the delay plus one anchor interval,
+- `Exit` waits at least the delay plus one anchor interval,
   and is bounded by the MPF proof cost.
 - Every anchor advance invalidates in-flight payout transactions.
 - Four additions to the framework.
@@ -1890,7 +1868,6 @@ And these cases:
 The earlier cases remain:
 - `Settle` below threshold;
 - `Settle` signed by members of an older anchor datum;
-- `Settle` against a `PROOF_ONLY` vault;
 - a `Settle` payout whose claim id was already exited;
 - a governed claim paid through `Settle`;
 - `Exit` before `exitDelayMs`;
@@ -1933,7 +1910,7 @@ Budgets are measured, not estimated.
 | A colluding member threshold steals | Stated trust label (D18). The brake makes theft visible but does not prevent it. A validity-proof profile is future work. |
 | Threshold keys are lost, so the anchor and all custody freeze | Stated. Key-management requirements and drills in M6. No in-profile recovery. |
 | Blind signing of intents | The client shows the decoded intent. Short TTL with single-use ids. Session limits. Documentation. |
-| Batch size limited by the MPF budget | Affects only `Exit` and `PROOF_ONLY`. The co-signed `Settle` default avoids it. Measured in M4 (Q15). |
+| Batch size limited by the MPF budget | Affects only `Exit`. The co-signed `Settle` default avoids it. Measured in M4 (Q15). |
 | Anchor stalls or anchor churn | Liveness only. Anchor-age metric. Rebuild on churn. Maturity tuned to the measured interval. |
 | Handoff mistakes strand claims | D8b gate and doctor check. Drill under an anchor outage. |
 | Dust flood to vault addresses | Costs the attacker min-ADA per output. Journal back-pressure. Metric. |
@@ -1964,7 +1941,7 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
 
 | ID | Question | Options | Lean |
 |---|---|---|---|
-| D8 | Reference vault paths | — | **Decided by the maintainer in r3:** co-signed `Settle` as the default normal path, with a per-claim delayed `Exit` as the fallback. `PROOF_ONLY` can be selected by genesis configuration (D8e). Changing mode means a new vault plus governed `MIGRATE`. |
+| D8 | Reference vault paths | — | **Decided by the maintainer in r3:** co-signed `Settle` as the default normal path, with a per-claim delayed `Exit` as the fallback. **Simplified in r6:** every chain uses both paths. `PROOF_ONLY` is a recorded future option (D8e). |
 | Q1 | Who owns a token deposit's incidental lovelace? | — | **Decided by the maintainer in r4:** (b), an account-bound min-ADA credit (D11). It is not spendable as payment balance. |
 | Q2 | Who funds payout min-ADA? | — | **Decided in r4:** (b), the account's own credit. The builder may supplement it. |
 | Q3 | Direct deposits or staging and acceptance? | — | **Decided in r4, refined in r5:** direct deposits at the vault address, plus an acceptance step (D8f). No separate staging address. A deposit that was never credited can be refunded in exit mode. |
@@ -1984,10 +1961,10 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
 | Q11 | Module names and placement | **Decided in r4:** the D2 names, under `capabilities/`, `ledgers/` and `examples/`. M1 may rename only for artifact-inventory conflicts. |
 | Q12 | ADR-041's status versus code that already exists | Flagged for an ADR-041 status update. |
 | Q13 | — | **Decided in r2:** V2 binds the key and the value, with the composite key derivation pinned. |
-| Q15 | Use a two-level withdrawal root to make `Exit` cheaper? | **Decided in r4:** v1 ships a single-level `Exit`, which is simpler to audit; in the default mode `Exit` is only a fallback. If M4 measures fewer than 4 claims per `Exit` transaction, a two-level root becomes a `PROOF_ONLY` profile version under its own review. |
+| Q15 | Use a two-level withdrawal root to make `Exit` cheaper? | **Decided in r4:** v1 ships a single-level `Exit`, which is simpler to audit; in the default mode `Exit` is only a fallback. If M4 measures fewer than 4 claims per `Exit` transaction, a two-level root becomes a profile version under its own review. |
 | Q17 | *(new in r5)* Make exit mode recoverable, so a new root can resume after an outage? | **Not in v1.** Exit mode is terminal and its timeouts are generous. |
 | Q18 | *(new in r5)* Data-availability providers for snapshots | Two independent stores by default (the S3 and IPFS connectors). Revisit in the ZK PR. |
-| Q16 | Exit delay | **Decided in r4:** L1 time (`exitDelayMs`), read from the status leaf and bounded by script parameters. Default mode: 24 h, within [6 h, 30 d]. `PROOF_ONLY`: 30 min, within [10 min, 24 h]. |
+| Q16 | Exit delay | **Decided in r4:** L1 time (`exitDelayMs`), read from the status leaf and bounded by script parameters. 24 h, within [6 h, 30 d]. |
 
 ## 13a. Guarantees, and the future ZK validity profile (new in r5)
 
@@ -2186,3 +2163,8 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     - R3-F9: effect policy per mode; shard mirror source; ADA-vault and credit-only claim rules;
       one executor per chain.
     - R3-F10: stale lines fixed; delays surfaced; units stated; anchor datum validation.
+- **r6** (2026-11-25): Maintainer simplification. Every chain uses co-signed `Settle` plus proof
+  `Exit` plus the escape hatch. The `settlement.mode` setting, the mode parameter in the vault
+  script, per-claim relay effects and the second trust label are removed. `PROOF_ONLY` is
+  recorded as a future opt-in option (D8e rewritten). I21 reworded, and M4, V6, §9, §11 and §13
+  updated to match.
