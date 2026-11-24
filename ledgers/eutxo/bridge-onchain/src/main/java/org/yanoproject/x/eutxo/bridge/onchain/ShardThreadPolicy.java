@@ -52,7 +52,7 @@ public class ShardThreadPolicy {
             // TxId decodes to raw bytes at UPLC level — unwrap via cast
             // (the stdlib idiom; TxId.hash() would double-unwrap)
             byte[] txIdBytes = (byte[]) (Object) input.outRef().txId();
-            boolean sameTx = txIdBytes.equals(seedTxId);
+            boolean sameTx = Builtins.equalsByteString(txIdBytes, seedTxId);
             boolean sameIndex = input.outRef().index().equals(seedIndex);
             if (sameTx && sameIndex) {
                 matches = matches.add(BigInteger.ONE);
