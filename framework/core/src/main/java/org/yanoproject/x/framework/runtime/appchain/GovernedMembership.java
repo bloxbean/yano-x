@@ -49,6 +49,16 @@ import java.util.function.Predicate;
  * ({@code 2·threshold − n > f} and {@code threshold ≤ n − f}), because every
  * block's consensus context is built from it (bloxbean/yano#163). A violating
  * activation is a deterministic no-op, never a stall.
+ *
+ * <p><b>Anchor handoff gate</b> (ADR-059 D8b, framework addition 4; opt-in with
+ * {@value #HANDOFF_SETTING}{@code =true}): an approved change is committed as a
+ * single {@link MembershipHandoff} instead of activating. It activates only when the
+ * {@link MembershipHandoffGate} reports, for a later finalized block, that an
+ * L1-stable anchor output carries exactly the new set; the epoch then starts
+ * {@code activation-lag} blocks after that block. While one handoff is pending,
+ * further approved changes are void (deterministic no-ops), so the old set keeps
+ * authority until the handoff is final and an interrupted handoff is simply retried.
+ * The pending handoff persists with the block commit like the approval state.</p>
  */
 final class GovernedMembership {
 
@@ -70,8 +80,16 @@ final class GovernedMembership {
         return value > 0 ? value : DEFAULT_APPROVAL_WINDOW_BLOCKS;
     }
     static final long DEFAULT_ACTIVATION_LAG = 10;
+    /** Opt-in L1 anchor handoff gate for governed changes (ADR-059 D8b). */
+    static final String HANDOFF_SETTING = MembershipHandoff.SETTING;
+
+    /** {@value #HANDOFF_SETTING}: true, false (default). Anything else fails start. */
+    static boolean handoffSelected(java.util.Map<String, String> settings) {
+        return MembershipHandoff.selected(settings);
+    }
 
     private static final String META_PENDING = "gov_pending";
+    private static final String META_HANDOFF = "gov_anchor_handoff";
     private static final CborStructurePreflight.Limits COMMAND_CBOR_LIMITS =
             new CborStructurePreflight.Limits(256, 3, 16, 8, 64);
 
@@ -81,9 +99,26 @@ final class GovernedMembership {
     private final int maxByzantineMembers;
     private final Logger log;
     private Predicate<EpochEffect> epochGuard = ignored -> true;
+    private final boolean handoffGated;
+    private volatile MembershipHandoffGate handoffGate = MembershipHandoffGate.NONE;
+    /** Read by the anchor thread; written only while processing a finalized block. */
+    private volatile MembershipHandoff pendingHandoff;
 
     void setEpochGuard(Predicate<EpochEffect> guard) {
         this.epochGuard = Objects.requireNonNull(guard, "guard");
+    }
+
+    void setHandoffGate(MembershipHandoffGate gate) {
+        this.handoffGate = Objects.requireNonNull(gate, "gate");
+    }
+
+    boolean handoffGated() {
+        return handoffGated;
+    }
+
+    /** The committed change awaiting its anchor handoff, if the gate is on and one is pending. */
+    java.util.Optional<MembershipHandoff> pendingHandoff() {
+        return java.util.Optional.ofNullable(pendingHandoff);
     }
 
     /** command bytes (hex) → approval state; rebuilt from meta on restart. */
@@ -115,6 +150,13 @@ final class GovernedMembership {
 
     GovernedMembership(MemberGroup group, String fixedProposerHex,
                        long approvalWindowBlocks, int maxByzantineMembers, Logger log) {
+        this(group, fixedProposerHex, approvalWindowBlocks, maxByzantineMembers, false, log);
+    }
+
+    GovernedMembership(MemberGroup group, String fixedProposerHex,
+                       long approvalWindowBlocks, int maxByzantineMembers,
+                       boolean handoffGated, Logger log) {
+        this.handoffGated = handoffGated;
         this.group = Objects.requireNonNull(group, "group");
         this.fixedProposerHex = fixedProposerHex != null
                 ? fixedProposerHex.toLowerCase(Locale.ROOT) : "";
@@ -126,6 +168,12 @@ final class GovernedMembership {
 
     /** Restore pending-approval state persisted with the last committed block. */
     void restore(AppLedgerStore ledger) {
+        byte[] handoff = ledger.metaBytes(META_HANDOFF);
+        pendingHandoff = handoff == null || handoff.length == 0 ? null : decodeHandoff(handoff);
+        if (pendingHandoff != null && !handoffGated) {
+            throw new IllegalStateException("The ledger holds a pending anchor membership handoff "
+                    + "but " + HANDOFF_SETTING + " is not enabled");
+        }
         byte[] stored = ledger.metaBytes(META_PENDING);
         pending.clear();
         if (stored == null || stored.length == 0) {
@@ -156,8 +204,23 @@ final class GovernedMembership {
      */
     Result processBlock(AppBlock block) {
         boolean touched = false;
+        boolean handoffTouched = false;
         List<EpochEffect> effects = new ArrayList<>();
         long height = block.height();
+
+        // ADR-059 D8b step 4: a finalized L1-stable handoff activates the committed set.
+        MembershipHandoff handoff = pendingHandoff;
+        if (handoffGated && handoff != null && height > handoff.committedHeight()
+                && handoffGate.finalizesHandoff(block, handoff)) {
+            EpochEffect effect = new EpochEffect(height + handoff.activationLag(),
+                    handoff.members(), handoff.threshold());
+            effects.add(effect);
+            group.appendEpoch(effect.fromHeight(), effect.members(), effect.threshold());
+            pendingHandoff = null;
+            handoffTouched = true;
+            log.info("Governance handoff FINALIZED on L1 at height {}: {}-of-{} from height {}",
+                    height, effect.threshold(), effect.members().size(), effect.fromHeight());
+        }
 
         // Expire stale half-approved commands (window is in blocks)
         touched |= pending.entrySet().removeIf(
@@ -188,7 +251,19 @@ final class GovernedMembership {
                 pending.remove(commandHex);
                 touched = true;
                 EpochEffect effect = activate(command, height);
-                if (effect != null) {
+                if (effect != null && handoffGated) {
+                    // D8b steps 1-3: commit as pending; the anchor carries it before it activates.
+                    if (pendingHandoff != null) {
+                        log.warn("Governance: a membership handoff is already pending at height {} "
+                                + "— change void", height);
+                    } else {
+                        pendingHandoff = new MembershipHandoff(height, effect.members(),
+                                effect.threshold(), effect.fromHeight() - height);
+                        handoffTouched = true;
+                        log.info("Governance COMMITTED (pending anchor handoff): {}-of-{} at height {}",
+                                effect.threshold(), effect.members().size(), height);
+                    }
+                } else if (effect != null) {
                     effects.add(effect);
                     // Later commands in the SAME block see the new epoch
                     group.appendEpoch(effect.fromHeight(), effect.members(), effect.threshold());
@@ -196,11 +271,16 @@ final class GovernedMembership {
             }
         }
 
-        if (!touched && effects.isEmpty()) {
+        if (!touched && !handoffTouched && effects.isEmpty()) {
             return Result.EMPTY;
         }
         List<MetaWrite> writes = new ArrayList<>();
         writes.add(new MetaWrite(META_PENDING, encodePending()));
+        if (handoffTouched) {
+            MembershipHandoff current = pendingHandoff;
+            writes.add(new MetaWrite(META_HANDOFF,
+                    current == null ? new byte[0] : encodeHandoff(current)));
+        }
         if (!effects.isEmpty()) {
             writes.add(new MetaWrite("member_epochs",
                     group.encode().getBytes(StandardCharsets.UTF_8)));
@@ -321,6 +401,34 @@ final class GovernedMembership {
             throw new IllegalArgumentException("Member key must be 32 bytes");
         }
         return new Command(op, key, 0, lag);
+    }
+
+    /** [version(1), committed-height, threshold, activation-lag, [member-hex...]] */
+    static byte[] encodeHandoff(MembershipHandoff handoff) {
+        Array arr = new Array();
+        arr.add(new UnsignedInteger(1));
+        arr.add(new UnsignedInteger(handoff.committedHeight()));
+        arr.add(new UnsignedInteger(handoff.threshold()));
+        arr.add(new UnsignedInteger(handoff.activationLag()));
+        Array members = new Array();
+        new TreeSet<>(handoff.members()).forEach(member -> members.add(new UnicodeString(member)));
+        arr.add(members);
+        return CborSerializationUtil.serialize(arr);
+    }
+
+    static MembershipHandoff decodeHandoff(byte[] encoded) {
+        List<DataItem> items = ((Array) CborSerializationUtil.deserializeOne(encoded)).getDataItems();
+        if (items.size() != 5 || ((UnsignedInteger) items.get(0)).getValue().longValue() != 1) {
+            throw new IllegalStateException("Unsupported membership handoff record");
+        }
+        Set<String> members = new TreeSet<>();
+        for (DataItem member : ((Array) items.get(4)).getDataItems()) {
+            members.add(((UnicodeString) member).getString());
+        }
+        return new MembershipHandoff(
+                ((UnsignedInteger) items.get(1)).getValue().longValueExact(), members,
+                ((UnsignedInteger) items.get(2)).getValue().intValueExact(),
+                ((UnsignedInteger) items.get(3)).getValue().longValueExact());
     }
 
     private byte[] encodePending() {

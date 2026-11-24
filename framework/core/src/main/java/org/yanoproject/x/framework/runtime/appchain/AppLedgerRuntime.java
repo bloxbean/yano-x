@@ -285,6 +285,8 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
     private volatile long proofPruningLastCompletedAt;
     private volatile long proofPruningLastRetainFrom;
     private volatile long proofPruningLastStableAnchorHeight;
+    /** Governed-membership handler of the running generation; null in static mode. */
+    private volatile GovernedMembership governedMembership;
     private volatile long proofPruningLastDeleted;
     private volatile QueryLane queryLane;
     private volatile EffectRuntime effectRuntime;
@@ -3805,6 +3807,17 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         status.put("members", group.size());
         status.put("threshold", group.threshold());
         status.put("membershipMode", governedMode() ? "governed" : "static");
+        GovernedMembership governedStatus = governedMembership;
+        if (governedStatus != null && governedStatus.handoffGated()) {
+            Map<String, Object> handoff = new LinkedHashMap<>();
+            handoff.put("gate", "l1-stable-anchor");
+            governedStatus.pendingHandoff().ifPresent(pendingChange -> {
+                handoff.put("pendingCommittedHeight", pendingChange.committedHeight());
+                handoff.put("pendingThreshold", pendingChange.threshold());
+                handoff.put("pendingMembers", List.copyOf(new java.util.TreeSet<>(pendingChange.members())));
+            });
+            status.put("membershipHandoff", Map.copyOf(handoff));
+        }
         status.put("membershipEpochFromHeight", group.currentFromHeight());
         long nextHeight = tipHeight() + 1;
         status.put("membershipEpochActive", group.currentFromHeight() <= nextHeight);
@@ -4538,16 +4551,29 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                     ledgerStore.tipHeight() + 1, observerProfileDigest);
             configureLedgerIntegration(ledgerStore, chainEngine, observerProfileDigest, observationIdentityContext);
             chainEngine.setEnvelopeRelay(this::relay);
+            boolean anchorHandoff = GovernedMembership.handoffSelected(config.pluginSettings());
+            if (anchorHandoff && !governedMode()) {
+                throw new IllegalArgumentException(GovernedMembership.HANDOFF_SETTING
+                        + "=true requires membership.mode=governed");
+            }
             if (governedMode()) {
                 GovernedMembership governed = new GovernedMembership(
                         group,
                         config.proposerKeyHex(),
                         GovernedMembership.approvalWindowBlocks(config),
                         MemberGroup.maxByzantineMembers(config),
+                        anchorHandoff,
                         log);
                 governed.restore(ledgerStore);
                 governed.setEpochGuard(effect -> observationSettings.admitsMembership(
                         effect.members(), effect.threshold()));
+                if (anchorHandoff) {
+                    governed.setHandoffGate(Objects.requireNonNull(membershipHandoffGate(),
+                            "membershipHandoffGate"));
+                    log.warn("App-chain '{}' governed membership changes wait for an L1-stable anchor "
+                            + "handoff ({}=true)", config.chainId(), GovernedMembership.HANDOFF_SETTING);
+                }
+                this.governedMembership = governed;
                 chainEngine.setGovernance(governed);
                 log.info("App-chain '{}' membership mode: governed (approval = {} identical "
                         + "member commands on {})", config.chainId(), group.threshold(),
@@ -5798,6 +5824,7 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
 
         AppChainEngine currentEngine = engine;
         engine = null;
+        governedMembership = null;
         CompletableFuture<Void> engineQuiescent = CompletableFuture.completedFuture(null);
         if (currentEngine != null) {
             closeResource("engine", currentEngine::close, cleanupFailures);
@@ -6146,6 +6173,22 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
     protected AppChainEngine.L1Ref stableL1Ref() { return null; }
     protected AppChainEngine.L1Ref l1TipPoint() { return null; }
     protected long stableAnchoredHeight() { return 0; }
+
+    /**
+     * The deterministic finalizer for {@code membership.anchor-handoff} (ADR-059 D8b). The
+     * framework has none; a capability that observes L1-stable anchor outputs overrides it.
+     */
+    protected MembershipHandoffGate membershipHandoffGate() { return MembershipHandoffGate.NONE; }
+
+    /**
+     * The committed governed change awaiting its L1 anchor handoff, read by the script-anchor
+     * service as the anchor's next member set (ADR-059 D8h §2). Empty unless
+     * {@code membership.anchor-handoff=true} and a change is pending.
+     */
+    protected final Optional<MembershipHandoff> pendingMembershipHandoff() {
+        GovernedMembership governed = governedMembership;
+        return governed == null ? Optional.empty() : governed.pendingHandoff();
+    }
     protected String l1AnchoredGateUnreachableReason() {
         return "l1.stability-depth is 0, so no anchor ever becomes stability-deep";
     }
