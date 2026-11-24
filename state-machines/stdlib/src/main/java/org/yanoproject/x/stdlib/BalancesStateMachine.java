@@ -1,6 +1,7 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.x.framework.api.appchain.AppCapabilityManifest;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
@@ -102,6 +103,8 @@ public final class BalancesStateMachine implements AppStateMachine {
     @Override
     public void apply(AppBlockExecutionContext context, AppStateWriter writer,
                       AppEffectEmitter effects) {
+        // One snapshot per block: context.block() copies every message, so taking it per message is quadratic.
+        AppBlock block = context.block();
         int visibleIndex = 0;
         for (AppMessage message : context.messages()) {
             int originalIndex = context.originalMessageIndex(visibleIndex++);
@@ -111,7 +114,7 @@ public final class BalancesStateMachine implements AppStateMachine {
             } catch (Exception e) {
                 continue;
             }
-            TransitionContext transition = TransitionContext.of(context.block(), originalIndex, message);
+            TransitionContext transition = TransitionContext.of(block, originalIndex, message);
             TransitionPlans.commitIfApproved(transitions.decide(command, transition,
                     BalancesTransitions.facts(command, transition, writer)), writer, effects);
         }

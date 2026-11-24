@@ -90,6 +90,48 @@ class PreparedStateCommitRuntimeTest {
     }
 
     @Test
+    void committedStateRootFollowsTheTipAndNeverExposesTheCachedArray(@TempDir Path directory) {
+        try (AppLedgerStore ledger = new AppLedgerStore(
+                directory.resolve("ledger").toString(),
+                LoggerFactory.getLogger("prepared-state-test"))) {
+            assertThat(ledger.committedStateRoot(1)).isEmpty();
+
+            StagedStateCommit first = prepared(ledger, VALUE);
+            byte[] firstRoot = first.stateRoot();
+            AppBlock firstBlock = block(1, AppBlock.GENESIS_PREV_HASH, firstRoot, message());
+            try (first; WriteBatch batch = new WriteBatch()) {
+                ledger.commitBlock(firstBlock, AppBlockCodec.blockHash(firstBlock), first, batch, List.of());
+            }
+
+            byte[] read = ledger.committedStateRoot(1).orElseThrow();
+            assertThat(read).isEqualTo(firstRoot);
+            read[0] ^= 1;
+            assertThat(ledger.committedStateRoot(1)).hasValueSatisfying(
+                    root -> assertThat(root).isEqualTo(firstRoot));
+            assertThat(ledger.captureCommittedState().stateRoot()).isEqualTo(firstRoot);
+            assertThat(ledger.stateBackend().snapshot(1)).hasValueSatisfying(
+                    snapshot -> assertThat(snapshot.stateRoot()).isEqualTo(firstRoot));
+            assertThat(ledger.committedStateRoot(2)).isEmpty();
+
+            CandidateState next = ledger.stateBackend().beginCandidate(1, firstRoot, 2);
+            next.put(KEY, bytes("second-value"));
+            StagedStateCommit second = (StagedStateCommit) next.prepare();
+            byte[] secondRoot = second.stateRoot();
+            AppBlock secondBlock = block(2, AppBlockCodec.blockHash(firstBlock), secondRoot, message());
+            try (second; WriteBatch batch = new WriteBatch()) {
+                ledger.commitBlock(secondBlock, AppBlockCodec.blockHash(secondBlock), second, batch, List.of());
+            }
+
+            assertThat(secondRoot).isNotEqualTo(firstRoot);
+            assertThat(ledger.captureCommittedState().stateRoot()).isEqualTo(secondRoot);
+            assertThat(ledger.committedStateRoot(2)).hasValueSatisfying(
+                    root -> assertThat(root).isEqualTo(secondRoot));
+            assertThat(ledger.committedStateRoot(1)).hasValueSatisfying(
+                    root -> assertThat(root).isEqualTo(firstRoot));
+        }
+    }
+
+    @Test
     void discardedAndStaleCandidatesCannotChangeFinalizedState(@TempDir Path directory) {
         try (AppLedgerStore ledger = new AppLedgerStore(
                 directory.resolve("ledger").toString(),

@@ -1,6 +1,8 @@
 package org.yanoproject.x.framework.api.appchain.evidence;
 
-import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
+import com.bloxbean.cardano.client.crypto.api.SigningProvider;
+import com.bloxbean.cardano.client.crypto.api.impl.BouncyCastleEd25519Verifier;
+import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
@@ -35,6 +37,12 @@ import java.util.Set;
  * and threshold.</p>
  */
 public final class EvidenceVerifier {
+    /**
+     * Pinned libsodium-equivalent Ed25519 verification, independent of the replaceable global
+     * {@code CryptoConfiguration} verifier, so every verifier of evidence accepts the same signatures.
+     */
+    private static final SigningProvider ED25519 = new EdDSASigningProvider(new BouncyCastleEd25519Verifier());
+
 
     private EvidenceVerifier() {
     }
@@ -268,7 +276,7 @@ public final class EvidenceVerifier {
             return false;
         }
         try {
-            return CryptoConfiguration.INSTANCE.getSigningProvider().verify(
+            return ED25519.verify(
                     message.getAuthProof(), message.signedBodyBytes(), message.getSender());
         } catch (Exception invalidSignature) {
             return false;
@@ -324,7 +332,7 @@ public final class EvidenceVerifier {
                 return -1;
             }
             try {
-                if (!CryptoConfiguration.INSTANCE.getSigningProvider()
+                if (!ED25519
                         .verify(signature.signature(), ConsensusDigests.commit(block),
                                 signature.signer())) {
                     return -1;
