@@ -124,9 +124,11 @@ public final class MpfAnchorLib {
     }
 
     /**
-     * True when {@code keyHash} is among {@code signers}. (The stdlib's {@code ContextsLib.signedBy},
-     * called from a library with a computed hash, unwraps the hash a second time under julc 0.1.0-pre20
-     * and fails at run time.)
+     * True when {@code keyHash} is among {@code signers}. A local helper rather than the stdlib's
+     * {@code ContextsLib.signedBy}: under julc 0.1.0-pre20, {@code ContextsLib.signedBy} fails at run
+     * time when its hash argument is an inline {@code Builtins.blake2b_224(...)} call, as in
+     * {@link #signedCount}. Passing {@code CryptoLib.blake2b_224(...)} inline, or storing the
+     * {@code Builtins} hash in a local first, both work.
      */
     public static boolean signedBy(JulcList<PubKeyHash> signers, byte[] keyHash) {
         if (signers.isEmpty()) {
