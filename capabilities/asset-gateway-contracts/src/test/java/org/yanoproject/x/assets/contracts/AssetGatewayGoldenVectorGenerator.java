@@ -60,6 +60,7 @@ public final class AssetGatewayGoldenVectorGenerator {
         out.put("id.claim", claim.hex());
         out.put("id.intent", GatewayIds.intentId(hex.parseHex("83010203")).hex());
         out.put("id.escape", GatewayIds.escapeNullifier(usdmVault, hex.parseHex(KEY_HASH)).hex());
+        out.put("id.forced", GatewayIds.forcedRequestId(Hash32.ofHex(TX), 300).hex());
 
         ClaimLeafV1 leaf = new ClaimLeafV1(claim, usdmVault, ClaimKind.USER_WITHDRAWAL,
                 AssetValue.single(usdm, BigInteger.valueOf(49_504_950)),
@@ -68,6 +69,9 @@ public final class AssetGatewayGoldenVectorGenerator {
         ExitLeafV1 exit = new ExitLeafV1(hex.parseHex(KEY_HASH), usdmVault,
                 BigInteger.valueOf(100), BigInteger.valueOf(1_150_770));
         out.put("leaf.exit", hex.formatHex(exit.encode()));
+        DomainStatusV1 status = new DomainStatusV1(DomainStatusV1.Status.PAUSED, 1_234,
+                1_764_000_000_000L, 86_400_000L);
+        out.put("leaf.domain-status", hex.formatHex(status.encode()));
         return out;
     }
 

@@ -112,9 +112,11 @@ def compute():
     out["id.intent"] = hashlib.blake2b(
         b"yano-asset-gateway-intent-v1\0" + bytes.fromhex("83010203"), digest_size=32).hexdigest()
     out["id.escape"] = hashlib.blake2b(b"escape\0" + usdm_vault + KEY_HASH, digest_size=32).hexdigest()
+    out["id.forced"] = hashlib.blake2b(b"forced\0" + enc([TX, 300]), digest_size=32).hexdigest()
     out["leaf.claim"] = enc([1, claim, usdm_vault, 0, claim_value, 1_200_000, recipient,
                              1_234, 1_764_000_000_000]).hex()
     out["leaf.exit"] = enc([1, KEY_HASH, usdm_vault, 100, 1_150_770]).hex()
+    out["leaf.domain-status"] = enc([1, 1, 1_234, 1_764_000_000_000, 86_400_000]).hex()
     return out
 
 

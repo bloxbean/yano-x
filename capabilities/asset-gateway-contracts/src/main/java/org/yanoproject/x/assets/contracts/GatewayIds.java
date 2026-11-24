@@ -21,6 +21,7 @@ public final class GatewayIds {
     public static final String CLAIM_TAG = "yano-asset-gateway-claim-v1\0";
     public static final String INTENT_TAG = "yano-asset-gateway-intent-v1\0";
     public static final String ESCAPE_TAG = "escape\0";
+    public static final String FORCED_TAG = "forced\0";
 
     public static final int MAX_TEXT_BYTES = 64;
     public static final int MAX_WITHDRAWAL_KEY_BYTES = 64;
@@ -111,6 +112,33 @@ public final class GatewayIds {
         System.arraycopy(vault, 0, preimage, tag.length, vault.length);
         System.arraycopy(holderId, 0, preimage, tag.length + vault.length, holderId.length);
         return Hash32.of(Blake2bUtil.blake2bHash256(preimage));
+    }
+
+    /**
+     * The id of a forced-withdrawal request token (D8g R1): {@code blake2b-256("forced\0" ‖ outpoint)}, where
+     * {@code outpoint} is the CBOR of the Cardano {@code transaction_input} of the minting transaction's first
+     * spent input, {@code [transaction_id, index]} ({@code 82 5820 <tx id> <uint index>}, shortest form). The
+     * ledger sorts inputs, so "first" is the smallest outpoint. The forced-inbox policy reproduces these bytes.
+     */
+    public static Hash32 forcedRequestId(Hash32 firstInputTxId, long firstInputIndex) {
+        if (firstInputIndex < 0) throw new IllegalArgumentException("output index is non-negative");
+        byte[] tag = FORCED_TAG.getBytes(StandardCharsets.US_ASCII);
+        byte[] outpoint = outpointCbor(firstInputTxId, firstInputIndex);
+        byte[] preimage = new byte[tag.length + outpoint.length];
+        System.arraycopy(tag, 0, preimage, 0, tag.length);
+        System.arraycopy(outpoint, 0, preimage, tag.length, outpoint.length);
+        return Hash32.of(Blake2bUtil.blake2bHash256(preimage));
+    }
+
+    /**
+     * The CBOR of a Cardano {@code transaction_input}, {@code [transaction_id, index]}. A {@code SWEEP_UNATTRIBUTED}
+     * claim uses these bytes as its withdrawal key, which binds the claim to the one outpoint it sweeps (D8d).
+     */
+    public static byte[] outpointCbor(Hash32 txId, long index) {
+        Array fields = new Array();
+        fields.add(AssetCbor.bstr(txId.bytes()));
+        fields.add(AssetCbor.uint(index));
+        return AssetCbor.encode(fields);
     }
 
     static Hash32 digest(String tag, Array fields) {

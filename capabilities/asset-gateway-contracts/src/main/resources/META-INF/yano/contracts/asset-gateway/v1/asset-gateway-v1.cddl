@@ -42,6 +42,20 @@ exit_leaf_v1 = [
   vault_lovelace: u64,
 ]
 
+; Domain status leaf at the consumer's pinned status key (D8a). Exit proves it
+; and reads exit_delay_ms from it; EnterExitMode trigger (c) proves PAUSED/HALTED.
+domain_status = 0      ; ACTIVE
+              / 1      ; PAUSED
+              / 2      ; HALTED
+
+domain_status_v1 = [
+  version: 1,
+  status: domain_status,
+  since_height: uint,
+  since_ms: uint,          ; POSIX ms of the status change
+  exit_delay_ms: uint,     ; the vault enforces [floor, ceiling] script parameters
+]
+
 vault_counters = [
   credited: u128, paid: u128, available: u128, reserved: u128,
   lovelace_credited: u128, lovelace_paid: u128,
@@ -62,3 +76,7 @@ vault_counters = [
 ; intent_id  tag "yano-asset-gateway-intent-v1\0"  preimage tag || exact signed envelope bytes
 ; escape nullifier: blake2b-256("escape\0" || vault_id(32 raw bytes) || holder_id(1..64 raw bytes)),
 ;   a raw concatenation (no CBOR framing), reproduced by the vault script
+; forced request id: blake2b-256("forced\0" || outpoint), outpoint = CBOR transaction_input
+;   [transaction_id: hash32, index: uint] of the minting tx's first (smallest) spent input,
+;   reproduced by the ForcedInboxValidator minting policy
+; SWEEP_UNATTRIBUTED claims: withdrawal_key = the same outpoint CBOR of the swept UTxO
