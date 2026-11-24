@@ -428,8 +428,12 @@ public final class AppChainPropertyRegistry {
         definitions.add(coreParsed(AppChainConsensusProfile.BLOCK_MAX_BACKWARD_SKEW_SETTING,
                 PropertyType.LONG, "0", 0L,
                 AppChainConsensusProfile.MAX_BLOCK_MAX_BACKWARD_SKEW_MS, Set.of(),
-                "Opt-in: maximum ms a fresh proposal's timestamp may trail the voter's clock; 0 disables "
-                        + "(ADR-059 framework addition 8)"));
+                "Opt-in: maximum ms a fresh proposal's timestamp may trail the voter's clock; 0 disables, "
+                        + "otherwise at least 1000 (ADR-059 framework addition 8)"));
+        definitions.add(coreParsed(AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING,
+                PropertyType.BOOLEAN, "false", null, null, Set.of(),
+                "Opt-in: governed membership changes activate only after an L1-stable script anchor "
+                        + "carries the new set; consensus-committed (ADR-059 D8b)"));
         definitions.add(coreParsed("anchor-profile.version", PropertyType.INTEGER, "1", 1L, 2L,
                 Set.of(), "Script-anchor ABI: 1, or 2 for heartbeats and a bounded updatedAtMs (ADR-059)"));
         definitions.add(coreParsed("anchor-profile.max-window-ms", PropertyType.LONG, "600000", 1L,

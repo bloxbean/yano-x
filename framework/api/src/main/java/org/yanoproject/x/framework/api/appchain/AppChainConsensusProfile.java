@@ -30,7 +30,15 @@ import java.util.regex.Pattern;
  * timestamp is at least the voter's clock minus this value. A re-proposed prepared
  * value keeps its timestamp and is exempt, mirroring the forward rule. {@code 0}
  * (the default) disables the rule and leaves the canonical profile bytes and digest
- * exactly as before the field existed.</p>
+ * exactly as before the field existed. An enabled bound is at least
+ * {@value #MIN_BLOCK_MAX_BACKWARD_SKEW_MS} ms, so ordinary clock jitter and block
+ * propagation cannot make honest proposals unvotable.</p>
+ *
+ * <p>{@code membershipAnchorHandoff} is the opt-in ADR-059 D8b membership handoff gate
+ * ({@value #MEMBERSHIP_ANCHOR_HANDOFF_SETTING}): governed membership changes activate
+ * only after an L1-stable anchor carries the new set. It changes which blocks change the
+ * member set, so it is consensus-committed; {@code false} (the default) leaves the
+ * canonical profile bytes and digest exactly as before the field existed.</p>
  */
 public record AppChainConsensusProfile(
         int schemaVersion,
@@ -50,7 +58,8 @@ public record AppChainConsensusProfile(
         EffectOutcomeCommitment effectsOutcomeCommitment,
         boolean effectsStrictReservedPrefix,
         List<String> effectResultSigners,
-        long blockMaxBackwardSkewMs
+        long blockMaxBackwardSkewMs,
+        boolean membershipAnchorHandoff
 ) {
     public static final int SCHEMA_VERSION = 2;
     /** Chain setting for {@link #blockMaxForwardSkewMs()} (ADR app-layer/039 D12). */
@@ -61,7 +70,11 @@ public record AppChainConsensusProfile(
     public static final String BLOCK_MAX_BACKWARD_SKEW_SETTING = "block-time.max-backward-skew-ms";
     /** {@code 0}: the backward bound is off (every chain created before ADR-059). */
     public static final long DISABLED_BLOCK_MAX_BACKWARD_SKEW_MS = 0;
+    /** Smallest enabled backward bound: below it honest proposals could miss the vote window. */
+    public static final long MIN_BLOCK_MAX_BACKWARD_SKEW_MS = 1_000;
     public static final long MAX_BLOCK_MAX_BACKWARD_SKEW_MS = 600_000;
+    /** Chain setting for {@link #membershipAnchorHandoff()} (ADR-059 D8b, framework addition 4). */
+    public static final String MEMBERSHIP_ANCHOR_HANDOFF_SETTING = "membership.anchor-handoff";
     private static final Pattern MEMBER_KEY = Pattern.compile("[0-9a-f]{64}");
 
     /** A profile without the backward block-time bound (the pre-ADR-059 shape). */
@@ -79,7 +92,24 @@ public record AppChainConsensusProfile(
                 effectsMaxPerBlock, effectsMaxPayloadBytes, effectsMaxExpiryBlocks,
                 effectsResultWindowBlocks, effectsDefaultGate, effectsOutcomeCommitment,
                 effectsStrictReservedPrefix, effectResultSigners,
-                DISABLED_BLOCK_MAX_BACKWARD_SKEW_MS);
+                DISABLED_BLOCK_MAX_BACKWARD_SKEW_MS, false);
+    }
+
+    /** A profile with the backward block-time bound and without the membership handoff gate. */
+    public AppChainConsensusProfile(int schemaVersion, int maxMessageBytes, int maxBlockMessages,
+                                    long maxBlockBytes, int l1StabilityDepth, int epochStabilityDepth,
+                                    long blockMaxForwardSkewMs, boolean enforceSenderSeq,
+                                    boolean effectsEnabled, int effectsMaxPerBlock,
+                                    int effectsMaxPayloadBytes, long effectsMaxExpiryBlocks,
+                                    long effectsResultWindowBlocks, FinalityGate effectsDefaultGate,
+                                    EffectOutcomeCommitment effectsOutcomeCommitment,
+                                    boolean effectsStrictReservedPrefix,
+                                    List<String> effectResultSigners, long blockMaxBackwardSkewMs) {
+        this(schemaVersion, maxMessageBytes, maxBlockMessages, maxBlockBytes, l1StabilityDepth,
+                epochStabilityDepth, blockMaxForwardSkewMs, enforceSenderSeq, effectsEnabled,
+                effectsMaxPerBlock, effectsMaxPayloadBytes, effectsMaxExpiryBlocks,
+                effectsResultWindowBlocks, effectsDefaultGate, effectsOutcomeCommitment,
+                effectsStrictReservedPrefix, effectResultSigners, blockMaxBackwardSkewMs, false);
     }
 
     /** This profile with the backward block-time bound set ({@code 0} disables it). */
@@ -88,7 +118,18 @@ public record AppChainConsensusProfile(
                 maxBlockBytes, l1StabilityDepth, epochStabilityDepth, blockMaxForwardSkewMs,
                 enforceSenderSeq, effectsEnabled, effectsMaxPerBlock, effectsMaxPayloadBytes,
                 effectsMaxExpiryBlocks, effectsResultWindowBlocks, effectsDefaultGate,
-                effectsOutcomeCommitment, effectsStrictReservedPrefix, effectResultSigners, value);
+                effectsOutcomeCommitment, effectsStrictReservedPrefix, effectResultSigners, value,
+                membershipAnchorHandoff);
+    }
+
+    /** This profile with the ADR-059 D8b membership handoff gate on or off. */
+    public AppChainConsensusProfile withMembershipAnchorHandoff(boolean value) {
+        return new AppChainConsensusProfile(schemaVersion, maxMessageBytes, maxBlockMessages,
+                maxBlockBytes, l1StabilityDepth, epochStabilityDepth, blockMaxForwardSkewMs,
+                enforceSenderSeq, effectsEnabled, effectsMaxPerBlock, effectsMaxPayloadBytes,
+                effectsMaxExpiryBlocks, effectsResultWindowBlocks, effectsDefaultGate,
+                effectsOutcomeCommitment, effectsStrictReservedPrefix, effectResultSigners,
+                blockMaxBackwardSkewMs, value);
     }
 
     /** True when the opt-in backward bound is configured. */
@@ -127,9 +168,11 @@ public record AppChainConsensusProfile(
             throw new IllegalArgumentException("blockMaxForwardSkewMs must be in [1, "
                     + MAX_BLOCK_MAX_FORWARD_SKEW_MS + "]");
         }
-        if (blockMaxBackwardSkewMs < 0 || blockMaxBackwardSkewMs > MAX_BLOCK_MAX_BACKWARD_SKEW_MS) {
-            throw new IllegalArgumentException("blockMaxBackwardSkewMs must be 0 (disabled) or in [1, "
-                    + MAX_BLOCK_MAX_BACKWARD_SKEW_MS + "]");
+        if (blockMaxBackwardSkewMs != DISABLED_BLOCK_MAX_BACKWARD_SKEW_MS
+                && (blockMaxBackwardSkewMs < MIN_BLOCK_MAX_BACKWARD_SKEW_MS
+                        || blockMaxBackwardSkewMs > MAX_BLOCK_MAX_BACKWARD_SKEW_MS)) {
+            throw new IllegalArgumentException("blockMaxBackwardSkewMs must be 0 (disabled) or in ["
+                    + MIN_BLOCK_MAX_BACKWARD_SKEW_MS + ", " + MAX_BLOCK_MAX_BACKWARD_SKEW_MS + "]");
         }
         effectsDefaultGate = Objects.requireNonNull(effectsDefaultGate, "effectsDefaultGate");
         if (effectsDefaultGate == FinalityGate.CHAIN_DEFAULT) {
@@ -211,5 +254,21 @@ public record AppChainConsensusProfile(
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(BLOCK_MAX_BACKWARD_SKEW_SETTING + " must be an integer", e);
         }
+    }
+
+    /**
+     * Parse {@value #MEMBERSHIP_ANCHOR_HANDOFF_SETTING} from chain settings: {@code true} or
+     * {@code false} (the default, also when unset); anything else is rejected.
+     */
+    public static boolean membershipAnchorHandoff(Map<String, String> settings) {
+        String value = settings != null ? settings.get(MEMBERSHIP_ANCHOR_HANDOFF_SETTING) : null;
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String trimmed = value.trim();
+        if (!"true".equalsIgnoreCase(trimmed) && !"false".equalsIgnoreCase(trimmed)) {
+            throw new IllegalArgumentException(MEMBERSHIP_ANCHOR_HANDOFF_SETTING + " must be true or false");
+        }
+        return Boolean.parseBoolean(trimmed);
     }
 }

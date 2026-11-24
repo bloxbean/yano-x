@@ -115,7 +115,8 @@ public record AppChainEffectsConfig(
                 maxPayloadBytes, maxExpiryBlocks, resultWindowBlocks, defaultGate,
                 outcomeCommitment, strictReservedPrefix,
                 resultSigners.stream().sorted().toList(),
-                AppChainConsensusProfile.blockMaxBackwardSkewMs(config.pluginSettings()));
+                AppChainConsensusProfile.blockMaxBackwardSkewMs(config.pluginSettings()),
+                AppChainConsensusProfile.membershipAnchorHandoff(config.pluginSettings()));
     }
 
     public boolean resultSignerAllowedHex(String senderHex) {

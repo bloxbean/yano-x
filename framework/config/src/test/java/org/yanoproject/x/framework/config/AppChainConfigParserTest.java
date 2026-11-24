@@ -142,6 +142,22 @@ class AppChainConfigParserTest {
                         "anchor-profile.");
 
         settings.remove("effects.result.signerz");
+        // membership. stays open for plugin strategies, but the consensus-committed handoff
+        // switch is exact: a near-miss spelling fails instead of silently reading as off.
+        settings.put("membership.custom-strategy.option", "plugin-owned");
+        settings.put("membership.anchor-handoff", "true");
+        AppChainConfigParser.validateStrict(settings);
+        for (String typo : new String[] {"membership.anchor-handof", "membership.anchorhandoff",
+                "membership.anchor.handoff", "membership.handoff"}) {
+            settings.put(typo, "true");
+            assertThatThrownBy(() -> AppChainConfigParser.validateStrict(settings))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining(typo)
+                    .hasMessageContaining("membership.anchor-handoff");
+            settings.remove(typo);
+        }
+        settings.remove("membership.custom-strategy.option");
+        settings.remove("membership.anchor-handoff");
         settings.put("block-time.max-forward-skew-ms", "2000");
         settings.put("topics.mode", "enabled");
         settings.put("topics.creation.registrars.keys", MEMBER);

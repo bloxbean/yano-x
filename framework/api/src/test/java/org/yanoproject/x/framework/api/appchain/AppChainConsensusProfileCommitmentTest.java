@@ -142,11 +142,47 @@ class AppChainConsensusProfileCommitmentTest {
                 Map.of("block-time.max-backward-skew-ms", "slow")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("block-time.max-backward-skew-ms");
-        for (long invalid : new long[] {-1, 600_001}) {
+        for (long invalid : new long[] {-1, 1, 999, 600_001}) {
             assertThatThrownBy(() -> unbounded.withBlockMaxBackwardSkewMs(invalid))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("blockMaxBackwardSkewMs");
         }
+        assertThat(unbounded.withBlockMaxBackwardSkewMs(1_000).blockMaxBackwardSkewMs()).isEqualTo(1_000);
+    }
+
+    /** ADR-059 D8b: the membership handoff gate is a bare flag; unset profiles keep their bytes. */
+    @Test
+    void membershipAnchorHandoffIsAConsensusFlagThatLeavesUngatedProfilesUnchanged() {
+        AppChainConsensusProfile ungated = enabledProfile(List.of(SIGNER_1, SIGNER_2));
+        assertThat(ungated.membershipAnchorHandoff()).isFalse();
+        assertThat(HexUtil.encodeHexString(AppChainConsensusProfileCommitment.encode(
+                ungated.withMembershipAnchorHandoff(false)))).isEqualTo(GOLDEN_BYTES);
+
+        AppChainConsensusProfile gated = ungated.withMembershipAnchorHandoff(true);
+        byte[] encoded = AppChainConsensusProfileCommitment.encode(gated);
+        String expected = GOLDEN_BYTES.substring(0, 72) + "17" + GOLDEN_BYTES.substring(74);
+        assertThat(HexUtil.encodeHexString(encoded)).isEqualTo(expected);
+        assertThat(AppChainConsensusProfileCommitment.decode(encoded)).isEqualTo(gated);
+        assertThat(AppChainConsensusProfileCommitment.digest(gated))
+                .isNotEqualTo(AppChainConsensusProfileCommitment.digest(ungated));
+
+        // Both opt-in fields together: the handoff flag adds no tail; the skew tail stays last.
+        AppChainConsensusProfile both = gated.withBlockMaxBackwardSkewMs(30_000);
+        byte[] bothBytes = AppChainConsensusProfileCommitment.encode(both);
+        assertThat(HexUtil.encodeHexString(bothBytes)).isEqualTo(
+                GOLDEN_BYTES.substring(0, 72) + "1f" + GOLDEN_BYTES.substring(74) + "0000000000007530");
+        assertThat(AppChainConsensusProfileCommitment.decode(bothBytes)).isEqualTo(both);
+        assertThat(both.withMembershipAnchorHandoff(false).withBlockMaxBackwardSkewMs(0)).isEqualTo(ungated);
+
+        assertThat(AppChainConsensusProfile.membershipAnchorHandoff(Map.of())).isFalse();
+        assertThat(AppChainConsensusProfile.membershipAnchorHandoff(
+                Map.of("membership.anchor-handoff", " TRUE "))).isTrue();
+        assertThat(AppChainConsensusProfile.membershipAnchorHandoff(
+                Map.of("membership.anchor-handoff", "false"))).isFalse();
+        assertThatThrownBy(() -> AppChainConsensusProfile.membershipAnchorHandoff(
+                Map.of("membership.anchor-handoff", "yes")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("membership.anchor-handoff");
     }
 
     @Test

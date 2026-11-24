@@ -75,6 +75,15 @@ public final class AppChainConfigParser {
                     "state.proof-pruning.interval-seconds",
                     "state.proof-pruning.l1-stable-anchor-floor"));
 
+    /*
+     * Runtime-owned exact keys inside OPEN namespaces. The namespace stays open for plugin
+     * strategies, but a key sharing one of these stems must be the exact runtime key, so a
+     * typo of a consensus-committed switch fails startup instead of silently reading as off.
+     */
+    private static final Map<String, String> GUARDED_KEY_STEMS = Map.of(
+            "membership.anchor", AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING,
+            "membership.handoff", AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING);
+
     private AppChainConfigParser() {
     }
 
@@ -110,6 +119,12 @@ public final class AppChainConfigParser {
                 if (key.startsWith(domain.getKey()) && !domain.getValue().contains(key)) {
                     throw new IllegalArgumentException("Unknown app-chain property in strict "
                             + "runtime-owned domain: " + key);
+                }
+            }
+            for (Map.Entry<String, String> guarded : GUARDED_KEY_STEMS.entrySet()) {
+                if (key.startsWith(guarded.getKey()) && !key.equals(guarded.getValue())) {
+                    throw new IllegalArgumentException("Unknown app-chain property " + key
+                            + " (did you mean " + guarded.getValue() + "?)");
                 }
             }
         }

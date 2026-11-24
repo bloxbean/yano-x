@@ -31,8 +31,14 @@ public final class AppChainConsensusProfileCommitment {
      * the bound, so their canonical bytes and digests are unchanged.
      */
     private static final byte FLAG_BACKWARD_SKEW = 1 << 3;
+    /**
+     * ADR-059 D8b: governed membership changes wait for an L1-stable anchor handoff. A bare
+     * flag with no tail; unset for every profile without the gate, whose bytes are unchanged.
+     */
+    private static final byte FLAG_MEMBERSHIP_ANCHOR_HANDOFF = 1 << 4;
     private static final int KNOWN_FLAGS = FLAG_ENFORCE_SENDER_SEQ
-            | FLAG_EFFECTS_ENABLED | FLAG_EFFECTS_STRICT_PREFIX | FLAG_BACKWARD_SKEW;
+            | FLAG_EFFECTS_ENABLED | FLAG_EFFECTS_STRICT_PREFIX | FLAG_BACKWARD_SKEW
+            | FLAG_MEMBERSHIP_ANCHOR_HANDOFF;
     private static final byte[] MARKER_KEY = "~yano/consensus-profile/v2"
             .getBytes(StandardCharsets.US_ASCII);
     private static final byte[] RESERVED_PREFIX = "~yano/"
@@ -85,6 +91,9 @@ public final class AppChainConsensusProfileCommitment {
         }
         if (backwardBounded) {
             flags |= FLAG_BACKWARD_SKEW;
+        }
+        if (profile.membershipAnchorHandoff()) {
+            flags |= FLAG_MEMBERSHIP_ANCHOR_HANDOFF;
         }
         out.put((byte) flags);
         out.putInt(profile.effectsMaxPerBlock());
@@ -168,7 +177,8 @@ public final class AppChainConsensusProfileCommitment {
                     outcome,
                     (flags & FLAG_EFFECTS_STRICT_PREFIX) != 0,
                     signers,
-                    blockMaxBackwardSkewMs);
+                    blockMaxBackwardSkewMs,
+                    (flags & FLAG_MEMBERSHIP_ANCHOR_HANDOFF) != 0);
             if (!Arrays.equals(bytes, encode(profile))) {
                 throw new IllegalArgumentException("consensus profile is not canonically encoded");
             }
