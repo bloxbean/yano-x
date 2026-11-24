@@ -27,6 +27,14 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":capabilities:cardano-wallet-auth",
+      "directory": "capabilities/cardano-wallet-auth",
+      "artifactId": "yano-x-cardano-wallet-auth",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":capabilities:authenticated-map-validators",
       "directory": "capabilities/authenticated-map-validators",
       "artifactId": "yano-x-authenticated-map-validators",
