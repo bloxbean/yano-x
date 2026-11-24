@@ -120,6 +120,8 @@ public final class AppLedgerStore implements AutoCloseable {
     private final AuthenticatedStateBackend stateBackend;
     private final StateCommitFaultInjector stateCommitFaults;
     private final Logger log;
+    /** The last committed height whose block root was resolved; see {@link #committedStateRoot(long)}. */
+    private volatile CommittedRoot lastCommittedRoot;
 
     AppLedgerStore(String path, Logger log) {
         this(path, log, StateCommitmentIdentity.explicit(
@@ -624,22 +626,20 @@ public final class AppLedgerStore implements AutoCloseable {
             if (height <= 0) {
                 throw new IllegalStateException("Committed app-chain height must be positive");
             }
-            byte[] blockBytes = db.get(blocksCf, readOptions, heightKey(height));
-            if (blockBytes == null) {
-                throw new IllegalStateException(
-                        "Committed app-chain tip block is unavailable at height " + height);
-            }
-            AppBlock block = AppBlockCodec.deserialize(blockBytes);
-            if (block.height() != height || block.stateRoot().length != 32) {
+            // The snapshot fixes the committed tip; a committed height's block root never changes, so it may
+            // come from the cache instead of decoding the whole tip block on every admission.
+            byte[] blockRoot = committedStateRoot(height).orElseThrow(() -> new IllegalStateException(
+                    "Committed app-chain tip block is unavailable at height " + height));
+            if (blockRoot.length != 32) {
                 throw new IllegalStateException(
                         "Committed app-chain tip block identity is malformed at height " + height);
             }
             byte[] metaRoot = db.get(metaCf, readOptions, KEY_STATE_ROOT);
-            if (metaRoot == null || !Arrays.equals(metaRoot, block.stateRoot())) {
+            if (metaRoot == null || !Arrays.equals(metaRoot, blockRoot)) {
                 throw new IllegalStateException(
                         "Committed app-chain tip block and state root disagree at height " + height);
             }
-            return new CommittedStateSnapshot(height, block.stateRoot());
+            return new CommittedStateSnapshot(height, blockRoot);
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to capture committed app-chain state", e);
         } finally {
@@ -664,6 +664,31 @@ public final class AppLedgerStore implements AutoCloseable {
     byte[] tipHash() {
         byte[] value = getMeta(KEY_TIP_HASH);
         return value != null ? value : AppBlock.GENESIS_PREV_HASH;
+    }
+
+    /**
+     * The state root committed at {@code height}, without decoding the block on repeated reads. Committed blocks are
+     * append-only after APP_FINAL and a retention rewrite keeps the header, so a height's root never changes; the
+     * last resolved height is remembered because state reads at the tip are made once per pooled message.
+     */
+    Optional<byte[]> committedStateRoot(long height) {
+        CommittedRoot cached = lastCommittedRoot;
+        if (cached != null && cached.height() == height) {
+            return Optional.of(cached.root().clone());
+        }
+        Optional<AppBlock> block = block(height);
+        if (block.isEmpty()) {
+            return Optional.empty();
+        }
+        if (block.get().height() != height) {
+            throw new IllegalStateException("Committed app-chain block identity is malformed at height " + height);
+        }
+        byte[] root = block.get().stateRoot();
+        lastCommittedRoot = new CommittedRoot(height, root.clone());
+        return Optional.of(root);
+    }
+
+    private record CommittedRoot(long height, byte[] root) {
     }
 
     public Optional<AppBlock> block(long height) {
@@ -896,8 +921,7 @@ public final class AppLedgerStore implements AutoCloseable {
 
     private boolean rootMatchesHeight(long height, byte[] root) {
         return height > 0 && root != null
-                && block(height).map(AppBlock::stateRoot)
-                .filter(blockRoot -> Arrays.equals(blockRoot, root)).isPresent();
+                && committedStateRoot(height).filter(blockRoot -> Arrays.equals(blockRoot, root)).isPresent();
     }
 
     Optional<StateProofEnvelope> stateProofEnvelope(String chainId, byte[] key) {

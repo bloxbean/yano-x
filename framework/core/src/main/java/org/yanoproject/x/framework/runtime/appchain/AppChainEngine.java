@@ -59,6 +59,7 @@ import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 /**
  * ADR-036 two-phase app-chain consensus engine. Members independently execute
@@ -685,11 +686,12 @@ public final class AppChainEngine implements AutoCloseable {
         if (executionContext == null || !verifyCatchUpObservations(executionContext)) {
             return false;
         }
+        Set<AppMessage> signed = signedEnvelopes(block.messages());
         for (AppMessage message : block.messages()) {
             // No TTL check here: these messages were finalized before expiry
             if (!validFinalizedMessageProfile(message)
                     || !message.hasValidMessageId()
-                    || !verifyMemberSignature(message, block.height())
+                    || !verifyMemberSignature(message, block.height(), signed.contains(message))
                     || !authorizedResultMessage(message)) {
                 log.warn("Catch-up block contains an invalid message at height {} — rejecting",
                         block.height());
@@ -934,12 +936,13 @@ public final class AppChainEngine implements AutoCloseable {
         // at the candidate height, so an honest leader never proposes a block
         // every follower must reject. What can never pass is dropped.
         long now = System.currentTimeMillis() / 1000;
+        Set<AppMessage> signed = signedEnvelopes(candidates);
         candidates.removeIf(m -> {
             if (awaitsMembership(m, candidateHeight)) {
                 return true; // stays pooled until the sender's epoch is active
             }
             if (validFinalizedMessageProfile(m) && m.hasValidMessageId() && !m.isExpired(now)
-                    && verifyMemberSignature(m, candidateHeight)) {
+                    && verifyMemberSignature(m, candidateHeight, signed.contains(m))) {
                 return false;
             }
             AppMessageLog.LOG.info("Message {} dropped: invalid, expired or not member-signed for height {}",
@@ -1280,10 +1283,11 @@ public final class AppChainEngine implements AutoCloseable {
         // here so the transport frame limit can be relaxed for whole-block
         // proposals — block-bytes fix).
         long now = System.currentTimeMillis() / 1000;
+        Set<AppMessage> signed = signedEnvelopes(block.messages());
         for (AppMessage message : block.messages()) {
             if (!validFinalizedMessageProfile(message)
                     || !message.hasValidMessageId() || message.isExpired(now)
-                    || !verifyMemberSignature(message, block.height())) {
+                    || !verifyMemberSignature(message, block.height(), signed.contains(message))) {
                 log.warn("Proposal contains an invalid message at height {} — rejecting block",
                         block.height());
                 return;
@@ -2279,7 +2283,34 @@ public final class AppChainEngine implements AutoCloseable {
         return !group.containsAt(senderHex, height) && group.containsFrom(senderHex, height);
     }
 
-    private boolean verifyMemberSignature(AppMessage message, long height) {
+    /** Below this many envelopes the signatures are checked on the engine thread. */
+    private static final int PARALLEL_SIGNATURE_THRESHOLD = 64;
+
+    /**
+     * The envelopes (by identity) whose Ed25519 signature verifies. A block's signatures are independent and the
+     * check has no side effects, so they are verified in parallel ahead of the ordered per-message rules, which
+     * still decide in order; the block outcome is the same as checking one by one.
+     */
+    static Set<AppMessage> signedEnvelopes(List<AppMessage> messages) {
+        Set<AppMessage> signed = Collections.newSetFromMap(new IdentityHashMap<>(messages.size() * 2));
+        boolean[] valid = new boolean[messages.size()];
+        IntStream range = IntStream.range(0, messages.size());
+        (messages.size() >= PARALLEL_SIGNATURE_THRESHOLD ? range.parallel() : range).forEach(i -> {
+            AppMessage message = messages.get(i);
+            valid[i] = message != null && message.getAuthProof() != null && message.getSender() != null
+                    && message.getSender().length == 32
+                    && AppMessageSigner.verify(message.getAuthProof(), message.signedBodyBytes(),
+                    message.getSender());
+        });
+        for (int i = 0; i < valid.length; i++) {
+            if (valid[i]) {
+                signed.add(messages.get(i));
+            }
+        }
+        return signed;
+    }
+
+    private boolean verifyMemberSignature(AppMessage message, long height, boolean signatureVerified) {
         if (message == null || !config.chainId().equals(message.getChainId())
                 || message.getSender() == null || message.getSender().length != 32) {
             return false;
@@ -2287,7 +2318,7 @@ public final class AppChainEngine implements AutoCloseable {
         String senderHex = HexUtil.encodeHexString(message.getSender()).toLowerCase(Locale.ROOT);
         return group.containsAt(senderHex, height)
                 && message.getAuthProof() != null
-                && AppMessageSigner.verify(message.getAuthProof(), message.signedBodyBytes(), message.getSender());
+                && signatureVerified;
     }
 
     private boolean validBlockProfile(AppBlock block, String source, boolean proposal) {

@@ -97,8 +97,7 @@ final class MpfAuthenticatedStateBackend implements AuthenticatedStateBackend {
         if (height == 0) {
             return Optional.of(new StateSnapshot(identity, 0, EMPTY_ROOT));
         }
-        return ledger.block(height)
-                .map(AppBlock::stateRoot)
+        return ledger.committedStateRoot(height)
                 .map(root -> new StateSnapshot(identity, height, root));
     }
 

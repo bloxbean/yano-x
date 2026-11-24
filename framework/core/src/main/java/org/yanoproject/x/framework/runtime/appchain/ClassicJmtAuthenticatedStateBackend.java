@@ -8,7 +8,6 @@ import com.bloxbean.cardano.vds.jmt.store.JmtAccessLease;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
 import org.rocksdb.WriteBatch;
 import org.yanoproject.runtime.util.LifecycleFailures;
-import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.state.AuthenticatedStateBackend;
 import org.yanoproject.x.framework.api.appchain.state.CandidateState;
 import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
@@ -104,9 +103,9 @@ final class ClassicJmtAuthenticatedStateBackend implements AuthenticatedStateBac
             return Optional.of(new StateSnapshot(identity, 0, EMPTY_ROOT));
         }
         Optional<byte[]> root = store.rootHash(height);
-        Optional<AppBlock> block = ledger.block(height);
-        if (root.isEmpty() || block.isEmpty()
-                || !Arrays.equals(root.orElseThrow(), block.orElseThrow().stateRoot())) {
+        Optional<byte[]> committed = ledger.committedStateRoot(height);
+        if (root.isEmpty() || committed.isEmpty()
+                || !Arrays.equals(root.orElseThrow(), committed.orElseThrow())) {
             return Optional.empty();
         }
         return Optional.of(new StateSnapshot(identity, height, root.orElseThrow()));

@@ -2,6 +2,8 @@ package org.yanoproject.x.framework.runtime.appchain;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.api.SigningProvider;
+import com.bloxbean.cardano.client.crypto.api.impl.BouncyCastleEd25519Verifier;
+import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
@@ -20,6 +22,13 @@ import java.util.Objects;
  * or a plugin extension contract.</p>
  */
 public final class AppMessageSigner implements SignerProvider {
+    /**
+     * Consensus verification: libsodium's {@code crypto_sign_ed25519_verify_detached} outcomes on BouncyCastle field
+     * arithmetic, pinned rather than read from the replaceable global {@link CryptoConfiguration} verifier, so a
+     * component that reconfigures CCL can never change which envelopes, votes or certificates a member accepts.
+     */
+    private static final SigningProvider VERIFIER = new EdDSASigningProvider(new BouncyCastleEd25519Verifier());
+
     private final byte[] privateKey;
     private final byte[] publicKey;
     private final SigningProvider signingProvider;
@@ -51,7 +60,7 @@ public final class AppMessageSigner implements SignerProvider {
 
     public static boolean verify(byte[] signature, byte[] message, byte[] publicKey) {
         try {
-            return CryptoConfiguration.INSTANCE.getSigningProvider().verify(signature, message, publicKey);
+            return VERIFIER.verify(signature, message, publicKey);
         } catch (Exception e) {
             return false;
         }
