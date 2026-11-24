@@ -1,0 +1,70 @@
+dependencies {
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.register('printAssetGatewayGoldenVectors', JavaExec) {
+    group = 'verification'
+    description = 'Prints the ADR-059 M1 golden vectors (V1/V2) for review or update'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.assets.contracts.AssetGatewayGoldenVectorGenerator'
+}
+
+tasks.register('verifyAssetGatewayGoldenVectors', Exec) {
+    group = 'verification'
+    description = 'Verifies ADR-059 V1/V2 vectors with an independent Python implementation'
+    commandLine 'python3', '-I',
+            file('scripts/verify-asset-gateway-vectors.py'),
+            file('src/main/resources/META-INF/yano/contracts/asset-gateway/v1/golden-vectors.properties')
+}
+
+tasks.register('verifyAssetGatewayContractArtifact') {
+    dependsOn tasks.named('jar')
+    doLast {
+        def archive = tasks.named('jar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(archive).withCloseable { jar ->
+            ['META-INF/yano/contracts/asset-gateway/v1/asset-gateway-v1.cddl',
+             'META-INF/yano/contracts/asset-gateway/v1/golden-vectors.properties'].each { name ->
+                def entry = jar.getEntry(name)
+                if (entry == null || entry.size == 0) {
+                    throw new GradleException("Missing asset-gateway contract entry: ${name}")
+                }
+            }
+            if (jar.entries().any { it.name.startsWith('META-INF/services/')
+                    || it.name.startsWith('META-INF/yano/plugins/') }) {
+                throw new GradleException('Asset-gateway contracts must not contain plugin manifests or services')
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyAssetGatewayContractArtifact')
+    dependsOn tasks.named('verifyAssetGatewayGoldenVectors')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Gateway Contracts'
+                description = 'Canonical asset, value, identifier, claim and accounting contracts for the Cardano asset gateway (ADR-059)'
+            }
+        }
+    }
+}

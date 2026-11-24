@@ -19,6 +19,14 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":capabilities:asset-gateway-contracts",
+      "directory": "capabilities/asset-gateway-contracts",
+      "artifactId": "yano-x-asset-gateway-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":capabilities:authenticated-map-validators",
       "directory": "capabilities/authenticated-map-validators",
       "artifactId": "yano-x-authenticated-map-validators",
