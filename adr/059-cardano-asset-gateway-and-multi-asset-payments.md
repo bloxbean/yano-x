@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r10). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-25, r11). Approved by reviewer3 at r8. The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -381,7 +381,16 @@ the items before it:
    - **`ForcedInboxValidator(GatewayDomain, anchor identity, exitModeThreadPolicyId)`**: one
      multi-purpose Plutus V3 script. Its policy id equals its script hash, which gives both the
      request-token policy and the exact enterprise inbox address with no cycle;
-   - the escape-hatch timeouts;
+   - the escape-hatch timeouts.
+
+   The order inside this step is strict:
+   1. `exitModeThreadPolicy(seed)`;
+   2. `ForcedInboxValidator(…, exitModeThreadPolicyId)`;
+   3. `ExitModeThreadValidator(exitModeThreadPolicyId, anchor identity, forcedInboxPolicyId,
+      timeouts)`.
+
+   Trigger (b) can then pin the inbox policy id without a cycle. This order was reviewer3's M4a
+   note.
 4. `VaultId`, then the shard thread policy, `ShardThreadPolicy(seed)`, one per vault;
 5. vault script parameters: the `VaultId` fields, the anchor identity, **`shardThreadPolicyId`
    only**, `exitModeThreadPolicyId`, the claim key prefix and profile parameters;
@@ -1012,8 +1021,11 @@ colluding threshold that fabricates a root. §13a covers that case and the later
   **Burns** are the token's only other mint action: −1 per spent inbox input, with no positive
   mint in the same transaction. A burn is valid only together with the R2 spend.
 - **R2. `ForcedInboxValidator`, spending purpose.** It never lets the token move. It allows only
-  a **burn** of the token, with the min-ADA returned to an address whose payment credential is
-  `requesterKeyHash`, in two cases:
+  a **burn** of the token, in two cases (listed below). The min-ADA goes back to an address whose
+  payment credential is `requesterKeyHash`. For a `STAKE_KEY` account, that is the enterprise
+  address of the stake key hash, which the stake key can spend. M4a may add an optional
+  `refundAddress` to `ForcedWithdrawalV1` if wallets do not show such UTxOs; this was reviewer3's
+  M4a note. The two cases:
   - an inclusion proof shows `forced/<requestId>` under the referenced anchor's root;
   - the exit-mode thread is `EXIT`.
 - **R3. The ledger processes every request.** For every finalized inbox observation, the
@@ -2386,3 +2398,6 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     - Escape-nullifier shard routing is stated.
     - I27 is scoped.
     - V10 notes `MigrationInV1` for M4b.
+- **r11** (2026-11-25): Records reviewer3's two non-blocking M4a notes from their approval of r8:
+  the strict order for instantiating the domain scripts in D4 step 3, and the burn refund address
+  for `STAKE_KEY` owners (D8g R2).
