@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.asset-gateway.cardano",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    {
+      "kind": "l1-observer",
+      "name": "asset-vault-deposit-v1",
+      "provider": "org.yanoproject.x.assets.cardano.gateway.AssetVaultDepositObserverProvider"
+    }
+  ]
+}

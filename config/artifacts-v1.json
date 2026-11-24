@@ -35,6 +35,23 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":capabilities:asset-gateway-cardano-support",
+      "directory": "capabilities/asset-gateway-cardano-support",
+      "artifactId": "yano-x-asset-gateway-cardano-support",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":capabilities:asset-gateway-cardano",
+      "directory": "capabilities/asset-gateway-cardano",
+      "artifactId": "yano-x-asset-gateway-cardano",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "org.yanoproject.x.asset-gateway.cardano",
+      "bundleArtifactId": "yano-x-asset-gateway-cardano-bundle",
+      "publishToCentral": false
+    },
+    {
       "modulePath": ":capabilities:authenticated-map-validators",
       "directory": "capabilities/authenticated-map-validators",
       "artifactId": "yano-x-authenticated-map-validators",

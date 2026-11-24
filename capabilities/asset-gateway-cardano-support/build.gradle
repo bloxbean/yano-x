@@ -1,0 +1,59 @@
+dependencies {
+    api project(':capabilities:asset-gateway-contracts')
+    // Host-provided Cardano model and address classes; bundles that embed this library exclude them.
+    compileOnly libs.yaci.core
+    compileOnly libs.cardano.client.address
+    compileOnly libs.cardano.client.common
+    compileOnly libs.cardano.client.crypto
+
+    testImplementation libs.yaci.core
+    testImplementation libs.cardano.client.address
+    testImplementation libs.cardano.client.common
+    testImplementation libs.cardano.client.crypto
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.register('verifyAssetGatewayCardanoSupportArtifact') {
+    group = 'verification'
+    description = 'Verifies the support library carries no plugin manifest, service file or host class'
+    dependsOn tasks.named('jar')
+    doLast {
+        def archive = tasks.named('jar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(archive).withCloseable { jar ->
+            def offending = jar.entries().collect { it.name }.findAll { name ->
+                name.startsWith('META-INF/services/') || name.startsWith('META-INF/yano/plugins/')
+                        || name.startsWith('org/yanoproject/x/framework/') || name.startsWith('com/bloxbean/')
+            }
+            if (!offending.isEmpty()) {
+                throw new GradleException("Asset-gateway Cardano support must stay a pure library: ${offending}")
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyAssetGatewayCardanoSupportArtifact')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Gateway Cardano Support'
+                description = 'Protocol-neutral Cardano helpers for the asset gateway: valid-transaction filter, datum preflight, observer identity, output values (ADR-059 D2)'
+            }
+        }
+    }
+}
