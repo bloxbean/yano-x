@@ -13,8 +13,9 @@ import java.util.Map;
 /**
  * A small, strict CBOR reader for untrusted wallet output (ADR-059 D13 §1). Unlike a general
  * decoder it never silently drops data: it rejects indefinite lengths, duplicate map keys,
- * trailing bytes, reserved additional-information values, floats, unknown simple values and any
- * tag other than those the caller allows, and it bounds depth, item count and total size. It does
+ * trailing bytes, reserved additional-information values, unknown simple values and any tag
+ * except one at the root when the caller allows it, and it bounds depth, item count and total
+ * size. Floats are accepted only as opaque values (they may appear in ignored headers). It does
  * not require canonical encoding: wallet bytes are signed as received, never re-encoded.
  */
 public final class StrictCbor {
@@ -138,7 +139,9 @@ public final class StrictCbor {
             }
             case 6: {
                 if (!(rootTagAllowed && depth == 1)) throw new Malformed("tags are only allowed at the root");
-                return new Tagged(argument(info).longValueExact(), read(depth + 1));
+                BigInteger tag = argument(info);
+                if (tag.bitLength() > 63) throw new Malformed("unsupported tag");
+                return new Tagged(tag.longValue(), read(depth + 1));
             }
             default: {
                 if (info == 20) return new Bool(false);

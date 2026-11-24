@@ -176,6 +176,7 @@ public final class WalletAuthorizer {
     }
 
     private void checkEnvelope(IntentEnvelopeV1 envelope, long blockTimeMs) {
+        if (blockTimeMs < 0) throw new WalletAuthException("block time must be non-negative");
         if (!envelope.domain().equals(domain)) {
             throw new WalletAuthException("intent is bound to another network, chain or application");
         }

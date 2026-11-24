@@ -268,6 +268,10 @@ class WalletAuthorizerTest {
         assertThat(CoseSign1Verifier.verify(floatValue[0], floatValue[1]).payload()).isEqualTo(payload);
         byte[][] bigLabel = alice.signData(payload, new byte[] {(byte) 0xa1, 0x3b, (byte) 0x80, 0, 0, 0, 0, 0, 0, 0, 0x00});
         assertThat(CoseSign1Verifier.verify(bigLabel[0], bigLabel[1]).payload()).isEqualTo(payload);
+        // A root tag of 2^63 or more is a clean rejection, never an ArithmeticException.
+        byte[] hugeTag = cat(new byte[] {(byte) 0xdb, -1, -1, -1, -1, -1, -1, -1, -1}, alice.signData(payload)[0]);
+        assertThatThrownBy(() -> CoseSign1Verifier.verify(hugeTag, alice.signData(payload)[1]))
+                .isInstanceOf(WalletAuthException.class);
         // The 16 KiB limit applies to the Sign1 and the key together.
         byte[][] ok = alice.signData(payload);
         byte[] paddedKey = java.util.Arrays.copyOf(ok[1], 16_384 - ok[0].length + 1);
