@@ -169,6 +169,33 @@ class MpfPairOnChainVerifierTest extends ContractTest {
         assertFailure(result);
     }
 
+    /**
+     * The folds authenticate only the fact key's path above the leaf, so a conflicting key hash that matches the
+     * present leaf's suffix but differs above the cursor names that same leaf and must not prove the key absent.
+     */
+    @Test
+    void rejectsAnAbsenceClaimWhoseConflictingKeyDiffersFromThePresentKeyOnlyAboveTheCursor() {
+        Fixture fixture = fixture();
+        MpfNormalizedProof fact = fixture.fact();
+        long cursor = MpfTestTrie.leafCursor(fact.leafSuffix());
+        assertThat(cursor).isGreaterThan(1);
+        for (long nibble : new long[] {0, cursor - 1}) {
+            PlutusData forged = MpfTestTrie.absenceData(fact.key(), fact.leafSuffix(), fact.folds(), cursor,
+                    MpfTestTrie.flipNibble(Blake2bUtil.blake2bHash256(fact.key()), nibble),
+                    Blake2bUtil.blake2bHash256(fact.value()));
+            PlutusData redeemer = PlutusData.constr(0, forged, proofData(fixture.complete()),
+                    PlutusData.bytes(fixture.factKey()), PlutusData.bytes(fixture.completeKey()),
+                    PlutusData.integer(4), PlutusData.integer(0), PlutusData.bytes(new byte[0]));
+            var result = evaluate(program(), spendingContext(
+                            new TxOutRef(new TxId(filled(0x7a, 32)), BigInteger.ZERO), PlutusData.UNIT)
+                    .redeemer(redeemer)
+                    .referenceInput(anchorInput(fixture.root()))
+                    .buildPlutusData());
+
+            assertFailure(result);
+        }
+    }
+
     @Test
     void rejectsAProofPairWithoutTheUniqueAnchorReferenceInput() {
         Fixture fixture = fixture();

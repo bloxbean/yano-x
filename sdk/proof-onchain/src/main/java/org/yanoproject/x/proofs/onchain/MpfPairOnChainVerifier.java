@@ -110,6 +110,7 @@ public final class MpfPairOnChainVerifier {
                     || Builtins.lengthOfByteString(proof.conflictingKeyHash()) != 32
                     || Builtins.lengthOfByteString(proof.conflictingValueHash()) != 32
                     || Builtins.equalsByteString(queryPath, proof.conflictingKeyHash())
+                    || !samePathPrefix(queryPath, proof.conflictingKeyHash(), cursorEnd)
                     || !validLeafSuffix(proof.conflictingKeyHash(), cursorEnd,
                     proof.leafSuffix())) return false;
         }
@@ -144,6 +145,19 @@ public final class MpfPairOnChainVerifier {
             cursorEnd = cursor;
         }
         return valid && cursorEnd == 0 && Builtins.equalsByteString(expectedRoot, child);
+    }
+
+    /**
+     * True when two 32-byte path hashes agree on nibbles {@code [0, nibbles)}. The folds of an absence proof
+     * authenticate only the query's own path above the terminal, so a conflicting leaf must share exactly that
+     * prefix; otherwise its key hash could differ from the query only where nothing is authenticated.
+     */
+    private static boolean samePathPrefix(byte[] left, byte[] right, long nibbles) {
+        long half = nibbles / 2;
+        boolean bytes = Builtins.equalsByteString(Builtins.sliceByteString(0, half, left),
+                Builtins.sliceByteString(0, half, right));
+        return nibbles % 2 == 0 ? bytes
+                : bytes && pathNibble(left, nibbles - 1) == pathNibble(right, nibbles - 1);
     }
 
     private static boolean validLeafSuffix(byte[] pathHash, long cursorEnd,

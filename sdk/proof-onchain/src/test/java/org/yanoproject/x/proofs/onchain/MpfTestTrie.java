@@ -137,6 +137,13 @@ final class MpfTestTrie {
         return MpfNormalizedProof.PATH_NIBBLES - nibbles;
     }
 
+    /** A copy of {@code hash} with path nibble {@code index} changed. */
+    static byte[] flipNibble(byte[] hash, long index) {
+        byte[] result = hash.clone();
+        result[(int) (index / 2)] ^= (byte) (index % 2 == 0 ? 0x10 : 0x01);
+        return result;
+    }
+
     private static final class MapNodeStore implements NodeStore {
         private final Map<String, byte[]> nodes = new HashMap<>();
 
