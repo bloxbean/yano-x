@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r12). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-25, r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -565,8 +565,9 @@ attestation (`FxKernel.java:288`), so it may drive local telemetry but never cla
 **Claim status.**
 - Consensus lifecycle: `RESERVED → PAID`, or `PAID_MISMATCH`, which halts (D10).
 - Derived views:
-  - `EXIT_ELIGIBLE`: the claim is anchored, `reservedAtMs + exitDelayMs ≤` the current L1 time, and the
-    domain status leaf is `ACTIVE` under that anchor (D8a, D8e);
+  - `EXIT_ELIGIBLE`: the claim is anchored, `reservedAtMs + exitDelayMs ≤` the current L1 time,
+    and either the domain status leaf is `ACTIVE` under that anchor, or this is a user claim past
+    its maximum age, `reservedAtMs + exitDelayMs + maxPauseMs ≤` L1 time (V3, D8a);
   - `SETTLEMENT_PENDING`: waiting for a co-signed batch.
 - `SUBMITTED` is relayer telemetry only.
 
@@ -683,9 +684,11 @@ v1 has no mode switch. A later, opt-in `PROOF_ONLY` option is recorded in D8e.
       ceiling parameters (D8e).
   - One extra inclusion proof, at a pinned key, must show that the domain status leaf under the
     same root is `ACTIVE` (D8a).
-  - **Maximum claim age (r9, Codex r7 F3).** Once `lb ≥ claim.reservedAtMs + exitDelayMs +
-    maxPauseMs`, a **user** claim no longer needs the status proof. Toggling `PAUSE` and `RESUME`
-    therefore cannot block an anchored user claim forever. Governed claims always need `ACTIVE`.
+  - **Maximum claim age (r9; made consistent in r13, Codex r7 F3).** The status leaf is still
+    proved, because it is where `exitDelayMs` comes from. But once
+    `lb ≥ claim.reservedAtMs + exitDelayMs + maxPauseMs`, a **user** claim no longer needs that
+    leaf's status to be `ACTIVE`. Toggling `PAUSE` and `RESUME` therefore cannot block an anchored
+    user claim forever. Governed claims always need `ACTIVE`. `maxPauseMs` is a script parameter.
 
 **Why two paths**
 
@@ -755,6 +758,9 @@ became irreversible within one anchor interval (A-F5). r2 adds a brake that L1 c
 - **Scope of the brake.** The brake is enforced on chain for `Exit` (V3). For `Settle`, the brake
   is the members themselves: the co-sign check refuses to sign unless the domain is `ACTIVE`
   (D9).
+- **Limit of the brake (r13).** The brake holds a **user** claim for at most `maxPauseMs` past its
+  exit delay. After that, the claim is payable by `Exit` whatever the status (V3, maximum claim
+  age). Governed claims stay braked.
 - **What V3 requires.** Two conditions:
   - `reservedAtMs + exitDelayMs` must be no later than the transaction's validity lower bound,
     which is L1 time;
@@ -1824,7 +1830,7 @@ can authorize an invalid root. The surfaces also state:
 | I2 | Invalid or unauthenticated L1 content never makes an observer or `apply()` throw, halt or credit. Valid deposits are credited. Only a thread-authenticated mismatch halts. *(r2 rewording.)* | D5, D6, D10 |
 | I3 | Total liabilities of a unit change only by a deposit credit (+), a payout confirmation (−), or a governed claim (−, explicit). `TRANSFER` preserves per-asset totals. No mint, no override, no cross-asset effect. | D8d, D12, D14 |
 | I4 | For each vault and unit, at every finalized height: `credited − paid = available + reserved`. Amounts are non-negative, and arithmetic is checked (u64 for balances, u128 for lifetime counters). | D3, D12, D15 |
-| I5 | `Exit` pays a claim only if all of these hold: its exact leaf (V2: key and value computed by the script) is under the pinned anchor's root; the claim is older than `exitDelayMs` in L1 time; and the status leaf is `ACTIVE` (V3). Two exceptions: exit mode (D8g §4), and a user claim past its maximum age (V3). `Settle` pays only with a threshold of the current anchor datum's members (V9), each of whom checked the claim against its own state (D9). | D8, D8a, D8b, D9 |
+| I5 | `Exit` pays a claim only if all of these hold: its exact leaf (V2: key and value computed by the script) is under the pinned anchor's root; the claim is older than `exitDelayMs` in L1 time; and the status leaf is `ACTIVE` (V3). Two exceptions: exit mode (D8g §4), and a user claim past its maximum age (V3). In that second case the status leaf is still proved, but its status is ignored. `Settle` pays only with a threshold of the current anchor datum's members (V9), each of whom checked the claim against its own state (D9). | D8, D8a, D8b, D9 |
 | I6 | Each `ClaimId` is paid at most once: the nullifier insert happens in the same transaction. | D8, D8c |
 | I7 | A payout cannot move another asset, or another `VaultId`'s UTxOs or shards. The value equation V6 holds exactly. Lovelace leaves the vault only as the claims' `vaultLovelace`. | D8, D11 |
 | I8 | Reserved funds are never released while the claim may be redeemable. v1 has no release. | D7 |
@@ -2405,3 +2411,7 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
   - Anchor v2 is worded as an M4 deliverable, not an M4 entry gate.
   - I5 names the maximum-claim-age exception.
   - M4a drill 6 adds the `PAUSE`/`RESUME` toggle case.
+- **r13** (2026-11-25): Completes Codex r7 F3, from its confirmation of r11. The aged-claim branch
+  still proves the status leaf, so `exitDelayMs` comes from it as everywhere else, but it ignores
+  the status value. D7 `EXIT_ELIGIBLE` and the D9 relayer use the same rule, so an aged user claim
+  is relayed even while the domain is `PAUSED`. D8a and I5 now say the same.
