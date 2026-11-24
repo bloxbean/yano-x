@@ -64,9 +64,11 @@ public record IntentEnvelopeV1(Domain domain, String action, byte[] accountId, A
             throw new IllegalArgumentException("nonce must be 16 bytes");
         }
         if (notAfterMs < 0) throw new IllegalArgumentException("notAfter must be non-negative");
-        if (body == null || body.length > MAX_BODY_BYTES) {
-            throw new IllegalArgumentException("body must be at most 4096 bytes");
+        if (body == null || body.length == 0 || body.length > MAX_BODY_BYTES) {
+            throw new IllegalArgumentException("body must be 1-4096 bytes");
         }
+        // The action body is itself canonical: one array in the strict contract subset (D13 §3).
+        AssetCbor.decodeArray(body);
         accountId = accountId.clone();
         nonce = nonce.clone();
         body = body.clone();
@@ -103,9 +105,11 @@ public record IntentEnvelopeV1(Domain domain, String action, byte[] accountId, A
             if (!TAG.equals(AssetCbor.text(items.get(0), MAX_TEXT_BYTES))) {
                 throw new WalletAuthException("not a yano-intent-v1 envelope");
             }
+            long addressNetworkId = AssetCbor.uintLong(items.get(2));
+            if (addressNetworkId > 15) throw new WalletAuthException("address network id is 4 bits");
             Domain domain = new Domain(
                     AssetCbor.uintLong(items.get(1)),
-                    (int) AssetCbor.uintLong(items.get(2)),
+                    (int) addressNetworkId,
                     AssetCbor.text(items.get(3), MAX_TEXT_BYTES),
                     Hash32.of(AssetCbor.bytes(items.get(4), 32, 32)),
                     AssetCbor.text(items.get(5), MAX_TEXT_BYTES));

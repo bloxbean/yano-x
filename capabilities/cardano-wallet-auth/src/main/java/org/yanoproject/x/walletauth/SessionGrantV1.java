@@ -81,6 +81,10 @@ public record SessionGrantV1(Hash32 grantId, byte[] accountId, byte[] sessionKey
      */
     public void checkPayment(String action, Hash32 vaultId, BigInteger amount, BigInteger usedSoFar,
                              byte[] recipient, long blockTimeMs) {
+        if (amount == null || amount.signum() <= 0 || amount.compareTo(Quantities.MAX_U64) > 0
+                || usedSoFar == null || usedSoFar.signum() < 0) {
+            throw new WalletAuthException("payment amount must be a positive u64 and usage non-negative");
+        }
         if (blockTimeMs > notAfterMs) throw new WalletAuthException("session expired");
         if (!allows(action)) throw new WalletAuthException("action not granted to the session");
         Limit limit = limitFor(vaultId).orElseThrow(() -> new WalletAuthException("asset not granted"));
@@ -141,6 +145,11 @@ public record SessionGrantV1(Hash32 grantId, byte[] accountId, byte[] sessionKey
         } catch (IllegalArgumentException invalid) {
             throw new WalletAuthException("invalid session grant: " + invalid.getMessage());
         }
+    }
+
+    @Override
+    public List<byte[]> recipients() {
+        return recipients.stream().map(byte[]::clone).toList();
     }
 
     @Override

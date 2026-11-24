@@ -75,10 +75,23 @@ public record CardanoCredential(Kind kind, byte[] keyHash, int addressNetworkId)
         if (expectedLength > 0 && address.length != expectedLength) {
             throw new IllegalArgumentException("address length does not match its type");
         }
-        if (expectedLength < 0 && (address.length < 1 + KEY_HASH_BYTES + 3 || address.length > 1 + KEY_HASH_BYTES + 30)) {
-            throw new IllegalArgumentException("pointer address length out of range");
-        }
+        if (expectedLength < 0) requirePointer(address, 1 + KEY_HASH_BYTES);
         return new CardanoCredential(kind, Arrays.copyOfRange(address, 1, 1 + KEY_HASH_BYTES), network);
+    }
+
+    /** A pointer is exactly three complete CIP-19 variable-length naturals ending at the boundary. */
+    private static void requirePointer(byte[] address, int start) {
+        int offset = start;
+        for (int i = 0; i < 3; i++) {
+            int read = 0;
+            while (true) {
+                if (offset >= address.length || ++read > 10) {
+                    throw new IllegalArgumentException("malformed pointer address");
+                }
+                if ((address[offset++] & 0x80) == 0) break;
+            }
+        }
+        if (offset != address.length) throw new IllegalArgumentException("malformed pointer address");
     }
 
     @Override

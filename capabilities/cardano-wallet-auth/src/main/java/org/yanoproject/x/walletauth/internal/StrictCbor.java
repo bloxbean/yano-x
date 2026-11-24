@@ -23,7 +23,7 @@ public final class StrictCbor {
     private static final int MAX_ITEMS = 512;
 
     /** A decoded item. Maps keep insertion order; keys are {@link Long} or {@link String}. */
-    public sealed interface Item permits UInt, NInt, Bytes, Text, Arr, MapItem, Bool, Null, Tagged { }
+    public sealed interface Item permits UInt, NInt, Bytes, Text, Arr, MapItem, Bool, Null, Tagged, Opaque { }
 
     public record UInt(BigInteger value) implements Item { }
 
@@ -52,6 +52,9 @@ public final class StrictCbor {
 
     public record Tagged(long tag, Item item) implements Item { }
 
+    /** A float or other simple value: kept opaque, never interpreted. */
+    public record Opaque() implements Item { }
+
     public static final class Malformed extends Exception {
         public Malformed(String message) {
             super(message);
@@ -59,19 +62,26 @@ public final class StrictCbor {
     }
 
     private final byte[] input;
+    private final boolean rootTagAllowed;
     private int offset;
     private int items;
 
-    private StrictCbor(byte[] input) {
+    private StrictCbor(byte[] input, boolean rootTagAllowed) {
         this.input = input;
+        this.rootTagAllowed = rootTagAllowed;
     }
 
-    /** Decodes exactly one item that spans the whole input. */
+    /** Decodes exactly one item that spans the whole input. No tags anywhere. */
     public static Item decode(byte[] input) throws Malformed {
+        return decode(input, false);
+    }
+
+    /** As {@link #decode(byte[])}, optionally allowing one tag at the root only. */
+    public static Item decode(byte[] input, boolean rootTagAllowed) throws Malformed {
         if (input == null || input.length == 0 || input.length > MAX_BYTES) {
             throw new Malformed("input empty or larger than 16 KiB");
         }
-        StrictCbor reader = new StrictCbor(input);
+        StrictCbor reader = new StrictCbor(input, rootTagAllowed);
         Item item = reader.read(1);
         if (reader.offset != input.length) throw new Malformed("trailing bytes");
         return item;
@@ -116,8 +126,8 @@ public final class StrictCbor {
                 for (int i = 0; i < count; i++) {
                     Item key = read(depth + 1);
                     Object normalized = switch (key) {
-                        case UInt u -> u.value().longValueExact();
-                        case NInt n -> n.value().longValueExact();
+                        case UInt u -> u.value().bitLength() < 64 ? (Object) u.value().longValue() : u.value();
+                        case NInt n -> n.value().bitLength() < 64 ? (Object) n.value().longValue() : n.value();
                         case Text t -> t.value();
                         default -> throw new Malformed("map key must be an integer or text");
                     };
@@ -126,13 +136,19 @@ public final class StrictCbor {
                 }
                 return new MapItem(map);
             }
-            case 6:
+            case 6: {
+                if (!(rootTagAllowed && depth == 1)) throw new Malformed("tags are only allowed at the root");
                 return new Tagged(argument(info).longValueExact(), read(depth + 1));
+            }
             default: {
                 if (info == 20) return new Bool(false);
                 if (info == 21) return new Bool(true);
                 if (info == 22) return new Null();
-                throw new Malformed("unsupported simple value or float");
+                if (info >= 25 && info <= 27) {
+                    take(info == 25 ? 2 : info == 26 ? 4 : 8);
+                    return new Opaque();
+                }
+                throw new Malformed("unsupported simple value");
             }
         }
     }

@@ -67,9 +67,13 @@ public final class CoseSign1Verifier {
     }
 
     public static Verified verify(byte[] coseSign1, byte[] coseKey) {
+        if (coseSign1 == null || coseKey == null
+                || (long) coseSign1.length + coseKey.length > StrictCbor.MAX_BYTES) {
+            throw new WalletAuthException("signData result larger than 16 KiB in total");
+        }
         try {
             byte[] publicKey = parseKey(coseKey);
-            Item root = StrictCbor.decode(coseSign1);
+            Item root = StrictCbor.decode(coseSign1, true);
             if (root instanceof Tagged tagged) {
                 if (tagged.tag() != TAG_COSE_SIGN1) throw new WalletAuthException("unexpected tag");
                 root = tagged.item();
