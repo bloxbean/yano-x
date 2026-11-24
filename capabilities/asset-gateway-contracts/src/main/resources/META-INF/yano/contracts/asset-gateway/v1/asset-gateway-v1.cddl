@@ -79,4 +79,8 @@ vault_counters = [
 ; forced request id: blake2b-256("forced\0" || outpoint), outpoint = CBOR transaction_input
 ;   [transaction_id: hash32, index: uint] of the minting tx's first (smallest) spent input,
 ;   reproduced by the ForcedInboxValidator minting policy
-; SWEEP_UNATTRIBUTED claims: withdrawal_key = the same outpoint CBOR of the swept UTxO
+; SWEEP_UNATTRIBUTED claims (SweepCommitment): withdrawal_key = the same outpoint CBOR of the swept UTxO,
+;   and the claim commits to that UTxO's FULL value: for a token vault, value = every native asset of the
+;   output (the vault asset among them) and vault_lovelace = its lovelace; for the ADA vault, value = its
+;   lovelace as the ADA entry plus every native asset, and vault_lovelace = 0. The vault script rebuilds
+;   claim_id and the leaf from the spent input's outpoint and value (vectors id.claim.sweep-*).

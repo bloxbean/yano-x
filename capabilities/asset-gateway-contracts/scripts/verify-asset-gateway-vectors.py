@@ -117,6 +117,24 @@ def compute():
                              1_234, 1_764_000_000_000]).hex()
     out["leaf.exit"] = enc([1, KEY_HASH, usdm_vault, 100, 1_150_770]).hex()
     out["leaf.domain-status"] = enc([1, 1, 1_234, 1_764_000_000_000, 86_400_000]).hex()
+
+    # SWEEP_UNATTRIBUTED: withdrawal key = CBOR [tx_id, index]; token vault: every native asset plus the
+    # lovelace as vault_lovelace; ADA vault: the lovelace as the ADA entry and vault_lovelace 0.
+    foreign = bytes.fromhex("11" * 28)
+    token_value = value([(POLICY, b"USDM", 40), (foreign, b"\x01", 5)])
+    token_sweep = b2b("yano-asset-gateway-claim-v1\0",
+                      [domain, usdm_vault, 1, enc([TX, 2]), recipient, token_value, 3_000_000, 5])
+    out["id.claim.sweep-token"] = token_sweep.hex()
+    out["leaf.claim.sweep-token"] = enc([1, token_sweep, usdm_vault, 1, token_value, 3_000_000, recipient,
+                                         95, 1_764_000_000_000]).hex()
+    ada_value = value([(b"", b"", 2_500_000), (foreign, b"\x01", 5)])
+    ada_sweep = b2b("yano-asset-gateway-claim-v1\0",
+                    [domain, ada_vault, 1, enc([TX, 4]), recipient, ada_value, 0, 6])
+    out["id.claim.sweep-ada"] = ada_sweep.hex()
+    out["leaf.claim.sweep-ada"] = enc([1, ada_sweep, ada_vault, 1, ada_value, 0, recipient,
+                                       96, 1_764_000_000_000]).hex()
+    # SweepPaidV1(claim_id) = Plutus Data Constr 4 [bytes]: tag 125, one-element list.
+    out["datum.sweep-paid"] = (bytes.fromhex("d87d815820") + token_sweep).hex()
     return out
 
 

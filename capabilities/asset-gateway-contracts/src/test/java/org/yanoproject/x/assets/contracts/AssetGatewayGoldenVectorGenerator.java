@@ -72,6 +72,22 @@ public final class AssetGatewayGoldenVectorGenerator {
         DomainStatusV1 status = new DomainStatusV1(DomainStatusV1.Status.PAUSED, 1_234,
                 1_764_000_000_000L, 86_400_000L);
         out.put("leaf.domain-status", hex.formatHex(status.encode()));
+
+        // SWEEP_UNATTRIBUTED commits to the outpoint and its full value, foreign tokens included (D8d).
+        AssetId foreign = AssetId.ofHex("11".repeat(28), "01");
+        SweepCommitment tokenSweep = SweepCommitment.of(usdm, Hash32.ofHex(TX), 2, BigInteger.valueOf(3_000_000),
+                Map.of(usdm, BigInteger.valueOf(40), foreign, BigInteger.valueOf(5)));
+        Hash32 tokenSweepId = tokenSweep.claimId(domain, usdmVault, recipient, 5);
+        out.put("id.claim.sweep-token", tokenSweepId.hex());
+        out.put("leaf.claim.sweep-token", hex.formatHex(tokenSweep.leaf(tokenSweepId, usdmVault, recipient, 95,
+                1_764_000_000_000L).encode()));
+        SweepCommitment adaSweep = SweepCommitment.of(AssetId.ADA, Hash32.ofHex(TX), 4,
+                BigInteger.valueOf(2_500_000), Map.of(foreign, BigInteger.valueOf(5)));
+        Hash32 adaSweepId = adaSweep.claimId(domain, adaVault, recipient, 6);
+        out.put("id.claim.sweep-ada", adaSweepId.hex());
+        out.put("leaf.claim.sweep-ada", hex.formatHex(adaSweep.leaf(adaSweepId, adaVault, recipient, 96,
+                1_764_000_000_000L).encode()));
+        out.put("datum.sweep-paid", hex.formatHex(new SweepPaidV1(tokenSweepId).encode()));
         return out;
     }
 
