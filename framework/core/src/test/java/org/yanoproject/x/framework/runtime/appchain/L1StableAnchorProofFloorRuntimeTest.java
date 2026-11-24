@@ -25,7 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * ADR-059 framework addition 2 (D8b, D8h §5): with the L1-stable anchor floor, the
  * pruning scheduler keeps every proof from the latest L1-stable anchor height, prunes
- * nothing while no anchor is stable, and treats a floor below its watermark as a no-op.
+ * nothing while no anchor is stable, and treats a floor below its watermark as a no-op;
+ * the operator gateway path is clamped the same way.
  */
 @Timeout(60)
 class L1StableAnchorProofFloorRuntimeTest {
@@ -81,6 +82,53 @@ class L1StableAnchorProofFloorRuntimeTest {
         }
     }
 
+    /** The operator gateway path honours the same floor as the scheduler (review P2-5). */
+    @Test
+    void gatewayPruningIsClampedToTheL1StableAnchorHeight() throws Exception {
+        AtomicLong stableAnchor = new AtomicLong();
+        SimpleEventBus events = new SimpleEventBus();
+        // Scheduler off: only the gateway prunes.
+        AppLedgerRuntime runtime = new AppLedgerRuntime(config(Map.of(
+                StateProofPruningSettings.L1_STABLE_ANCHOR_FLOOR, "true")), 424242, events, null,
+                directory.resolve("gateway").toString(), PluginProviderRegistry.empty(),
+                LoggerFactory.getLogger(getClass())) {
+            @Override
+            protected long stableAnchoredHeight() {
+                return stableAnchor.get();
+            }
+        };
+        try {
+            runtime.start();
+            for (int index = 0; index < 6; index++) {
+                runtime.submit("history", ("message-" + index).getBytes(StandardCharsets.UTF_8));
+                int expected = index + 1;
+                await(() -> runtime.tipHeight() >= expected);
+            }
+            // The status says why the floor keeps everything.
+            assertThat(pruningMap(runtime).get("floorBlockedReason")).asString()
+                    .contains("l1.stability-depth");
+
+            // No L1-stable anchor: a request prunes nothing.
+            assertThat(runtime.pruneStateProofsBefore(6)).isZero();
+            assertThat(runtime.oldestProvableHeight()).isLessThanOrEqualTo(1);
+
+            // Stable anchor at 3: a request for 6 is clamped to 3.
+            stableAnchor.set(3);
+            runtime.pruneStateProofsBefore(6);
+            assertThat(runtime.oldestProvableHeight()).isEqualTo(3);
+            assertThat(pruning(runtime, "lastStableAnchorHeight")).isEqualTo(3);
+            assertThat(pruningMap(runtime).containsKey("floorBlockedReason")).isFalse();
+
+            // A clamp below the pruned height is a no-op, not a failure.
+            stableAnchor.set(2);
+            assertThat(runtime.pruneStateProofsBefore(6)).isZero();
+            assertThat(runtime.oldestProvableHeight()).isEqualTo(3);
+        } finally {
+            runtime.close();
+            events.close();
+        }
+    }
+
     private static Map<?, ?> pruningMap(AppLedgerRuntime runtime) {
         Map<?, ?> commitment = (Map<?, ?>) runtime.status().get("stateCommitment");
         return (Map<?, ?>) commitment.get("proofPruning");
@@ -99,6 +147,16 @@ class L1StableAnchorProofFloorRuntimeTest {
     }
 
     private static AppChainConfig config() {
+        return config(Map.of(
+                StateProofPruningSettings.ENABLED, "true",
+                StateProofPruningSettings.RETAIN_HEIGHTS, "1",
+                StateProofPruningSettings.INTERVAL_SECONDS, "1",
+                StateProofPruningSettings.L1_STABLE_ANCHOR_FLOOR, "true"));
+    }
+
+    private static AppChainConfig config(Map<String, String> pruning) {
+        Map<String, String> settings = new java.util.HashMap<>(pruning);
+        settings.put(AppLedgerOperatingProfile.SETTING, AppLedgerOperatingProfile.STANDALONE.id());
         byte[] seed = new byte[32];
         Arrays.fill(seed, (byte) 74);
         String member = HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(seed));
@@ -110,12 +168,7 @@ class L1StableAnchorProofFloorRuntimeTest {
                 .blockIntervalMs(50)
                 .stateMachineId(OrderedLogStateMachine.ID)
                 .stateCommitmentIdentity(TestStateCommitments.MPF)
-                .pluginSettings(Map.of(
-                        AppLedgerOperatingProfile.SETTING, AppLedgerOperatingProfile.STANDALONE.id(),
-                        StateProofPruningSettings.ENABLED, "true",
-                        StateProofPruningSettings.RETAIN_HEIGHTS, "1",
-                        StateProofPruningSettings.INTERVAL_SECONDS, "1",
-                        StateProofPruningSettings.L1_STABLE_ANCHOR_FLOOR, "true"))
+                .pluginSettings(settings)
                 .build();
     }
 }

@@ -93,6 +93,61 @@ class GovernedMembershipHandoffTest {
         assertThat(group.members()).containsExactlyInAnyOrder(KEY_A, KEY_B, KEY_C);
     }
 
+    /** Review P2-3: a governed cancel withdraws exactly the named pending handoff. */
+    @Test
+    void aGovernedCancelWithdrawsExactlyTheNamedPendingHandoff() {
+        MemberGroup group = new MemberGroup(Set.of(KEY_A, KEY_B, KEY_C), 2);
+        GovernedMembership governed = gated(group);
+        governed.setHandoffGate((block, handoff) -> false);
+        byte[] remove = GovernedMembership.encodeCommand(GovernedMembership.OP_REMOVE,
+                HexUtil.decodeHexString(KEY_C), 0, 2);
+        governed.processBlock(block(5, remove, KEY_A, KEY_B));
+        assertThat(governed.pendingHandoff()).isPresent();
+
+        // A cancel naming another height, even fully approved, is a no-op.
+        GovernedMembership.Result wrong = governed.processBlock(
+                block(6, GovernedMembership.encodeCancelHandoff(4), KEY_A, KEY_B));
+        assertThat(wrong.writes()).extracting(GovernedMembership.MetaWrite::key)
+                .containsExactly("gov_pending");
+        assertThat(governed.pendingHandoff()).isPresent();
+
+        // One approval is not enough (threshold 2); a non-member's approval never counts.
+        byte[] cancel = GovernedMembership.encodeCancelHandoff(5);
+        governed.processBlock(block(7, cancel, KEY_A, KEY_D));
+        assertThat(governed.pendingHandoff()).isPresent();
+
+        // The second member approval within the window withdraws it, persisted with the block.
+        GovernedMembership.Result cancelled = governed.processBlock(block(8, cancel, KEY_C));
+        assertThat(cancelled.effects()).isEmpty();
+        assertThat(cancelled.writes()).extracting(GovernedMembership.MetaWrite::key)
+                .containsExactly("gov_pending", "gov_anchor_handoff");
+        assertThat(cancelled.writes().get(1).value()).isEmpty();
+        assertThat(governed.pendingHandoff()).isEmpty();
+        assertThat(group.members()).containsExactlyInAnyOrder(KEY_A, KEY_B, KEY_C);
+
+        // A new change can now be committed; a stale cancel for the old height does not touch it.
+        byte[] raise = GovernedMembership.encodeCommand(GovernedMembership.OP_SET_THRESHOLD, null, 3, 1);
+        governed.processBlock(block(9, raise, KEY_A, KEY_B));
+        assertThat(governed.pendingHandoff()).map(MembershipHandoff::committedHeight).contains(9L);
+        governed.processBlock(block(10, cancel, KEY_A, KEY_B));
+        assertThat(governed.pendingHandoff()).map(MembershipHandoff::committedHeight).contains(9L);
+
+        // Codec: only positive heights and a zero lag decode.
+        assertThat(GovernedMembership.decodeCommand(cancel).handoffHeight()).isEqualTo(5);
+        assertThatThrownBy(() -> GovernedMembership.encodeCancelHandoff(0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** Ungated chains keep treating the cancel op as malformed, exactly as before it existed. */
+    @Test
+    void ungatedChainsIgnoreTheCancelOp() {
+        MemberGroup group = new MemberGroup(Set.of(KEY_A, KEY_B, KEY_C), 2);
+        GovernedMembership plain = new GovernedMembership(group, "", 100, 0,
+                LoggerFactory.getLogger(getClass()));
+        assertThat(plain.processBlock(block(1, GovernedMembership.encodeCancelHandoff(1), KEY_A, KEY_B)))
+                .isSameAs(GovernedMembership.Result.EMPTY);
+    }
+
     @Test
     void ungatedChainsActivateAsBeforeAndHandoffRecordsRoundTrip() {
         MemberGroup group = new MemberGroup(Set.of(KEY_A, KEY_B, KEY_C), 2);

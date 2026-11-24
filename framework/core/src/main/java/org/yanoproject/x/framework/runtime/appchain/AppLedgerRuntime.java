@@ -2710,6 +2710,14 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         });
     }
 
+    /**
+     * Operator pruning through the gateway. With
+     * {@code state.proof-pruning.l1-stable-anchor-floor=true} the request is clamped to the
+     * latest L1-stable anchor height exactly like the scheduled pass (ADR-059 framework
+     * addition 2): proofs at or above that height are never deleted, and with no L1-stable
+     * anchor nothing is. A clamp that lands at or below the already pruned height is a
+     * no-op ({@code 0}), never a failure.
+     */
     @Override
     public int pruneStateProofsBefore(long retainFromHeight) {
         return requireGenerationUse(() -> {
@@ -2717,7 +2725,23 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
             if (currentLedger == null) {
                 throw new IllegalStateException("App-chain ledger is unavailable");
             }
-            return currentLedger.pruneStateProofsBefore(retainFromHeight);
+            if (!proofPruningSettings.l1StableAnchorFloor()) {
+                return currentLedger.pruneStateProofsBefore(retainFromHeight);
+            }
+            long stableAnchorHeight = stableAnchoredHeight();
+            proofPruningLastStableAnchorHeight = stableAnchorHeight;
+            long floored = StateProofPruningSettings.clampToStableAnchor(
+                    retainFromHeight, stableAnchorHeight);
+            if (floored < retainFromHeight) {
+                log.info("App-chain '{}' proof pruning request below height {} clamped to the "
+                                + "L1-stable anchor floor {}", config.chainId(), retainFromHeight,
+                        floored);
+                if (floored == 0
+                        || floored <= currentLedger.stateBackend().oldestProvableHeight()) {
+                    return 0;
+                }
+            }
+            return currentLedger.pruneStateProofsBefore(floored);
         });
     }
 
@@ -3573,6 +3597,27 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         }
     }
 
+    /**
+     * Submit this member's approval to cancel the pending {@code membership.anchor-handoff}
+     * change (ADR-059 D8b). The cancel names the pending change's committed height and takes
+     * effect once the current threshold of members approves the identical command; it then
+     * clears exactly that pending change. Returns the committed height being cancelled.
+     *
+     * @throws IllegalStateException when no handoff is pending on this node
+     */
+    public long cancelPendingMembershipHandoff() {
+        return requireGenerationUse(() -> {
+            GovernedMembership governed = governedMembership;
+            MembershipHandoff handoff = governed == null ? null : governed.pendingHandoff().orElse(null);
+            if (handoff == null) {
+                throw new IllegalStateException("No membership anchor handoff is pending");
+            }
+            submitGovernance(GovernedMembership.TOPIC,
+                    GovernedMembership.encodeCancelHandoff(handoff.committedHeight()));
+            return handoff.committedHeight();
+        });
+    }
+
     @Override
     public void resetMembers() {
         requireGenerationUse(() -> {
@@ -4071,6 +4116,12 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         if (proofPruningSettings.l1StableAnchorFloor()) {
             pruning.put("l1StableAnchorFloor", true);
             pruning.put("lastStableAnchorHeight", proofPruningLastStableAnchorHeight);
+            if (proofPruningLastStableAnchorHeight <= 0) {
+                // Why the floor keeps retainFrom at 0 (nothing is pruned).
+                String reason = l1StableAnchorFloorReason();
+                pruning.put("floorBlockedReason", reason != null ? reason
+                        : "no L1-stable anchor confirmation has been observed yet");
+            }
         }
         pruning.put("degraded", proofPruningDegraded.get());
         if (proofPruningFailure != null) {
@@ -4551,10 +4602,30 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                     ledgerStore.tipHeight() + 1, observerProfileDigest);
             configureLedgerIntegration(ledgerStore, chainEngine, observerProfileDigest, observationIdentityContext);
             chainEngine.setEnvelopeRelay(this::relay);
-            boolean anchorHandoff = GovernedMembership.handoffSelected(config.pluginSettings());
-            if (anchorHandoff && !governedMode()) {
-                throw new IllegalArgumentException(GovernedMembership.HANDOFF_SETTING
-                        + "=true requires membership.mode=governed");
+            // ADR-059 D8b: consensus-committed (profile flag), never a node-local switch.
+            boolean anchorHandoff = consensusProfile.membershipAnchorHandoff();
+            MembershipHandoffGate handoffGate = null;
+            if (anchorHandoff) {
+                if (!governedMode()) {
+                    throw new IllegalArgumentException(GovernedMembership.HANDOFF_SETTING
+                            + "=true requires membership.mode=governed");
+                }
+                // Without a script anchor to carry the set, or a gate to finalize it, every
+                // committed change would stay pending forever and freeze membership.
+                String unsupported = membershipHandoffUnsupportedReason();
+                if (unsupported != null) {
+                    throw new IllegalStateException("App-chain '" + config.chainId() + "': "
+                            + GovernedMembership.HANDOFF_SETTING + "=true " + unsupported);
+                }
+                handoffGate = membershipHandoffGate();
+                if (handoffGate == null || handoffGate == MembershipHandoffGate.NONE) {
+                    throw new IllegalStateException("App-chain '" + config.chainId() + "': "
+                            + GovernedMembership.HANDOFF_SETTING + "=true needs a membership handoff gate "
+                            + "that observes L1-stable anchor outputs, and none is installed (the "
+                            + "framework ships none). Without one every governed change would stay "
+                            + "pending forever; create the chain without the setting or run it with a "
+                            + "capability that provides the gate");
+                }
             }
             if (governedMode()) {
                 GovernedMembership governed = new GovernedMembership(
@@ -4568,8 +4639,7 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                 governed.setEpochGuard(effect -> observationSettings.admitsMembership(
                         effect.members(), effect.threshold()));
                 if (anchorHandoff) {
-                    governed.setHandoffGate(Objects.requireNonNull(membershipHandoffGate(),
-                            "membershipHandoffGate"));
+                    governed.setHandoffGate(handoffGate);
                     log.warn("App-chain '{}' governed membership changes wait for an L1-stable anchor "
                             + "handoff ({}=true)", config.chainId(), GovernedMembership.HANDOFF_SETTING);
                 }
@@ -6179,6 +6249,23 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
      * framework has none; a capability that observes L1-stable anchor outputs overrides it.
      */
     protected MembershipHandoffGate membershipHandoffGate() { return MembershipHandoffGate.NONE; }
+
+    /**
+     * Why this runtime cannot carry a {@code membership.anchor-handoff} change on a script
+     * anchor (completing "{@code membership.anchor-handoff=true ...}"), or null when it can.
+     * The framework core has no L1 anchor; the Cardano runtime overrides it.
+     */
+    protected String membershipHandoffUnsupportedReason() {
+        return "requires the Cardano script-anchor runtime (anchor.mode=script with L1 access)";
+    }
+
+    /**
+     * Why {@code state.proof-pruning.l1-stable-anchor-floor} finds no L1-stable anchor, for
+     * the proof-pruning status, or null when no specific cause is known.
+     */
+    protected String l1StableAnchorFloorReason() {
+        return l1AnchoredGateUnreachableReason();
+    }
 
     /**
      * The committed governed change awaiting its L1 anchor handoff, read by the script-anchor

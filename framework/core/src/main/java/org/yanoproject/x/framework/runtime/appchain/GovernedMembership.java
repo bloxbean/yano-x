@@ -59,6 +59,16 @@ import java.util.function.Predicate;
  * further approved changes are void (deterministic no-ops), so the old set keeps
  * authority until the handoff is final and an interrupted handoff is simply retried.
  * The pending handoff persists with the block commit like the approval state.</p>
+ *
+ * <p><b>Cancel</b>: a pending handoff that can never finalize (its anchor cannot be
+ * carried or observed) is withdrawn by a governed {@link #OP_CANCEL_HANDOFF} command naming
+ * the pending change's committed height, approved by the current threshold like any other
+ * change. It clears exactly that pending change and nothing else; a cancel for a height
+ * that is not pending (already finalized, already cancelled, a later change) is a
+ * deterministic no-op. The cancel op is decoded only on gated chains, so ungated chains
+ * treat it as malformed exactly as before. If the pending set was already carried by an
+ * anchor, the next advance moves the anchor back to the current epoch and is co-signed by
+ * that anchor's members.</p>
  */
 final class GovernedMembership {
 
@@ -66,6 +76,8 @@ final class GovernedMembership {
     static final int OP_ADD = 0;
     static final int OP_REMOVE = 1;
     static final int OP_SET_THRESHOLD = 2;
+    /** ADR-059 D8b: withdraw the pending anchor handoff committed at the named height. */
+    static final int OP_CANCEL_HANDOFF = 3;
     static final long DEFAULT_APPROVAL_WINDOW_BLOCKS = 600;
 
     /** Chain-governed membership selected ({@code membership.mode: governed}, ADR 008.3)? Default: static. */
@@ -124,7 +136,10 @@ final class GovernedMembership {
     /** command bytes (hex) → approval state; rebuilt from meta on restart. */
     private final LinkedHashMap<String, Pending> pending = new LinkedHashMap<>();
 
-    record Command(int op, byte[] memberKey, int threshold, long activationLag) {
+    record Command(int op, byte[] memberKey, int threshold, long activationLag, long handoffHeight) {
+        Command(int op, byte[] memberKey, int threshold, long activationLag) {
+            this(op, memberKey, threshold, activationLag, 0L);
+        }
     }
 
     private static final class Pending {
@@ -171,8 +186,14 @@ final class GovernedMembership {
         byte[] handoff = ledger.metaBytes(META_HANDOFF);
         pendingHandoff = handoff == null || handoff.length == 0 ? null : decodeHandoff(handoff);
         if (pendingHandoff != null && !handoffGated) {
+            // Normally unreachable: the switch is consensus-committed, so the profile guard
+            // already refuses a ledger created with it. Recovery is to restore the setting.
             throw new IllegalStateException("The ledger holds a pending anchor membership handoff "
-                    + "but " + HANDOFF_SETTING + " is not enabled");
+                    + "(committed at height " + pendingHandoff.committedHeight() + ") but "
+                    + HANDOFF_SETTING + " is not enabled. The setting is consensus-committed and "
+                    + "cannot change on an existing chain: restore " + HANDOFF_SETTING
+                    + "=true (with its handoff gate) to start this ledger; a governed handoff "
+                    + "cancel then withdraws the pending change");
         }
         byte[] stored = ledger.metaBytes(META_PENDING);
         pending.clear();
@@ -237,6 +258,9 @@ final class GovernedMembership {
             Command command;
             try {
                 command = decodeCommand(message.getBody());
+                if (command.op() == OP_CANCEL_HANDOFF && !handoffGated) {
+                    throw new IllegalArgumentException("Unknown governance op: " + command.op());
+                }
             } catch (Exception e) {
                 log.warn("Malformed governance command in block {} — ignored ({})",
                         height, e.toString());
@@ -250,6 +274,19 @@ final class GovernedMembership {
             if (group.currentApprovers(entry.approvers, height).size() >= required) {
                 pending.remove(commandHex);
                 touched = true;
+                if (command.op() == OP_CANCEL_HANDOFF) {
+                    MembershipHandoff current = pendingHandoff;
+                    if (current != null && current.committedHeight() == command.handoffHeight()) {
+                        pendingHandoff = null;
+                        handoffTouched = true;
+                        log.warn("Governance CANCELLED the pending anchor handoff committed at height {} "
+                                + "(at height {})", command.handoffHeight(), height);
+                    } else {
+                        log.info("Governance: cancel of a handoff committed at height {} at height {} "
+                                + "— none pending, no-op", command.handoffHeight(), height);
+                    }
+                    continue;
+                }
                 EpochEffect effect = activate(command, height);
                 if (effect != null && handoffGated) {
                     // D8b steps 1-3: commit as pending; the anchor carries it before it activates.
@@ -362,6 +399,19 @@ final class GovernedMembership {
     // Codec
     // ------------------------------------------------------------------
 
+    /** [1, OP_CANCEL_HANDOFF, committed-height, 0]: withdraw the handoff committed at that height. */
+    static byte[] encodeCancelHandoff(long committedHeight) {
+        if (committedHeight < 1) {
+            throw new IllegalArgumentException("committedHeight must be positive");
+        }
+        Array arr = new Array();
+        arr.add(new UnsignedInteger(1)); // version
+        arr.add(new UnsignedInteger(OP_CANCEL_HANDOFF));
+        arr.add(new UnsignedInteger(committedHeight));
+        arr.add(new UnsignedInteger(0));
+        return CborSerializationUtil.serialize(arr);
+    }
+
     static byte[] encodeCommand(int op, byte[] memberKeyOrNull, int threshold, long activationLag) {
         Array arr = new Array();
         arr.add(new UnsignedInteger(1)); // version
@@ -392,6 +442,13 @@ final class GovernedMembership {
         if (op == OP_SET_THRESHOLD) {
             int threshold = ((UnsignedInteger) items.get(2)).getValue().intValue();
             return new Command(op, null, threshold, lag);
+        }
+        if (op == OP_CANCEL_HANDOFF) {
+            long committedHeight = ((UnsignedInteger) items.get(2)).getValue().longValueExact();
+            if (committedHeight < 1 || lag != 0) {
+                throw new IllegalArgumentException("Invalid handoff cancel");
+            }
+            return new Command(op, null, 0, 0, committedHeight);
         }
         if (op != OP_ADD && op != OP_REMOVE) {
             throw new IllegalArgumentException("Unknown governance op: " + op);

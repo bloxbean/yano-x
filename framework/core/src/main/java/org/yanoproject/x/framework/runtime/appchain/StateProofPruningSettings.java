@@ -61,10 +61,18 @@ record StateProofPruningSettings(boolean enabled, long retainHeights, long inter
         if (!l1StableAnchorFloor || tipDerived == 0) {
             return tipDerived;
         }
-        if (stableAnchorHeight <= 0) {
+        return clampToStableAnchor(tipDerived, stableAnchorHeight);
+    }
+
+    /**
+     * {@code requested} clamped to the L1-stable anchor floor: never above
+     * {@code stableAnchorHeight}, and {@code 0} (prune nothing) without a stable anchor.
+     */
+    static long clampToStableAnchor(long requested, long stableAnchorHeight) {
+        if (requested <= 0 || stableAnchorHeight <= 0) {
             return 0;
         }
-        return Math.min(tipDerived, stableAnchorHeight);
+        return Math.min(requested, stableAnchorHeight);
     }
 
     private static long parsePositive(Map<String, String> settings, String key,

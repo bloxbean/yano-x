@@ -1,5 +1,7 @@
 package org.yanoproject.x.framework.runtime.appchain;
 
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -25,15 +27,16 @@ import java.util.TreeSet;
 public record MembershipHandoff(long committedHeight, Set<String> members, int threshold,
                                 long activationLag) {
     /** The opt-in chain setting: {@code membership.anchor-handoff: true}. */
-    public static final String SETTING = "membership.anchor-handoff";
+    public static final String SETTING = AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING;
 
-    /** Is the handoff gate selected? Only {@code true} and {@code false} (default) are valid. */
+    /**
+     * Is the handoff gate selected? Only {@code true} and {@code false} (default) are valid.
+     * The switch is consensus-committed: the runtime reads it from the chain's consensus
+     * profile ({@link AppChainConsensusProfile#membershipAnchorHandoff()}), which this parse
+     * feeds.
+     */
     public static boolean selected(java.util.Map<String, String> settings) {
-        String value = settings == null ? "false" : settings.getOrDefault(SETTING, "false").trim();
-        if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
-            throw new IllegalArgumentException(SETTING + " must be true or false");
-        }
-        return Boolean.parseBoolean(value);
+        return AppChainConsensusProfile.membershipAnchorHandoff(settings);
     }
 
     public MembershipHandoff {
