@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-24, r3). D8 decided by the maintainer in r3. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-24, r4). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -236,7 +236,7 @@ The reference profile is labelled by its settlement mode (D8e).
 
 `FEDERATED_COSIGNED_WITH_PERMISSIONLESS_EXIT` is the default:
 - payouts are co-signed by the threshold;
-- once a reserved, anchored claim is older than `exitDelayBlocks`, anyone can pay it.
+- once a reserved, anchored claim is older than `exitDelayMs` (L1 time), anyone can pay it.
 
 `FEDERATED_CUSTODY_PERMISSIONLESS_RELAY` applies to `PROOF_ONLY`:
 - anyone can relay a certified, matured claim.
@@ -516,7 +516,8 @@ When a consumer authorizes a withdrawal, the same `apply()` does the following:
    - the **claim leaf** at the key the vault script derives (D8, rule V2).
 
    The leaf value is `ClaimLeafV1(ClaimId, VaultId, claim kind, AssetValue, vaultLovelace,
-   recipient, reservedHeight)`. It is immutable. Status lives under a separate key, and the leaf
+   recipient, reservedHeight, reservedAtMs)`. `reservedAtMs` is the reserving block's
+   `AppBlock.timestamp`. It is immutable. Status lives under a separate key, and the leaf
    is never deleted.
 4. **Effect.** It emits an `EffectIntent` of type `asset.settlement` with these settings:
    - payload: `SettlementIntentV1(ClaimId)`;
@@ -533,7 +534,7 @@ attestation (`FxKernel.java:288`), so it may drive local telemetry but never cla
 **Claim status.**
 - Consensus lifecycle: `RESERVED → PAID`, or `PAID_MISMATCH`, which halts (D10).
 - Derived views:
-  - `EXIT_ELIGIBLE`: `reservedHeight + exitDelayBlocks ≤` latest anchored height, and the
+  - `EXIT_ELIGIBLE`: the claim is anchored, `reservedAtMs + exitDelayMs ≤` the current L1 time, and the
     domain status leaf is `ACTIVE` under that anchor (D8a, D8e);
   - `SETTLEMENT_PENDING`: in the default mode, waiting for a co-signed batch.
 - `SUBMITTED` is relayer telemetry only.
@@ -626,8 +627,14 @@ instead (D8e).
   A proof of any other key or value fails, even where two components write identical bytes
   (B-F1, A-F3).
 - **V3 — exit delay and brake.**
-  - Each claim must satisfy `claim.reservedHeight + exitDelayBlocks ≤ anchor.height`. The value
-    of `exitDelayBlocks` depends on the mode (D8e).
+  - Each claim must satisfy `claim.reservedAtMs + exitDelayMs ≤ lowerBound(tx validity
+    range)`.
+    - The delay is **L1 time**, not app-ledger height. App ledgers produce blocks only when
+      there are messages, and anchors only advance with height. A height-based delay would
+      therefore never elapse once operators stop the chain, which is exactly when `Exit` is
+      needed (r4).
+    - `exitDelayMs` is read from the status leaf. The script enforces it against floor and
+      ceiling parameters (D8e).
   - One extra inclusion proof, at a pinned key, must show that the domain status leaf under the
     same root is `ACTIVE` (D8a).
 
@@ -641,7 +648,7 @@ instead (D8e).
   - The brake is the members themselves: they refuse to sign while the domain is not `ACTIVE`.
 - **`Exit` serves the case where `Settle` does not happen.** Examples: the owner node is down,
   operators stop co-signing, or one user's claim is skipped.
-  - Once a claim has been anchored for `exitDelayBlocks`, anyone can pay it with a proof against
+  - Once a claim has been anchored and `exitDelayMs` has passed since it was reserved, anyone can pay it with a proof against
     the threshold-signed anchor, and no custody keys are needed.
   - The delay is counted **per claim**, from the claim's reservation height. This is stronger
     than ADR-UTXO-009's Exit, which opens only when the whole root has gone stale and therefore
@@ -706,17 +713,20 @@ became irreversible within one anchor interval (A-F5). r2 adds a brake that L1 c
 - **Scope of the brake.** The brake is enforced on chain for `Exit` (V3). For `Settle`, the brake
   is the members themselves: the co-sign check refuses to sign unless the domain is `ACTIVE`
   (D9).
-- **What V3 requires.** A claim's `reservedHeight` must be at least `exitDelayBlocks` below the
-  anchored height, and the status leaf must be `ACTIVE` under the same root. In `PROOF_ONLY`
-  mode, `exitDelayBlocks = maturityBlocks` (D8e).
+- **What V3 requires.** Two conditions:
+  - `reservedAtMs + exitDelayMs` must be no later than the transaction's validity lower bound,
+    which is L1 time;
+  - the status leaf must be `ACTIVE` under the same root.
+
+  In `PROOF_ONLY` mode, `exitDelayMs` is the short maturity delay (D8e).
 - **How the brake takes effect.**
   - A pause committed at height `h` takes effect on L1 at the first anchor of height `h` or
     later. That anchor spends the previous one, so older roots can no longer be referenced.
-  - Claims reserved after `h − maturityBlocks` are protected as long as
-    `maturityBlocks` is greater than (anchor interval + detection time).
+  - Claims reserved within the last `exitDelayMs` before the pause stay protected, provided
+    `exitDelayMs` is greater than the anchor interval plus detection time.
   - Claims that were already matured and anchored before the pause stay payable until the next
     anchor. After that they are payable only once the domain is `ACTIVE` again.
-- **Parameters.** `maturityBlocks` is a governed profile parameter with a floor. M4 sets the floor
+- **Parameters.** The delay is carried in the status leaf, so governance can change it without a migration. The script enforces a floor and a ceiling taken from its parameters (D8e). M4 confirms the floor
   from measured anchor intervals.
 - **What the brake does not do.** Claims that are matured, anchored and paid are irrevocable. The
   brake does not prevent theft by a colluding threshold, which can unpause. It contains bugs and
@@ -835,8 +845,8 @@ The genesis profile setting `settlement.mode` takes one of two values:
 
 | Mode | `Settle` | `Exit` delay | Normal path | Trust label |
 |---|---|---|---|---|
-| `COSIGNED_WITH_PROOF_EXIT` (default) | accepted | `exitDelayBlocks`: long, governed within profile bounds | co-signed batches | `FEDERATED_COSIGNED_WITH_PERMISSIONLESS_EXIT` |
-| `PROOF_ONLY` | **rejected by the script** | `exitDelayBlocks = maturityBlocks`: short, the D8a brake | permissionless proof relay | `FEDERATED_CUSTODY_PERMISSIONLESS_RELAY` |
+| `COSIGNED_WITH_PROOF_EXIT` (default) | accepted | `exitDelayMs`: default 24 h; on-chain bounds [6 h, 30 d] | co-signed batches | `FEDERATED_COSIGNED_WITH_PERMISSIONLESS_EXIT` |
+| `PROOF_ONLY` | **rejected by the script** | `exitDelayMs` is the maturity brake: default 30 min; on-chain bounds [10 min, 24 h]; must exceed 2 × the anchor's maximum interval (doctor check) | permissionless proof relay | `FEDERATED_CUSTODY_PERMISSIONLESS_RELAY` |
 
 **On-chain parameter.** The mode is a **vault script parameter**, so it is part of the vault's
 script hash.
@@ -861,7 +871,7 @@ proof-only by not running the co-sign service, but only a `PROOF_ONLY` script gu
 1. register a new vault whose script carries the new mode;
 2. move the liabilities with governed `MIGRATE` claims (D8d).
 
-**Ordering of delays.** In the default mode, `exitDelayBlocks` must be greater than the fast
+**Delays.** The defaults and bounds follow ADR-UTXO-009 §9: 24 h, within [6 h, 30 d]. Here the floor and ceiling are script parameters, so they are enforced on chain. This closes the gap ADR-UTXO-009 records in §13.1, where the floor was not enforced on chain. In the default mode, `exitDelayMs` must be greater than the fast
 path's expected settlement deadline. Exits then fire only after the fast path has failed, and
 the two paths rarely race on shard UTxOs. If they do race, the second transaction simply fails
 (V4).
@@ -998,7 +1008,7 @@ own min-ADA:
 - **No cross-asset charges.** No fee or charge is ever taken from another asset. v1 has no
   relayer bounty (Q10).
 
-**Q1 and Q2 change** (§13). Treating incidental lovelace as an account-bound min-ADA credit
+**Q1 and Q2, decided in r4** (§13). Treating incidental lovelace as an account-bound min-ADA credit
 departs from r1's "operational ADA" lean. #109's wording "incidental ADA must not create credits"
 is read as "must not create spendable payment balance". The maintainers must confirm that
 reading.
@@ -1407,7 +1417,7 @@ can authorize an invalid root. The surfaces also state:
 | I2 | Invalid or unauthenticated L1 content never makes an observer or `apply()` throw, halt or credit. Valid deposits are credited. Only a thread-authenticated mismatch halts. *(r2 rewording.)* | D5, D6, D10 |
 | I3 | Total liabilities of a unit change only by a deposit credit (+), a payout confirmation (−), or a governed claim (−, explicit). `TRANSFER` preserves per-asset totals. No mint, no override, no cross-asset effect. | D8d, D12, D14 |
 | I4 | For each vault and unit, at every finalized height: `credited − paid = available + reserved`. Amounts are non-negative, and arithmetic is checked (u64 for balances, u128 for lifetime counters). | D3, D12, D15 |
-| I5 | `Exit` pays a claim only if all of these hold: its exact leaf (V2: key and value computed by the script) is under the pinned anchor's root; the claim is older than `exitDelayBlocks`; and the status leaf is `ACTIVE` (V3). `Settle` pays only with a threshold of the current anchor datum's members (V9), each of whom checked the claim against its own state (D9). | D8, D8a, D8b, D9 |
+| I5 | `Exit` pays a claim only if all of these hold: its exact leaf (V2: key and value computed by the script) is under the pinned anchor's root; the claim is older than `exitDelayMs` in L1 time; and the status leaf is `ACTIVE` (V3). `Settle` pays only with a threshold of the current anchor datum's members (V9), each of whom checked the claim against its own state (D9). | D8, D8a, D8b, D9 |
 | I6 | Each `ClaimId` is paid at most once: the nullifier insert happens in the same transaction. | D8, D8c |
 | I7 | A payout cannot move another asset, or another `VaultId`'s UTxOs or shards. The value equation V6 holds exactly. Lovelace leaves the vault only as the claims' `vaultLovelace`. | D8, D11 |
 | I8 | Reserved funds are never released while the claim may be redeemable. v1 has no release. | D7 |
@@ -1458,7 +1468,7 @@ selected. The ZIP and Central size budget is checked when they are added.
 
 | ID | Scope | Entry gate | Exit criteria |
 |---|---|---|---|
-| M0 | This ADR | — | Accepted. D8 decided (r3). Q1, Q2, Q3, Q5, Q6, Q7 and Q14 decided. |
+| M0 | This ADR | — | Accepted. D8 (r3) and Q1, Q2, Q3, Q5, Q6, Q7 and Q14 decided. |
 | M1 | Contracts: types, ids, codecs, CDDL, `AssetAccounts`, invariant checker | M0 | V1, V2 and V4 pass. Property tests for I3 and I4. Contract freeze reviewed against `asset-payments` and `asset-escrow` (D17a). Module names fixed. |
 | M2 | `cardano-wallet-auth` | M1 (codecs) | V3 passes. The cryptographic oracles agree, or every disagreement is recorded. I10 and I11. |
 | M3 | Ingress: deposit observer, `DepositAdmission`, payment ledger without withdrawals, `asset-escrow` deposits | M1, M2 | On devnet, ADA and two native tokens are credited exactly once across restart and rescan. V5 fixtures A1-A10 never credit or halt. I1, I2, I13, I16. |
@@ -1472,7 +1482,7 @@ selected. The ZIP and Central size budget is checked when they are added.
 **Positive**
 - One audited path for deposits, payouts and confirmation, instead of one per application.
 - The normal path settles batches of about 16 with no proof cost.
-- Certified, anchored claims can be paid without the operators after `exitDelayBlocks`.
+- Certified, anchored claims can be paid without the operators after `exitDelayMs`, even if the app ledger has stopped producing blocks.
 - `PROOF_ONLY` stays available by configuration for deployments that do not want co-signing.
 - The L1 brake contains bugs.
 - The payment ledger and other consumers share code but not custody, state or liquidity.
@@ -1553,7 +1563,9 @@ Evidence must be independent of the code under test.
 - `Settle` against a `PROOF_ONLY` vault;
 - a `Settle` payout whose claim id was already exited;
 - a governed claim paid through `Settle`;
-- `Exit` before `exitDelayBlocks`;
+- `Exit` before `exitDelayMs`;
+- a validity range whose lower bound is before `reservedAtMs + exitDelayMs`;
+- a status-leaf delay outside the script's bounds;
 - forged root;
 - spent anchor;
 - wrong anchor identity;
@@ -1618,19 +1630,19 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
 
 ## 13. Open questions
 
-**Points needing a maintainer decision:**
+**Points needing a maintainer decision:** all decided as of r4.
 
 | ID | Question | Options | Lean |
 |---|---|---|---|
 | D8 | Reference vault paths | — | **Decided by the maintainer in r3:** co-signed `Settle` as the default normal path, with a per-claim delayed `Exit` as the fallback. `PROOF_ONLY` can be selected by genesis configuration (D8e). Changing mode means a new vault plus governed `MIGRATE`. |
-| Q1 | Who owns a token deposit's incidental lovelace? | (a) Operational ADA (r1). (b) An account-bound min-ADA credit (D11). | (b). It funds the depositor's own payouts and cannot be drained by others. This requires reading #109's "must not create credits" as "no spendable balance". |
-| Q2 | Who funds payout min-ADA? | (a) The vault's operational ADA (r1; withdrawn, drainable). (b) The account's own min-ADA credit, plus any supplement from the builder. (c) Always the relayer. | (b) |
-| Q3 | Direct deposits or staging and acceptance? | (a) Direct. Uncreditable value is unattributed and leaves only by a governed sweep. (b) Staging, with a depositor refund after a deadline. | (a) for v1. (b) as a later profile. |
+| Q1 | Who owns a token deposit's incidental lovelace? | — | **Decided by the maintainer in r4:** (b), an account-bound min-ADA credit (D11). It is not spendable as payment balance. |
+| Q2 | Who funds payout min-ADA? | — | **Decided in r4:** (b), the account's own credit. The builder may supplement it. |
+| Q3 | Direct deposits or staging and acceptance? | — | **Decided in r4:** (a), direct deposits for v1. A staging profile with depositor refunds may come later. |
 | Q4 | Delay on the proof path? | — | **Decided in r2:** maturity plus status-leaf brake (D8a). |
-| Q5 | Accept `hashed: true` (hardware wallets)? | (a) Reject in v1. (b) Accept, with Blake2b-224 of the envelope. | (a). Revisit after M6 interoperability. |
-| Q6 | How do public users submit intents? | (a) Application gateway with a `SUBMIT` credential. (b) A new public write class for domain APIs. | (a) |
-| Q7 | Withdrawal expiry or cancellation? | (a) None in v1. (b) Expiry, with an L1 nullifier insert first. | (a) |
-| Q14 | *(new)* How is the membership handoff (D8b) enforced? | (a) A framework gate on governed-membership activation. (b) An operational rule enforced by the CLI and doctor only. | (a). (b) only until (a) lands. |
+| Q5 | Accept `hashed: true` (hardware wallets)? | — | **Decided in r4:** (a), reject in v1. Revisit with the M6 interoperability results. |
+| Q6 | How do public users submit intents? | — | **Decided in r4:** (a), an application gateway with a `SUBMIT` credential. |
+| Q7 | Withdrawal expiry or cancellation? | — | **Decided in r4:** (a), none in v1. |
+| Q14 | How is the membership handoff (D8b) enforced? | — | **Decided in r4:** (a), a framework gate. The CLI and doctor rule applies only until the gate lands, and the gate is an M4 entry gate. |
 
 **Open, not blocking M1:**
 
@@ -1639,11 +1651,11 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
 | Q8 | Consolidation without a payout | Out of v1. A vault spend with k ≥ 1 already merges inputs. A k = 0 redeemer can come later. |
 | Q9 | Owner recovery after losing the owner key | Out of v1. Rotation is D14a. |
 | Q10 | Relayer bounty | None in v1. |
-| Q11 | Module names and placement | Decided in M1. |
+| Q11 | Module names and placement | **Decided in r4:** the D2 names, under `capabilities/`, `ledgers/` and `examples/`. M1 may rename only for artifact-inventory conflicts. |
 | Q12 | ADR-041's status versus code that already exists | Flagged for an ADR-041 status update. |
 | Q13 | — | **Decided in r2:** V2 binds the key and the value, with the composite key derivation pinned. |
-| Q15 | *(new in r3)* Use a two-level withdrawal root to make `Exit` cheaper? Proof once that the pending-claims root is in the state, then prove each claim in that small trie. | Measure in M4. Most valuable for `PROOF_ONLY` deployments. |
-| Q16 | *(new in r3)* Defaults and bounds for `exitDelayBlocks` in the default mode | Decide in M4 from the measured settlement deadline and anchor interval. It must exceed the fast path's settlement deadline. |
+| Q15 | Use a two-level withdrawal root to make `Exit` cheaper? | **Decided in r4:** v1 ships a single-level `Exit`, which is simpler to audit; in the default mode `Exit` is only a fallback. If M4 measures fewer than 4 claims per `Exit` transaction, a two-level root becomes a `PROOF_ONLY` profile version under its own review. |
+| Q16 | Exit delay | **Decided in r4:** L1 time (`exitDelayMs`), read from the status leaf and bounded by script parameters. Default mode: 24 h, within [6 h, 30 d]. `PROOF_ONLY`: 30 min, within [10 min, 24 h]. |
 
 ## 14. Alternatives considered (overall)
 
@@ -1724,3 +1736,19 @@ Passing tests and benchmarks is not evidence of security. These gates are in add
   - D7 derived views updated.
   - New invariants I20-I22. M4 and V6 updated.
   - New open questions Q15 (two-level withdrawal root) and Q16 (exit-delay defaults).
+- **r4** (2026-11-24): The maintainer decided the open questions with the author's leans.
+  - Q1/Q2: an account-bound min-ADA credit.
+  - Q3: direct deposits.
+  - Q5: `hashed: true` rejected.
+  - Q6: an application gateway.
+  - Q7: no expiry.
+  - Q11: the D2 names.
+  - Q14: a framework gate.
+  - Q15: a single-level `Exit` in v1, with a measured trigger for a two-level root.
+  - Q16: the exit delay moves from app-ledger height to **L1 time**.
+    - Exit used to depend on app-ledger heights. Heights stop advancing when the chain stops,
+      which would have disabled `Exit` exactly when it is needed.
+    - `ClaimLeafV1` now carries `reservedAtMs`.
+    - V3 checks the transaction's validity lower bound.
+    - The delay lives in the status leaf, with an on-chain floor and ceiling. This also enforces
+      on chain the delay floor that ADR-UTXO-009 §13.1 lacks.
