@@ -69,4 +69,30 @@ class AnchorDatumCodecTest {
                 .build()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+    @Test
+    void v2RoundTripsWithUpdatedAtAndDecodeDispatchesOnVersion() throws Exception {
+        AnchorDatumCodec.AnchorDatum v2 = new AnchorDatumCodec.AnchorDatum(2, "orders-chain",
+                fill(32, 7), "ordered-log", "mpf-blake2b256-v1", fill(32, 8), 42,
+                fill(32, 0xB0), fill(32, 0x50),
+                List.of(fill(32, 3), fill(32, 1), fill(32, 2)), 2, 1_700_000_000_000L);
+        ConstrPlutusData encoded = AnchorDatumCodec.encode(v2);
+        assertThat(encoded.getData().getPlutusDataList()).hasSize(12);
+
+        AnchorDatumCodec.AnchorDatum decoded = AnchorDatumCodec.decode(encoded.serializeToBytes());
+        assertThat(decoded.version()).isEqualTo(2);
+        assertThat(decoded.updatedAtMs()).isEqualTo(1_700_000_000_000L);
+        assertThat(decoded.height()).isEqualTo(42);
+        assertThat(decoded.memberKeys()).containsExactly(fill(32, 1), fill(32, 2), fill(32, 3));
+
+        AnchorDatumCodec.AnchorDatum v1 = AnchorDatumCodec.decode(
+                AnchorDatumCodec.encode(datum()).serializeToBytes());
+        assertThat(v1.version()).isEqualTo(1);
+        assertThat(v1.updatedAtMs()).isZero();
+        // v1 bytes are unchanged by the v2 addition
+        assertThat(AnchorDatumCodec.encode(datum()).getData().getPlutusDataList()).hasSize(11);
+        assertThatThrownBy(() -> AnchorDatumCodec.encode(new AnchorDatumCodec.AnchorDatum(3,
+                "orders-chain", fill(32, 7), "ordered-log", "mpf-blake2b256-v1", fill(32, 8), 1,
+                fill(32, 0xB0), fill(32, 0x50), List.of(fill(32, 1)), 1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }
