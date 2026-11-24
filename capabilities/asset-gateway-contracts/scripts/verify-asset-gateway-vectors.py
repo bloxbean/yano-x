@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Independent verifier for the ADR-059 M1 golden vectors (V1/V2).
+"""Independent verifier for the ADR-059 golden vectors (M1 V1/V2 and the M3 deposit vectors).
 
 It shares no code with the Java implementation. It has its own minimal deterministic CBOR
 encoder (definite arrays, byte strings, text strings, unsigned integers, shortest form) and uses
 hashlib.blake2b. Every committed vector is recomputed from the same documented inputs and
-compared byte for byte. Usage: verify-asset-gateway-vectors.py <golden-vectors.properties>
+compared byte for byte. The M3 deposit vectors (Plutus-Data deposit datum, canonical Cardano
+value, deposit claim and record) live in deposit-vectors.properties beside the golden vectors and
+are recomputed the same way; deposit-datum-negative-vectors.properties must all be rejected by an
+independent Plutus-Data reader. Usage: verify-asset-gateway-vectors.py <golden-vectors.properties>
 """
 import hashlib
 import sys
@@ -115,6 +118,176 @@ def compute():
     return out
 
 
+ACCOUNT = bytes.fromhex("a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c")
+BLOCK = bytes.fromhex("b10c0000000000000000000000000000000000000000000000000000000000b1")
+POLICY_B = bytes.fromhex("11" * 28)
+
+
+def enc_map(entries):
+    """Definite CBOR map, keys sorted by their encoded bytes (RFC 8949 4.2.1)."""
+    pairs = sorted(((enc(k), enc_raw(v)) for k, v in entries), key=lambda kv: kv[0])
+    return head(5, len(pairs)) + b"".join(k + v for k, v in pairs)
+
+
+def enc_raw(value):
+    return value if isinstance(value, RawCbor) else enc(value)
+
+
+class RawCbor(bytes):
+    """Already-encoded CBOR, embedded as is."""
+
+
+def cardano_value(coin, assets):
+    """value = coin / [coin, {policy: {name: qty}}] (Cardano ledger CDDL), canonical maps."""
+    if not assets:
+        return enc(coin)
+    policies = {}
+    for policy, name, qty in assets:
+        policies.setdefault(policy, []).append((name, qty))
+    inner = [(policy, RawCbor(enc_map(names))) for policy, names in policies.items()]
+    return head(4, 2) + enc(coin) + enc_map(inner)
+
+
+def plutus_deposit_datum(account, refund, key_hash):
+    """#6.121([account, refund_address, refund_key_hash]) in definite form."""
+    return bytes([0xd8, 121]) + enc([account, refund, key_hash])
+
+
+def read_plutus_deposit(data):
+    """Independent reader of DepositDatumV1: constructor 0 (tag 121) with three byte strings.
+
+    Accepts a definite or indefinite field list and definite or chunked byte strings with
+    shortest-form heads; rejects everything else, including trailing bytes."""
+    pos = 0
+
+    def byte():
+        nonlocal pos
+        if pos >= len(data):
+            raise ValueError("truncated")
+        pos += 1
+        return data[pos - 1]
+
+    def definite(h, limit):
+        nonlocal pos
+        if h >> 5 != 2:
+            raise ValueError("not bytes")
+        info = h & 0x1F
+        if info < 24:
+            n = info
+        elif info == 24:
+            n = byte()
+            if n < 24:
+                raise ValueError("non-shortest")
+        else:
+            raise ValueError("too long")
+        if n > limit or pos + n > len(data):
+            raise ValueError("length")
+        pos += n
+        return data[pos - n:pos]
+
+    def bstr(limit):
+        h = byte()
+        if h != 0x5F:
+            return definite(h, limit)
+        out = b""
+        while True:
+            h = byte()
+            if h == 0xFF:
+                return out
+            out += definite(h, limit - len(out))
+
+    if byte() != 0xD8 or byte() != 121:
+        raise ValueError("tag")
+    lst = byte()
+    if lst not in (0x83, 0x9F):
+        raise ValueError("arity")
+    fields = (bstr(28), bstr(64), bstr(28))
+    if lst == 0x9F and byte() != 0xFF:
+        raise ValueError("arity")
+    if pos != len(data):
+        raise ValueError("trailing")
+    if len(fields[0]) != 28 or not 1 <= len(fields[1]) <= 64 or len(fields[2]) != 28:
+        raise ValueError("field size")
+    return fields
+
+
+def compute_deposit(golden):
+    out = {}
+    refund = bytes.fromhex("60") + KEY_HASH
+    datum = plutus_deposit_datum(ACCOUNT, refund, KEY_HASH)
+    out["datum.deposit"] = datum.hex()
+    indefinite = (bytes.fromhex("d8799f5f4e") + ACCOUNT[:14] + bytes.fromhex("4e") + ACCOUNT[14:]
+                  + bytes.fromhex("ff581d") + refund + bytes.fromhex("581c") + KEY_HASH + bytes.fromhex("ff"))
+    assert read_plutus_deposit(indefinite) == read_plutus_deposit(datum) == (ACCOUNT, refund, KEY_HASH)
+    out["datum.deposit-indefinite"] = indefinite.hex()
+    out["datum.floor-top-up"] = bytes([0xd8, 123, 0x80]).hex()
+
+    out["value.ada-only"] = cardano_value(2_000_000, []).hex()
+    multi = [(POLICY, b"USDM", 49_504_950), (POLICY, b"\xff", 1), (POLICY_B, b"", 7)]
+    multi_cbor = cardano_value(1_500_000, multi)
+    out["value.multi"] = multi_cbor.hex()
+    multi_hash = hashlib.blake2b(multi_cbor, digest_size=32).digest()
+    out["value.multi.hash"] = multi_hash.hex()
+    single_hash = hashlib.blake2b(cardano_value(1_500_000, [(POLICY, b"USDM", 49_504_950)]),
+                                  digest_size=32).digest()
+
+    usdm_vault = bytes.fromhex(golden["id.vault.usdm"])
+
+    def deposit_id(index):
+        return b2b("yano-asset-gateway-deposit-v1\0", [usdm_vault, TX, index])
+
+    def claim(index, shape, beneficiary, others, value_hash):
+        return enc([1, deposit_id(index), usdm_vault, TX, index, 4_242_424, BLOCK, shape, beneficiary,
+                    49_504_950, 1_500_000, others, value_hash]).hex()
+
+    out["claim.deposit"] = claim(3, 0, [0, ACCOUNT], 0, single_hash)
+    out["claim.malformed"] = claim(4, 0, [1, 1], 0, single_hash)
+    out["claim.continuation"] = claim(0, 1, [2], 2, multi_hash)
+    assert deposit_id(3).hex() == golden["id.deposit"], "deposit id agrees with the M1 vector"
+
+    def record(status, reason, others, value_hash, credited, credited_lovelace):
+        return enc([1, deposit_id(3), usdm_vault, TX, 3, 4_242_424, 77, 0, status, reason, ACCOUNT,
+                    49_504_950, 1_500_000, others, value_hash, credited, credited_lovelace]).hex()
+
+    out["record.credited"] = record(0, 0, 0, single_hash, 49_504_950, 1_500_000)
+    out["record.uncredited"] = record(1, 7, 2, multi_hash, 0, 0)
+    return out
+
+
+def read_properties(path):
+    values = {}
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, _, val = line.partition("=")
+            values[key] = val
+    return values
+
+
+def check_deposit(golden_path, golden):
+    path = golden_path.replace("golden-vectors.properties", "deposit-vectors.properties")
+    committed = read_properties(path)
+    expected = compute_deposit(golden)
+    failures = [k for k in sorted(set(expected) | set(committed)) if expected.get(k) != committed.get(k)]
+    for key in failures:
+        print(f"MISMATCH {key}: committed={committed.get(key)} independent={expected.get(key)}")
+    if failures:
+        sys.exit(1)
+    print(f"ADR-059 deposit vectors verified independently: {len(expected)} values")
+    negative = read_properties(golden_path.replace("golden-vectors.properties",
+                                                   "deposit-datum-negative-vectors.properties"))
+    for name, hexval in negative.items():
+        try:
+            read_plutus_deposit(bytes.fromhex(hexval))
+        except ValueError:
+            continue
+        print(f"NEGATIVE DATUM ACCEPTED independently: {name}")
+        sys.exit(1)
+    print(f"ADR-059 negative deposit datums rejected independently: {len(negative)}")
+
+
 def decode(data):
     """Minimal decoder for the contract subset; raises ValueError on anything outside it."""
     pos = 0
@@ -216,6 +389,7 @@ def main(path):
     oracle = "with cbor2 cross-check" if cbor2 is not None else "stdlib only; cbor2 not installed"
     print(f"ADR-059 golden vectors verified independently ({oracle}): {len(expected)} values")
     check_negative(path.replace("golden-vectors.properties", "negative-vectors.properties"))
+    check_deposit(path, committed)
 
 
 if __name__ == "__main__":
