@@ -49,7 +49,8 @@ class AppChainPropertyRegistryTest {
         assertThat(storagePath.scope()).isEqualTo(PropertyScope.NODE_LOCAL);
 
         assertThat(registry.dynamicNamespaces()).extracting(DynamicNamespaceDefinition::prefix)
-                .containsExactly("block-time.", "capabilities.", "consensus.", "effects.", "effects.result.",
+                .containsExactly("anchor-profile.", "block-time.", "capabilities.", "consensus.", "effects.",
+                        "effects.result.",
                         "machines.", "membership.", "observation.", "observations.", "observers.", "sequencer.",
                         "sinks.", "state.", "topics.", "transport.", "zk.");
         assertThat(registry.dynamicNamespace("effects.result.unknown"))

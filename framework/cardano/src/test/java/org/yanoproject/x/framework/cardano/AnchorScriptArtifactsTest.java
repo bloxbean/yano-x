@@ -43,6 +43,30 @@ class AnchorScriptArtifactsTest {
         return bytes;
     }
 
+    /** ADR-059 anchor v2, parameterized with the default 10-minute window. */
+    private static final String GOLDEN_VALIDATOR_V2_HASH =
+            "32bb3c3985c3254b14054f2bbf722bb8e31898999a5474aa75496f1b";
+
+    @Test
+    void bundledV2Artifact_pinsItsOnChainIdentityAndLeavesV1Unchanged() {
+        AnchorScriptArtifacts artifacts = new AnchorScriptArtifacts(AnchorScriptConfig.defaults(),
+                new AnchorProfileSettings(2, AnchorProfileSettings.DEFAULT_MAX_WINDOW_MS,
+                        new AnchorProfileSettings.SlotTime(0, 0, 1_000), null));
+        byte[] policyId = AnchorScriptArtifacts.scriptHash(artifacts.threadPolicy(GOLDEN_SEED, GOLDEN_INDEX));
+        assertThat(HexUtil.encodeHexString(policyId))
+                .as("v2 chains use the v1 thread policy").isEqualTo(GOLDEN_POLICY_ID);
+        assertThat(HexUtil.encodeHexString(AnchorScriptArtifacts.scriptHash(artifacts.validator(policyId))))
+                .as("anchor v2 validator script hash drifted from the checked-in artifact")
+                .isEqualTo(GOLDEN_VALIDATOR_V2_HASH);
+        AnchorScriptArtifacts narrower = new AnchorScriptArtifacts(AnchorScriptConfig.defaults(),
+                new AnchorProfileSettings(2, 60_000, new AnchorProfileSettings.SlotTime(0, 0, 1_000), null));
+        assertThat(HexUtil.encodeHexString(AnchorScriptArtifacts.scriptHash(narrower.validator(policyId))))
+                .as("the window bound is a validator parameter").isNotEqualTo(GOLDEN_VALIDATOR_V2_HASH);
+        AnchorScriptArtifacts v1 = new AnchorScriptArtifacts(AnchorScriptConfig.defaults());
+        assertThat(HexUtil.encodeHexString(AnchorScriptArtifacts.scriptHash(v1.validator(policyId))))
+                .isEqualTo(GOLDEN_VALIDATOR_HASH);
+    }
+
     @Test
     void bundledArtifacts_pinTheOnChainIdentity() {
         AnchorScriptArtifacts artifacts = new AnchorScriptArtifacts(AnchorScriptConfig.defaults());

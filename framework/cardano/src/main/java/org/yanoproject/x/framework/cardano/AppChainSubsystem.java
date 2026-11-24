@@ -34,6 +34,7 @@ import org.yanoproject.x.framework.cardano.api.effects.AppChainEffectContext;
 import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 import org.yanoproject.x.framework.cardano.api.events.AppChainAnchoredEvent;
 import org.yanoproject.x.framework.runtime.appchain.AppChainEngine;
+import org.yanoproject.x.framework.runtime.appchain.MembershipHandoff;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerStore;
 
@@ -1251,6 +1252,16 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
                 this.anchorService.setCompletionGate(this::l1Reconciled);
             }
         }
+        // ADR-059 anchor profile (v2, pinned identity) and membership handoff: chain-wide
+        // settings every member reads. Invalid values and a pin on a non-script anchor fail
+        // startup instead of degrading to an unpinned or v1 anchor.
+        AnchorProfileSettings anchorProfile = AnchorProfileSettings.from(config.pluginSettings(), protocolMagic);
+        boolean membershipHandoff = MembershipHandoff.selected(config.pluginSettings());
+        if (anchorProfile.pinned() != null && config.anchor() != null && !anchorScriptMode) {
+            throw new IllegalStateException("App-chain '" + config.chainId()
+                    + "': a pinned anchor identity requires anchor.mode=script");
+        }
+        ScriptAnchorService createdScriptService = null;
         // Script anchors (008.4): EVERY ledger member runs the co-sign
         // verifier (zero follower config — sign requests are verified
         // against this node's own ledger + L1 view); the node with
@@ -1273,7 +1284,7 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
                         utxoStateSupplier,
                         h -> ledgerStore.block(h).orElse(null),
                         ledgerStore::tipHeight,
-                        new AnchorScriptArtifacts(scriptConfig),
+                        new AnchorScriptArtifacts(scriptConfig, anchorProfile),
                         signer,
                         group::members,
                         group::threshold,
@@ -1300,11 +1311,21 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
                 });
                 scriptService.setConfirmationListener(this::publishConfirmedAnchor);
                 scriptService.setCompletionGate(this::l1Reconciled);
-                this.scriptAnchorService = scriptService;
+                scriptService.wireAnchorProfile(anchorProfile);
+                scriptService.wireMembershipHandoff(membershipHandoff, this::pendingMembershipHandoff);
+                createdScriptService = scriptService;
             } catch (Exception e) {
                 log.warn("Script-anchor service unavailable (errorType={})",
                         e.getClass().getName());
             }
+        }
+        if (createdScriptService != null) {
+            // Fails startup closed on any pinned-identity mismatch (ADR-059 D8b).
+            createdScriptService.installPinnedIdentity();
+            this.scriptAnchorService = createdScriptService;
+        } else if (anchorProfile.pinned() != null && txSubmitter != null && utxoStateSupplier != null) {
+            throw new IllegalStateException("App-chain '" + config.chainId()
+                    + "': the pinned script anchor could not be started");
         }
     }
 

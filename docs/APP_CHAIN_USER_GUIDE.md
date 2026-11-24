@@ -559,6 +559,68 @@ last anchor (or `max-interval-minutes` elapsed). The first real advance after
 bootstrap is immediate when the app tip is non-zero; an app chain that has
 never produced a block remains at height `0` and has nothing to anchor.
 
+Every member checks the advance body before it signs (ADR-059 framework
+addition 6). It resolves every input and collateral input in its own L1 UTxO
+view and refuses the body when an input is unknown, when any script input other
+than the anchor UTxO is spent, when an input is locked by its own member key, or
+when the body mints, burns, carries certificates, withdraws, votes or proposes.
+The leader applies the same structural checks to its own body before signing.
+
+#### Anchor profile: v2, pinned identity, membership handoff (opt-in)
+
+These chain-wide settings must be identical on every member, including members
+without `anchor.enabled`. Without them a chain anchors exactly as described
+above.
+
+```yaml
+yano:
+  app-chain:
+    anchor-profile:
+      version: 2                 # anchor v2 (ADR-059 framework addition 5)
+      max-window-ms: 600000      # validator parameter, default 10 minutes
+      # Required off mainnet, preprod and preview (Shelley slot-to-time):
+      slot-zero: 0
+      slot-zero-time-ms: 1700000000000
+      slot-length-ms: 1000
+      pinned:                    # all seven keys or none (framework addition 3)
+        thread-policy-id: "<28-byte hex>"
+        thread-asset-name: "<hex, 0..32 bytes>"
+        script-hash: "<28-byte hex>"
+        genesis-id: "<state.genesis-id>"
+        application-id: "<state-machine id>"
+        commitment-profile: mpf-blake2b256-v1
+        format-fingerprint: "<state.format-fingerprint>"
+    membership:
+      mode: governed
+      anchor-handoff: true       # framework addition 4
+```
+
+- **Anchor v2** (`anchor-v2.cddl`) appends `updatedAtMs` to the datum. The
+  validator requires `updatedAtMs` to equal the transaction's validity upper
+  bound, with a window of at most `max-window-ms`, and allows a *pure
+  heartbeat*: the same height, block hash, state root, members and threshold
+  with a strictly newer `updatedAtMs`. The leader sends a heartbeat when no
+  advance happened for `anchor.max-interval-minutes`. The validity window is
+  `min(anchor.validity-slots, max-window-ms)` from the current L1 slot, so keep
+  it inside the network's forecast horizon. A v2 chain is a new anchor
+  identity; it bootstraps its own thread.
+- **Pinned identity**: members install the pinned identity at startup instead
+  of adopting one from the first sign request, and only the pinned thread
+  token is the anchor. Startup fails when the configured artifact's script
+  hash, the chain's genesis id, application id, commitment profile or format
+  fingerprint differs from the pin, when the node already holds a different
+  identity, or when the anchor leader is not in script mode.
+- **Membership handoff**: a governed membership change that reaches its
+  approvals is committed as *pending* instead of activating. The next anchor
+  advance carries the pending set, co-signed by the anchor datum's current
+  members, and the change activates in consensus only when a finalized block
+  reports that an L1-stable anchor output carries it. That report comes from a
+  `MembershipHandoffGate` supplied by the capability that observes anchor
+  outputs (ADR-059 `asset-anchor-v1`). The framework installs none, so on its
+  own a gated chain keeps every committed change pending and the old members
+  keep authority. Further changes are void while one is pending. Status shows
+  it under `membershipHandoff`.
+
 Every script-anchor member independently reconciles `lastAnchoredHeight`,
 `lastAnchorTx`, `lastAnchorL1Slot` and `lagBlocks` from the authenticated
 thread UTxO in its own L1 view.  These durable fields should converge across
@@ -859,6 +921,13 @@ Flat (single-chain) keys. The same suffixes apply per chain under
 | `anchor.metadata-label` | `7014` | Metadata label of anchor txs (metadata mode) |
 | `anchor.script.validator` | `builtin:aiken` | Script mode: anchor validator artifact — `builtin:aiken`, `file:/path` (blueprint or raw hex) or `hex:...` |
 | `anchor.script.thread-policy` | `builtin:aiken` | Script mode: thread-policy artifact (same forms) |
+| `anchor-profile.version` | `1` | `2` selects anchor v2: heartbeats and a bounded `updatedAtMs` (§5.3). Must match on all members |
+| `anchor-profile.max-window-ms` | `600000` | Anchor v2 validator parameter: maximum validity window |
+| `anchor-profile.slot-zero` / `slot-zero-time-ms` / `slot-length-ms` | built in for mainnet, preprod, preview | Anchor v2 slot-to-POSIX conversion; required on other networks |
+| `anchor-profile.pinned.*` | — | Pinned anchor identity (all seven keys or none, §5.3); startup fails closed on a mismatch |
+| `membership.anchor-handoff` | `false` | Governed changes wait for an L1-stable anchor handoff (§5.3); requires `membership.mode: governed` |
+| `block-time.max-backward-skew-ms` | `0` (off) | Opt-in: voters refuse a fresh proposal more than this many ms behind their clock (consensus profile) |
+| `state.proof-pruning.l1-stable-anchor-floor` | `false` | Keep proofs from the latest L1-stable anchor height when pruning |
 | `observers.<id>.type` | — | L1 observer instance (§5.5): `address-deposit`, `metadata-label`, or a plugin provider id. Further `observers.<id>.*` keys are provider settings (e.g. `address`, `label`). Must be identical on all members; requires `l1.stability-depth > 0` |
 | `observation.l1-network-genesis-id` | — | Required when any block or epoch observer is configured: 32-byte L1 network genesis identity as 64 lowercase hex characters. Use the SHA-256 of the exact Shelley genesis file and configure the same value on every member (§5.5) |
 | `anchor.validity-slots` | `7200` | Anchor tx TTL = current L1 slot + this; a resubmitted anchor can never race a late-landing original |

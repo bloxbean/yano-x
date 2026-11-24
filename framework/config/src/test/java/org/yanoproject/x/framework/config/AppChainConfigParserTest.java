@@ -138,7 +138,8 @@ class AppChainConfigParserTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("effects.result.signerz");
         assertThat(AppChainConfigParser.strictOwnershipDomains())
-                .containsExactlyInAnyOrder("effects.result.", "state.", "block-time.", "topics.");
+                .containsExactlyInAnyOrder("effects.result.", "state.", "block-time.", "topics.",
+                        "anchor-profile.");
 
         settings.remove("effects.result.signerz");
         settings.put("block-time.max-forward-skew-ms", "2000");
