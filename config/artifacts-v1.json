@@ -52,6 +52,14 @@
       "publishToCentral": false
     },
     {
+      "modulePath": ":capabilities:asset-gateway-onchain",
+      "directory": "capabilities/asset-gateway-onchain",
+      "artifactId": "yano-x-asset-gateway-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":ledgers:asset-payments:contracts",
       "directory": "ledgers/asset-payments/contracts",
       "artifactId": "yano-x-asset-payments-contracts",

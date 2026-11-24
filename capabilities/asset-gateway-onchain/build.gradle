@@ -1,0 +1,66 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Julc-authored Cardano validators for the ADR-059 asset gateway (anchored-claim-vault-v1)'
+
+dependencies {
+    compileOnly "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    compileOnly "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    compileOnly project(':sdk:proof-onchain')
+
+    testImplementation "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-testkit:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-vm-java:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-cardano-client-lib:${libs.versions.julc.get()}"
+    testImplementation project(':sdk:proof-onchain')
+    testImplementation project(':sdk:client')
+    testImplementation project(':capabilities:asset-gateway-contracts')
+    testImplementation libs.cardano.client.crypto
+    testImplementation libs.cardano.client.mpf
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+// Julc compiles from source: the validators plus the proof-onchain libraries they call.
+tasks.register('prepareJulcTestSources', Sync) {
+    from sourceSets.main.java
+    from project(':sdk:proof-onchain').sourceSets.main.java
+    into layout.buildDirectory.dir('generated/julc-test-sources')
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('prepareJulcTestSources')
+}
+
+tasks.withType(Test).configureEach {
+    maxHeapSize = '2g'
+    def regeneratePlutus = System.getProperty('yano.regenerate.plutus')
+    if (regeneratePlutus != null) {
+        systemProperty 'yano.regenerate.plutus', regeneratePlutus
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Gateway Validators'
+                description = 'Vault, nullifier shard, exit-mode and forced-inbox validators for the ADR-059 asset gateway, authored with Julc'
+            }
+        }
+    }
+}

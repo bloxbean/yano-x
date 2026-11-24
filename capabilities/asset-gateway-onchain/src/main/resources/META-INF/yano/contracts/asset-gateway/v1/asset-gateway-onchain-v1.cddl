@@ -1,0 +1,101 @@
+; =============================================================================
+; ADR-059 asset gateway: on-chain ABI, version 1 (anchored-claim-vault-v1)
+; =============================================================================
+; Everything here is Plutus Data. Constr(i, fields) is written #6.(121+i)([...])
+; for i < 7. App-ledger leaves the scripts prove (ClaimLeafV1, ExitLeafV1,
+; DepositRecordV1, DomainStatusV1) are NOT Plutus Data; they are the strict CBOR
+; of asset-gateway-v1.cddl / asset-gateway-deposit-v1.cddl, rebuilt or read by
+; the scripts byte for byte.
+
+hash32   = bytes .size 32
+hash28   = bytes .size 28
+address  = plutus_address                ; the ledger's Plutus Address encoding
+raw_addr = bytes .size (1 .. 128)        ; raw Shelley address bytes
+
+; ---------------------------------------------------------------------------
+; Anchor datum v2 (framework/cardano-onchain; read by MpfAnchorLib)
+; ---------------------------------------------------------------------------
+anchor_datum_v2 = #6.121([2, chain_id: bytes, chain_genesis_id: hash32,
+  application_id: bytes, commitment_profile_id: bytes, format_fingerprint: hash32,
+  height: uint, block_hash: hash32, state_root: hash32,
+  member_keys: [+ hash32],               ; strictly ascending, unique
+  threshold: uint,                       ; 1 .. len(member_keys)
+  updated_at_ms: uint])                  ; POSIX ms
+
+; ---------------------------------------------------------------------------
+; Proofs (sdk/proof-onchain MpfOnChainVerifier)
+; ---------------------------------------------------------------------------
+fold = #6.121([cursor: uint, prefix: bytes, nibble: 0..15,
+  neighbor1: hash32, neighbor2: hash32, neighbor3: hash32, neighbor4: hash32,
+  branch_value_hash: bytes .size 0 / hash32])
+inclusion_proof = #6.121([key: bytes, value: bytes, leaf_suffix: bytes, folds: [* fold]])
+absence_proof   = #6.121([key: bytes, value: bytes .size 0, leaf_suffix: bytes,
+  folds: [* fold], terminal_cursor: uint,
+  conflicting_key_hash: bytes .size 0 / hash32, conflicting_value_hash: bytes .size 0 / hash32])
+
+; ---------------------------------------------------------------------------
+; Vault outputs (D5; classified by constructor)
+; ---------------------------------------------------------------------------
+deposit_datum_v1      = #6.121([beneficiary: hash28, refund_address: bytes .size (1..64), refund_key_hash: hash28])
+vault_continuation_v1 = #6.122([[0*64 hash32]])   ; ids paid (claims, or the one escape id) or [] after Accept
+floor_top_up_v1       = #6.123([])
+
+; ---------------------------------------------------------------------------
+; AssetVaultValidator redeemers. Every vault input of a transaction carries the
+; identical redeemer (V13). Claim fields are the ClaimLeafV1 fields for the
+; vault's one asset: quantity 0 means an empty asset_value.
+; ---------------------------------------------------------------------------
+claim = #6.121([claim_id: hash32, kind: 0..3, quantity: uint, vault_lovelace: uint,
+  recipient: raw_addr, reserved_height: uint, reserved_at_ms: uint])
+exit_claim = #6.121([claim, proof: inclusion_proof])
+
+vault_redeemer =
+    #6.121([claims: [+ claim], shard_index: 0..15])                        ; 0 Settle (NORMAL; V9)
+  / #6.122([exits: [+ exit_claim], status_proof: inclusion_proof,
+            shard_index: 0..15])                                           ; 1 Exit (status ignored in EXIT)
+  / #6.123([exit: exit_claim, status_proof: inclusion_proof,
+            withdrawal_key: bytes, sequence: uint, shard_index: 0..15])     ; 2 SweepExit (SWEEP_UNATTRIBUTED)
+  / #6.124([])                                                             ; 3 AcceptCosigned (NORMAL)
+  / #6.125([proofs: [+ inclusion_proof]])                                  ; 4 AcceptProved, one per vault input
+  / #6.126([proof: absence_proof])                                         ; 5 RefundAbsent (EXIT)
+  / #6.127([proof: inclusion_proof])                                       ; 6 RefundUncredited (EXIT)
+  / #6.1280([holder_id: bytes .size (1..64), holder_key_hash: hash28,
+             amount: uint, vault_lovelace: uint, recipient: raw_addr,
+             proof: inclusion_proof, shard_index: 0..15])                  ; 7 BalanceExit (EXIT)
+
+; SweepExit binds its one spent outpoint: withdrawal_key = CBOR transaction_input
+; [tx_id, index] of that outpoint, and claim_id = ClaimId(domain, vault,
+; SWEEP_UNATTRIBUTED, withdrawal_key, recipient, asset_value, vault_lovelace,
+; sequence), recomputed on chain.
+
+; ---------------------------------------------------------------------------
+; Nullifier shard (AssetShardValidator, one of 16 per vault)
+; ---------------------------------------------------------------------------
+shard_datum_v1 = #6.121([1, shard_index: 0..15, nullifier_root: hash32])   ; empty root = 32 zero bytes
+mpf_step       = any                                   ; Aiken MPF ProofStep (Branch 0 / Fork 1 / Leaf 2)
+insert         = #6.121([id: hash32, proof: [* mpf_step]])
+shard_redeemer = #6.121([inserts: [+ insert]])         ; ids in payment order; value of an id = the id
+; thread token: policy = ShardThreadPolicy(seed), name = h'<shard_index byte>'
+
+; ---------------------------------------------------------------------------
+; Exit-mode thread (ExitModeThreadValidator; token: ExitModeThreadPolicy(seed), name h'')
+; ---------------------------------------------------------------------------
+exit_mode_v1 = #6.121([])                                                  ; NORMAL
+             / #6.122([frozen_root: hash32, frozen_height: uint, frozen_at_ms: uint])  ; EXIT (terminal)
+enter_exit_mode =
+    #6.121([])                                                             ; (a) stale anchor
+  / #6.122([request_id: hash32, absence: absence_proof])                   ; (b) censored request
+  / #6.123([status: inclusion_proof])                                      ; (c) prolonged pause
+
+; ---------------------------------------------------------------------------
+; Forced-withdrawal inbox (ForcedInboxValidator: one script, mint + spend)
+; ---------------------------------------------------------------------------
+forced_withdrawal_v1 = #6.121([account_id: hash28, vault_id: hash32,
+  amount: #6.121([uint .gt 0]) / #6.122([]),            ; exact amount / ALL
+  recipient: raw_addr, requester_key_hash: hash28,
+  posted_at_ms: uint])                                  ; == validity upper bound at mint
+; token name = request_id = blake2b-256("forced\0" || CBOR [tx_id, index]) of the
+; minting transaction's first (smallest) spent input.
+inbox_mint_redeemer  = #6.121([]) / #6.122([])          ; request / burn
+inbox_spend_redeemer = #6.121([proof: inclusion_proof]) ; record forced/<id> under the anchor root
+                     / #6.122([])                       ; exit mode
