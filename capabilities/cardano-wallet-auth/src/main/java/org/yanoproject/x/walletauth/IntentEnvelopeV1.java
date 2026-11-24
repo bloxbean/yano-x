@@ -33,6 +33,7 @@ public record IntentEnvelopeV1(Domain domain, String action, byte[] accountId, A
     public record Domain(long networkMagic, int addressNetworkId, String chainId, Hash32 genesisId,
                          String applicationId) {
         public Domain {
+            if (networkMagic < 0) throw new IllegalArgumentException("network magic must be non-negative");
             if (addressNetworkId < 0 || addressNetworkId > 15) {
                 throw new IllegalArgumentException("address network id is 4 bits");
             }
@@ -136,7 +137,16 @@ public record IntentEnvelopeV1(Domain domain, String action, byte[] accountId, A
     }
 
     private static void requireText(String value, String name) {
-        if (value == null || value.isEmpty() || value.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES) {
+        int length;
+        try {
+            length = value == null ? 0 : StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .encode(java.nio.CharBuffer.wrap(value)).remaining();
+        } catch (java.nio.charset.CharacterCodingException invalid) {
+            throw new IllegalArgumentException(name + " is not valid Unicode text");
+        }
+        if (length == 0 || length > MAX_TEXT_BYTES) {
             throw new IllegalArgumentException(name + " must be 1-64 bytes of UTF-8");
         }
     }

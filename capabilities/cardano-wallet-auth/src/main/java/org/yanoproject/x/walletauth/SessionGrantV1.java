@@ -55,8 +55,25 @@ public record SessionGrantV1(Hash32 grantId, byte[] accountId, byte[] sessionKey
                 || recipients.size() > MAX_LIST) {
             throw new IllegalArgumentException("grant lists are bounded to 16 entries and need an action");
         }
+        if (notAfterMs < 0) throw new IllegalArgumentException("notAfter must be non-negative");
+        java.util.Set<String> seenActions = new java.util.HashSet<>();
+        for (String action : actions) {
+            requireActionText(action);
+            if (!seenActions.add(action)) throw new IllegalArgumentException("duplicate action " + action);
+        }
+        java.util.Set<Hash32> seenVaults = new java.util.HashSet<>();
+        for (Limit limit : limits) {
+            if (!seenVaults.add(limit.vaultId())) {
+                throw new IllegalArgumentException("duplicate limit for vault " + limit.vaultId());
+            }
+        }
         List<byte[]> copied = new ArrayList<>();
-        for (byte[] recipient : recipients) copied.add(recipient.clone());
+        for (byte[] recipient : recipients) {
+            if (recipient == null || recipient.length == 0 || recipient.length > 128) {
+                throw new IllegalArgumentException("recipients must be 1-128 bytes");
+            }
+            copied.add(recipient.clone());
+        }
         recipients = List.copyOf(copied);
         accountId = accountId.clone();
         sessionKey = sessionKey.clone();
@@ -84,6 +101,11 @@ public record SessionGrantV1(Hash32 grantId, byte[] accountId, byte[] sessionKey
         if (amount == null || amount.signum() <= 0 || amount.compareTo(Quantities.MAX_U64) > 0
                 || usedSoFar == null || usedSoFar.signum() < 0) {
             throw new WalletAuthException("payment amount must be a positive u64 and usage non-negative");
+        }
+        if (blockTimeMs < 0) throw new WalletAuthException("block time must be non-negative");
+        if (recipient == null) throw new WalletAuthException("recipient is required");
+        if (WalletAuthorizer.OWNER_ONLY.contains(action)) {
+            throw new WalletAuthException(action + " needs the owner's signature");
         }
         if (blockTimeMs > notAfterMs) throw new WalletAuthException("session expired");
         if (!allows(action)) throw new WalletAuthException("action not granted to the session");
@@ -145,6 +167,29 @@ public record SessionGrantV1(Hash32 grantId, byte[] accountId, byte[] sessionKey
         } catch (IllegalArgumentException invalid) {
             throw new WalletAuthException("invalid session grant: " + invalid.getMessage());
         }
+    }
+
+    private static void requireActionText(String action) {
+        if (action == null || action.isEmpty()) throw new IllegalArgumentException("action must not be empty");
+        try {
+            int length = java.nio.charset.StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .encode(java.nio.CharBuffer.wrap(action)).remaining();
+            if (length > 64) throw new IllegalArgumentException("action longer than 64 bytes");
+        } catch (java.nio.charset.CharacterCodingException invalid) {
+            throw new IllegalArgumentException("action is not valid Unicode text");
+        }
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof SessionGrantV1 that && Arrays.equals(encode(), that.encode());
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(encode());
     }
 
     @Override

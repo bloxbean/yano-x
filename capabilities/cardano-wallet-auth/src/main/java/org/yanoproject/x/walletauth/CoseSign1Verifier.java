@@ -124,7 +124,7 @@ public final class CoseSign1Verifier {
                 throw new WalletAuthException("unexpected protected label " + label);
             }
         }
-        if (!(header.entries().get(LABEL_ALG) instanceof NInt alg) || alg.value().longValue() != ALG_EDDSA) {
+        if (!(header.entries().get(LABEL_ALG) instanceof NInt alg) || !alg.value().equals(BigInteger.valueOf(ALG_EDDSA))) {
             throw new WalletAuthException("alg must be EdDSA (-8)");
         }
         if (!(header.entries().get(LABEL_ADDRESS) instanceof Bytes address)) {
@@ -150,7 +150,7 @@ public final class CoseSign1Verifier {
         if (!(entries.get(1L) instanceof UInt kty) || !kty.value().equals(BigInteger.ONE)) {
             throw new WalletAuthException("kty must be OKP (1)");
         }
-        if (!(entries.get(3L) instanceof NInt alg) || alg.value().longValue() != ALG_EDDSA) {
+        if (!(entries.get(3L) instanceof NInt alg) || !alg.value().equals(BigInteger.valueOf(ALG_EDDSA))) {
             throw new WalletAuthException("key alg must be EdDSA (-8)");
         }
         if (!(entries.get(-1L) instanceof UInt crv) || !crv.value().equals(BigInteger.valueOf(6))) {

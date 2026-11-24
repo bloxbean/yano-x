@@ -272,10 +272,44 @@ class WalletAuthorizerTest {
         byte[] hugeTag = cat(new byte[] {(byte) 0xdb, -1, -1, -1, -1, -1, -1, -1, -1}, alice.signData(payload)[0]);
         assertThatThrownBy(() -> CoseSign1Verifier.verify(hugeTag, alice.signData(payload)[1]))
                 .isInstanceOf(WalletAuthException.class);
+        // alg is compared as an exact integer; a wide (8-byte) negative alg value is rejected.
+        byte[] wideAlgProtected = cat(new byte[] {(byte) 0xa2, 0x01, 0x3b, (byte) 0xff, -1, -1, -1, -1, -1, -1, 0x07, 0x67},
+                "address".getBytes(StandardCharsets.US_ASCII), bstrHead(alice.address().length), alice.address());
+        byte[] wideSig = WalletEd25519.sign(CoseSign1Verifier.sigStructure(wideAlgProtected, payload), alice.seed());
+        byte[] wideSign1 = cat(new byte[] {(byte) 0x84}, bstrHead(wideAlgProtected.length), wideAlgProtected,
+                new byte[] {(byte) 0xa0}, bstrHead(payload.length), payload, bstrHead(64), wideSig);
+        assertThatThrownBy(() -> CoseSign1Verifier.verify(wideSign1, alice.signData(payload)[1]))
+                .hasMessageContaining("alg");
         // The 16 KiB limit applies to the Sign1 and the key together.
         byte[][] ok = alice.signData(payload);
         byte[] paddedKey = java.util.Arrays.copyOf(ok[1], 16_384 - ok[0].length + 1);
         assertThatThrownBy(() -> CoseSign1Verifier.verify(ok[0], paddedKey)).hasMessageContaining("16 KiB");
+    }
+
+    @Test
+    void sessionGrantValidationAndEquality() {
+        byte[] id = WalletAuthorizer.accountId(alice.credential());
+        Hash32 vault = Hash32.of(new byte[32]);
+        SessionGrantV1 grant = new SessionGrantV1(Hash32.of(new byte[32]), id, new byte[32], List.of("TRANSFER"),
+                List.of(new SessionGrantV1.Limit(vault, BigInteger.ONE, BigInteger.TEN)), List.of(), NOW);
+        assertThat(SessionGrantV1.decode(grant.encode())).isEqualTo(grant).hasSameHashCodeAs(grant);
+        var limit = new SessionGrantV1.Limit(vault, BigInteger.ONE, BigInteger.TEN);
+        assertThatThrownBy(() -> new SessionGrantV1(Hash32.of(new byte[32]), id, new byte[32], List.of("TRANSFER"),
+                List.of(limit, limit), List.of(), NOW)).hasMessageContaining("duplicate limit");
+        assertThatThrownBy(() -> new SessionGrantV1(Hash32.of(new byte[32]), id, new byte[32], List.of("TRANSFER", "TRANSFER"),
+                List.of(), List.of(), NOW)).hasMessageContaining("duplicate action");
+        assertThatThrownBy(() -> new SessionGrantV1(Hash32.of(new byte[32]), id, new byte[32], List.of(""),
+                List.of(), List.of(), NOW)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new SessionGrantV1(Hash32.of(new byte[32]), id, new byte[32], List.of("TRANSFER"),
+                List.of(), List.of(), -1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> grant.checkPayment("TRANSFER", vault, BigInteger.ONE, BigInteger.ZERO, null, NOW))
+                .hasMessageContaining("recipient");
+        assertThatThrownBy(() -> grant.checkPayment("TRANSFER", vault, BigInteger.ONE, BigInteger.ZERO, new byte[] {1}, -1))
+                .hasMessageContaining("block time");
+        assertThatThrownBy(() -> new IntentEnvelopeV1.Domain(-1, 0, "c", Hash32.of(new byte[32]), "a"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new IntentEnvelopeV1.Domain(1, 0, "\uD800", Hash32.of(new byte[32]), "a"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     static byte[] bstrHead(int length) {
