@@ -108,7 +108,7 @@ class MpfProofConverterTest {
     void aikenCanonicalLeafAndForkStepsNormalizeForPresentAndMissingKeys() {
         Set<Long> inclusionSteps = new HashSet<>();
         Set<Long> absenceEnds = new HashSet<>();
-        int unsupportedAbsences = 0;
+        int branchAbsences = 0;
         for (int size : new int[] {1, 2, 3, 30, 300}) {
             MpfTrie trie = new MpfTrie(new MapNodeStore());
             List<byte[]> keys = new ArrayList<>();
@@ -133,25 +133,53 @@ class MpfProofConverterTest {
                 AppChainClient.Proof wire = proof(trie, root, key, null);
                 List<Long> steps = stepTags(wire);
                 absenceEnds.add(steps.getLast());
-                if (steps.getLast() == 122L) {
-                    assertThatThrownBy(() -> MpfProofConverter.convertAbsence(wire))
-                            .isInstanceOf(IllegalArgumentException.class)
-                            .hasMessageContaining("leave a branch prefix");
-                    unsupportedAbsences++;
-                    continue;
-                }
 
+                // Every absent key is provable, including one whose path leaves a branch's prefix (a final Fork).
                 MpfNormalizedNonMembershipProof converted = MpfProofConverter.convertAbsence(wire);
 
                 assertThat(converted.verify()).isTrue();
                 assertThat(converted.stateRoot()).isEqualTo(root);
                 assertThat(converted.conflictingLeaf()).isEqualTo(steps.getLast() == 123L);
+                assertThat(converted.conflictingBranch()).isEqualTo(steps.getLast() == 122L);
+                if (converted.conflictingBranch()) {
+                    branchAbsences++;
+                }
             }
         }
         // Every step shape occurs, so the conversions above covered Leaf and Fork steps mid-path.
         assertThat(inclusionSteps).containsExactlyInAnyOrder(121L, 122L, 123L);
-        assertThat(absenceEnds).contains(121L, 123L);
-        assertThat(unsupportedAbsences).isLessThan(500);
+        assertThat(absenceEnds).containsExactlyInAnyOrder(121L, 122L, 123L);
+        assertThat(branchAbsences).isPositive();
+    }
+
+    /**
+     * A present key's own leaf, named through a "conflicting" key hash that differs from the key's hash only above the
+     * leaf (where nothing authenticates it), and a present key's branch read as a conflicting branch, never prove the
+     * key absent.
+     */
+    @Test
+    void aPresentKeyIsNeverProvedAbsentByItsOwnLeafOrBranch() {
+        MpfTrie trie = new MpfTrie(new MapNodeStore());
+        for (int i = 0; i < 300; i++) {
+            byte[] key = ("entry-" + i).getBytes(StandardCharsets.US_ASCII);
+            trie.put(key, key);
+        }
+        byte[] root = trie.getRootHash();
+        for (int i = 0; i < 300; i += 37) {
+            byte[] key = ("entry-" + i).getBytes(StandardCharsets.US_ASCII);
+            MpfNormalizedProof present = MpfProofConverter.convert(proof(trie, root, key, key));
+            byte[] keyHash = com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash256(key);
+            int cursor = MpfNormalizedProof.PATH_NIBBLES - (present.leafSuffix()[0] == 0
+                    ? 1 + (present.leafSuffix().length - 2) * 2 : (present.leafSuffix().length - 1) * 2);
+            for (int flip = 0; flip < cursor; flip++) {
+                byte[] forged = keyHash.clone();
+                forged[flip / 2] ^= (byte) (flip % 2 == 0 ? 0x10 : 0x01);
+                MpfNormalizedNonMembershipProof claim = new MpfNormalizedNonMembershipProof(root, key, cursor,
+                        present.leafSuffix(), forged,
+                        com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash256(key), present.folds(), 42);
+                assertThat(claim.verify()).as("key %d, flipped nibble %d", i, flip).isFalse();
+            }
+        }
     }
 
     private static List<Long> stepTags(AppChainClient.Proof proof) {

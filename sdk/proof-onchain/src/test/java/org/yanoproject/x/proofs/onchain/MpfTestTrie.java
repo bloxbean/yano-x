@@ -31,6 +31,15 @@ final class MpfTestTrie {
         return result;
     }
 
+    /** Exactly {@code keys}, each holding its own key bytes as value. */
+    static MpfTestTrie ofKeys(List<byte[]> keys) {
+        MpfTestTrie result = new MpfTestTrie();
+        for (byte[] key : keys) {
+            result.trie.put(key, key);
+        }
+        return result;
+    }
+
     static byte[] key(String prefix, int index) {
         return (prefix + index).getBytes(StandardCharsets.US_ASCII);
     }
@@ -47,11 +56,23 @@ final class MpfTestTrie {
         return MpfProofConverter.convertAbsence(wire(key, null));
     }
 
-    /** The first absent {@code <prefix>i} whose path ends at a conflicting leaf, or at an empty branch slot. */
+    /** The terminal an absence proof ends at. */
+    enum Terminal { EMPTY_SLOT, CONFLICTING_LEAF, CONFLICTING_BRANCH }
+
+    static Terminal terminal(MpfNormalizedNonMembershipProof proof) {
+        return proof.conflictingLeaf() ? Terminal.CONFLICTING_LEAF
+                : proof.conflictingBranch() ? Terminal.CONFLICTING_BRANCH : Terminal.EMPTY_SLOT;
+    }
+
+    /** The first absent {@code <prefix>i} whose proof ends at a conflicting leaf, or at an empty branch slot. */
     MpfNormalizedNonMembershipProof firstAbsence(String prefix, boolean conflictingLeaf) {
+        return firstAbsence(prefix, conflictingLeaf ? Terminal.CONFLICTING_LEAF : Terminal.EMPTY_SLOT);
+    }
+
+    MpfNormalizedNonMembershipProof firstAbsence(String prefix, Terminal terminal) {
         for (int i = 0; ; i++) {
             MpfNormalizedNonMembershipProof proof = absence(key(prefix, i));
-            if (proof.conflictingLeaf() == conflictingLeaf) {
+            if (terminal(proof) == terminal) {
                 return proof;
             }
         }
@@ -105,6 +126,28 @@ final class MpfTestTrie {
                     PlutusData.bytes(i == foldIndex ? branchValueHash : fold.branchValueHash()));
         }
         return PlutusData.list(result);
+    }
+
+    /**
+     * The 16-child merkle root of the branch an inclusion proof passes through at fold {@code foldIndex} (leaf
+     * first): the node at that fold's cursor is {@code blake2b-256(prefix ‖ merkle)}.
+     */
+    static byte[] branchMerkle(MpfNormalizedProof proof, int foldIndex) {
+        byte[] child = hash(proof.leafSuffix(), Blake2bUtil.blake2bHash256(proof.value()));
+        byte[] merkle = null;
+        for (int i = 0; i <= foldIndex; i++) {
+            MpfNormalizedProof.FoldStep fold = proof.folds().get(i);
+            merkle = child;
+            for (int level = 0; level < 4; level++) {
+                byte[] sibling = fold.neighbors().get(3 - level);
+                merkle = ((fold.nibble() >> level) & 1) == 0 ? hash(merkle, sibling) : hash(sibling, merkle);
+            }
+            if (fold.branchValueHash().length == 32) {
+                merkle = hash(merkle, hash(new byte[] {(byte) 0xff}, fold.branchValueHash()));
+            }
+            child = hash(fold.prefix(), merkle);
+        }
+        return merkle;
     }
 
     /** Fold the proof to its root, committing {@code branchValueHash} at fold {@code foldIndex} (-1 for none). */

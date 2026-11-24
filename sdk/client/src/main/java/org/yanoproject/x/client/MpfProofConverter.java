@@ -220,11 +220,32 @@ public final class MpfProofConverter {
             long kind = tag(step);
             boolean terminal = index == steps.getDataItems().size() - 1;
             // The proof is the one the key would have once inserted. A final Leaf is the leaf that holds the
-            // key's place today; a final Fork would be a branch whose prefix the key leaves, which the normalized
-            // form cannot express.
+            // key's place today. A final Fork is the branch that holds it today: the key's path leaves that
+            // branch's compressed prefix, which is the shared skip, the neighbor's nibble and the neighbor's prefix.
             if (kind == TAG_FORK && terminal) {
-                throw new IllegalArgumentException(
-                        "MPF absence proofs that leave a branch prefix are not supported");
+                if (step.getDataItems().size() != 2
+                        || !(step.getDataItems().get(1) instanceof Array neighbor)
+                        || tag(neighbor) != TAG_BRANCH || neighbor.getDataItems().size() != 3) {
+                    throw new IllegalArgumentException("MPF conflicting fork step has the wrong shape");
+                }
+                int skip = uint(step, 0, "conflicting fork skip");
+                int neighborNibble = uint(neighbor, 0, "conflicting fork nibble");
+                byte[] neighborPrefix = bytes(neighbor.getDataItems().get(1), "conflicting fork prefix");
+                requireNibbles(neighborPrefix, "conflicting fork prefix");
+                byte[] merkle = exact(bytes(neighbor.getDataItems().get(2), "conflicting fork root"),
+                        32, "conflicting fork root");
+                int prefixLength = Math.addExact(Math.addExact(skip, 1), neighborPrefix.length);
+                if (neighborNibble > 15 || Math.addExact(cursor, prefixLength) >= MpfNormalizedProof.PATH_NIBBLES
+                        || neighborNibble == path[cursor + skip]) {
+                    throw new IllegalArgumentException("MPF conflicting fork does not leave the key's path");
+                }
+                byte[] prefix = new byte[prefixLength];
+                System.arraycopy(path, cursor, prefix, 0, skip);
+                prefix[skip] = (byte) neighborNibble;
+                System.arraycopy(neighborPrefix, 0, prefix, skip + 1, neighborPrefix.length);
+                conflictingSuffix = prefix;
+                conflictingValueHash = merkle;
+                break;
             }
             if (kind == TAG_LEAF && terminal) {
                 if (step.getDataItems().size() != 3) {

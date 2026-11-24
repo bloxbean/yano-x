@@ -9,10 +9,11 @@ import java.math.BigInteger;
 /**
  * Bounded MPF inclusion and exclusion verifiers reusable by application validators.
  *
- * <p>{@link #verifyAbsence} is the exclusion check lifted unchanged from
- * {@code MpfPairOnChainVerifier}'s private helper (ADR-059 §7 framework addition 9). Its
- * {@link AbsenceProof} has the same seven-field layout as {@code MpfPairOnChainVerifier.Proof}, so
- * one off-chain encoder serves both.
+ * <p>{@link #verifyAbsence} is the exclusion check of ADR-059 §7 framework addition 9. Its {@link AbsenceProof} has
+ * the same seven-field layout as {@code MpfPairOnChainVerifier.Proof}, so one off-chain encoder
+ * ({@code MpfNormalizedNonMembershipProof}) serves both. It accepts three terminals, which together cover every absent
+ * key: an empty branch slot, a different leaf, and (unlike the pair verifier) a branch whose compressed prefix leaves
+ * the key's path.
  */
 @OnchainLibrary
 public final class MpfOnChainVerifier {
@@ -42,10 +43,17 @@ public final class MpfOnChainVerifier {
     }
 
     /**
-     * An exclusion proof of {@code key}. {@code value} is unused and should be empty. An empty
-     * {@code leafSuffix} means the path ends at an empty branch slot; otherwise it ends at a
-     * different leaf, whose key hash and value hash are given. {@code terminalCursor} is the path
-     * depth, in nibbles, at which the folds start.
+     * An exclusion proof of {@code key}; {@code value} is unused and should be empty. {@code terminalCursor} is the
+     * path depth, in nibbles, of the terminal node, where the folds start. The terminal is one of:
+     * <ul>
+     *   <li><b>an empty branch slot</b>: {@code leafSuffix}, {@code conflictingKeyHash} and
+     *       {@code conflictingValueHash} are all empty;</li>
+     *   <li><b>a different leaf</b>: {@code conflictingKeyHash} (32 bytes) names it, {@code leafSuffix} is its encoded
+     *       suffix at {@code terminalCursor} and {@code conflictingValueHash} its value hash;</li>
+     *   <li><b>a branch whose prefix leaves the path</b>: {@code conflictingKeyHash} is empty, {@code leafSuffix} holds
+     *       the branch's compressed prefix as one nibble per byte, and {@code conflictingValueHash} is the branch's
+     *       16-child merkle root, so the node is {@code blake2b-256(prefix ‖ merkle)} as in an inclusion fold.</li>
+     * </ul>
      */
     public record AbsenceProof(
             byte[] key,
@@ -61,10 +69,24 @@ public final class MpfOnChainVerifier {
     private MpfOnChainVerifier() {
     }
 
-    /** True when {@code proof.key()} is absent from the mpf-blake2b256-v1 trie with root {@code expectedRoot}. */
+    /**
+     * True when {@code proof.key()} is absent from the mpf-blake2b256-v1 trie with root {@code expectedRoot}.
+     *
+     * <p>The folds authenticate the terminal node at depth {@code terminalCursor} on the key's own path. The key is
+     * absent when that node is an empty slot, or a leaf whose authenticated suffix differs from the key's own suffix
+     * encoding at that depth (the conflicting key hash only has to produce that suffix; its prefix is not
+     * authenticated, so it is never compared), or a branch whose authenticated prefix differs from the key's path in
+     * at least one nibble and ends above the leaf level.
+     *
+     * <p>A node's hash does not say whether it is a leaf or a branch. Reading a real leaf as a branch, or a real
+     * branch as a leaf, needs about {@code (63 - depth) / 2} bytes of a key hash (or of a branch prefix) to be below
+     * 16, which is infeasible to grind at any reachable depth.
+     */
     public static boolean verifyAbsence(AbsenceProof proof, byte[] expectedRoot) {
         long keyLength = Builtins.lengthOfByteString(proof.key());
         long suffixLength = Builtins.lengthOfByteString(proof.leafSuffix());
+        long keyHashLength = Builtins.lengthOfByteString(proof.conflictingKeyHash());
+        long valueHashLength = Builtins.lengthOfByteString(proof.conflictingValueHash());
         long cursorEnd = proof.terminalCursor().longValue();
         if (Builtins.lengthOfByteString(expectedRoot) != 32
                 || keyLength < 1 || keyLength > MAX_KEY_BYTES
@@ -72,24 +94,36 @@ public final class MpfOnChainVerifier {
                 || proof.folds().size() > MAX_FOLDS) return false;
         byte[] queryPath = Builtins.blake2b_256(proof.key());
         boolean missing = suffixLength == 0;
-        if (missing) {
-            if (Builtins.lengthOfByteString(proof.conflictingKeyHash()) != 0
-                    || Builtins.lengthOfByteString(proof.conflictingValueHash()) != 0) return false;
-        } else {
-            if (suffixLength > 33
-                    || Builtins.lengthOfByteString(proof.conflictingKeyHash()) != 32
-                    || Builtins.lengthOfByteString(proof.conflictingValueHash()) != 32
-                    || Builtins.equalsByteString(queryPath, proof.conflictingKeyHash())
-                    || !validLeafSuffix(proof.conflictingKeyHash(), cursorEnd,
-                    proof.leafSuffix())) return false;
-        }
+        boolean terminalValid = missing
+                ? keyHashLength == 0 && valueHashLength == 0
+                : valueHashLength == 32
+                && (keyHashLength == 0
+                ? cursorEnd + suffixLength < PATH_NIBBLES
+                && divergentPrefix(queryPath, cursorEnd, proof.leafSuffix(), 0, false)
+                : keyHashLength == 32 && suffixLength <= 33
+                && validLeafSuffix(proof.conflictingKeyHash(), cursorEnd, proof.leafSuffix())
+                && !validLeafSuffix(queryPath, cursorEnd, proof.leafSuffix()));
         byte[] child = missing ? new byte[]{0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0}
                 : hash(proof.leafSuffix(), proof.conflictingValueHash());
-        return Builtins.equalsByteString(expectedRoot,
+        return terminalValid && Builtins.equalsByteString(expectedRoot,
                 foldAbsence(queryPath, child, cursorEnd, proof.folds()));
+    }
+
+    /**
+     * True when every byte of {@code prefix} is a nibble and at least one differs from the path nibble at
+     * {@code cursor + index}. The caller has bounded {@code cursor + length(prefix)} below the path length.
+     */
+    private static boolean divergentPrefix(byte[] pathHash, long cursor, byte[] prefix, long index,
+                                           boolean diverged) {
+        if (index == Builtins.lengthOfByteString(prefix)) {
+            return diverged;
+        }
+        long nibble = Builtins.indexByteString(prefix, index);
+        return nibble <= 15 && divergentPrefix(pathHash, cursor, prefix, index + 1,
+                diverged || nibble != pathNibble(pathHash, cursor + index));
     }
 
     /**
