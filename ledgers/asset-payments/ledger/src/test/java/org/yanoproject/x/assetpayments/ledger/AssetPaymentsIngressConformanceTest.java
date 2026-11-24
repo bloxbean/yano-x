@@ -116,7 +116,8 @@ class AssetPaymentsIngressConformanceTest {
                 owner(bob, AssetPaymentsContract.TRANSFER, transfer(EURC, alice, 2))));
         // Rescan: the whole first L1 block is delivered again, then again with the second block.
         script.put(4L, first.subList(0, 4).stream().map(AssetPaymentsIngressConformanceTest::l1).toList());
-        script.put(5L, List.of(l1(first.get(4)), l1(second.getFirst()), l1(first.get(0)), l1(first.get(1))));
+        // Height 5 also carries the second block's deposit twice: staged reads make the second a no-op.
+        script.put(5L, List.of(l1(first.get(4)), l1(second.getFirst()), l1(second.getFirst()), l1(first.get(1))));
         script.put(6L, List.of(l1(second.getFirst())));
 
         AssetAccounts keys = PaymentsHarness.KEYS;
