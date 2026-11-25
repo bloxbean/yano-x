@@ -340,7 +340,7 @@ class ScriptAnchorProfileTest {
         // (4 000) is not co-signed, so it cannot be stockpiled to refresh the anchor later.
         long weekAhead = 4_000 + 7 * 86_400;
         deliverRequest(probe, window(beatFixture, weekAhead, weekAhead + 600), beatFixture);
-        assertHazard(probe, witnesses, 1, "after my L1 tip");
+        assertTipBound(probe, witnesses, 1, "after my L1 tip");
 
         // The heartbeat is journaled without an anchored-range event, on both nodes.
         String heartbeatHash = txHash(submitted.get(2));
@@ -462,13 +462,13 @@ class ScriptAnchorProfileTest {
         deliverRequest(probe, window(fixture, 800, 1_100), fixture); // tip + 300 000 ms
         assertThat(witnesses).hasValue(2);
 
-        // A window a week ahead of the member's tip: a typed hazard.
+        // A window a week ahead of the member's tip: refused against the tip bound.
         long weekAhead = 500 + 7 * 86_400;
         deliverRequest(probe, window(fixture, weekAhead, weekAhead + 600), fixture);
-        assertHazard(probe, witnesses, 2, "after my L1 tip");
+        assertTipBound(probe, witnesses, 2, "after my L1 tip");
         // Just past the start bound.
         deliverRequest(probe, window(fixture, 801, 1_100), fixture);
-        assertHazard(probe, witnesses, 2, "after my L1 tip");
+        assertTipBound(probe, witnesses, 2, "after my L1 tip");
         // An empty window (ttl == start).
         deliverRequest(probe, window(fixture, 1_100, 1_100), fixture);
         assertHazard(probe, witnesses, 2, "non-empty");
@@ -480,7 +480,7 @@ class ScriptAnchorProfileTest {
         // No local L1 tip at all: nothing to bound the window by, so fail closed.
         l1Slot.set(0);
         deliverRequest(probe, fixture.advance().getBody(), fixture);
-        assertHazard(probe, witnesses, 2, "no local L1 tip");
+        assertTipBound(probe, witnesses, 2, "no local L1 tip");
 
         // Back at the leader's tip the honest body is accepted again.
         l1Slot.set(500);
@@ -497,6 +497,14 @@ class ScriptAnchorProfileTest {
         AnchorDatumCodec.AnchorDatum datum = AnchorDatumCodec.decode(out.getInlineDatum().serializeToBytes());
         out.setInlineDatum(AnchorDatumCodec.encode(datum.withUpdatedAtMs(SLOT_TIME.toPosixMs(ttlSlot))));
         return body;
+    }
+
+    private static void assertTipBound(ScriptAnchorService probe, AtomicInteger witnesses, int expected,
+                                       String detail) {
+        assertThat(witnesses).hasValue(expected);
+        assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "l1-tip-bound");
+        assertThat((String) probe.status().get("lastCosignRefusal")).contains(detail);
+        assertThat((String) probe.status().get("lastError")).contains("L1 view is behind");
     }
 
     private static void assertHazard(ScriptAnchorService probe, AtomicInteger witnesses, int expected,

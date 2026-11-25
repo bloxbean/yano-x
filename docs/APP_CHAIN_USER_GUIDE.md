@@ -581,8 +581,12 @@ filtered out; on any member with the filter on, anchor status carries
 leader's wallet address. Storage filters registered by plugins are not visible to
 this check; they must admit the same outputs. Anchor status reports the last
 refused co-sign as `lastCosignRefusalKind` — `unresolvable-input` (the member's
-view lacks an input: a lagging or filtered view) or `hazard` (the body itself is
-unsafe) — with `lastCosignRefusal` and `lastError` giving the detail.
+view lacks an input: a lagging or filtered view), `hazard` (the body itself is
+unsafe) or, on anchor profile v2, `l1-tip-bound`. `l1-tip-bound` means the body's validity
+window is not bounded by the member's own L1 tip: there is no tip, or the window opens
+too far after it. The member cannot tell a lagging L1 view of its own from a
+future-dated body, so check the member's L1 sync before suspecting the leader.
+`lastCosignRefusal` and `lastError` give the detail.
 
 #### Anchor profile: v2, pinned identity, membership handoff (opt-in)
 

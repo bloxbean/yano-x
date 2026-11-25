@@ -1366,15 +1366,15 @@ final class ScriptAnchorService {
         long tipMs;
         try {
             if (tipPoint == null || tipPoint.slot() <= 0) {
-                return BodyRefusal.hazard("no local L1 tip to bound the validity window by");
+                return BodyRefusal.tipBound("no local L1 tip to bound the validity window by");
             }
             tipMs = profile.slotTime().toPosixMs(tipPoint.slot());
         } catch (RuntimeException outOfRange) {
-            return BodyRefusal.hazard("the local L1 tip precedes the slot-time origin");
+            return BodyRefusal.tipBound("the local L1 tip precedes the slot-time origin");
         }
         long maxStartSkewMs = Math.min(profile.maxWindowMs(), MAX_FUTURE_START_SKEW_MS);
         if (lowerMs > tipMs + maxStartSkewMs) {
-            return BodyRefusal.hazard("validity window starts " + (lowerMs - tipMs)
+            return BodyRefusal.tipBound("validity window starts " + (lowerMs - tipMs)
                     + " ms after my L1 tip (at most " + maxStartSkewMs + ")");
         }
         if (upperMs <= tipMs) {
@@ -1460,12 +1460,16 @@ final class ScriptAnchorService {
     /**
      * Why a co-sign body was refused (review P2-1). {@link Kind#UNRESOLVED_INPUT} means this
      * node's UTxO view lacks an input (a lagging or filtered view: an availability problem);
-     * {@link Kind#HAZARD} means the body itself is unsafe to sign. Both fail closed.
+     * {@link Kind#HAZARD} means the body itself is unsafe to sign; {@link Kind#L1_TIP_BOUND}
+     * (review M4-F2) means the body's v2 validity window is not bounded by this node's own L1 tip
+     * (no tip, or the window opens too far after it). This node cannot tell a lagging L1 view of
+     * its own from a future-dated body, so the label names both. All fail closed.
      */
     record BodyRefusal(Kind kind, String detail) {
         enum Kind {
             UNRESOLVED_INPUT("unresolvable-input"),
-            HAZARD("hazard");
+            HAZARD("hazard"),
+            L1_TIP_BOUND("l1-tip-bound");
 
             private final String label;
 
@@ -1484,6 +1488,10 @@ final class ScriptAnchorService {
 
         static BodyRefusal hazard(String detail) {
             return new BodyRefusal(Kind.HAZARD, detail);
+        }
+
+        static BodyRefusal tipBound(String detail) {
+            return new BodyRefusal(Kind.L1_TIP_BOUND, detail);
         }
     }
 
@@ -1504,6 +1512,9 @@ final class ScriptAnchorService {
         if (refusal.kind() == BodyRefusal.Kind.UNRESOLVED_INPUT) {
             lastError = COSIGN_REFUSED + "unresolvable input — " + refusal.detail()
                     + " (this member's UTxO view must hold every input of the leader's body)";
+        } else if (refusal.kind() == BodyRefusal.Kind.L1_TIP_BOUND) {
+            lastError = COSIGN_REFUSED + "validity window not bounded by my L1 tip — " + refusal.detail()
+                    + " (either this member's L1 view is behind, or the body is future-dated)";
         } else {
             lastError = COSIGN_REFUSED + "body hazard — " + refusal.detail();
         }
