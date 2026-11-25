@@ -24,6 +24,11 @@
       "kind": "l1-observer",
       "name": "asset-shard-bootstrap-v1",
       "provider": "org.yanoproject.x.assets.cardano.gateway.AssetShardBootstrapObserverProvider"
+    },
+    {
+      "kind": "membership-handoff-gate",
+      "name": "asset-anchor-handoff-v1",
+      "provider": "org.yanoproject.x.assets.cardano.gateway.AnchorHandoffGateProvider"
     }
   ]
 }

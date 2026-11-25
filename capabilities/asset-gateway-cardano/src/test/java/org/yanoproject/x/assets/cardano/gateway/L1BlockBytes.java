@@ -54,6 +54,16 @@ final class L1BlockBytes {
         return encode(envelope);
     }
 
+    /** One full transaction, {@code [body, witnesses, true, null]}, as a block producer takes it. */
+    static byte[] transaction(Tx tx) {
+        Array transaction = new Array();
+        transaction.add(body(tx));
+        transaction.add(witnesses(tx));
+        transaction.add(co.nstant.in.cbor.model.SimpleValue.TRUE);
+        transaction.add(co.nstant.in.cbor.model.SimpleValue.NULL);
+        return encode(transaction);
+    }
+
     static Block parse(byte[] bytes) {
         return BlockSerializer.INSTANCE.deserialize(bytes);
     }

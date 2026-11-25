@@ -31,6 +31,15 @@ dependencies {
     testImplementation libs.assertj.core
 }
 
+// The membership-handoff-gate seam: the bundle's real manifest through the host's catalog parser, registry,
+// kind binding and facade, selected by a running app chain (ADR-059 D8b, framework addition 4).
+dependencies {
+    integrationTestImplementation rootProject.ext.yanoModule('yano-runtime')
+    integrationTestImplementation project(':framework:cardano')
+    integrationTestImplementation sourceSets.test.output
+}
+tasks.named('check') { dependsOn tasks.named('integrationTest') }
+
 java {
     sourceCompatibility = 25
     targetCompatibility = 25
@@ -95,7 +104,8 @@ tasks.register('verifyAssetGatewayCardanoArtifactBoundaries') {
         def contractClass = 'org/yanoproject/x/assets/contracts/AssetDepositClaimV1.class'
         def supportClass = 'org/yanoproject/x/assets/cardano/support/DatumPreflight.class'
         def providerClasses = ['AssetVaultDepositObserverProvider', 'AssetVaultPayoutObserverProvider',
-                               'AssetAnchorObserverProvider', 'AssetShardBootstrapObserverProvider'].collect {
+                               'AssetAnchorObserverProvider', 'AssetShardBootstrapObserverProvider',
+                               'AnchorHandoffGateProvider'].collect {
             "org/yanoproject/x/assets/cardano/gateway/${it}.class".toString()
         }
         if (thinEntries.contains(contractClass) || !bundleEntries.contains(contractClass)
@@ -103,7 +113,8 @@ tasks.register('verifyAssetGatewayCardanoArtifactBoundaries') {
                 || providerClasses.any { !thinEntries.contains(it) || !bundleEntries.contains(it) }) {
             throw new GradleException('Asset-gateway thin/bundle class boundary is incomplete')
         }
-        def services = ['META-INF/services/org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider']
+        def services = ['META-INF/services/org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider',
+                        'META-INF/services/org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider']
         if (!services.every { bundleEntries.contains(it) }) {
             throw new GradleException('Asset-gateway bundle service registrations are missing')
         }
@@ -142,7 +153,7 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Yano X Asset Gateway Cardano'
-                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers (ADR-059 D5, D8b, D8c, D10)'
+                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers and the anchor handoff gate (ADR-059 D5, D8b, D8c, D10)'
             }
         }
     }
