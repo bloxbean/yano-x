@@ -43,6 +43,27 @@ class CardanoAddressesTest {
         assertThat(CardanoAddresses.nonCanonicalPointer(hex("60" + KEY))).isFalse();
     }
 
+    /** C1: the Conway pointer limits, slot < 2^32 and transaction and certificate index < 2^16, on both sides. */
+    @Test
+    void pointerComponentsAreBoundedByTheConwayLimits() {
+        String prefix = "40" + "01".repeat(28);
+        // slot 2^32 - 1 = 8f ff ff ff 7f, 2^32 = 90 80 80 80 00; index 2^16 - 1 = 83 ff 7f, 2^16 = 84 80 00.
+        assertThat(CardanoAddresses.payableRecipient(hex(prefix + "8fffffff7f" + "00" + "00"), 0)).isTrue();
+        assertThat(CardanoAddresses.payableRecipient(hex(prefix + "9080808000" + "00" + "00"), 0)).isFalse();
+        assertThat(CardanoAddresses.payableRecipient(hex(prefix + "00" + "83ff7f" + "83ff7f"), 0)).isTrue();
+        // The review's example: slot 0, txIx 65536, certIx 0.
+        assertThat(CardanoAddresses.payableRecipient(hex(prefix + "00" + "848000" + "00"), 0)).isFalse();
+        assertThat(CardanoAddresses.payableRecipient(hex(prefix + "00" + "00" + "848000"), 0)).isFalse();
+        assertThat(CardanoAddresses.nonCanonicalPointer(hex(prefix + "00848000" + "00"))).isTrue();
+        // The same limit applies to a refund address, so such a deposit is malformed.
+        assertThatThrownBy(() -> new DepositDatumV1(hex(ACCOUNT), hex(prefix + "0084800000"), hex(KEY)))
+                .isInstanceOf(IllegalArgumentException.class);
+        byte[] datum = hex("d87983581c" + ACCOUNT + "5822" + prefix + "0084800000" + "581c" + KEY);
+        assertThat(VaultOutputShape.classify(datum)).isEqualTo(VaultOutputShape.DEPOSIT);
+        assertThatThrownBy(() -> DepositDatumV1.decode(datum)).isInstanceOf(IllegalArgumentException.class);
+        new DepositDatumV1(hex(ACCOUNT), hex(prefix + "0083ff7f00"), hex(KEY));
+    }
+
     @Test
     void aDepositDatumWithANonCanonicalPointerRefundAddressIsMalformed() {
         byte[] padded = hex("40" + KEY + "80000000");

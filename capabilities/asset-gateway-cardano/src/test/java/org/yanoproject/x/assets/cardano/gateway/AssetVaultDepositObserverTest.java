@@ -218,6 +218,32 @@ class AssetVaultDepositObserverTest {
         assertThat(record.reason()).isEqualTo(DepositAdmission.Reason.UNREGISTERED_ASSET);
     }
 
+    /**
+     * C1/B7: a deposit whose refund address is a pointer the vault script could never pay (a padded natural, or a
+     * transaction index of 2^16, beyond Conway's limit) is a malformed deposit: recorded, never credited.
+     */
+    @Test
+    void aDepositWithAnUnpayablePointerRefundAddressIsMalformed() {
+        String key = "1c".repeat(28);
+        String account = "a1".repeat(28);
+        Ledger ledger = new Ledger();
+        List<L1Observation> observations = observe(block(List.of(), tx(0x15,
+                output(USDM_VAULT, HexFormat.of().parseHex("d87983581c" + account + "5822" + "40" + "01".repeat(28)
+                        + "0084800000" + "581c" + key), lovelace(1_500_000), token(USDM, 1)),
+                output(USDM_VAULT, HexFormat.of().parseHex("d87983581c" + account + "5821" + "40" + "01".repeat(28)
+                        + "80000000" + "581c" + key), lovelace(1_500_000), token(USDM, 1)))));
+        assertThat(observations).hasSize(2);
+        for (L1Observation observation : observations) {
+            assertThat(claim(observation).shape()).isEqualTo(VaultOutputShape.DEPOSIT);
+            assertThat(claim(observation).beneficiary()).isEqualTo(
+                    new AssetDepositClaimV1.Malformed(AssetDepositClaimV1.MalformedReason.DATUM_UNDECODABLE));
+        }
+        assertThat(ledger.apply(observations)).allSatisfy(outcome -> {
+            assertThat(outcome.credit()).isEmpty();
+            assertThat(outcome.record().orElseThrow().reason()).isEqualTo(DepositAdmission.Reason.DATUM_MALFORMED);
+        });
+    }
+
     @Test
     void a4MalformedOrOversizedDatumsAreRecordedNeverCreditedAndNeverThrow() {
         byte[] oversized = new byte[20_000];

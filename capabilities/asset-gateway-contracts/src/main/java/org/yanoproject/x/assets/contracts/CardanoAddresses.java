@@ -6,13 +6,18 @@ package org.yanoproject.x.assets.contracts;
  * <p>The vault script never decodes an address: it rebuilds the raw bytes of a payout's Plutus address and compares
  * them with the claim's recipient. For a pointer address it writes slot, transaction index and certificate index as
  * CIP-19 variable-length naturals in their shortest form, so a pointer address with a padded natural (a leading
- * {@code 0x80} digit) or trailing bytes is never payable. The ledger therefore rejects such a recipient at
+ * {@code 0x80} digit) or trailing bytes is never payable. A pointer is also canonical only within the Conway ledger's
+ * component limits (slot below 2^32, transaction and certificate index below 2^16): outside them the ledger cannot
+ * pay it. The ledger therefore rejects such a recipient at
  * reservation ({@link #payableRecipient}), deposit admission treats such a refund address as a malformed datum
  * ({@link DepositDatumV1}), and builders emit only the canonical form.
  */
 public final class CardanoAddresses {
     private static final int HASH_BYTES = 28;
     private static final int MAX_NATURAL_BYTES = 9;
+    /** Conway pointer limits: slot below 2^32, transaction and certificate index below 2^16. */
+    private static final long MAX_SLOT = 1L << 32;
+    private static final long MAX_INDEX = 1L << 16;
 
     private CardanoAddresses() {
     }
@@ -41,15 +46,25 @@ public final class CardanoAddresses {
         };
     }
 
-    /** Header, a 28-byte payment hash, then exactly three shortest-form variable-length naturals. */
+    /**
+     * Header, a 28-byte payment hash, then exactly three shortest-form variable-length naturals within the Conway
+     * ledger's pointer limits (cardano-ledger {@code Address.hs}): slot below 2^32, transaction index and
+     * certificate index below 2^16. A pointer outside them is never produced by the ledger as a payable address.
+     */
     private static boolean canonicalPointer(byte[] raw) {
         int position = 1 + HASH_BYTES;
         for (int natural = 0; natural < 3; natural++) {
             int start = position;
             if (position >= raw.length || (raw[position] & 0xff) == 0x80) return false;
-            while (position < raw.length && (raw[position] & 0x80) != 0) position++;
+            long value = 0;
+            while (position < raw.length && (raw[position] & 0x80) != 0) {
+                value = value * 128 + (raw[position] & 0x7f);
+                position++;
+            }
             if (position >= raw.length || position - start + 1 > MAX_NATURAL_BYTES) return false;
+            value = value * 128 + (raw[position] & 0x7f);
             position++;
+            if (value >= (natural == 0 ? MAX_SLOT : MAX_INDEX)) return false;
         }
         return position == raw.length;
     }
