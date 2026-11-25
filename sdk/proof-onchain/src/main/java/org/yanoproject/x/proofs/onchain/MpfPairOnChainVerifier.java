@@ -112,7 +112,8 @@ public final class MpfPairOnChainVerifier {
                     || Builtins.equalsByteString(queryPath, proof.conflictingKeyHash())
                     || !samePathPrefix(queryPath, proof.conflictingKeyHash(), cursorEnd)
                     || !validLeafSuffix(proof.conflictingKeyHash(), cursorEnd,
-                    proof.leafSuffix())) return false;
+                    proof.leafSuffix())
+                    || !notABranch(proof.leafSuffix())) return false;
         }
         byte[] child = missing ? new byte[]{0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0,
@@ -145,6 +146,26 @@ public final class MpfPairOnChainVerifier {
             cursorEnd = cursor;
         }
         return valid && cursorEnd == 0 && Builtins.equalsByteString(expectedRoot, child);
+    }
+
+    /**
+     * A conflicting leaf's encoded suffix must not also read as a branch node: a branch is
+     * {@code blake2b-256(prefix ‖ merkle)} with every prefix byte a nibble, and an odd leaf suffix starts
+     * {@code 00 <nibble>} before its raw path bytes. Requiring one raw byte above 15 makes the two shapes
+     * disjoint, so a real branch on the query's own path cannot pass as a conflicting leaf. An honest leaf
+     * fails only if all its raw path bytes are below 16 (about 2^-116 at any reachable depth).
+     */
+    private static boolean notABranch(byte[] encoded) {
+        long length = Builtins.lengthOfByteString(encoded);
+        long index = 2;
+        boolean found = Builtins.indexByteString(encoded, 0) != 0;
+        while (!found && index < length) {
+            if (Builtins.indexByteString(encoded, index) > 15) {
+                found = true;
+            }
+            index += 1;
+        }
+        return found;
     }
 
     /**
