@@ -228,6 +228,23 @@ class ForcedInboxConformanceTest extends GatewayTestBase {
         rejected(inbox(), unpaid.spending(ref(0x7a, 0)));
     }
 
+    /**
+     * B3: an inbox spend admits no other script input, so a second inbox (another domain's policy) holding a request
+     * of the same requester cannot count the same refund output.
+     */
+    @Test
+    void anInboxSpendAdmitsNoOtherScriptInput() {
+        byte[] otherInbox = filled(0x75, 28);
+        TxInInfo foreign = new TxInInfo(ref(0x7b, 0), new TxOut(GatewayFixtures.scriptAddress(otherInbox),
+                lovelace(2_000_000).merge(token(otherInbox, REQUEST_ID, 1)), new OutputDatum.OutputDatumInline(
+                request(NOW - DAY, PlutusData.constr(1), GatewayFixtures.enterpriseKeyAddress(filled(0xa2, 28)))),
+                Optional.empty()));
+        Tx tx = burn(PlutusData.constr(1), exitMode(filled(0x55, 32)), null);
+        tx.spend(foreign, PlutusData.constr(1));
+        tx.mint = tx.mint.merge(token(otherInbox, REQUEST_ID, -1));
+        rejected(inbox(), tx.spending(ref(0x79, 0)));
+    }
+
     @Test
     void aBurnIsOnlyMinusOnePerSpentInboxTokenWithNoPositiveMint() {
         Tx unspent = burn(PlutusData.constr(1), exitMode(filled(0x55, 32)), null);

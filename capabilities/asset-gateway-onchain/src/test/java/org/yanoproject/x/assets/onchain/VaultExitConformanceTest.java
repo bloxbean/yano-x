@@ -392,6 +392,37 @@ class VaultExitConformanceTest extends GatewayTestBase {
         rejected(vault(TOKEN), otherId.vault());
     }
 
+    /**
+     * B4: the payout carries exactly the swept native assets and at least the swept lovelace, so a min-ADA output
+     * stays sweepable after the SweepPaidV1 datum raises the payout's own minimum. The commitment and the vault debit
+     * stay exact.
+     */
+    @Test
+    void theSweepPayoutMayAddLovelaceButNotChangeTheAssets() {
+        TxInInfo junk = vaultInput(SWEPT, sweptValue(TOKEN), PlutusData.integer(7));
+        ok(vault(TOKEN), sweep(TOKEN, junk, commitment(TOKEN, SWEPT, true), active(),
+                sweptValue(TOKEN).merge(lovelace(400_000)), new Tx()).vault());
+        rejected(vault(TOKEN), sweep(TOKEN, junk, commitment(TOKEN, SWEPT, true), active(),
+                sweptValue(TOKEN).merge(lovelace(-1)), new Tx()).vault());
+        rejected(vault(TOKEN), sweep(TOKEN, junk, commitment(TOKEN, SWEPT, true), active(),
+                sweptValue(TOKEN).merge(token(filled(0x7d, 28), new byte[] {2}, 1)), new Tx()).vault());
+        // A datumless minimum-ADA output with only lovelace (the token vault): the payout adds the datum's min-ADA.
+        TxInInfo dust = datumlessVaultInput(SWEPT, lovelace(1_000_000));
+        SweepCommitment dustCommitment = SweepCommitment.of(TOKEN, Hash32.of(SWEPT.txId().hash()), 2,
+                BigInteger.valueOf(1_000_000), Map.of());
+        ok(vault(TOKEN), sweep(TOKEN, dust, dustCommitment, active(), lovelace(1_250_000), new Tx()).vault());
+    }
+
+    /** B5: a floor top-up carrying the vault asset is not accepted custody, so it is unattributed and sweepable. */
+    @Test
+    void aTokenCarryingFloorTopUpIsSweepable() {
+        Value clean = assetValue(TOKEN, 3_000_000, 40);
+        SweepCommitment commitment = SweepCommitment.of(TOKEN, Hash32.of(SWEPT.txId().hash()), 2,
+                BigInteger.valueOf(3_000_000), Map.of(TOKEN, BigInteger.valueOf(40)));
+        ok(vault(TOKEN), sweep(TOKEN, vaultInput(SWEPT, clean, floorDatum()), commitment, active(), clean,
+                new Tx()).vault());
+    }
+
     @Test
     void outputsWithNoDatumOrOnlyADatumHashAreSweepable() {
         TxInInfo datumless = datumlessVaultInput(SWEPT, sweptValue(TOKEN));
@@ -415,11 +446,18 @@ class VaultExitConformanceTest extends GatewayTestBase {
         // Control: the same clean value under a junk datum is unattributed, and sweeps.
         ok(vault(TOKEN), sweep(TOKEN, vaultInput(SWEPT, clean, PlutusData.integer(7)), cleanCommitment, active(),
                 clean, new Tx()).vault());
-        for (PlutusData accepted : List.of(continuationDatum(List.of()), continuationDatum(List.of(shardId(1, 1))),
-                floorDatum())) {
+        for (PlutusData accepted : List.of(continuationDatum(List.of()), continuationDatum(List.of(shardId(1, 1))))) {
             TxInInfo custody = vaultInput(SWEPT, clean, accepted);
             rejected(vault(TOKEN), sweep(TOKEN, custody, cleanCommitment, active(), clean, new Tx()).vault());
         }
+        // An ADA-only floor top-up is accepted custody too.
+        Value floor = lovelace(3_000_000);
+        SweepCommitment floorCommitment = SweepCommitment.of(TOKEN, Hash32.of(SWEPT.txId().hash()), 2,
+                BigInteger.valueOf(3_000_000), Map.of());
+        rejected(vault(TOKEN), sweep(TOKEN, vaultInput(SWEPT, floor, floorDatum()), floorCommitment, active(), floor,
+                new Tx()).vault());
+        ok(vault(TOKEN), sweep(TOKEN, vaultInput(SWEPT, floor, PlutusData.integer(7)), floorCommitment, active(),
+                floor, new Tx()).vault());
         // The same datum on a value with a foreign token is not accepted custody, so it can be swept.
         TxInInfo dirty = vaultInput(SWEPT, sweptValue(TOKEN), continuationDatum(List.of()));
         ok(vault(TOKEN), sweep(TOKEN, dirty, commitment(TOKEN, SWEPT, true), active(), sweptValue(TOKEN),

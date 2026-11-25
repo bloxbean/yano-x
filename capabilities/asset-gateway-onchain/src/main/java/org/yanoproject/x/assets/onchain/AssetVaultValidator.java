@@ -38,14 +38,16 @@ import java.util.Optional;
  *       claims only, proved against {@code frozenRoot}, with no delay or status check.</li>
  *   <li>{@code SweepExit} (NORMAL): one {@code SWEEP_UNATTRIBUTED} claim whose {@code ClaimId} and leaf the script
  *       rebuilds from the one outpoint it spends and that outpoint's full value ({@code SweepCommitment}); the
- *       outpoint must not be accepted custody; output 0 pays exactly that value to the recipient with the inline
- *       datum {@code SweepPaidV1(claimId)}, and no vault output remains.</li>
+ *       outpoint must not be accepted custody; output 0 pays the recipient exactly its native assets and at least
+ *       its lovelace (the builder may add min-ADA for the datum), with the inline datum {@code SweepPaidV1(claimId)},
+ *       and no vault output remains.</li>
  *   <li>{@code AcceptCosigned} (NORMAL) and {@code AcceptProved} (NORMAL against the anchor root, EXIT against
  *       {@code frozenRoot}): deposit-shaped inputs merge into one {@code VaultContinuationV1([])}.</li>
  *   <li>{@code RefundAbsent} / {@code RefundUncredited} (EXIT): one deposit back to its refund address.</li>
  *   <li>{@code BalanceExit} (EXIT): one exit leaf, one singleton escape-id insert.</li>
- *   <li>{@code Consolidate} (NORMAL and EXIT, permissionless): two or more accepted inputs merge into one exact
- *       {@code VaultContinuationV1([])}; no shard, no payout.</li>
+ *   <li>{@code Consolidate} (EXIT only, permissionless): two or more accepted inputs merge into one exact
+ *       {@code VaultContinuationV1([])}; no shard, no payout. In NORMAL it would let anyone invalidate in-flight
+ *       payouts every round, and {@code Settle} already merges its inputs.</li>
  * </ul>
  *
  * <p><b>Shared rules.</b> Only the first vault input in the (ledger-sorted) input list, the lead, runs the full check,
@@ -214,7 +216,7 @@ public final class AssetVaultValidator {
                     && depositRecordProved(refund.proof(), vaults.head(), vaultId, GatewayTx.frozenRoot(mode),
                     BigInteger.ONE);
             case BalanceExit exit -> !normal && balanceExitValid(exit, mode, tx, ownHash, vaults, vaultId);
-            case Consolidate consolidate -> !vaults.tail().isEmpty() && vaultsAccepted(vaults)
+            case Consolidate consolidate -> !normal && !vaults.tail().isEmpty() && vaultsAccepted(vaults)
                     && mergeValid(tx, ownHash, vaults);
             case Follow follow -> false;
         };
@@ -504,7 +506,7 @@ public final class AssetVaultValidator {
                 && status.status().signum() == 0
                 && sweep.reservedAtMs().add(status.exitDelayMs())
                 .compareTo(IntervalLib.finiteLowerBound(tx.validRange())) <= 0
-                && !(acceptedDatum(GatewayTx.inlineDatum(sweptOut.datum())) && cleanValue(value))
+                && !accepted(GatewayTx.inlineDatum(sweptOut.datum()), value)
                 && assets.size() + (adaVault() ? 0 : 1) == valueEntries(Builtins.unMapData(value))
                 && Builtins.equalsByteString(claimId, GatewayCodec.claimId(gatewayDomainId, vaultId,
                 BigInteger.ONE, withdrawalKey, recipient, assetValue, vaultLovelace, sweep.sequence()))
@@ -512,7 +514,9 @@ public final class AssetVaultValidator {
                 && Builtins.equalsByteString(proof.value(), GatewayCodec.claimLeaf(claimId, vaultId, BigInteger.ONE,
                 assetValue, vaultLovelace, recipient, sweep.reservedHeight(), sweep.reservedAtMs()))
                 && MpfOnChainVerifier.verifyInclusion(proof, root)
-                && Builtins.equalsData(payout.value(), value)
+                && ValuesLib.lovelaceOf(payout.value()).compareTo(ValuesLib.lovelaceOf(value)) >= 0
+                && Builtins.equalsData(Builtins.mapData(Builtins.tailList(Builtins.unMapData(payout.value()))),
+                Builtins.mapData(Builtins.tailList(Builtins.unMapData(value))))
                 && Builtins.lengthOfByteString(GatewayCodec.paymentKeyHash(payout.address().toPlutusData())) == 28
                 && Builtins.equalsByteString(GatewayCodec.addressBytes(payout.address().toPlutusData(),
                 addressNetworkId.longValue()), recipient)
@@ -742,8 +746,7 @@ public final class AssetVaultValidator {
             return true;
         }
         TxOut out = vaults.head().resolved();
-        return acceptedDatum(GatewayTx.inlineDatum(out.datum())) && cleanValue(out.value())
-                && vaultsAccepted(vaults.tail());
+        return accepted(GatewayTx.inlineDatum(out.datum()), out.value()) && vaultsAccepted(vaults.tail());
     }
 
     /** Every vault input is deposit-shaped (Constr 0) and holds only the vault asset and lovelace. */
@@ -772,26 +775,29 @@ public final class AssetVaultValidator {
     }
 
     /**
-     * V10, on the decoded datum: {@code VaultContinuationV1} (Constr 1, one field: a list of at most 64 32-byte ids)
-     * or {@code FloorTopUpV1} (Constr 2, no fields). Read from the datum's canonical Plutus serialization, so it is
-     * total: any other datum, of any kind, is simply not accepted. That serialization is {@code d87b80} for a top-up,
+     * V10, the one acceptance rule (payouts, {@code Consolidate}, the sweep exclusion), on the decoded datum:
+     * {@code FloorTopUpV1} (Constr 2, no fields) holding lovelace only, as admission requires off chain, or
+     * {@code VaultContinuationV1} (Constr 1, one field: a list of at most 64 32-byte ids) holding only lovelace and the
+     * vault asset. The continuation is read from the datum's canonical Plutus serialization, so the rule is total: any
+     * other datum, of any kind, is simply not accepted. That serialization is {@code d87b80} for a top-up,
      * {@code d87a9f80ff} for an empty continuation and {@code d87a9f9f (5820 <id>)+ ffff} otherwise (non-empty lists
      * are indefinite, empty ones definite, byte strings up to 64 bytes definite).
      */
-    private static boolean acceptedDatum(PlutusData datum) {
+    private static boolean accepted(PlutusData datum, Value value) {
         if (Builtins.equalsData(datum, Builtins.constrData(2, Builtins.mkNilData()))) {
-            return true;
+            return Builtins.nullList(Builtins.tailList(Builtins.unMapData(value)));
         }
         byte[] encoded = Builtins.serialiseData(datum);
         long length = Builtins.lengthOfByteString(encoded);
         // Big-endian: d87a9f80ff, d87a9f9f and ffff.
-        return (length == 5 && Builtins.byteStringToInteger(true, encoded).equals(BigInteger.valueOf(929770209535L)))
+        return cleanValue(value)
+                && ((length == 5 && Builtins.byteStringToInteger(true, encoded).equals(BigInteger.valueOf(929770209535L)))
                 || (Builtins.byteStringToInteger(true, Builtins.sliceByteString(0, 4, encoded))
                 .equals(BigInteger.valueOf(3631914911L))
                 && Builtins.byteStringToInteger(true, Builtins.sliceByteString(length - 2, 2, encoded))
                 .equals(BigInteger.valueOf(65535L))
                 && (length - 6) % 34 == 0 && length - 6 <= 64 * 34
-                && idChunks(encoded, 4, length - 2));
+                && idChunks(encoded, 4, length - 2)));
     }
 
     /** {@code encoded[at, end)} is a run of 32-byte byte strings, {@code 5820 <id>} each. */

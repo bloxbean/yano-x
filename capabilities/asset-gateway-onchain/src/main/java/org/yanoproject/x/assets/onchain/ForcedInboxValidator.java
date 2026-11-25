@@ -34,7 +34,9 @@ import java.util.Optional;
  *
  * <p><b>Spend</b>: the token never moves; it can only be burned, together with this spend, and the lovelace goes
  * back to the requester: the outputs whose payment key is {@code requesterKeyHash} together hold at least the summed
- * lovelace of every inbox input of that requester in the transaction, so one output never covers two requests. Redeemer {@code Constr 0 [proof]}: the
+ * lovelace of every inbox input of that requester in the transaction, so one output never covers two requests. The
+ * transaction spends no script input other than this inbox's own, so another inbox (another domain's policy) cannot
+ * count the same refund output. Redeemer {@code Constr 0 [proof]}: the
  * referenced v2 anchor's root includes {@code forcedKeyPrefix ‖ requestId} (the request was processed). Redeemer
  * {@code Constr 1 []}: the exit-mode thread, authenticated by its policy and the empty token name, is {@code EXIT}.
  * The inbox cannot pin the exit-mode address (that validator takes this policy id); the token is one-shot and the
@@ -115,6 +117,7 @@ public final class ForcedInboxValidator {
         if (!Builtins.nullList(Builtins.tailList(held))
                 || !Builtins.unIData(Builtins.sndPair(token)).equals(BigInteger.ONE)
                 || !ValuesLib.assetOf(tx.mint(), policy, requestId).equals(BigInteger.valueOf(-1))
+                || !onlyThisScript(tx.inputs(), policy)
                 || paidTo(tx.outputs(), GatewayTx.forcedRequester(datum)).compareTo(
                 requested(tx.inputs(), policy, GatewayTx.forcedRequester(datum))) < 0) {
             return false;
@@ -171,6 +174,16 @@ public final class ForcedInboxValidator {
         TxOut out = outputs.head();
         JulcList<TxOut> rest = carriers(outputs.tail(), policy);
         return ValuesLib.containsPolicy(out.value(), policy) ? rest.prepend(out) : rest;
+    }
+
+    /** Every input is a key input or sits at this inbox's script address. */
+    private static boolean onlyThisScript(JulcList<TxInInfo> inputs, byte[] policy) {
+        if (inputs.isEmpty()) {
+            return true;
+        }
+        byte[] script = GatewayCodec.paymentScriptHash(inputs.head().resolved().address().toPlutusData());
+        return (Builtins.lengthOfByteString(script) == 0 || Builtins.equalsByteString(script, policy))
+                && onlyThisScript(inputs.tail(), policy);
     }
 
     /** The lovelace of the outputs whose payment key is {@code requester}. */

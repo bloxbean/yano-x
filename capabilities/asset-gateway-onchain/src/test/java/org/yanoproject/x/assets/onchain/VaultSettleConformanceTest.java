@@ -424,6 +424,23 @@ class VaultSettleConformanceTest extends GatewayTestBase {
         rejected(vault(TOKEN), mixed.tx().spending(VAULT_REF_2));
     }
 
+    /** B5: V10 accepts a floor top-up only with lovelace alone, as admission does. */
+    @Test
+    void v10AFloorTopUpCarryingTheVaultAssetIsNotSpendable() {
+        Payout payout = settle(TOKEN, 2);
+        payout.floorTopUpInput = true;
+        Scenario scenario = payout.build();
+        Spent first = scenario.tx().inputs.get(0);
+        Spent second = scenario.tx().inputs.get(1);
+        // Move one unit of the vault asset from the main input to the top-up; the totals are unchanged.
+        scenario.tx().inputs.set(0, new Spent(vaultInput(first.input().outRef(), first.input().resolved().value()
+                .merge(token(TOKEN.policyId(), TOKEN.assetName(), -1)), continuationDatum(List.of(shardId(3, 1)))),
+                first.redeemer()));
+        scenario.tx().inputs.set(1, new Spent(vaultInput(second.input().outRef(), second.input().resolved().value()
+                .merge(token(TOKEN.policyId(), TOKEN.assetName(), 1)), floorDatum()), second.redeemer()));
+        rejected(vault(TOKEN), scenario.vault());
+    }
+
     @Test
     void v7AContinuationCarryingAReferenceScriptFails() {
         Scenario scenario = settle(TOKEN, 1).build();

@@ -271,7 +271,7 @@ class GatewayBudgetTest extends GatewayTestBase {
     void consolidateCapByUnitsAndSize() {
         int largest = 0;
         for (int v = 2; v <= 40; v = v < 16 ? v * 2 : v + 2) {
-            Tx tx = VaultConsolidateConformanceTest.consolidation(TOKEN, v, normalMode(), true);
+            Tx tx = VaultConsolidateConformanceTest.consolidation(TOKEN, v, VaultConsolidateConformanceTest.EXIT, true);
             Measured m = measure(tx, vault(TOKEN), 1);
             report("Consolidate", v, v, m, "redeemer bytes=" + redeemerBytes(tx));
             if (!m.fits()) {
