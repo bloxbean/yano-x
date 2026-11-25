@@ -169,6 +169,22 @@ class CompiledAbsenceProofTest extends ContractTest {
         }
     }
 
+    /**
+     * A real branch on a present key's own path, whose prefix starts with nibble 0 at an odd cursor, has the shape of
+     * an odd conflicting leaf. Before the raw-byte rule the verifiers accepted it as proof that the key is absent,
+     * while the same root proves the key present. {@code MpfOnChainVerifier}, compiled, now rejects it, as does the
+     * off-chain normalized proof.
+     */
+    @Test
+    void rejectsABranchOnThePathReadAsAConflictingLeaf() {
+        MpfTestTrie.BranchAsLeaf forgery = MpfTestTrie.branchReadAsLeaf();
+        assertThat(forgery.inclusion().verify()).as("the key is present under the root").isTrue();
+        assertThat(forgery.forgedAbsence().verify()).as("off-chain").isFalse();
+        PlutusData forged = MpfTestTrie.absenceData(forgery.forgedAbsence());
+        assertThat(CompiledLoopArithmeticTest.evaluator(MpfOnChainVerifier.class)
+                .call("verifyAbsence", forged, forgery.root()).asBoolean()).isFalse();
+    }
+
     private static boolean verifyAbsence(Class<?> verifier, PlutusData proof) {
         return CompiledLoopArithmeticTest.evaluator(verifier).call("verifyAbsence", proof, trie.root()).asBoolean();
     }

@@ -78,9 +78,13 @@ public final class MpfOnChainVerifier {
      * authenticated, so it is never compared), or a branch whose authenticated prefix differs from the key's path in
      * at least one nibble and ends above the leaf level.
      *
-     * <p>A node's hash does not say whether it is a leaf or a branch. Reading a real leaf as a branch, or a real
-     * branch as a leaf, needs about {@code (63 - depth) / 2} bytes of a key hash (or of a branch prefix) to be below
-     * 16, which is infeasible to grind at any reachable depth.
+     * <p>A node's hash does not say whether it is a leaf or a branch: an odd leaf is
+     * {@code blake2b-256(00 <nibble> <raw path bytes> ‖ valueHash)} and a branch {@code blake2b-256(prefix ‖ merkle)}
+     * with every prefix byte a nibble. The two readings are kept apart in both directions. A conflicting leaf with the
+     * odd marker must have a raw byte above 15, so a real branch on the key's path never passes as a leaf (an honest
+     * leaf fails only if all its raw path bytes are below 16, about 2^-116 at any reachable depth). A conflicting
+     * branch must hold only nibbles, so a real leaf passes as a branch only if all its raw path bytes are below 16,
+     * which needs about {@code 4 * (63 - depth) / 2} bits of grinding on a chosen key.
      */
     public static boolean verifyAbsence(AbsenceProof proof, byte[] expectedRoot) {
         long keyLength = Builtins.lengthOfByteString(proof.key());
@@ -102,7 +106,9 @@ public final class MpfOnChainVerifier {
                 && divergentPrefix(queryPath, cursorEnd, proof.leafSuffix(), 0, false)
                 : keyHashLength == 32 && suffixLength <= 33
                 && validLeafSuffix(proof.conflictingKeyHash(), cursorEnd, proof.leafSuffix())
-                && !validLeafSuffix(queryPath, cursorEnd, proof.leafSuffix()));
+                && !validLeafSuffix(queryPath, cursorEnd, proof.leafSuffix())
+                && (Builtins.indexByteString(proof.leafSuffix(), 0) != 0
+                || rawByteAbove15(proof.leafSuffix(), 2)));
         byte[] child = missing ? new byte[]{0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0,
@@ -110,6 +116,14 @@ public final class MpfOnChainVerifier {
                 : hash(proof.leafSuffix(), proof.conflictingValueHash());
         return terminalValid && Builtins.equalsByteString(expectedRoot,
                 foldAbsence(queryPath, child, cursorEnd, proof.folds()));
+    }
+
+    /** True when some byte of {@code encoded} from {@code index} on is above 15: not a branch prefix. */
+    private static boolean rawByteAbove15(byte[] encoded, long index) {
+        if (index >= Builtins.lengthOfByteString(encoded)) {
+            return false;
+        }
+        return Builtins.indexByteString(encoded, index) > 15 || rawByteAbove15(encoded, index + 1);
     }
 
     /**
