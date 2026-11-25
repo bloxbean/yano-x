@@ -247,6 +247,27 @@ class AppPeerClientLifecycleTest {
     }
 
     @Test
+    void reconnectCacheIsBoundedByBytes() {
+        CapturingTransportFactory factory = new CapturingTransportFactory();
+        AppPeerClient client = client(factory, () -> { });
+        try {
+            client.ensureConnected();
+            negotiate(factory);
+            int size = message(0, 60_000).getSize();
+            int fit = (int) (AppPeerClient.REPLAY_QUEUE_MAX_BYTES / size);
+            for (int i = 0; i < fit + 50; i++) {
+                client.enqueue(message(i, 60_000));
+            }
+
+            reconnect(factory);
+
+            assertThat(factory.appMsgAgent.getQueueSize()).isEqualTo(fit);
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    @Test
     void shutdownPropagatesTransportCleanupFailureAfterClearingOwnership() {
         CapturingTransportFactory factory = new CapturingTransportFactory();
         AppPeerClient client = client(factory, () -> { });
@@ -292,9 +313,16 @@ class AppPeerClientLifecycleTest {
     }
 
     private static AppMessage message(int sequence) {
+        return message(sequence, ("message-" + sequence).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static AppMessage message(int sequence, int bodyBytes) {
+        return message(sequence, new byte[bodyBytes]);
+    }
+
+    private static AppMessage message(int sequence, byte[] body) {
         byte[] id = new byte[32];
         ByteBuffer.wrap(id).putInt(28, sequence);
-        byte[] body = ("message-" + sequence).getBytes(StandardCharsets.UTF_8);
         return AppMessage.builder()
                 .messageId(id)
                 .chainId("c1")

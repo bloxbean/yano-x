@@ -37,8 +37,9 @@ final class SeenMessageIds {
      * bounce it between members while their pools are full.
      */
     void forgetForRetry(String messageIdHex, long expiresAtSeconds) {
-        expiryByIdHex.remove(messageIdHex);
+        // Marker first: a copy arriving between the two calls then still finds it and is not relayed again.
         retryExpiryByIdHex.put(messageIdHex, expiresAtSeconds);
+        expiryByIdHex.remove(messageIdHex);
     }
 
     /** True once for an id previously forgotten by {@link #forgetForRetry}; the caller must not relay that copy. */

@@ -70,7 +70,7 @@ final class AppGossipTransport {
     /**
      * A validator that checks a reply's envelopes in parallel on the common fork-join pool once the reply is large
      * enough, keeping input order (ADR-060 D4). The calling Netty thread waits as the stream's caller, never as a
-     * pool task, so it cannot deadlock.
+     * pool task, so it cannot deadlock. A check that throws rejects only its own envelope.
      */
     static AppMsgValidator parallel(Function<AppMessage, AppMsgValidator.Result> check) {
         return new AppMsgValidator() {
@@ -84,9 +84,18 @@ final class AppGossipTransport {
                 Result[] results = new Result[messages.size()];
                 IntStream range = IntStream.range(0, messages.size());
                 (messages.size() >= PARALLEL_VALIDATION_THRESHOLD ? range.parallel() : range)
-                        .forEach(i -> results[i] = check.apply(messages.get(i)));
+                        .forEach(i -> results[i] = checkOne(check, messages.get(i)));
                 return List.of(results);
             }
         };
+    }
+
+    private static AppMsgValidator.Result checkOne(Function<AppMessage, AppMsgValidator.Result> check,
+                                                   AppMessage message) {
+        try {
+            return check.apply(message);
+        } catch (RuntimeException e) {
+            return AppMsgValidator.Result.reject("validator failed: " + e);
+        }
     }
 }

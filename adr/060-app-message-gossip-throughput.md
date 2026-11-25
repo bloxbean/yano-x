@@ -9,7 +9,8 @@ a dependency bump to that Yaci release. Its host API passes protocol-100 agent f
 through and never configures protocol 100 itself. The `batchSize(10)` in Yano's
 `ServeSubsystem` is the Cardano `TxSubmissionConfig`, not app-message gossip.
 
-Evidence: [`perf-test/RESULTS-2026-11-25.md`](../perf-test/RESULTS-2026-11-25.md).
+Evidence: [`perf-test/RESULTS-2026-11-25.md`](../perf-test/RESULTS-2026-11-25.md) (before) and
+[`perf-test/RESULTS-2026-11-25-gossip.md`](../perf-test/RESULTS-2026-11-25-gossip.md) (after).
 
 ## Context
 
@@ -61,15 +62,17 @@ Notes on these values:
 - **Priority byte bound.** `maxPendingPriorityBytes` stops proposals, which carry whole
   blocks, from holding unbounded heap on a slow link.
 - **Reconnect replay.** The `AppPeerClient` replay queue is keyed by message ID and bounded
-  at 10,000 entries rather than 200.
-  - Enqueue is O(1) amortized: expired entries leave from the head only, then the oldest
-    entry makes room.
+  at 10,000 entries rather than 200, and at 64 MiB of message bytes, so whole-block proposals
+  cannot pin unbounded heap per peer.
+  - Enqueue is O(1) amortized: the oldest entries make room. Expired entries are dropped when
+    the queue is replayed.
   - A message already in the queue is still handed to the live Yaci agent. Proposal
     re-gossip and observation re-diffusion re-send on purpose, and the agent may have
     rejected the first copy because a lane was full.
   - A reconnect re-offers ordinary messages in arrival order, so a sender's seqs stay in
-    order. It re-offers only the 256 most recent consensus and anchor envelopes: older
-    rounds are finalized or re-gossiped, and stale proposals would crowd the priority lane.
+    order. It re-offers only the 256 most recent consensus and anchor envelopes, newest
+    first: older rounds are finalized or re-gossiped, and stale proposals would otherwise
+    fill the priority lane's byte budget before the current round.
   - The new connection's server pulls each message again, and the receiver's seen-set or pool
     drops repeats. A reconnect costs bandwidth but loses less.
 
@@ -127,13 +130,15 @@ entries (about 50 s of traffic at 2,500 msg/s; roughly 30 MB).
 
 ### D4. Validate an inbound reply in parallel
 
-`AppLedgerManager` implements Yaci `AppMsgValidator.validateAll`:
+The validators of a shared session (`AppLedgerManager`) and of a per-chain session
+(`AppLedgerRuntime.transportConfig()`) implement Yaci `AppMsgValidator.validateAll`:
 - Each envelope's checks (per-chain size and TTL, profile, membership, `verifyEnvelope`) run
   as a parallel stream on the common fork-join pool, once a reply holds at least 32
-  envelopes. They read only immutable config, concurrent counters, the volatile member
-  snapshot and the striped cache. `signedEnvelopes` already uses that pool. The Netty event loop
-  waits as a stream caller, not as a pool task, so it cannot deadlock.
-- Results keep input order. An exception rejects the reply (0019 D5).
+  envelopes. They take no agent or engine lock: they read immutable config, concurrent
+  counters, the volatile member snapshot, the striped cache and the store's tip height.
+  `signedEnvelopes` already uses that pool. The Netty event loop waits as a stream caller,
+  not as a pool task, so it cannot deadlock.
+- Results keep input order. A check that throws rejects only its own envelope.
 
 ### D5. Re-admit after a full pool
 

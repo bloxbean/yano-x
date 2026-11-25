@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.yanoproject.runtime.util.LifecycleFailures;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -44,6 +45,8 @@ final class AppPeerClient implements AppPeerLink {
      * so a tunnel blip does not lose the backlog the per-connection Yaci queue held.
      */
     static final int REPLAY_QUEUE_LIMIT = 10_000;
+    /** Byte bound for the replay queue: messages up to a whole block each must not pin unbounded heap per peer. */
+    static final long REPLAY_QUEUE_MAX_BYTES = 64L * 1024 * 1024;
     private static final Runnable NOOP = () -> { };
     private static final long NEGOTIATION_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(30);
 
@@ -89,6 +92,8 @@ final class AppPeerClient implements AppPeerLink {
      * an agent reset during TCP reconnect cannot lose an unacknowledged body.
      */
     private final LinkedHashSet<AppMessage> replayQueue = new LinkedHashSet<>();
+    /** Sum of the replay queue's message sizes. Guarded by {@link #replayQueue}. */
+    private long replayBytes;
 
     private volatile PeerTransport client;
     private volatile AppMsgSubmissionAgent agent;
@@ -237,23 +242,15 @@ final class AppPeerClient implements AppPeerLink {
             // AppMessage equality is its 32-byte id, so membership is O(1). A message already queued here is still
             // handed to the live agent below: proposal re-gossip and observation re-diffusion re-send on purpose,
             // and the agent may have rejected the first copy (full lane); its own duplicate check is O(1).
-            if (!replayQueue.contains(message)) {
-                if (replayQueue.size() >= REPLAY_QUEUE_LIMIT) {
-                    // Expired entries leave from the head only, then the oldest makes room: O(1) amortized.
-                    Iterator<AppMessage> head = replayQueue.iterator();
-                    while (head.hasNext()) {
-                        if (!head.next().isExpired(now)) {
-                            break;
-                        }
-                        head.remove();
-                    }
-                    if (replayQueue.size() >= REPLAY_QUEUE_LIMIT) {
-                        Iterator<AppMessage> oldest = replayQueue.iterator();
-                        oldest.next();
-                        oldest.remove();
-                    }
+            if (replayQueue.add(message)) {
+                replayBytes += message.getSize();
+                // The oldest entries make room, by count and by bytes: O(1) amortized. Expired entries are dropped
+                // when the queue is replayed.
+                Iterator<AppMessage> oldest = replayQueue.iterator();
+                while (replayQueue.size() > REPLAY_QUEUE_LIMIT || replayBytes > REPLAY_QUEUE_MAX_BYTES) {
+                    replayBytes -= oldest.next().getSize();
+                    oldest.remove();
                 }
-                replayQueue.add(message);
             }
 
             AppMsgSubmissionAgent currentAgent = agent;
@@ -476,17 +473,23 @@ final class AppPeerClient implements AppPeerLink {
     /** Caller owns {@link #replayQueue}'s monitor. */
     private void offerReplayQueueLocked(AppMsgSubmissionAgent target) {
         long now = System.currentTimeMillis() / 1000;
-        replayQueue.removeIf(queued -> queued.isExpired(now));
-        long priority = replayQueue.stream()
-                .filter(queued -> AppChainSystemTopics.isPriorityDiffusion(queued.getTopic())).count();
-        long skipPriority = Math.max(0, priority - REPLAY_PRIORITY_LIMIT);
-        for (AppMessage queued : replayQueue) {
-            if (skipPriority > 0 && AppChainSystemTopics.isPriorityDiffusion(queued.getTopic())) {
-                skipPriority--;
-                continue;
+        List<AppMessage> priority = new ArrayList<>();
+        Iterator<AppMessage> it = replayQueue.iterator();
+        while (it.hasNext()) {
+            AppMessage queued = it.next();
+            if (queued.isExpired(now)) {
+                replayBytes -= queued.getSize();
+                it.remove();
+            } else if (AppChainSystemTopics.isPriorityDiffusion(queued.getTopic())) {
+                priority.add(queued);
+            } else {
+                // Ordinary messages keep arrival order, so a sender's seqs are re-offered in order.
+                target.enqueueMessage(queued);
             }
-            // Ordinary messages keep arrival order, so a sender's seqs are re-offered in order.
-            target.enqueueMessage(queued);
+        }
+        // Newest first, so the bounded priority lane keeps the current round rather than stale proposals.
+        for (int i = priority.size() - 1; i >= Math.max(0, priority.size() - REPLAY_PRIORITY_LIMIT); i--) {
+            target.enqueueMessage(priority.get(i));
         }
     }
 
@@ -520,6 +523,7 @@ final class AppPeerClient implements AppPeerLink {
         } finally {
             synchronized (replayQueue) {
                 replayQueue.clear();
+                replayBytes = 0;
             }
         }
         if (failure != null) {

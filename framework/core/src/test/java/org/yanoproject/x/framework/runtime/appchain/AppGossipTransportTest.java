@@ -108,6 +108,27 @@ class AppGossipTransportTest {
     }
 
     @Test
+    void aThrowingCheckRejectsOnlyItsOwnEnvelope() {
+        AppMsgValidator validator = AppGossipTransport.parallel(m -> {
+            if (m.getSenderSeq() == 8) {
+                throw new IllegalStateException("store unavailable");
+            }
+            return AppMsgValidator.Result.accept();
+        });
+        AppMessageSigner signer = new AppMessageSigner("15".repeat(32));
+        List<AppMessage> messages = new ArrayList<>();
+        for (int i = 1; i <= 100; i++) {
+            messages.add(signed(signer, "orders", i, "m" + i));
+        }
+
+        List<AppMsgValidator.Result> results = validator.validateAll(messages);
+
+        assertThat(results).hasSize(100);
+        assertThat(results.stream().filter(r -> !r.isAccepted()).count()).isEqualTo(1);
+        assertThat(results.get(7).isAccepted()).isFalse();
+    }
+
+    @Test
     void poolFullRetryIsAdmittedOnceWithoutRelay() {
         SeenMessageIds seen = new SeenMessageIds(1_000);
         assertThat(seen.markSeen("aa", Long.MAX_VALUE)).isTrue();
