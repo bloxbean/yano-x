@@ -719,6 +719,27 @@ class MerklePatriciaForestryTest {
             assertFalse(wellFormedBoth(path, new ProofStep.Branch(64, new byte[128])));
         }
 
+        /** A fork's neighbor branch must end above the leaf level: at + 1 + length(prefix) < 64. */
+        @Test
+        void fork_neighbor_prefix_ends_above_the_leaf_level() {
+            for (int skip : new int[] {0, 31, 50, 62}) {
+                int n = (MerklePatriciaForestry.nibble(path, skip) + 1) % 16;
+                int longest = 62 - skip;
+                assertTrue(wellFormedBoth(path, new ProofStep.Fork(skip, new Neighbor(n, new byte[longest], h32))),
+                        "skip " + skip + ", prefix " + longest);
+                assertFalse(wellFormedBoth(path, new ProofStep.Fork(skip, new Neighbor(n, new byte[longest + 1],
+                        h32))), "skip " + skip + ", prefix " + (longest + 1));
+            }
+            // At the last nibble no neighbor branch fits at all.
+            int n = (MerklePatriciaForestry.nibble(path, 63) + 1) % 16;
+            assertFalse(wellFormedBoth(path, new ProofStep.Fork(63, new Neighbor(n, new byte[0], h32))));
+            // A forged miss whose terminal fork neighbor is too long is rejected by miss() as well.
+            MpfTrie t = trie("alice");
+            JulcList<ProofStep> tooLong = JulcList.of(new ProofStep.Fork(0, new Neighbor(
+                    (MerklePatriciaForestry.nibble(h("bob"), 0) + 1) % 16, new byte[63], h32)));
+            assertFalse(missBoth(t.getRootHash(), "bob", tooLong));
+        }
+
         @Test
         void fork_rules() {
             assertTrue(wellFormedBoth(path, new ProofStep.Fork(0, new Neighbor(0, new byte[]{15, 0}, h32))));

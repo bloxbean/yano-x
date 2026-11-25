@@ -342,7 +342,9 @@ public class MerklePatriciaForestry {
      * <ul>
      *   <li>Branch: neighbors is 128 bytes.</li>
      *   <li>Fork: the neighbor nibble is 0..15 and differs from the path's nibble, every
-     *       prefix byte is a nibble, and the neighbor root is 32 bytes.</li>
+     *       prefix byte is a nibble, the neighbor branch ends above the leaf level
+     *       ({@code at + 1 + length(prefix) < 64}, so a neighbor can never be an odd leaf near
+     *       the bottom of the trie read as a branch), and the neighbor root is 32 bytes.</li>
      *   <li>Leaf: key and value are 32 bytes, and the key shares the path's nibbles up to
      *       the branch and differs from it there.</li>
      * </ul>
@@ -367,6 +369,7 @@ public class MerklePatriciaForestry {
                 return skip >= 0 && skip < 64 - cursor
                         && n >= 0 && n <= 15
                         && n != nibble(path, at)
+                        && at + 1 + ByteStringLib.length(neighbor.prefix()) < 64
                         && allNibbles(neighbor.prefix(), 0)
                         && ByteStringLib.length(neighbor.root()) == 32
                         && isWellFormed(path, at + 1, steps);
