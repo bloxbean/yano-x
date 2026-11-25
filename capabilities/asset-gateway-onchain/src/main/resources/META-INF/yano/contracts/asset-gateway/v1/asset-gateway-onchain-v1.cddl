@@ -32,6 +32,16 @@ inclusion_proof = #6.121([key: bytes, value: bytes, leaf_suffix: bytes, folds: [
 absence_proof   = #6.121([key: bytes, value: bytes .size 0, leaf_suffix: bytes,
   folds: [* fold], terminal_cursor: uint,
   conflicting_key_hash: bytes .size 0 / hash32, conflicting_value_hash: bytes .size 0 / hash32])
+; The terminal node sits at terminal_cursor on the key's path and is one of:
+;   empty slot:  leaf_suffix, conflicting_key_hash, conflicting_value_hash all empty;
+;   other leaf:  conflicting_key_hash (32 bytes) names it, leaf_suffix is its encoded suffix
+;                at terminal_cursor (it must differ from the key's own suffix there; the
+;                key hash above that depth is unauthenticated), conflicting_value_hash its
+;                value hash;
+;   branch:      conflicting_key_hash empty, leaf_suffix = the branch's compressed prefix
+;                (one nibble per byte, differing from the key's path in at least one nibble,
+;                ending above the leaf level), conflicting_value_hash = its 16-child merkle
+;                root; the node is blake2b-256(prefix || merkle).
 
 ; ---------------------------------------------------------------------------
 ; Vault outputs (D5; classified by constructor)
@@ -39,11 +49,19 @@ absence_proof   = #6.121([key: bytes, value: bytes .size 0, leaf_suffix: bytes,
 deposit_datum_v1      = #6.121([beneficiary: hash28, refund_address: bytes .size (1..64), refund_key_hash: hash28])
 vault_continuation_v1 = #6.122([[0*64 hash32]])   ; ids paid (claims, or the one escape id) or [] after Accept
 floor_top_up_v1       = #6.123([])
+; Shapes are judged on the decoded Plutus Data (any serialization), by the script and by
+; VaultOutputShape.classify alike. A vault output may also have no datum or only a datum hash:
+; unattributed custody, sweepable.
+
+; The payout output (output 0) of a SweepExit: the paid claim, for the payout observer (D10).
+sweep_paid_v1 = #6.125([claim_id: hash32])
 
 ; ---------------------------------------------------------------------------
-; AssetVaultValidator redeemers. Every vault input of a transaction carries the
-; identical redeemer (V13). Claim fields are the ClaimLeafV1 fields for the
-; vault's one asset: quantity 0 means an empty asset_value.
+; AssetVaultValidator redeemers. One action per transaction (V13): the lead vault
+; input (the first in ledger order) carries the action and runs the full check over
+; every vault input; every other vault input carries the identical redeemer or the
+; Follow marker. Claim fields are the ClaimLeafV1 fields for the vault's one asset:
+; quantity 0 means an empty asset_value. A batch holds at most 64 claims.
 ; ---------------------------------------------------------------------------
 claim = #6.121([claim_id: hash32, kind: 0..3, quantity: uint, vault_lovelace: uint,
   recipient: raw_addr, reserved_height: uint, reserved_at_ms: uint])
@@ -53,8 +71,9 @@ vault_redeemer =
     #6.121([claims: [+ claim], shard_index: 0..15])                        ; 0 Settle (NORMAL; V9)
   / #6.122([exits: [+ exit_claim], status_proof: inclusion_proof,
             shard_index: 0..15])                                           ; 1 Exit (status ignored in EXIT)
-  / #6.123([exit: exit_claim, status_proof: inclusion_proof,
-            withdrawal_key: bytes, sequence: uint, shard_index: 0..15])     ; 2 SweepExit (SWEEP_UNATTRIBUTED)
+  / #6.123([claim_id: hash32, recipient: raw_addr, reserved_height: uint,
+            reserved_at_ms: uint, assets: [* sweep_asset], proof: inclusion_proof,
+            status_proof: inclusion_proof, sequence: uint, shard_index: 0..15])  ; 2 SweepExit (SWEEP_UNATTRIBUTED)
   / #6.124([])                                                             ; 3 AcceptCosigned (NORMAL)
   / #6.125([proofs: [+ inclusion_proof]])                                  ; 4 AcceptProved, one per vault input
   / #6.126([proof: absence_proof])                                         ; 5 RefundAbsent (EXIT)
@@ -62,11 +81,21 @@ vault_redeemer =
   / #6.1280([holder_id: bytes .size (1..64), holder_key_hash: hash28,
              amount: uint, vault_lovelace: uint, recipient: raw_addr,
              proof: inclusion_proof, shard_index: 0..15])                  ; 7 BalanceExit (EXIT)
+  / #6.1281([])                                                            ; 8 Consolidate (NORMAL and EXIT)
+  / #6.1282([])                                                            ; 9 Follow (non-lead inputs only)
 
-; SweepExit binds its one spent outpoint: withdrawal_key = CBOR transaction_input
-; [tx_id, index] of that outpoint, and claim_id = ClaimId(domain, vault,
-; SWEEP_UNATTRIBUTED, withdrawal_key, recipient, asset_value, vault_lovelace,
-; sequence), recomputed on chain.
+sweep_asset = #6.121([policy_id: bytes, asset_name: bytes, quantity: uint])  ; canonical AssetId order
+
+; SweepExit binds its one spent outpoint, which must not be accepted custody: the
+; script computes withdrawal_key = CBOR transaction_input [tx_id, index] of that
+; outpoint, asset_value from `assets` (which must be exactly the outpoint's value:
+; every native asset, plus the lovelace entry for the ADA vault) and vault_lovelace
+; (the outpoint's lovelace, 0 for the ADA vault) - the SweepCommitment of
+; asset-gateway-contracts - then claim_id = ClaimId(domain, vault, SWEEP_UNATTRIBUTED,
+; withdrawal_key, recipient, asset_value, vault_lovelace, sequence) and the leaf.
+; Output 0 pays exactly the outpoint's value to the recipient with sweep_paid_v1.
+; Consolidate merges two or more accepted, clean inputs into one exact
+; vault_continuation_v1([]); no shard, no payout.
 
 ; ---------------------------------------------------------------------------
 ; Nullifier shard (AssetShardValidator, one of 16 per vault)
@@ -75,10 +104,14 @@ shard_datum_v1 = #6.121([1, shard_index: 0..15, nullifier_root: hash32])   ; emp
 mpf_step       = any                                   ; Aiken MPF ProofStep (Branch 0 / Fork 1 / Leaf 2)
 insert         = #6.121([id: hash32, proof: [* mpf_step]])
 shard_redeemer = #6.121([inserts: [+ insert]])         ; ids in payment order; value of an id = the id
-; thread token: policy = ShardThreadPolicy(seed), name = h'<shard_index byte>'
+; thread token: policy = ShardThreadPolicy(seed), name = h'<shard_index byte>'; the bootstrap
+; mint puts each token alone in an output with shard_datum_v1(1, i, 32 zero bytes). The
+; continuation keeps at least the spent lovelace and carries no reference script.
 
 ; ---------------------------------------------------------------------------
-; Exit-mode thread (ExitModeThreadValidator; token: ExitModeThreadPolicy(seed), name h'')
+; Exit-mode thread (ExitModeThreadValidator; token: ExitModeThreadPolicy(seed), name h'',
+; minted into a NORMAL datum; the EXIT continuation holds only lovelace and the token, no
+; reference script)
 ; ---------------------------------------------------------------------------
 exit_mode_v1 = #6.121([])                                                  ; NORMAL
              / #6.122([frozen_root: hash32, frozen_height: uint, frozen_at_ms: uint])  ; EXIT (terminal)
@@ -91,7 +124,7 @@ enter_exit_mode =
 ; Forced-withdrawal inbox (ForcedInboxValidator: one script, mint + spend)
 ; ---------------------------------------------------------------------------
 forced_withdrawal_v1 = #6.121([account_id: hash28, vault_id: hash32,
-  amount: #6.121([uint .gt 0]) / #6.122([]),            ; exact amount / ALL
+  amount: #6.121([1 .. 18446744073709551615]) / #6.122([]),  ; exact amount (u64) / ALL
   recipient: raw_addr, requester_key_hash: hash28,
   posted_at_ms: uint])                                  ; == validity upper bound at mint
 ; token name = request_id = blake2b-256("forced\0" || CBOR [tx_id, index]) of the
@@ -99,3 +132,6 @@ forced_withdrawal_v1 = #6.121([account_id: hash28, vault_id: hash32,
 inbox_mint_redeemer  = #6.121([]) / #6.122([])          ; request / burn
 inbox_spend_redeemer = #6.121([proof: inclusion_proof]) ; record forced/<id> under the anchor root
                      / #6.122([])                       ; exit mode
+; Each spend burns its token and refunds the requester: the outputs whose payment key
+; is requester_key_hash hold at least the summed lovelace of every inbox input of that
+; requester in the transaction.
