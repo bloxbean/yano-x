@@ -75,6 +75,21 @@ class ExitModeConformanceTest extends GatewayTestBase {
         rejected(exitModeValidator(), staked.spending(ref(0x64, 0)));
     }
 
+    /** P3-13: the EXIT continuation holds only lovelace and the thread token, and no reference script. */
+    @Test
+    void theContinuationHoldsOnlyTheThreadTokenAndNoReferenceScript() {
+        Tx extra = enter(stale(), filled(0x55, 32), NOW - HEARTBEAT, NOW);
+        TxOut next = extra.outputs.get(0);
+        extra.outputs.set(0, new TxOut(next.address(), next.value().merge(token(filled(0x7c, 28), new byte[] {1}, 1)),
+                next.datum(), Optional.empty()));
+        rejected(exitModeValidator(), extra.spending(ref(0x64, 0)));
+
+        Tx script = enter(stale(), filled(0x55, 32), NOW - HEARTBEAT, NOW);
+        script.outputs.set(0, new TxOut(next.address(), next.value(), next.datum(),
+                Optional.of(new org.julclang.ledger.ScriptHash(filled(0x5b, 28)))));
+        rejected(exitModeValidator(), script.spending(ref(0x64, 0)));
+    }
+
     @Test
     void exitModeIsTerminalAndNeedsTheV2Anchor() {
         Tx again = enter(stale(), filled(0x55, 32), NOW - HEARTBEAT, NOW);
@@ -142,6 +157,32 @@ class ExitModeConformanceTest extends GatewayTestBase {
         rejected(exitModeValidator(), tx.spending(ref(0x64, 0)));
     }
 
+    /**
+     * P0-1: a processed request's own record leaf, named through a conflicting key hash that differs from the forced
+     * key's hash in one nibble above the leaf, is no absence proof, wherever the flipped nibble is.
+     */
+    @Test
+    void aForgedAbsenceOfAProcessedRequestCannotEnterExitMode() {
+        byte[] key = GatewayFixtures.concat(FORCED_PREFIX, REQUEST_ID);
+        StateTrie processed = new StateTrie().fill("ap/account/", 64).put(key, new byte[] {(byte) 0x82, 0, 0});
+        int cursor = (int) leafCursor(processed.inclusion(key).leafSuffix());
+        long posted = NOW - FORCED_DEADLINE - HOUR;
+        for (int flip : new int[] {0, cursor / 2, cursor - 1}) {
+            Tx tx = enter(PlutusData.constr(1, PlutusData.bytes(REQUEST_ID), processed.forgedAbsence(key, flip)),
+                    processed.root(), NOW - HOUR, NOW);
+            tx.reference(request(posted, INBOX_HASH));
+            rejected(exitModeValidator(), tx.spending(ref(0x64, 0)));
+        }
+    }
+
+    /** P1-2: a censored request whose key leaves a branch's compressed prefix still triggers exit mode. */
+    @Test
+    void aCensoredRequestWhoseKeyLeavesABranchPrefixEntersExitMode() {
+        StateTrie state = branchPrefixTrie(GatewayFixtures.concat(FORCED_PREFIX, REQUEST_ID));
+        ok(exitModeValidator(), censored(state, NOW - FORCED_DEADLINE - HOUR, NOW - HOUR, NOW, INBOX_HASH)
+                .spending(ref(0x64, 0)));
+    }
+
     @Test
     void theCensorshipTriggerWaitsForTheDeadlineInL1TimeAndInAnchorTime() {
         StateTrie state = new StateTrie().fill("ap/account/", 64);
@@ -201,5 +242,20 @@ class ExitModeConformanceTest extends GatewayTestBase {
                 .minting(EXIT_POLICY, PlutusData.UNIT));
         rejected(threadPolicy(), mintThread(token(EXIT_POLICY, new byte[0], -1), true)
                 .minting(EXIT_POLICY, PlutusData.UNIT));
+    }
+
+    /** P3-14: the minted thread starts NORMAL. */
+    @Test
+    void theThreadIsMintedIntoANormalDatum() {
+        Value one = token(EXIT_POLICY, new byte[0], 1);
+        for (PlutusData datum : new PlutusData[] {exitMode(filled(0x55, 32)), PlutusData.constr(0,
+                PlutusData.integer(1))}) {
+            Tx tx = mintThread(one, true);
+            tx.outputs.set(0, out(GatewayFixtures.scriptAddress(EXIT_HASH), lovelace(2_000_000).merge(one), datum));
+            rejected(threadPolicy(), tx.minting(EXIT_POLICY, PlutusData.UNIT));
+        }
+        Tx none = mintThread(one, true);
+        none.outputs.set(0, out(GatewayFixtures.scriptAddress(EXIT_HASH), lovelace(2_000_000).merge(one), null));
+        rejected(threadPolicy(), none.minting(EXIT_POLICY, PlutusData.UNIT));
     }
 }

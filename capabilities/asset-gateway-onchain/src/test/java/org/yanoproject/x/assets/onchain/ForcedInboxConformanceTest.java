@@ -84,6 +84,14 @@ class ForcedInboxConformanceTest extends GatewayTestBase {
         PlutusData zero = request(NOW + 600_000, PlutusData.constr(0, PlutusData.integer(0)),
                 GatewayFixtures.enterpriseKeyAddress(filled(0xa2, 28)));
         rejected(inbox(), post(REQUEST_ID, zero, carried(REQUEST_ID)).minting(INBOX_HASH, requestMint()));
+        // P3-12: an exact amount is a u64 quantity, 1 .. 2^64 - 1.
+        java.math.BigInteger u64 = java.math.BigInteger.ONE.shiftLeft(64);
+        PlutusData max = request(NOW + 600_000, PlutusData.constr(0, PlutusData.integer(
+                u64.subtract(java.math.BigInteger.ONE))), GatewayFixtures.enterpriseKeyAddress(filled(0xa2, 28)));
+        ok(inbox(), post(REQUEST_ID, max, carried(REQUEST_ID)).minting(INBOX_HASH, requestMint()));
+        PlutusData over = request(NOW + 600_000, PlutusData.constr(0, PlutusData.integer(u64)),
+                GatewayFixtures.enterpriseKeyAddress(filled(0xa2, 28)));
+        rejected(inbox(), post(REQUEST_ID, over, carried(REQUEST_ID)).minting(INBOX_HASH, requestMint()));
         PlutusData noRecipient = request(NOW + 600_000, PlutusData.constr(1), new byte[0]);
         rejected(inbox(), post(REQUEST_ID, noRecipient, carried(REQUEST_ID)).minting(INBOX_HASH, requestMint()));
     }
@@ -168,6 +176,56 @@ class ForcedInboxConformanceTest extends GatewayTestBase {
         Tx kept = burn(PlutusData.constr(1), exitMode(filled(0x55, 32)), null);
         kept.outputs.set(0, payTo(GatewayFixtures.enterpriseKeyAddress(filled(0xbb, 28)), lovelace(2_000_000)));
         rejected(inbox(), kept.spending(ref(0x79, 0)));
+    }
+
+    /**
+     * P1-3: burning several requests in one transaction refunds each requester the sum of their inputs; one output
+     * never covers two requests.
+     */
+    @Test
+    void aBatchedBurnRefundsEachRequesterTheSumOfTheirRequests() {
+        byte[] second = GatewayIds.forcedRequestId(Hash32.of(filled(0x21, 32)), 0).bytes();
+        TxInInfo other = new TxInInfo(ref(0x7a, 0), new TxOut(GatewayFixtures.scriptAddress(INBOX_HASH),
+                lovelace(3_000_000).merge(token(INBOX_HASH, second, 1)), new OutputDatum.OutputDatumInline(
+                request(NOW - DAY, PlutusData.constr(1), GatewayFixtures.enterpriseKeyAddress(filled(0xa2, 28)))),
+                Optional.empty()));
+
+        // One output of 3 ADA "covers" each 2 ADA and 3 ADA request on its own, not both.
+        Tx shared = burn(PlutusData.constr(1), exitMode(filled(0x55, 32)), null);
+        shared.spend(other, PlutusData.constr(1));
+        shared.mint = shared.mint.merge(token(INBOX_HASH, second, -1));
+        shared.outputs.set(0, payTo(GatewayFixtures.enterpriseKeyAddress(REQUESTER), lovelace(3_000_000)));
+        rejected(inbox(), shared.spending(ref(0x79, 0)));
+        rejected(inbox(), shared.spending(ref(0x7a, 0)));
+
+        // Two outputs to the requester's key that together hold the sum.
+        Tx split = burn(PlutusData.constr(1), exitMode(filled(0x55, 32)), null);
+        split.spend(other, PlutusData.constr(1));
+        split.mint = split.mint.merge(token(INBOX_HASH, second, -1));
+        split.output(payTo(GatewayFixtures.baseKeyAddress(REQUESTER, filled(0x99, 28)), lovelace(3_000_000)));
+        ok(inbox(), split.spending(ref(0x79, 0)));
+        ok(inbox(), split.spending(ref(0x7a, 0)));
+        ok(inbox(), split.minting(INBOX_HASH, burnMint()));
+
+        // Requests of two requesters, each refunded.
+        byte[] otherRequester = filled(0xa4, 28);
+        PlutusData theirs = PlutusData.constr(0, PlutusData.bytes(filled(0xa1, 28)),
+                PlutusData.bytes(TOKEN_VAULT.bytes()), PlutusData.constr(1),
+                PlutusData.bytes(GatewayFixtures.enterpriseKeyAddress(filled(0xa2, 28))),
+                PlutusData.bytes(otherRequester), PlutusData.integer(NOW - DAY));
+        TxInInfo foreign = new TxInInfo(ref(0x7a, 0), new TxOut(GatewayFixtures.scriptAddress(INBOX_HASH),
+                lovelace(3_000_000).merge(token(INBOX_HASH, second, 1)), new OutputDatum.OutputDatumInline(theirs),
+                Optional.empty()));
+        Tx two = burn(PlutusData.constr(1), exitMode(filled(0x55, 32)), null);
+        two.spend(foreign, PlutusData.constr(1));
+        two.mint = two.mint.merge(token(INBOX_HASH, second, -1));
+        two.output(payTo(GatewayFixtures.enterpriseKeyAddress(otherRequester), lovelace(3_000_000)));
+        ok(inbox(), two.spending(ref(0x79, 0)));
+        ok(inbox(), two.spending(ref(0x7a, 0)));
+        Tx unpaid = burn(PlutusData.constr(1), exitMode(filled(0x55, 32)), null);
+        unpaid.spend(foreign, PlutusData.constr(1));
+        unpaid.mint = unpaid.mint.merge(token(INBOX_HASH, second, -1));
+        rejected(inbox(), unpaid.spending(ref(0x7a, 0)));
     }
 
     @Test

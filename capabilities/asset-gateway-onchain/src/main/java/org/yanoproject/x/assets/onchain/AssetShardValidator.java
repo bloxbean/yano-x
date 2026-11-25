@@ -27,9 +27,10 @@ import java.math.BigInteger;
  * [[Insert = Constr 0 [id, proof]]]}; the vault reads the ordered ids from it. A spend requires: the own input holds
  * the thread token {@code [shardIndex]}; this vault is spent in the same transaction; every id is 32 bytes, routes to
  * this shard by its last nibble and is absent under the running root, which then advances to the post-insert root
- * (I6, I17); exactly one output has this script's payment credential, at the exact enterprise address, holding only
- * lovelace and the one thread token, with {@code ShardDatumV1(1, shardIndex, finalRoot)}; and the mint never touches
- * the thread policy. The MPF value of an id is the id itself.
+ * (I6, I17); exactly one output has this script's payment credential, at the exact enterprise address, with no
+ * reference script, holding only lovelace (at least the spent shard's, so a payout cannot drain the shard's min-ADA
+ * into its fee) and the one thread token, with {@code ShardDatumV1(1, shardIndex, finalRoot)}; and the mint never
+ * touches the thread policy. The MPF value of an id is the id itself.
  */
 @SpendingValidator
 public final class AssetShardValidator {
@@ -77,6 +78,8 @@ public final class AssetShardValidator {
         return Builtins.lengthOfByteString(finalRoot) == 32
                 && GatewayCodec.isEnterpriseScript(next.address().toPlutusData(), ownHash)
                 && threadOnly(next.value(), name)
+                && ValuesLib.lovelaceOf(next.value()).compareTo(ValuesLib.lovelaceOf(own.resolved().value())) >= 0
+                && next.referenceScript().isEmpty()
                 && Builtins.equalsData(GatewayTx.inlineDatum(next.datum()), expected);
     }
 

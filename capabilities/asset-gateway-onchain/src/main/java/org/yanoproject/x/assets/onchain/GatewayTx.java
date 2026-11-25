@@ -76,8 +76,8 @@ public final class GatewayTx {
     /**
      * {@code postedAtMs} of a well-formed {@code ForcedWithdrawalV1} inbox datum, or {@code -1}:
      * {@code Constr 0 [account_id: bytes .size 28, vault_id: bytes .size 32, amount, recipient: bytes .size (1..128),
-     * requester_key_hash: bytes .size 28, posted_at_ms: int >= 0]} with {@code amount = Constr 0 [int > 0]}
-     * (an exact amount) or {@code Constr 1 []} (ALL), and nothing else.
+     * requester_key_hash: bytes .size 28, posted_at_ms: int >= 0]} with {@code amount = Constr 0 [int]} (an exact
+     * amount, {@code 1 .. 2^64 - 1}, the u64 quantity range) or {@code Constr 1 []} (ALL), and nothing else.
      */
     public static BigInteger forcedPostedAtMs(PlutusData datum) {
         if (Builtins.constrTag(datum) != 0) {
@@ -97,8 +97,10 @@ public final class GatewayTx {
         BigInteger postedAtMs = Builtins.unIData(Builtins.headList(f5));
         long amountTag = Builtins.constrTag(amount);
         PlutusData amountFields = Builtins.constrFields(amount);
+        BigInteger exact = amountTag == 0 ? Builtins.unIData(Builtins.headList(amountFields)) : BigInteger.ZERO;
         boolean amountValid = amountTag == 0
-                ? Builtins.unIData(Builtins.headList(amountFields)).signum() > 0
+                ? exact.signum() > 0 && exact.compareTo(BigInteger.valueOf(4294967296L)
+                .multiply(BigInteger.valueOf(4294967296L))) < 0
                 && Builtins.nullList(Builtins.tailList(amountFields))
                 : amountTag == 1 && Builtins.nullList(amountFields);
         return Builtins.lengthOfByteString(account) == 28

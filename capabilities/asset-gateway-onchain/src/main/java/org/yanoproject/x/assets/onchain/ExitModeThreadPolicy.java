@@ -4,20 +4,23 @@ import org.julclang.core.PlutusData;
 import org.julclang.core.types.JulcList;
 import org.julclang.ledger.ScriptContext;
 import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
 import org.julclang.stdlib.Builtins;
 import org.julclang.stdlib.annotation.Entrypoint;
 import org.julclang.stdlib.annotation.MintingValidator;
 import org.julclang.stdlib.annotation.Param;
 import org.julclang.stdlib.lib.ContextsLib;
+import org.julclang.stdlib.lib.ValuesLib;
 
 import java.math.BigInteger;
 
 /**
  * ADR-059 D8g §3: the one-shot policy of a domain's single {@code ExitModeV1} thread token (D4 step 3.1). Minting is
  * valid only in the transaction that spends the seed outpoint, and only as exactly one token with the empty name at
- * +1 under this policy; a burn is never valid, so the thread lives forever. The policy cannot pin the thread address
- * (the exit-mode validator takes this policy id); the domain's bootstrap check verifies that the token sits at the
- * exit-mode validator's enterprise address with {@code NORMAL}.
+ * +1 under this policy; a burn is never valid, so the thread lives forever. The output that receives the token must
+ * carry the inline datum {@code NORMAL} ({@code Constr 0 []}). The policy cannot pin the thread address (the exit-mode
+ * validator takes this policy id); the domain's bootstrap check verifies that the token sits at the exit-mode
+ * validator's enterprise address.
  */
 @MintingValidator
 public final class ExitModeThreadPolicy {
@@ -36,7 +39,20 @@ public final class ExitModeThreadPolicy {
     public static boolean validate(PlutusData redeemer, ScriptContext context) {
         byte[] ownPolicy = ContextsLib.ownHash(context);
         PlutusData policies = Builtins.unMapData(context.txInfo().mint());
-        return consumesSeed(context.txInfo().inputs()) && onlyThreadToken(policies, ownPolicy);
+        return consumesSeed(context.txInfo().inputs()) && onlyThreadToken(policies, ownPolicy)
+                && carriersNormal(context.txInfo().outputs(), ownPolicy);
+    }
+
+    /** Every output that holds this policy carries the inline datum {@code NORMAL}. */
+    private static boolean carriersNormal(JulcList<TxOut> outputs, byte[] ownPolicy) {
+        if (outputs.isEmpty()) {
+            return true;
+        }
+        TxOut out = outputs.head();
+        return (!ValuesLib.containsPolicy(out.value(), ownPolicy)
+                || Builtins.equalsData(GatewayTx.inlineDatum(out.datum()),
+                Builtins.constrData(0, Builtins.mkNilData())))
+                && carriersNormal(outputs.tail(), ownPolicy);
     }
 
     private static boolean consumesSeed(JulcList<TxInInfo> inputs) {

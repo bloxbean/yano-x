@@ -148,12 +148,60 @@ class ShardConformanceTest extends GatewayTestBase {
         tx.spend(keyInput(seed ? ref(0x6e, 1) : ref(0x6e, 2), 30_000_000L), null);
         Value mint = Value.zero();
         for (int i = 0; i < names; i++) {
-            mint = mint.merge(token(SHARD_POLICY, new byte[] {(byte) i}, quantity));
+            Value one = token(SHARD_POLICY, new byte[] {(byte) i}, quantity);
+            mint = mint.merge(one);
+            tx.output(out(GatewayFixtures.scriptAddress(SHARD_HASH), lovelace(2_000_000).merge(one),
+                    shardDatum(i, new byte[32])));
         }
         tx.mint = mint;
-        tx.output(out(GatewayFixtures.scriptAddress(SHARD_HASH), lovelace(2_000_000).merge(mint),
-                shardDatum(0, new byte[32])));
         return tx;
+    }
+
+    /** P3-14: each minted token sits alone in its output, with {@code ShardDatumV1(1, i, emptyRoot)}. */
+    @Test
+    void eachMintedTokenGetsItsOwnOutputWithAnEmptyShardDatum() {
+        Tx together = bootstrap(16, 1, true);
+        Value merged = lovelace(2_000_000);
+        for (TxOut o : together.outputs.subList(0, 2)) {
+            merged = merged.merge(o.value()).merge(lovelace(-2_000_000));
+        }
+        together.outputs.set(0, out(GatewayFixtures.scriptAddress(SHARD_HASH), merged, shardDatum(0, new byte[32])));
+        together.outputs.remove(1);
+        rejected(threadPolicy(), together.minting(SHARD_POLICY, PlutusData.integer(0)));
+
+        Tx wrongIndex = bootstrap(16, 1, true);
+        TxOut third = wrongIndex.outputs.get(3);
+        wrongIndex.outputs.set(3, out(third.address(), third.value(), shardDatum(4, new byte[32])));
+        rejected(threadPolicy(), wrongIndex.minting(SHARD_POLICY, PlutusData.integer(0)));
+
+        Tx seeded = bootstrap(16, 1, true);
+        TxOut first = seeded.outputs.get(0);
+        seeded.outputs.set(0, out(first.address(), first.value(), shardDatum(0, filled(0x01, 32))));
+        rejected(threadPolicy(), seeded.minting(SHARD_POLICY, PlutusData.integer(0)));
+
+        Tx datumless = bootstrap(16, 1, true);
+        datumless.outputs.set(0, out(first.address(), first.value(), null));
+        rejected(threadPolicy(), datumless.minting(SHARD_POLICY, PlutusData.integer(0)));
+    }
+
+    /** P2-10, P3-13: the continuation keeps at least the spent lovelace and carries no reference script. */
+    @Test
+    void theContinuationKeepsItsLovelaceAndCarriesNoReferenceScript() {
+        Tx more = shardSpend(new ShardTrie(SHARD), 1, VAULT_HASH);
+        TxOut next = more.outputs.get(0);
+        more.outputs.set(0, new TxOut(next.address(), next.value().merge(lovelace(1)), next.datum(),
+                Optional.empty()));
+        ok(shard(), more.spending(shardRef(SHARD)));
+
+        Tx drained = shardSpend(new ShardTrie(SHARD), 1, VAULT_HASH);
+        drained.outputs.set(0, new TxOut(next.address(), next.value().merge(lovelace(-1)), next.datum(),
+                Optional.empty()));
+        rejected(shard(), drained.spending(shardRef(SHARD)));
+
+        Tx script = shardSpend(new ShardTrie(SHARD), 1, VAULT_HASH);
+        script.outputs.set(0, new TxOut(next.address(), next.value(), next.datum(),
+                Optional.of(new org.julclang.ledger.ScriptHash(filled(0x5b, 28)))));
+        rejected(shard(), script.spending(shardRef(SHARD)));
     }
 
     @Test

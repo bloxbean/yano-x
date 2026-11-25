@@ -32,8 +32,9 @@ import java.util.Optional;
  * the validity window being at most {@code maxMintWindowMs}, and whose {@code requesterKeyHash} signs. Redeemer
  * {@code Constr 1 []} (burn): every entry of this policy is -1 and names a spent inbox token; nothing is minted.
  *
- * <p><b>Spend</b>: the token never moves; it can only be burned, together with this spend, and the input's lovelace
- * goes back to an output whose payment key is {@code requesterKeyHash}. Redeemer {@code Constr 0 [proof]}: the
+ * <p><b>Spend</b>: the token never moves; it can only be burned, together with this spend, and the lovelace goes
+ * back to the requester: the outputs whose payment key is {@code requesterKeyHash} together hold at least the summed
+ * lovelace of every inbox input of that requester in the transaction, so one output never covers two requests. Redeemer {@code Constr 0 [proof]}: the
  * referenced v2 anchor's root includes {@code forcedKeyPrefix ‖ requestId} (the request was processed). Redeemer
  * {@code Constr 1 []}: the exit-mode thread, authenticated by its policy and the empty token name, is {@code EXIT}.
  * The inbox cannot pin the exit-mode address (that validator takes this policy id); the token is one-shot and the
@@ -114,7 +115,8 @@ public final class ForcedInboxValidator {
         if (!Builtins.nullList(Builtins.tailList(held))
                 || !Builtins.unIData(Builtins.sndPair(token)).equals(BigInteger.ONE)
                 || !ValuesLib.assetOf(tx.mint(), policy, requestId).equals(BigInteger.valueOf(-1))
-                || !refunded(tx.outputs(), GatewayTx.forcedRequester(datum), ValuesLib.lovelaceOf(out.value()))) {
+                || paidTo(tx.outputs(), GatewayTx.forcedRequester(datum)).compareTo(
+                requested(tx.inputs(), policy, GatewayTx.forcedRequester(datum))) < 0) {
             return false;
         }
         if (Builtins.constrTag(redeemer) == 1) {
@@ -171,15 +173,30 @@ public final class ForcedInboxValidator {
         return ValuesLib.containsPolicy(out.value(), policy) ? rest.prepend(out) : rest;
     }
 
-    /** Some output pays the requester's payment key at least {@code lovelace}. */
-    private static boolean refunded(JulcList<TxOut> outputs, byte[] requester, BigInteger lovelace) {
+    /** The lovelace of the outputs whose payment key is {@code requester}. */
+    private static BigInteger paidTo(JulcList<TxOut> outputs, byte[] requester) {
         if (outputs.isEmpty()) {
-            return false;
+            return BigInteger.ZERO;
         }
         TxOut out = outputs.head();
-        return (Builtins.equalsByteString(GatewayCodec.paymentKeyHash(out.address().toPlutusData()), requester)
-                && ValuesLib.lovelaceOf(out.value()).compareTo(lovelace) >= 0)
-                || refunded(outputs.tail(), requester, lovelace);
+        BigInteger rest = paidTo(outputs.tail(), requester);
+        return Builtins.equalsByteString(GatewayCodec.paymentKeyHash(out.address().toPlutusData()), requester)
+                ? rest.add(ValuesLib.lovelaceOf(out.value())) : rest;
+    }
+
+    /**
+     * The lovelace of the inputs at the inbox address {@code policy} whose request names {@code requester}. Each of
+     * them is spent under this same rule, so every requester in the transaction is refunded in full.
+     */
+    private static BigInteger requested(JulcList<TxInInfo> inputs, byte[] policy, byte[] requester) {
+        if (inputs.isEmpty()) {
+            return BigInteger.ZERO;
+        }
+        TxOut out = inputs.head().resolved();
+        BigInteger rest = requested(inputs.tail(), policy, requester);
+        return Builtins.equalsByteString(GatewayCodec.paymentScriptHash(out.address().toPlutusData()), policy)
+                && Builtins.equalsByteString(GatewayTx.forcedRequester(GatewayTx.inlineDatum(out.datum())), requester)
+                ? rest.add(ValuesLib.lovelaceOf(out.value())) : rest;
     }
 
     /** A reference input holds the exit-mode thread token (empty name) and an {@code EXIT} datum. */
