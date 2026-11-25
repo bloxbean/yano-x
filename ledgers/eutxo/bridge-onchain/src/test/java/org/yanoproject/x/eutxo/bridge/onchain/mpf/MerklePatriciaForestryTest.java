@@ -796,6 +796,85 @@ class MerklePatriciaForestryTest {
      * its PR 716) emits the same canonical Leaf and Fork steps, checked in
      * {@code ccl_fork_proofs_through_compiled_uplc}.
      */
+    /**
+     * A real branch on a present key's path at odd cursor {@code c}, whose {@code 2 + (63 - c) / 2}-nibble prefix
+     * starts with nibble 0, has the shape of an odd leaf. A terminal Leaf step whose key shares the path above
+     * {@code c} and carries the prefix's nibbles as raw bytes, with the branch's merkle root as value, is well formed
+     * and excludes to the very root that proves the key present. miss() must reject it ({@code excludedLeafIsNotABranch}).
+     */
+    @Nested
+    class BranchReadAsLeafTests {
+
+        @Test
+        void a_branch_on_the_path_is_never_a_conflicting_leaf() {
+            for (int c : new int[] {1, 3, 5, 9, 13}) {
+                int length = 2 + (63 - c) / 2;
+                String key = null;
+                byte[] path = null;
+                for (int i = 0; ; i++) {
+                    key = "victim-" + c + "-" + i;
+                    path = h(key);
+                    if (MerklePatriciaForestry.nibble(path, c) == 0 && MerklePatriciaForestry.nibble(path, c + 1) != 0) {
+                        break;
+                    }
+                }
+                byte[] d1 = CryptoLib.blake2b_256(new byte[] {1});
+                byte[] d2 = CryptoLib.blake2b_256(new byte[] {2});
+                int lowerNibble = (MerklePatriciaForestry.nibble(path, c + length) + 1) % 16;
+                int upperNibble = (MerklePatriciaForestry.nibble(path, c - 1) + 1) % 16;
+                byte[] leaf = MerklePatriciaForestry.combine(MerklePatriciaForestry.suffix(path, c + length + 1), hv());
+                byte[] branchMerkle = MerklePatriciaForestry.sparseMerkle16(MerklePatriciaForestry.nibble(path, c + length),
+                        leaf, lowerNibble, MerklePatriciaForestry.combine(new byte[0], d1));
+                byte[] prefix = MerklePatriciaForestry.nibbles(path, c, c + length);
+                byte[] branch = MerklePatriciaForestry.combine(prefix, branchMerkle);
+                byte[] root = MerklePatriciaForestry.doFork(path, 0, c - 1, branch, upperNibble, new byte[0], d2);
+                ProofStep upper = new ProofStep.Fork(c - 1, new Neighbor(upperNibble, new byte[0], d2));
+                JulcList<ProofStep> inclusion = JulcList.of(upper,
+                        new ProofStep.Fork(length, new Neighbor(lowerNibble, new byte[0], d1)));
+                assertTrue(hasBoth(root, key, inclusion), "cursor " + c + ": the key is present");
+
+                byte[] conflicting = new byte[32];
+                System.arraycopy(path, 0, conflicting, 0, (c - 1) / 2);
+                conflicting[(c - 1) / 2] = (byte) ((MerklePatriciaForestry.nibble(path, c - 1) << 4) | prefix[1]);
+                System.arraycopy(prefix, 2, conflicting, (c + 1) / 2, length - 2);
+                JulcList<ProofStep> forged = JulcList.of(upper, new ProofStep.Leaf(0, conflicting, branchMerkle));
+                // Before the rule this was a valid miss: well formed, and it excludes to the same root.
+                assertTrue(MerklePatriciaForestry.isWellFormed(path, 0, forged), "cursor " + c);
+                assertArrayEquals(root, MerklePatriciaForestry.doExcluding(path, 0, forged), "cursor " + c);
+                assertFalse(missBoth(root, key, forged), "cursor " + c + ": forged miss");
+            }
+        }
+
+        @Test
+        void honest_misses_with_terminal_leaves_at_odd_and_even_cursors_still_pass() {
+            int odd = 0;
+            int even = 0;
+            for (int size : new int[] {1, 2, 3, 30, 300}) {
+                String[] keys = new String[size];
+                for (int i = 0; i < size; i++) keys[i] = "member-" + size + "-" + i;
+                MpfTrie t = trie(keys);
+                for (int i = 0; i < 60; i++) {
+                    String missing = "absent-" + size + "-" + i;
+                    var proof = proofOf(t, missing);
+                    assertTrue(missBoth(t.getRootHash(), missing, proof), missing);
+                    int cursor = 0;
+                    ProofStep last = null;
+                    for (ProofStep step : proof) {
+                        if (last != null) {
+                            cursor += 1 + (last instanceof ProofStep.Branch b ? b.skip()
+                                    : last instanceof ProofStep.Fork f ? f.skip() : ((ProofStep.Leaf) last).skip());
+                        }
+                        last = step;
+                    }
+                    if (last instanceof ProofStep.Leaf) {
+                        if (cursor % 2 == 1) odd++; else even++;
+                    }
+                }
+            }
+            assertTrue(odd > 0 && even > 0, "terminal leaves at odd " + odd + " and even " + even + " cursors");
+        }
+    }
+
     @Nested
     class HonestProofTests {
 

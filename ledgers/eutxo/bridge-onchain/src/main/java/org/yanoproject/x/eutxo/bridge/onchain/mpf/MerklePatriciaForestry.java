@@ -384,6 +384,36 @@ public class MerklePatriciaForestry {
         }
     }
 
+    /**
+     * For an exclusion proof: a terminal Leaf at an odd cursor must have a raw key byte above 15 at index
+     * {@code (cursor + 1) / 2} or later. Leaf and branch commitments carry no domain tag: the excluded leaf is
+     * {@code combine(suffix(key, cursor), value)}, and at an odd cursor its suffix {@code 00 <nibble> <raw bytes>}
+     * has the shape of a branch prefix (all nibbles) when every raw byte is below 16. Without this rule a real
+     * branch on the path, whose prefix starts with nibble 0, could pass as the conflicting leaf and prove a present
+     * key absent. An honest leaf fails with probability {@code 16^-((63 - cursor) / 2)}, negligible at any
+     * reachable depth.
+     */
+    public static boolean excludedLeafIsNotABranch(int cursor, JulcList<ProofStep> proof) {
+        if (proof.isEmpty()) {
+            return true;
+        } else {
+            ProofStep step = proof.head();
+            JulcList<ProofStep> steps = proof.tail();
+            if (step instanceof ProofStep.Branch b) {
+                return steps.isEmpty() || excludedLeafIsNotABranch(cursor + b.skip() + 1, steps);
+            } else if (step instanceof ProofStep.Fork f) {
+                return steps.isEmpty() || excludedLeafIsNotABranch(cursor + f.skip() + 1, steps);
+            } else {
+                ProofStep.Leaf l = (ProofStep.Leaf) step;
+                if (steps.isEmpty()) {
+                    return cursor % 2 == 0 || !allNibbles(l.key(), (cursor + 1) / 2);
+                } else {
+                    return excludedLeafIsNotABranch(cursor + l.skip() + 1, steps);
+                }
+            }
+        }
+    }
+
     // =========================================================================
     // 7. Entry methods (depends on: doIncluding, doExcluding)
     // =========================================================================
@@ -412,10 +442,14 @@ public class MerklePatriciaForestry {
                 && ByteStringLib.equals(doIncluding(path, CryptoLib.blake2b_256(value), 0, proof), trieRoot);
     }
 
-    /** Check if a key is missing from the trie. False for a malformed proof. */
+    /**
+     * Check if a key is missing from the trie. False for a malformed proof, and for a terminal leaf that reads as a
+     * branch ({@link #excludedLeafIsNotABranch}).
+     */
     public static boolean miss(byte[] trieRoot, byte[] key, JulcList<ProofStep> proof) {
         byte[] path = CryptoLib.blake2b_256(key);
         return isWellFormed(path, 0, proof)
+                && excludedLeafIsNotABranch(0, proof)
                 && ByteStringLib.equals(doExcluding(path, 0, proof), trieRoot);
     }
 }
