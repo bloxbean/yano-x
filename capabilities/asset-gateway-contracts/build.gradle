@@ -39,6 +39,7 @@ tasks.register('verifyAssetGatewayContractArtifact') {
         def archive = tasks.named('jar').get().archiveFile.get().asFile
         new java.util.zip.ZipFile(archive).withCloseable { jar ->
             ['META-INF/yano/contracts/asset-gateway/v1/asset-gateway-v1.cddl',
+             'META-INF/yano/contracts/asset-gateway/v1/asset-gateway-settlement-v1.cddl',
              'META-INF/yano/contracts/asset-gateway/v1/golden-vectors.properties'].each { name ->
                 def entry = jar.getEntry(name)
                 if (entry == null || entry.size == 0) {

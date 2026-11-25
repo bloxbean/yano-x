@@ -1,0 +1,84 @@
+; ADR-059 asset gateway: settlement-side observer claims and consumer records, version 1.
+; Same strict subset as asset-gateway-v1.cddl: definite arrays, byte strings and unsigned
+; integers in shortest form, decoded only from the exact canonical bytes. Types not defined
+; here (hash32, u64) are those of asset-gateway-v1.cddl.
+
+index      = 0 .. 4294967295
+shard      = 0 .. 15
+raw_addr   = bytes .size (1 .. 128)          ; raw Shelley address bytes of the output
+holder_id  = bytes .size (1 .. 64)
+
+; ---------------------------------------------------------------------------
+; asset-vault-payout-v1 (D10). claim schema "asset-payout-claim-v1".
+; Emitted only for a phase-2-valid transaction with exactly one output at the vault's pinned
+; shard address, holding exactly one token of the vault's shard thread policy (quantity 1, name
+; h'<shard>'), no other output holding that policy, and no mint of it (D8h §4).
+; eventOrdinal = shard_output_index.
+; ---------------------------------------------------------------------------
+payout_output = [recipient: raw_addr, quantity: u64, lovelace: u64]
+                ; quantity = the vault asset's quantity (the lovelace, for the ADA vault)
+continuation  = [output_index: index, registered_quantity: u64, lovelace: u64,
+                 other_asset_count: index, value_hash: hash32]
+
+payout_observation_v1 = [1, 0, domain_id: hash32, vault_id: hash32, tx_id: hash32, slot: uint,
+  block_hash: hash32, shard_index: shard, shard_output_index: index,
+  source: 0 / 1,                       ; 0 VaultContinuationV1 ids (Settle, Exit); 1 output 0's SweepPaidV1 (SweepExit)
+  claim_ids: [1*64 hash32],            ; distinct, in payment order
+  payouts: [1*64 payout_output],       ; payouts[i] = output i, pays claim_ids[i]
+  continuation: [] / continuation]     ; [] exactly for source 1 (a SweepExit leaves none, r16)
+
+balance_exit_observation_v1 = [1, 1, domain_id: hash32, vault_id: hash32, tx_id: hash32,
+  slot: uint, block_hash: hash32, shard_index: shard, shard_output_index: index,
+  escape_nullifier: hash32,            ; the continuation's one id = blake2b-256("escape\0" || vault_id || holder_id)
+  holder_id: holder_id,                ; from the BalanceExit redeemer (the discriminator)
+  payout: payout_output,               ; output 0
+  continuation: continuation]          ; output 1
+
+; ---------------------------------------------------------------------------
+; asset-anchor-v1 (D8b, D8h §3). claim schema "asset-anchor-claim-v1".
+; One per output carrying the pinned anchor thread token at the pinned anchor script hash
+; (payment credential, as MpfAnchorLib). eventOrdinal = output_index.
+; ---------------------------------------------------------------------------
+anchored = [height: uint, block_hash: hash32, state_root: hash32, updated_at_ms: uint,
+  threshold: 1 .. 32, member_keys: [1*32 hash32]]   ; keys strictly ascending
+anchor_observation_v1 = [1, tx_id: hash32, output_index: index, slot: uint, block_hash: hash32,
+  minted: 0 / 1,                       ; 1 when the transaction mints the thread policy (bootstrap)
+  status: 0 / 1,                       ; 0 ACCEPTED (an accepted v2 datum), 1 UNACCEPTED
+  anchored: anchored / []]             ; [] exactly for UNACCEPTED
+
+; ---------------------------------------------------------------------------
+; asset-shard-bootstrap-v1 (D8c, D8h §3). claim schema "asset-shard-bootstrap-claim-v1".
+; One per transaction minting a configured vault's shard thread policy. eventOrdinal = the vault's
+; index in the observer settings.
+; ---------------------------------------------------------------------------
+shard_bootstrap_reason = 0             ; NONE (verified)
+                       / 1             ; MINT_NOT_EXACT
+                       / 2             ; WRONG_ADDRESS
+                       / 3             ; NOT_ONE_TOKEN
+                       / 4             ; BAD_DATUM
+                       / 5             ; MISSING_SHARD
+shard_bootstrap_observation_v1 = [1, domain_id: hash32, vault_id: hash32, tx_id: hash32, slot: uint,
+  block_hash: hash32, status: 0 / 1,   ; 0 VERIFIED, 1 REJECTED
+  reason: shard_bootstrap_reason,
+  shards: [* [shard_index: shard, output_index: index]]]   ; all 16 in shard order when VERIFIED, else []
+
+; ---------------------------------------------------------------------------
+; Consumer records (PayoutConfirmation), under the consumer's prefix P:
+;   P || "claim/" || claim_id                              claim_leaf_v1 (asset-gateway-v1.cddl)
+;   P || "claim-status/" || claim_id                       claim_status_v1
+;   P || "payout/" || domain_id || tx_id || claim_id       payout_record_v1, write-once
+;   P || "escape/" || escape_nullifier                     escape_redemption_v1, write-once
+;   P || "domain-status"                                   domain_status_v1 (asset-gateway-v1.cddl)
+; ---------------------------------------------------------------------------
+claim_status_v1 = [1, claim_id: hash32,
+  status: 0 / 1 / 2,                   ; RESERVED, PAID, PAID_MISMATCH
+  reserved_height: uint,
+  resolved_tx_id: bytes .size 0 / hash32,   ; empty exactly while RESERVED
+  resolved_height: uint]
+payout_record_v1 = [1,
+  outcome: 0 / 1 / 2,                  ; PAID, NO_OP, PAID_MISMATCH
+  reason: 0 .. 8,                      ; NONE, ALREADY_PAID, ALREADY_MISMATCHED, UNKNOWN_CLAIM, WRONG_VAULT,
+                                       ; RECIPIENT, QUANTITY, LOVELACE, LEDGER_INCONSISTENT
+  height: uint]
+escape_redemption_v1 = [1, escape_nullifier: hash32, vault_id: hash32, holder_id: holder_id,
+  tx_id: hash32, recipient: raw_addr, quantity: u64, lovelace: u64, height: uint]
