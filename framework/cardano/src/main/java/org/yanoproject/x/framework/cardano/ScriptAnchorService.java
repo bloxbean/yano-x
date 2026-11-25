@@ -1320,9 +1320,12 @@ final class ScriptAnchorService {
      * Anchor v2 member-side rules (anchor-v2.cddl rules 6 and 7, plus the review M4-F2 bound
      * on the window against this node's L1 tip), or null when they hold. The time bounds are
      * recomputed from the body's slots with this node's configured slot-to-time conversion,
-     * the same one the ledger applies. Every failure is a {@link BodyRefusal.Kind#HAZARD},
-     * including a missing local L1 tip: with nothing to bound the window by, the member
-     * cannot tell a current body from a stockpiled one, so it fails closed.
+     * the same one the ledger applies. A window that is not bounded by this node's own L1 tip
+     * (no local tip, a tip before the slot-time origin, or a start too far after the tip) is a
+     * {@link BodyRefusal.Kind#L1_TIP_BOUND}: with nothing current to bound the window by, the
+     * member cannot tell a current body from a stockpiled one, so it fails closed. Every other
+     * failure, including a window that already ended at the tip, is a
+     * {@link BodyRefusal.Kind#HAZARD}.
      */
     private BodyRefusal v2AdvanceProblem(TransactionBody body, AnchorDatumCodec.AnchorDatum prev,
                                          AnchorDatumCodec.AnchorDatum datum) {
