@@ -2289,7 +2289,8 @@ public final class AppChainEngine implements AutoCloseable {
     /**
      * The envelopes (by identity) whose Ed25519 signature verifies. A block's signatures are independent and the
      * check has no side effects, so they are verified in parallel ahead of the ordered per-message rules, which
-     * still decide in order; the block outcome is the same as checking one by one.
+     * still decide in order; the block outcome is the same as checking one by one. Envelopes this node already
+     * verified at admission are cache hits (ADR-060 D3).
      */
     static Set<AppMessage> signedEnvelopes(List<AppMessage> messages) {
         Set<AppMessage> signed = Collections.newSetFromMap(new IdentityHashMap<>(messages.size() * 2));
@@ -2297,10 +2298,7 @@ public final class AppChainEngine implements AutoCloseable {
         IntStream range = IntStream.range(0, messages.size());
         (messages.size() >= PARALLEL_SIGNATURE_THRESHOLD ? range.parallel() : range).forEach(i -> {
             AppMessage message = messages.get(i);
-            valid[i] = message != null && message.getAuthProof() != null && message.getSender() != null
-                    && message.getSender().length == 32
-                    && AppMessageSigner.verify(message.getAuthProof(), message.signedBodyBytes(),
-                    message.getSender());
+            valid[i] = AppMessageSigner.verifyEnvelope(message);
         });
         for (int i = 0; i < valid.length; i++) {
             if (valid[i]) {

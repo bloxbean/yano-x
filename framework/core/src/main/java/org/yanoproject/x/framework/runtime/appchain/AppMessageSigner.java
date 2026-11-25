@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.crypto.api.SigningProvider;
 import com.bloxbean.cardano.client.crypto.api.impl.BouncyCastleEd25519Verifier;
 import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
 
@@ -56,6 +57,38 @@ public final class AppMessageSigner implements SignerProvider {
     @Override
     public byte[] sign(byte[] message) {
         return signingProvider.sign(message, privateKey);
+    }
+
+    /** Envelopes verified recently; about 50 s of traffic at 2,500 msg/s (ADR-060 D3). */
+    private static final VerifiedEnvelopeCache VERIFIED_ENVELOPES = new VerifiedEnvelopeCache(131_072);
+
+    /**
+     * The one Ed25519 check for app-message envelopes (ADR-060 D3): the envelope's {@code authProof} verifies over
+     * its signed body under its {@code sender}. A relayed copy or a block's envelope that already verified on this
+     * node is a cache hit keyed by {@code (messageId, authProof)}; the content-derived message id is recomputed first,
+     * so a hit covers exactly these signed bytes. Only successful verifications are cached. Scheme, chain and
+     * membership are the caller's checks.
+     */
+    public static boolean verifyEnvelope(AppMessage message) {
+        if (message == null || message.getAuthProof() == null || message.getSender() == null
+                || message.getSender().length != 32 || message.getMessageId() == null
+                || !message.hasValidMessageId()) {
+            return false;
+        }
+        byte[] messageId = message.getMessageId();
+        byte[] proof = message.getAuthProof();
+        if (VERIFIED_ENVELOPES.contains(messageId, proof)) {
+            return true;
+        }
+        if (!verify(proof, message.signedBodyBytes(), message.getSender())) {
+            return false;
+        }
+        VERIFIED_ENVELOPES.add(messageId, proof);
+        return true;
+    }
+
+    static int verifiedEnvelopeCacheSize() {
+        return VERIFIED_ENVELOPES.size();
     }
 
     public static boolean verify(byte[] signature, byte[] message, byte[] publicKey) {

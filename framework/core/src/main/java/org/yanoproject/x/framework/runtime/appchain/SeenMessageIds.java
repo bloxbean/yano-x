@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 final class SeenMessageIds {
 
     private final ConcurrentHashMap<String, Long> expiryByIdHex = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> retryExpiryByIdHex = new ConcurrentHashMap<>();
     private final int maxEntries;
 
     SeenMessageIds(int maxEntries) {
@@ -30,9 +31,28 @@ final class SeenMessageIds {
         return expiryByIdHex.putIfAbsent(messageIdHex, expiresAtSeconds) == null;
     }
 
+    /**
+     * Forget an id dropped for a full pool, so a later copy is admitted again once there is room (ADR-060 D5). The id
+     * is remembered as a retry: the node already relayed the first copy, and relaying a re-admitted copy again would
+     * bounce it between members while their pools are full.
+     */
+    void forgetForRetry(String messageIdHex, long expiresAtSeconds) {
+        expiryByIdHex.remove(messageIdHex);
+        retryExpiryByIdHex.put(messageIdHex, expiresAtSeconds);
+    }
+
+    /** True once for an id previously forgotten by {@link #forgetForRetry}; the caller must not relay that copy. */
+    boolean consumeRetry(String messageIdHex) {
+        return !retryExpiryByIdHex.isEmpty() && retryExpiryByIdHex.remove(messageIdHex) != null;
+    }
+
     /** Drop expired entries; enforce the hard cap (arbitrary eviction, WARN-worthy). */
     int sweep(long nowSeconds) {
         expiryByIdHex.values().removeIf(expiresAt -> expiresAt < nowSeconds);
+        retryExpiryByIdHex.values().removeIf(expiresAt -> expiresAt < nowSeconds);
+        if (retryExpiryByIdHex.size() > maxEntries) {
+            retryExpiryByIdHex.clear();
+        }
         int excess = expiryByIdHex.size() - maxEntries;
         int capEvicted = 0;
         if (excess > 0) {

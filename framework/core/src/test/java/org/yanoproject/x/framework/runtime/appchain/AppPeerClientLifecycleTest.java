@@ -232,14 +232,15 @@ class AppPeerClientLifecycleTest {
         try {
             client.ensureConnected();
             negotiate(factory);
-            for (int i = 0; i < 205; i++) {
+            int limit = AppPeerClient.REPLAY_QUEUE_LIMIT;
+            for (int i = 0; i < limit + 5; i++) {
                 client.enqueue(message(i));
             }
-            assertThat(factory.appMsgAgent.getQueueSize()).isEqualTo(205);
+            assertThat(factory.appMsgAgent.getQueueSize()).isEqualTo(limit + 5);
 
             reconnect(factory);
 
-            assertThat(factory.appMsgAgent.getQueueSize()).isEqualTo(200);
+            assertThat(factory.appMsgAgent.getQueueSize()).isEqualTo(limit);
         } finally {
             client.shutdown();
         }
@@ -268,7 +269,8 @@ class AppPeerClientLifecycleTest {
         return new AppPeerClient(
                 new AppChainConfig.AppPeer("127.0.0.1", 3001),
                 42,
-                AppMsgSubmissionConfig.builder().chainIds(Set.of("c1")).build(),
+                AppMsgSubmissionConfig.builder().chainIds(Set.of("c1"))
+                        .maxPendingMessages(AppPeerClient.REPLAY_QUEUE_LIMIT * 2).build(),
                 null,
                 LOG,
                 factory,

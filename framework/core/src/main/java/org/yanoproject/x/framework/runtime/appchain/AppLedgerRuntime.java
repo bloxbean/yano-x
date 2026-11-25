@@ -1114,11 +1114,11 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
     private AppMsgSubmissionConfig transportConfig() {
         long limit = config.blockMaxBytes() + TRANSPORT_ENVELOPE_MARGIN;
         int maxSize = (int) Math.min(Integer.MAX_VALUE, Math.max(config.maxMessageBytes(), limit));
-        return AppMsgSubmissionConfig.builder()
+        return AppGossipTransport.sized(config)
                 .chainIds(Set.of(config.chainId()))
                 .maxMessageSize(maxSize)
                 .maxTtlSeconds(config.maxTtlSeconds())
-                .validator(this::verifyEnvelope)
+                .validator(AppGossipTransport.parallel(this::verifyEnvelope))
                 .build();
     }
 
@@ -1168,7 +1168,7 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
             return AppMsgValidator.Result.reject("missing signature");
         }
 
-        if (!AppMessageSigner.verify(proof, message.signedBodyBytes(), sender)) {
+        if (!AppMessageSigner.verifyEnvelope(message)) {
             countDrop("bad_auth");
             return AppMsgValidator.Result.reject("signature verification failed");
         }
@@ -1445,8 +1445,13 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                 countDrop("topic_refused");
                 continue;
             }
+            // A copy of a message an earlier full pool dropped is re-admitted but not relayed again: this node
+            // relayed the first copy already (ADR-060 D5).
+            boolean retry = seenMessageIds.consumeRetry(message.getMessageIdHex());
             route(message, ReceivedAppMessage.Source.PEER);
-            relay(message);
+            if (!retry) {
+                relay(message);
+            }
         }
     }
 
@@ -1530,7 +1535,9 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         }
         AppMsgPool.AddResult added = pool.add(message);
         if (added == AppMsgPool.AddResult.FULL) {
-            // Gossip is best-effort; the drop is surfaced via counters, not errors
+            // Gossip is best-effort; the drop is surfaced via counters, not errors. Forget the sighting so a copy
+            // relayed by another peer or re-offered after a reconnect is admitted once there is room (ADR-060 D5).
+            seenMessageIds.forgetForRetry(message.getMessageIdHex(), message.getExpiresAt());
             countDrop("pool_full");
             AppMessageLog.LOG.debug("App-chain '{}' pool full ({}): dropped inbound message {}",
                     config.chainId(), pool.capacity(), message.getMessageIdHex());

@@ -167,11 +167,11 @@ public class AppLedgerManager implements Subsystem, AppChainGateways {
             maxMessageSize = Math.max(maxMessageSize, chainConfig.getMaxMessageSize());
             maxTtlSeconds = Math.max(maxTtlSeconds, chainConfig.getMaxTtlSeconds());
         }
-        return AppMsgSubmissionConfig.builder()
+        return AppGossipTransport.sizedForAll(chains.values().stream().map(AppLedgerRuntime::chainConfig).toList())
                 .chainIds(chainIds)
                 .maxMessageSize(maxMessageSize)
                 .maxTtlSeconds(maxTtlSeconds)
-                .validator(this::verifyByChain)
+                .validator(AppGossipTransport.parallel(this::verifyByChain))
                 .build();
     }
 
