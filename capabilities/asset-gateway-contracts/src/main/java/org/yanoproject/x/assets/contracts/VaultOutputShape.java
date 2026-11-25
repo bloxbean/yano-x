@@ -25,7 +25,9 @@ import java.util.List;
  * </ul>
  * Anything else, including no datum, a datum hash, bytes that are not Plutus Data, and a
  * look-alike with the right constructor and the wrong fields, is {@link #OTHER}: unattributed
- * custody, never credited. The vault validator's {@code acceptedDatum} applies the same rules to
+ * custody, never credited. One exception keeps deposit attempts visible: bytes the bounded reader
+ * cannot decode (too deep, too long, or not Plutus Data) that start with the compact constructor-0
+ * head {@code d8 79} are {@link #DEPOSIT}, which the observer records as malformed. The vault validator's {@code acceptedDatum} applies the same rules to
  * continuations and top-ups ({@code GatewayShapeCrossTest} feeds both the same bytes).
  */
 public enum VaultOutputShape {
@@ -67,7 +69,10 @@ public enum VaultOutputShape {
      */
     public static VaultOutputShape classify(byte[] inlineDatum) {
         if (!(PlutusDataReader.read(inlineDatum) instanceof PlutusDataReader.Constr constr)) {
-            return OTHER;
+            // Beyond the reader's bounds (or not Plutus Data at all), a compact constructor-0 head still marks a
+            // deposit attempt, which the observer records as malformed and never credits.
+            return inlineDatum != null && inlineDatum.length >= 2 && (inlineDatum[0] & 0xff) == 0xd8
+                    && (inlineDatum[1] & 0xff) == DEPOSIT_CONSTRUCTOR_TAG ? DEPOSIT : OTHER;
         }
         List<Object> fields = constr.fields();
         if (constr.index() == 0) return DEPOSIT;

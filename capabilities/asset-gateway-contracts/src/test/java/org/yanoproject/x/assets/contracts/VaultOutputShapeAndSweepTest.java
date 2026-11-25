@@ -40,10 +40,13 @@ class VaultOutputShapeAndSweepTest {
     @Test
     void lookAlikesAndNonDataAreOther() {
         for (String other : new String[] {"d87b8100", "d87a80", "d87a8281805820" + ID, "d87a81815819" + "00".repeat(25),
-                "d87a8181d87980", "d87d80", "00", "4100", "d87b", "d87b80ff", "d87983", "c24100", ""}) {
+                "d87a8181d87980", "d87d80", "00", "4100", "d87b", "d87b80ff", "d87a83", "c24100", ""}) {
             assertThat(shape(other)).as(other).isEqualTo(VaultOutputShape.OTHER);
         }
         assertThat(VaultOutputShape.classify(null)).isEqualTo(VaultOutputShape.OTHER);
+        // An undecodable compact constructor-0 datum is still a (malformed) deposit attempt.
+        assertThat(shape("d87983")).isEqualTo(VaultOutputShape.DEPOSIT);
+        assertThat(shape("d879" + "81".repeat(200) + "80")).isEqualTo(VaultOutputShape.DEPOSIT);
         StringBuilder sixtyFive = new StringBuilder("d87a8198" + "41");
         sixtyFive.append(("5820" + ID).repeat(65));
         assertThat(shape(sixtyFive.toString())).isEqualTo(VaultOutputShape.OTHER);
