@@ -733,11 +733,45 @@ class MerklePatriciaForestryTest {
             // At the last nibble no neighbor branch fits at all.
             int n = (MerklePatriciaForestry.nibble(path, 63) + 1) % 16;
             assertFalse(wellFormedBoth(path, new ProofStep.Fork(63, new Neighbor(n, new byte[0], h32))));
-            // A forged miss whose terminal fork neighbor is too long is rejected by miss() as well.
-            MpfTrie t = trie("alice");
-            JulcList<ProofStep> tooLong = JulcList.of(new ProofStep.Fork(0, new Neighbor(
-                    (MerklePatriciaForestry.nibble(h("bob"), 0) + 1) % 16, new byte[63], h32)));
-            assertFalse(missBoth(t.getRootHash(), "bob", tooLong));
+        }
+
+        /**
+         * The bound is what makes these forged misses malformed. A present key's own leaf at cursor 61 or 63 (raw
+         * bytes below 16, so nibble 62 is 0 at 61) is read as a branch by a terminal Fork whose neighbor prefix
+         * reaches the leaf level. Without the bound the proof is well formed and excludes to the root that proves the
+         * key present; with it, isWellFormed is false (at 61 the neighbor one nibble shorter is well formed). The
+         * odd-leaf-length rule of excludedTerminalIsUnambiguous refuses the same shape independently.
+         */
+        @Test
+        void a_fork_neighbor_reaching_the_leaf_level_is_malformed() {
+            byte[] d = CryptoLib.blake2b_256(new byte[] {5});
+            for (int c : new int[] {61, 63}) {
+                String key = null;
+                byte[] keyPath = null;
+                for (int i = 0; ; i++) {
+                    key = "bottom-" + c + "-" + i;
+                    keyPath = h(key);
+                    if (MerklePatriciaForestry.nibble(keyPath, c) != 0
+                            && (c == 63 || MerklePatriciaForestry.nibble(keyPath, 62) == 0)) {
+                        break;
+                    }
+                }
+                int other = (MerklePatriciaForestry.nibble(keyPath, c - 1) + 1) % 16;
+                byte[] root = MerklePatriciaForestry.doFork(keyPath, 0, c - 1, leaf(key, c), other, new byte[0], d);
+                ProofStep upper = new ProofStep.Fork(c - 1, new Neighbor(other, new byte[0], d));
+                assertTrue(hasBoth(root, key, JulcList.of(upper)), "cursor " + c + ": the key is present");
+
+                byte[] suffix = MerklePatriciaForestry.suffix(keyPath, c);
+                byte[] neighborPrefix = Arrays.copyOfRange(suffix, 1, suffix.length);
+                ProofStep forgedFork = new ProofStep.Fork(0, new Neighbor(0, neighborPrefix, hv()));
+                JulcList<ProofStep> forged = JulcList.of(upper, forgedFork);
+                assertArrayEquals(root, MerklePatriciaForestry.doExcluding(keyPath, 0, forged), "cursor " + c);
+                assertFalse(wellFormedBoth(keyPath, upper, forgedFork), "cursor " + c + ": the bound");
+                // At 61 the neighbor one nibble shorter fits; at 63 no neighbor branch fits at all.
+                assertEquals(c == 61, wellFormedBoth(keyPath, upper, new ProofStep.Fork(0, new Neighbor(0,
+                        Arrays.copyOf(neighborPrefix, neighborPrefix.length - 1), hv()))), "cursor " + c + ": shorter");
+                assertFalse(missBoth(root, key, forged), "cursor " + c + ": forged miss");
+            }
         }
 
         @Test
@@ -821,7 +855,8 @@ class MerklePatriciaForestryTest {
      * A real branch on a present key's path at odd cursor {@code c}, whose {@code 2 + (63 - c) / 2}-nibble prefix
      * starts with nibble 0, has the shape of an odd leaf. A terminal Leaf step whose key shares the path above
      * {@code c} and carries the prefix's nibbles as raw bytes, with the branch's merkle root as value, is well formed
-     * and excludes to the very root that proves the key present. miss() must reject it ({@code excludedLeafIsNotABranch}).
+     * and excludes to the very root that proves the key present. miss() must reject it
+     * ({@code excludedTerminalIsUnambiguous}).
      */
     @Nested
     class BranchReadAsLeafTests {
@@ -870,6 +905,8 @@ class MerklePatriciaForestryTest {
         void honest_misses_with_terminal_leaves_at_odd_and_even_cursors_still_pass() {
             int odd = 0;
             int even = 0;
+            int oddForks = 0;
+            int evenForks = 0;
             for (int size : new int[] {1, 2, 3, 30, 300}) {
                 String[] keys = new String[size];
                 for (int i = 0; i < size; i++) keys[i] = "member-" + size + "-" + i;
@@ -889,11 +926,120 @@ class MerklePatriciaForestryTest {
                     }
                     if (last instanceof ProofStep.Leaf) {
                         if (cursor % 2 == 1) odd++; else even++;
+                    } else if (last instanceof ProofStep.Fork) {
+                        if (cursor % 2 == 1) oddForks++; else evenForks++;
                     }
                 }
             }
+            System.out.println("[honest misses] terminal leaves odd " + odd + " even " + even
+                    + ", terminal forks odd " + oddForks + " even " + evenForks);
             assertTrue(odd > 0 && even > 0, "terminal leaves at odd " + odd + " and even " + even + " cursors");
         }
+    }
+
+    /**
+     * The other direction: a present key's own leaf at odd cursor {@code c} is
+     * {@code combine(00 <nibble c> <raw bytes from (c + 1) / 2>, value)}. When those raw bytes are all below 16 it
+     * has the shape of a branch with prefix {@code suffix(path, c)}, and a terminal Fork step at {@code c} (skip 0,
+     * neighbor nibble 0, neighbor prefix the rest of the suffix, neighbor root the value) reconstructs exactly that
+     * node: the forged miss is well formed and excludes to the root that proves the key present. miss() must reject
+     * it ({@code excludedTerminalIsUnambiguous}). A real trie needs about 2^84 work at the best cursor (about 21);
+     * the deep cursors here need only 2^8 to 2^20 tries of the key.
+     */
+    @Nested
+    class LeafReadAsBranchTests {
+
+        /** A key whose path has nibble c != 0 and every byte from (c + 1) / 2 on below 16. */
+        String ownLeafKey(int c) {
+            for (int i = 0; ; i++) {
+                String key = "own-leaf-" + c + "-" + i;
+                byte[] path = h(key);
+                if (MerklePatriciaForestry.nibble(path, c) != 0 && MerklePatriciaForestry.allNibbles(path, (c + 1) / 2)) {
+                    return key;
+                }
+            }
+        }
+
+        /** The forged miss: the key's own odd leaf at c read as the branch left after removing the key. */
+        JulcList<ProofStep> forgedMiss(byte[] path, ProofStep upper, int c, byte[] value) {
+            byte[] suffix = MerklePatriciaForestry.suffix(path, c);
+            byte[] neighborPrefix = Arrays.copyOfRange(suffix, 1, suffix.length);
+            return JulcList.of(upper, new ProofStep.Fork(0, new Neighbor(0, neighborPrefix, value)));
+        }
+
+        @Test
+        void a_present_keys_own_odd_leaf_is_never_the_remaining_branch() {
+            byte[] d = CryptoLib.blake2b_256(new byte[] {3});
+            for (int c : new int[] {53, 55, 57, 59}) {
+                String key = ownLeafKey(c);
+                byte[] path = h(key);
+                int other = (MerklePatriciaForestry.nibble(path, c - 1) + 1) % 16;
+                byte[] root = MerklePatriciaForestry.doFork(path, 0, c - 1, leaf(key, c), other, new byte[0], d);
+                ProofStep upper = new ProofStep.Fork(c - 1, new Neighbor(other, new byte[0], d));
+                assertTrue(hasBoth(root, key, JulcList.of(upper)), "cursor " + c + ": the key is present");
+
+                JulcList<ProofStep> forged = forgedMiss(path, upper, c, hv());
+                // Before the rule this was a valid miss: well formed, and it excludes to the same root.
+                assertTrue(MerklePatriciaForestry.isWellFormed(path, 0, forged), "cursor " + c);
+                assertArrayEquals(root, MerklePatriciaForestry.doExcluding(path, 0, forged), "cursor " + c);
+                assertFalse(missBoth(root, key, forged), "cursor " + c + ": forged miss");
+            }
+        }
+
+        /** The same forgery on synthetic paths at shallow odd cursors, where grinding a real key is out of reach. */
+        @Test
+        void the_rule_applies_at_shallow_odd_cursors_too() {
+            byte[] d = CryptoLib.blake2b_256(new byte[] {4});
+            for (int c : new int[] {1, 3, 21, 33}) {
+                byte[] path = h("synthetic-" + c).clone();
+                for (int i = (c + 1) / 2; i < 32; i++) {
+                    path[i] = (byte) (path[i] & 0x0f);
+                }
+                path[c / 2] = (byte) ((path[c / 2] & 0xf0) | 0x07);
+                int other = (MerklePatriciaForestry.nibble(path, c - 1) + 1) % 16;
+                byte[] leafHash = MerklePatriciaForestry.combine(MerklePatriciaForestry.suffix(path, c), hv());
+                byte[] root = MerklePatriciaForestry.doFork(path, 0, c - 1, leafHash, other, new byte[0], d);
+                ProofStep upper = new ProofStep.Fork(c - 1, new Neighbor(other, new byte[0], d));
+                assertArrayEquals(root, MerklePatriciaForestry.doIncluding(path, hv(), 0, JulcList.of(upper)));
+                JulcList<ProofStep> forged = forgedMiss(path, upper, c, hv());
+                assertTrue(wellFormedBoth(path, upper, forged.tail().head()), "cursor " + c);
+                assertArrayEquals(root, MerklePatriciaForestry.doExcluding(path, 0, forged), "cursor " + c);
+                assertFalse(unambiguousBoth(path, forged), "cursor " + c);
+            }
+        }
+
+        /**
+         * The rule is exact: at odd cursor 21 the reconstructed prefix {@code nibble ++ neighbor.prefix} is refused
+         * only when it starts with 0 and has the odd-leaf length 23; one nibble more or less, another first nibble or
+         * an even cursor all pass.
+         */
+        @Test
+        void only_the_odd_leaf_shape_is_refused() {
+            byte[] path = h("alice");
+            byte[] r = hv();
+            int c = 21;
+            int length = 2 + (63 - c) / 2;
+            ProofStep upper = new ProofStep.Fork(c - 1, new Neighbor(0, new byte[0], r));
+            assertFalse(unambiguousBoth(path, terminal(upper, 0, length - 1, r)), "0, exact length");
+            assertTrue(unambiguousBoth(path, terminal(upper, 0, length - 2, r)), "one nibble shorter");
+            assertTrue(unambiguousBoth(path, terminal(upper, 0, length, r)), "one nibble longer");
+            assertTrue(unambiguousBoth(path, terminal(upper, 5, length - 1, r)), "first nibble 5");
+            ProofStep evenUpper = new ProofStep.Fork(c - 2, new Neighbor(0, new byte[0], r));
+            assertTrue(unambiguousBoth(path, terminal(evenUpper, 0, 2 + (63 - (c - 1)) / 2 - 1, r)), "even cursor");
+        }
+
+        JulcList<ProofStep> terminal(ProofStep upper, int nibble, int prefixLength, byte[] root) {
+            return JulcList.of(upper, new ProofStep.Fork(0, new Neighbor(nibble, new byte[prefixLength], root)));
+        }
+    }
+
+    /** excludedTerminalIsUnambiguous() through the Java stubs and through compiled UPLC; both must agree. */
+    static boolean unambiguousBoth(byte[] path, JulcList<ProofStep> proof) {
+        boolean java = MerklePatriciaForestry.excludedTerminalIsUnambiguous(path, 0, proof);
+        boolean uplc = UPLC.call("excludedTerminalIsUnambiguous", PlutusData.bytes(path), PlutusData.integer(0),
+                toData(proof)).asBoolean();
+        assertEquals(java, uplc, "Java and UPLC disagree on excludedTerminalIsUnambiguous");
+        return java;
     }
 
     @Nested

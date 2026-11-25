@@ -388,30 +388,46 @@ public class MerklePatriciaForestry {
     }
 
     /**
-     * For an exclusion proof: a terminal Leaf at an odd cursor must have a raw key byte above 15 at index
-     * {@code (cursor + 1) / 2} or later. Leaf and branch commitments carry no domain tag: the excluded leaf is
-     * {@code combine(suffix(key, cursor), value)}, and at an odd cursor its suffix {@code 00 <nibble> <raw bytes>}
-     * has the shape of a branch prefix (all nibbles) when every raw byte is below 16. Without this rule a real
-     * branch on the path, whose prefix starts with nibble 0, could pass as the conflicting leaf and prove a present
-     * key absent. An honest leaf fails with probability {@code 16^-((63 - cursor) / 2)}, negligible at any
-     * reachable depth.
+     * For an exclusion proof: the terminal step's commitment must not also read as the other node kind. Leaf and
+     * branch commitments carry no domain tag; at an odd cursor {@code c} a leaf is
+     * {@code combine(00 <nibble> <raw bytes from (c + 1) / 2>, value)} and a branch {@code combine(prefix, merkle)}
+     * with every prefix byte a nibble, so the two shapes meet when the leaf's raw bytes are all below 16.
+     * <ul>
+     *   <li>A terminal Leaf at an odd cursor must have a raw key byte above 15 from byte {@code (cursor + 1) / 2}
+     *       on, or a real branch on the path whose prefix starts with nibble 0 could pass as the conflicting leaf.
+     *       An honest leaf fails with probability {@code 16^-((63 - cursor) / 2)}.</li>
+     *   <li>A terminal Fork at an odd cursor reconstructs the node {@code combine(path[cursor, at) ++ nibble ++
+     *       neighbor.prefix, neighbor.root)}. Its prefix must not start with nibble 0 at exactly the odd-leaf
+     *       length {@code 2 + (63 - cursor) / 2}, or the present key's own leaf at that cursor (raw bytes all
+     *       below 16) could pass as the remaining branch. An honest branch of that shape ends at nibble
+     *       {@code (cursor + 67) / 2 >= 34}, so two of its keys share at least 34 nibbles.</li>
+     * </ul>
+     * Both rules are negligible for honest proofs at any reachable depth.
      */
-    public static boolean excludedLeafIsNotABranch(int cursor, JulcList<ProofStep> proof) {
+    public static boolean excludedTerminalIsUnambiguous(byte[] path, int cursor, JulcList<ProofStep> proof) {
         if (proof.isEmpty()) {
             return true;
         } else {
             ProofStep step = proof.head();
             JulcList<ProofStep> steps = proof.tail();
             if (step instanceof ProofStep.Branch b) {
-                return steps.isEmpty() || excludedLeafIsNotABranch(cursor + b.skip() + 1, steps);
+                return steps.isEmpty() || excludedTerminalIsUnambiguous(path, cursor + b.skip() + 1, steps);
             } else if (step instanceof ProofStep.Fork f) {
-                return steps.isEmpty() || excludedLeafIsNotABranch(cursor + f.skip() + 1, steps);
+                if (steps.isEmpty()) {
+                    int skip = f.skip();
+                    Neighbor neighbor = f.neighbor();
+                    int first = (skip == 0) ? neighbor.nibble() : nibble(path, cursor);
+                    return cursor % 2 == 0 || first != 0
+                            || skip + 1 + ByteStringLib.length(neighbor.prefix()) != 2 + (63 - cursor) / 2;
+                } else {
+                    return excludedTerminalIsUnambiguous(path, cursor + f.skip() + 1, steps);
+                }
             } else {
                 ProofStep.Leaf l = (ProofStep.Leaf) step;
                 if (steps.isEmpty()) {
                     return cursor % 2 == 0 || !allNibbles(l.key(), (cursor + 1) / 2);
                 } else {
-                    return excludedLeafIsNotABranch(cursor + l.skip() + 1, steps);
+                    return excludedTerminalIsUnambiguous(path, cursor + l.skip() + 1, steps);
                 }
             }
         }
@@ -447,12 +463,12 @@ public class MerklePatriciaForestry {
 
     /**
      * Check if a key is missing from the trie. False for a malformed proof, and for a terminal leaf that reads as a
-     * branch ({@link #excludedLeafIsNotABranch}).
+     * branch or a terminal fork that reads as a leaf ({@link #excludedTerminalIsUnambiguous}).
      */
     public static boolean miss(byte[] trieRoot, byte[] key, JulcList<ProofStep> proof) {
         byte[] path = CryptoLib.blake2b_256(key);
         return isWellFormed(path, 0, proof)
-                && excludedLeafIsNotABranch(0, proof)
+                && excludedTerminalIsUnambiguous(path, 0, proof)
                 && ByteStringLib.equals(doExcluding(path, 0, proof), trieRoot);
     }
 }

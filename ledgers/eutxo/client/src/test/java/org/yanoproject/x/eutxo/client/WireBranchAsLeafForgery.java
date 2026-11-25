@@ -14,6 +14,10 @@ import java.util.List;
  * inclusion wire proves the key present. The forged exclusion wire replaces that branch by a terminal {@code Leaf}
  * step whose key hash shares the path above {@code c} and carries the branch prefix's nibbles as raw bytes, and
  * whose value hash is the branch's merkle root, so the excluded "leaf" hashes to the very same node.
+ *
+ * <p>{@link #ownLeafAt} is the other direction: the victim key's own leaf at odd cursor {@code c}, whose raw path
+ * bytes are all below 16, read as the branch that remains after the key is removed, through a terminal {@code Fork}
+ * step (skip 0, neighbor nibble 0, neighbor prefix the rest of the leaf suffix, neighbor root the value hash).
  */
 final class WireBranchAsLeafForgery {
     final byte[] root;
@@ -55,10 +59,39 @@ final class WireBranchAsLeafForgery {
         System.arraycopy(keyHash, 0, conflicting, 0, (c - 1) / 2);
         conflicting[(c - 1) / 2] = (byte) ((path[c - 1] << 4) | prefix[1]);
         System.arraycopy(prefix, 2, conflicting, (c + 1) / 2, length - 2);
-        byte[] upperStep = fork(c - 1, upperNibble, upperRoot);
-        byte[] inclusion = array(upperStep, fork(length, lowerNibble, lowerRoot));
+        byte[] upperStep = fork(c - 1, upperNibble, new byte[0], upperRoot);
+        byte[] inclusion = array(upperStep, fork(length, lowerNibble, new byte[0], lowerRoot));
         byte[] forged = array(upperStep, leafStep(0, conflicting, branchMerkle));
         return new WireBranchAsLeafForgery(root, key, inclusion, forged);
+    }
+
+    /**
+     * The own-leaf forgery at odd cursor {@code c}: the key needs every path byte from {@code (c + 1) / 2} on below
+     * 16 (about {@code 2^(4 (63 - c) / 2)} tries; a real trie needs about 2^84 work at the best cursor).
+     */
+    static WireBranchAsLeafForgery ownLeafAt(int c) {
+        byte[] key = null;
+        byte[] path = null;
+        search:
+        for (int i = 0; ; i++) {
+            key = Blake2bUtil.blake2bHash256(("own-leaf/" + c + "/" + i).getBytes());
+            path = MpfNormalizedProof.nibbles(Blake2bUtil.blake2bHash256(key));
+            if (path[c] == 0) continue;
+            for (int j = c + 1; j < 64; j += 2) {
+                if (path[j] != 0) continue search;
+            }
+            break;
+        }
+        byte[] leafSuffix = MpfNormalizedProof.encodeLeafSuffix(Arrays.copyOfRange(path, c, 64));
+        byte[] valueHash = Blake2bUtil.blake2bHash256(key);
+        byte[] leaf = hash(leafSuffix, valueHash);
+        byte[] upperRoot = Blake2bUtil.blake2bHash256(new byte[] {2});
+        int upperNibble = (path[c - 1] + 1) % 16;
+        byte[] root = hash(Arrays.copyOfRange(path, 0, c - 1), merkle(path[c - 1], leaf,
+                MpfNormalizedProof.sparseNeighbors(path[c - 1], upperNibble, Blake2bUtil.blake2bHash256(upperRoot))));
+        byte[] upperStep = fork(c - 1, upperNibble, new byte[0], upperRoot);
+        byte[] forged = array(upperStep, fork(0, 0, Arrays.copyOfRange(leafSuffix, 1, leafSuffix.length), valueHash));
+        return new WireBranchAsLeafForgery(root, key, array(upperStep), forged);
     }
 
     private static byte[] array(byte[]... steps) {
@@ -68,14 +101,15 @@ final class WireBranchAsLeafForgery {
         return out.toByteArray();
     }
 
-    /** {@code 122([skip, 121([nibble, h'', root])])}. */
-    private static byte[] fork(int skip, int nibble, byte[] root) {
+    /** {@code 122([skip, 121([nibble, prefix, root])])}. */
+    private static byte[] fork(int skip, int nibble, byte[] prefix, byte[] root) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.writeBytes(new byte[] {(byte) 0xd8, 0x7a, (byte) 0x82});
         out.writeBytes(uint(skip));
         out.writeBytes(new byte[] {(byte) 0xd8, 0x79, (byte) 0x83});
         out.writeBytes(uint(nibble));
-        out.write(0x40);
+        out.write(0x40 + prefix.length);
+        out.writeBytes(prefix);
         out.writeBytes(bytes(root));
         return out.toByteArray();
     }
