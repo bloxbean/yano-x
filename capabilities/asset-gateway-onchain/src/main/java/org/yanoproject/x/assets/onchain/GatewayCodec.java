@@ -95,15 +95,14 @@ public final class GatewayCodec {
 
     /**
      * {@code blake2b-256("yano-asset-gateway-claim-v1\0" ‖ [domain_id, vault_id, kind, withdrawal_key, recipient,
-     * asset_value, vault_lovelace, sequence])}, for a claim on one vault asset.
+     * asset_value, vault_lovelace, sequence])}; {@code assetValue} is the encoded {@code asset_value}.
      */
     public static byte[] claimId(byte[] domainId, byte[] vaultId, BigInteger kind, byte[] withdrawalKey,
-                                 byte[] recipient, byte[] policyId, byte[] assetName, BigInteger quantity,
-                                 BigInteger vaultLovelace, BigInteger sequence) {
+                                 byte[] recipient, byte[] assetValue, BigInteger vaultLovelace,
+                                 BigInteger sequence) {
         byte[] a = Builtins.appendByteString(Builtins.consByteString(136, bytes(domainId)), bytes(vaultId));
         byte[] b = Builtins.appendByteString(Builtins.appendByteString(a, uint(kind)), bytes(withdrawalKey));
-        byte[] c = Builtins.appendByteString(Builtins.appendByteString(b, bytes(recipient)),
-                assetValue(policyId, assetName, quantity));
+        byte[] c = Builtins.appendByteString(Builtins.appendByteString(b, bytes(recipient)), assetValue);
         byte[] body = Builtins.appendByteString(Builtins.appendByteString(c, uint(vaultLovelace)), uint(sequence));
         return Builtins.blake2b_256(Builtins.appendByteString(claimTag(), body));
     }
@@ -133,15 +132,14 @@ public final class GatewayCodec {
 
     /**
      * {@code ClaimLeafV1}: {@code [1, claim_id, vault_id, kind, asset_value, vault_lovelace, recipient,
-     * reserved_height, reserved_at_ms]}.
+     * reserved_height, reserved_at_ms]}; {@code assetValue} is the encoded {@code asset_value}.
      */
-    public static byte[] claimLeaf(byte[] claimId, byte[] vaultId, BigInteger kind, byte[] policyId,
-                                   byte[] assetName, BigInteger quantity, BigInteger vaultLovelace,
-                                   byte[] recipient, BigInteger reservedHeight, BigInteger reservedAtMs) {
+    public static byte[] claimLeaf(byte[] claimId, byte[] vaultId, BigInteger kind, byte[] assetValue,
+                                   BigInteger vaultLovelace, byte[] recipient, BigInteger reservedHeight,
+                                   BigInteger reservedAtMs) {
         byte[] a = Builtins.appendByteString(
                 Builtins.consByteString(137, Builtins.consByteString(1, bytes(claimId))), bytes(vaultId));
-        byte[] b = Builtins.appendByteString(Builtins.appendByteString(a, uint(kind)),
-                assetValue(policyId, assetName, quantity));
+        byte[] b = Builtins.appendByteString(Builtins.appendByteString(a, uint(kind)), assetValue);
         byte[] c = Builtins.appendByteString(Builtins.appendByteString(b, uint(vaultLovelace)), bytes(recipient));
         return Builtins.appendByteString(Builtins.appendByteString(c, uint(reservedHeight)), uint(reservedAtMs));
     }
@@ -216,8 +214,9 @@ public final class GatewayCodec {
     // Addresses
 
     /**
-     * The raw Shelley bytes of a Plutus address: base ({@code 0x0-0x3}) or enterprise ({@code 0x6}, {@code 0x7})
-     * with network id {@code networkId}. Empty for a pointer address or a malformed credential.
+     * The raw Shelley bytes of a Plutus address with network id {@code networkId}: base ({@code 0x0-0x3}), pointer
+     * ({@code 0x4}, {@code 0x5}; slot, transaction index and certificate index as CIP-19 variable-length naturals)
+     * or enterprise ({@code 0x6}, {@code 0x7}). Empty for a malformed credential.
      */
     public static byte[] addressBytes(PlutusData address, long networkId) {
         PlutusData fields = Builtins.constrFields(address);
@@ -232,10 +231,19 @@ public final class GatewayCodec {
             return Builtins.consByteString((6 + paymentTag) * 16 + networkId, paymentHash);
         }
         PlutusData staking = Builtins.headList(Builtins.constrFields(stake));
+        PlutusData stakingFields = Builtins.constrFields(staking);
         if (Builtins.constrTag(staking) != 0) {
-            return Builtins.emptyByteString();
+            BigInteger slot = Builtins.unIData(Builtins.headList(stakingFields));
+            PlutusData f1 = Builtins.tailList(stakingFields);
+            BigInteger txIndex = Builtins.unIData(Builtins.headList(f1));
+            BigInteger certIndex = Builtins.unIData(Builtins.headList(Builtins.tailList(f1)));
+            return slot.signum() < 0 || txIndex.signum() < 0 || certIndex.signum() < 0
+                    ? Builtins.emptyByteString()
+                    : Builtins.consByteString((4 + paymentTag) * 16 + networkId, Builtins.appendByteString(
+                    paymentHash, Builtins.appendByteString(varNat(slot.longValue()), Builtins.appendByteString(
+                            varNat(txIndex.longValue()), varNat(certIndex.longValue())))));
         }
-        PlutusData credential = Builtins.headList(Builtins.constrFields(staking));
+        PlutusData credential = Builtins.headList(stakingFields);
         long stakeTag = Builtins.constrTag(credential);
         byte[] stakeHash = Builtins.unBData(Builtins.headList(Builtins.constrFields(credential)));
         if (Builtins.lengthOfByteString(stakeHash) != 28 || stakeTag > 1) {
@@ -243,6 +251,21 @@ public final class GatewayCodec {
         }
         return Builtins.consByteString((paymentTag + 2 * stakeTag) * 16 + networkId,
                 Builtins.appendByteString(paymentHash, stakeHash));
+    }
+
+    /**
+     * A CIP-19 variable-length natural: big-endian base-128 digits, the high bit set on every byte but the last
+     * (the shortest form).
+     */
+    public static byte[] varNat(long n) {
+        return varNatHigh(n / 128, Builtins.consByteString(n % 128, Builtins.emptyByteString()));
+    }
+
+    private static byte[] varNatHigh(long n, byte[] tail) {
+        if (n == 0) {
+            return tail;
+        }
+        return varNatHigh(n / 128, Builtins.consByteString(n % 128 + 128, tail));
     }
 
     /** The payment-key hash of an address whose payment credential is a key; empty otherwise. */

@@ -191,11 +191,25 @@ abstract class GatewayTestBase extends ContractTest {
         }
 
         PlutusData absence(byte[] key) {
-            MpfNormalizedNonMembershipProof proof = MpfProofConverter.convertAbsence(wire(key, null));
-            return PlutusData.constr(0, PlutusData.bytes(proof.key()), PlutusData.bytes(new byte[0]),
-                    PlutusData.bytes(proof.conflictingLeafSuffix()), folds(proof.folds()),
-                    PlutusData.integer(proof.terminalCursor()), PlutusData.bytes(proof.conflictingKeyHash()),
-                    PlutusData.bytes(proof.conflictingValueHash()));
+            MpfNormalizedNonMembershipProof proof = absenceProof(key);
+            return absenceData(proof.key(), proof.conflictingLeafSuffix(), proof.folds(), proof.terminalCursor(),
+                    proof.conflictingKeyHash(), proof.conflictingValueHash());
+        }
+
+        MpfNormalizedNonMembershipProof absenceProof(byte[] key) {
+            return MpfProofConverter.convertAbsence(wire(key, null));
+        }
+
+        /**
+         * A forged absence of the PRESENT {@code key}: its own leaf, named through a "conflicting" key hash that
+         * differs from the key's hash in nibble {@code flip} above the leaf, where nothing authenticates it.
+         */
+        PlutusData forgedAbsence(byte[] key, int flip) {
+            MpfNormalizedProof present = inclusion(key);
+            byte[] forged = Blake2bUtil.blake2bHash256(key);
+            forged[flip / 2] ^= (byte) (flip % 2 == 0 ? 0x10 : 0x01);
+            return absenceData(key, present.leafSuffix(), present.folds(), leafCursor(present.leafSuffix()), forged,
+                    Blake2bUtil.blake2bHash256(present.value()));
         }
 
         int depth(byte[] key) {
@@ -219,10 +233,57 @@ abstract class GatewayTestBase extends ContractTest {
         }
     }
 
+    /**
+     * A state trie in which {@code query} is absent and its path leaves a branch's compressed prefix one level below
+     * the root: exactly two filler keys share {@code query}'s first nibble, and they share a second nibble that
+     * {@code query} does not have. Fifteen more fillers sit under other first nibbles.
+     */
+    static StateTrie branchPrefixTrie(byte[] query) {
+        byte[] path = Blake2bUtil.blake2bHash256(query);
+        int first = (path[0] & 0xff) >> 4;
+        int second = path[0] & 0x0f;
+        List<byte[]> pair = new ArrayList<>();
+        List<byte[]> others = new ArrayList<>();
+        int pairSecond = -1;
+        for (int i = 0; pair.size() < 2 || others.size() < 15; i++) {
+            byte[] key = ascii("ap/account/" + i);
+            byte[] hash = Blake2bUtil.blake2bHash256(key);
+            int a = (hash[0] & 0xff) >> 4;
+            int b = hash[0] & 0x0f;
+            if (a != first) {
+                if (others.size() < 15) others.add(key);
+            } else if (b != second && pair.size() < 2 && (pairSecond < 0 || b == pairSecond)) {
+                pairSecond = b;
+                pair.add(key);
+            }
+        }
+        StateTrie state = new StateTrie();
+        for (byte[] key : pair) state.put(key, Blake2bUtil.blake2bHash256(key));
+        for (byte[] key : others) state.put(key, Blake2bUtil.blake2bHash256(key));
+        MpfNormalizedNonMembershipProof proof = state.absenceProof(query);
+        assertThat(proof.conflictingBranch()).as("the query leaves a branch prefix").isTrue();
+        assertThat(proof.terminalCursor()).isEqualTo(1);
+        return state;
+    }
+
     /** {@code MpfOnChainVerifier.Proof(key, value, leafSuffix, folds)}. */
     static PlutusData proofData(MpfNormalizedProof proof) {
         return PlutusData.constr(0, PlutusData.bytes(proof.key()), PlutusData.bytes(proof.value()),
                 PlutusData.bytes(proof.leafSuffix()), folds(proof.folds()));
+    }
+
+    /** {@code MpfOnChainVerifier.AbsenceProof}, the seven-field layout. */
+    static PlutusData absenceData(byte[] key, byte[] leafSuffix, List<MpfNormalizedProof.FoldStep> folds,
+                                  long terminalCursor, byte[] conflictingKeyHash, byte[] conflictingValueHash) {
+        return PlutusData.constr(0, PlutusData.bytes(key), PlutusData.bytes(new byte[0]),
+                PlutusData.bytes(leafSuffix), folds(folds), PlutusData.integer(terminalCursor),
+                PlutusData.bytes(conflictingKeyHash), PlutusData.bytes(conflictingValueHash));
+    }
+
+    /** The depth, in nibbles, of the leaf whose encoded suffix is {@code leafSuffix}. */
+    static long leafCursor(byte[] leafSuffix) {
+        long nibbles = (leafSuffix[0] & 0xff) == 0 ? 1 + (leafSuffix.length - 2) * 2L : (leafSuffix.length - 1) * 2L;
+        return MpfNormalizedProof.PATH_NIBBLES - nibbles;
     }
 
     static PlutusData withValue(PlutusData proof, byte[] value) {
@@ -471,6 +532,8 @@ abstract class GatewayTestBase extends ContractTest {
         final List<TxOut> outputs = new ArrayList<>();
         final List<PubKeyHash> signers = new ArrayList<>();
         final Map<String, PlutusData> otherRedeemers = new HashMap<>();
+        /** Datum preimages the transaction witnesses, for inputs that carry only a datum hash. */
+        final Map<org.julclang.ledger.DatumHash, PlutusData> witnessDatums = new HashMap<>();
         Value mint = Value.zero();
         Interval range = range(NOW, NOW + 600_000);
         boolean withdrawal;
@@ -513,12 +576,24 @@ abstract class GatewayTestBase extends ContractTest {
             return this;
         }
 
-        /** The script context of spending {@code own}; inputs and reference inputs in ledger order. */
+        /**
+         * The script context of spending {@code own}; inputs and reference inputs in ledger order. The spending
+         * script info carries the datum as the ledger does: the inline datum, the witnessed preimage of a datum
+         * hash, or none for an output without a datum.
+         */
         PlutusData spending(TxOutRef own) {
             Spent ownSpent = inputs.stream().filter(s -> s.input.outRef().equals(own)).findFirst().orElseThrow();
-            ScriptContextTestBuilder builder = ScriptContextTestBuilder.spending(own,
-                    datumOf(ownSpent.input)).redeemer(ownSpent.redeemer);
-            return fill(builder).buildPlutusData();
+            OutputDatum datum = ownSpent.input.resolved().datum();
+            ScriptContextTestBuilder builder;
+            if (datum instanceof OutputDatum.OutputDatumInline inline) {
+                builder = ScriptContextTestBuilder.spending(own, inline.datum());
+            } else if (datum instanceof OutputDatum.OutputDatumHash hash) {
+                PlutusData preimage = witnessDatums.get(hash.hash());
+                builder = ScriptContextTestBuilder.spending(own, preimage).datum(hash.hash(), preimage);
+            } else {
+                builder = ScriptContextTestBuilder.spending(own);
+            }
+            return fill(builder.redeemer(ownSpent.redeemer)).buildPlutusData();
         }
 
         PlutusData minting(byte[] policy, PlutusData redeemer) {
@@ -556,15 +631,34 @@ abstract class GatewayTestBase extends ContractTest {
             return builder;
         }
 
-        private static PlutusData datumOf(TxInInfo input) {
-            return input.resolved().datum() instanceof OutputDatum.OutputDatumInline inline
-                    ? inline.datum() : PlutusData.UNIT;
-        }
     }
 
     static TxInInfo vaultInput(TxOutRef ref, Value value, PlutusData datum) {
         return new TxInInfo(ref, new TxOut(vaultAddress(), value, new OutputDatum.OutputDatumInline(datum),
                 Optional.empty()));
+    }
+
+    /** A vault input with no datum at all. */
+    static TxInInfo datumlessVaultInput(TxOutRef ref, Value value) {
+        return new TxInInfo(ref, new TxOut(vaultAddress(), value, new OutputDatum.NoOutputDatum(), Optional.empty()));
+    }
+
+    /** A vault input that carries only the hash of {@code datum}; the transaction witnesses the preimage. */
+    static TxInInfo datumHashVaultInput(Tx tx, TxOutRef ref, Value value, PlutusData datum) {
+        org.julclang.ledger.DatumHash hash = new org.julclang.ledger.DatumHash(Blake2bUtil.blake2bHash256(
+                org.julclang.core.cbor.PlutusDataCborEncoder.encode(datum)));
+        tx.witnessDatums.put(hash, datum);
+        return new TxInInfo(ref, new TxOut(vaultAddress(), value, new OutputDatum.OutputDatumHash(hash),
+                Optional.empty()));
+    }
+
+    /** The marker a non-lead vault input may carry instead of the lead's redeemer (V13). */
+    static PlutusData follow() {
+        return PlutusData.constr(9);
+    }
+
+    static PlutusData consolidate() {
+        return PlutusData.constr(8);
     }
 
     static TxInInfo keyInput(TxOutRef ref, long lovelace) {
@@ -607,6 +701,8 @@ abstract class GatewayTestBase extends ContractTest {
         long extraLovelace = 10_000_000L;
         long extraQuantity = 1_000L;
         boolean floorTopUpInput;
+        /** Further accepted vault inputs (floor top-ups) beyond the main one, carrying {@link #follow()}. */
+        int followerInputs;
         int signers = THRESHOLD;
         long lowerBound = NOW;
         /** The value each payout carries beyond the claim; for the ADA vault this is extra lovelace. */
@@ -634,8 +730,11 @@ abstract class GatewayTestBase extends ContractTest {
                         continuationDatum(List.of(shardId(3, 1)))), vaultRedeemer);
                 tx.spend(vaultInput(VAULT_REF_2, lovelace(FLOOR), floorDatum()), vaultRedeemer);
             } else {
-                tx.spend(vaultInput(VAULT_REF, assetValue(asset, inLovelace, inQuantity),
+                tx.spend(vaultInput(VAULT_REF, assetValue(asset, inLovelace - followerInputs * FLOOR, inQuantity),
                         continuationDatum(List.of(shardId(3, 1)))), vaultRedeemer);
+                for (int i = 0; i < followerInputs; i++) {
+                    tx.spend(vaultInput(ref(0x61, 1 + i), lovelace(FLOOR), floorDatum()), follow());
+                }
             }
             Inserts inserts = shardTrie.plan(inserted == null ? ids : inserted);
             tx.spend(new TxInInfo(shardRef(shard), new TxOut(GatewayFixtures.scriptAddress(SHARD_HASH),

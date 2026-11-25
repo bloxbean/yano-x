@@ -4,14 +4,20 @@ import org.julclang.core.PlutusData;
 import org.julclang.ledger.OutputDatum;
 import org.julclang.ledger.TxInInfo;
 import org.julclang.ledger.TxOut;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.ledger.Value;
 import org.junit.jupiter.api.Test;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.SweepCommitment;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -201,6 +207,20 @@ class VaultExitConformanceTest extends GatewayTestBase {
                 .build().vault());
     }
 
+    /** P3-12: the profile's exit-delay floor and ceiling must themselves lie within [6 h, 30 d]. */
+    @Test
+    void v3ExitDelayBoundsOutsideSixHoursToThirtyDaysDisableExit() {
+        List<ClaimFx> claims = claims(TOKEN, 1);
+        Scenario scenario = exit(TOKEN, claims, active()).build();
+        ok(vault(TOKEN), scenario.vault());
+        PlutusData[] lowFloor = vaultParams(TOKEN);
+        lowFloor[22] = PlutusData.integer(6 * HOUR - 1);
+        rejected(program(AssetVaultValidator.class, lowFloor), scenario.vault());
+        PlutusData[] highCeiling = vaultParams(TOKEN);
+        highCeiling[23] = PlutusData.integer(30 * DAY + 1);
+        rejected(program(AssetVaultValidator.class, highCeiling), scenario.vault());
+    }
+
     @Test
     void v3TheStatusLeafMustBeProvedAtThePinnedKey() {
         List<ClaimFx> claims = claims(TOKEN, 1);
@@ -267,58 +287,152 @@ class VaultExitConformanceTest extends GatewayTestBase {
 
     // ---- SWEEP_UNATTRIBUTED (D8d)
 
-    /** A governed sweep of one unaccepted outpoint carrying a foreign token. */
-    private Scenario sweep(boolean bindOutpoint, boolean fullValue, byte[] status) {
-        TxInInfo junk = vaultInput(ref(0x6a, 2), assetValue(TOKEN, 3_000_000, 40)
-                .merge(token(filled(0x7c, 28), new byte[] {1}, 5)), PlutusData.integer(7));
-        byte[] outpoint = GatewayIds.outpointCbor(Hash32.of(filled(0x6a, 32)), bindOutpoint ? 2 : 3);
-        byte[] recipient = GatewayFixtures.enterpriseKeyAddress(filled(0x8e, 28));
-        long sequence = 5;
-        Hash32 claimId = GatewayIds.claimId(DOMAIN, TOKEN_VAULT,
-                org.yanoproject.x.assets.contracts.ClaimKind.SWEEP_UNATTRIBUTED, outpoint, recipient,
-                org.yanoproject.x.assets.contracts.AssetValue.single(TOKEN, java.math.BigInteger.valueOf(40)),
-                java.math.BigInteger.valueOf(3_000_000), sequence);
-        ClaimFx claim = new ClaimFx(claimId.bytes(), 1, 40, 3_000_000, recipient, 95, NOW - 2 * DAY);
+    private static final AssetId FOREIGN = AssetId.of(filled(0x7c, 28), new byte[] {1});
+    private static final byte[] SWEEP_RECIPIENT = GatewayFixtures.enterpriseKeyAddress(filled(0x8e, 28));
+    private static final TxOutRef SWEPT = ref(0x6a, 2);
+
+    /** The unattributed output's value: lovelace, some of the vault asset (token vault) and a foreign token. */
+    private static Value sweptValue(AssetId asset) {
+        return assetValue(asset, 3_000_000, asset.isAda() ? 0 : 40).merge(token(FOREIGN.policyId(),
+                FOREIGN.assetName(), 5));
+    }
+
+    /** The canonical commitment of {@link #sweptValue}; {@code withForeign = false} leaves the foreign token out. */
+    private static SweepCommitment commitment(AssetId asset, TxOutRef outpoint, boolean withForeign) {
+        Map<AssetId, BigInteger> natives = new HashMap<>();
+        if (!asset.isAda()) {
+            natives.put(asset, BigInteger.valueOf(40));
+        }
+        if (withForeign) {
+            natives.put(FOREIGN, BigInteger.valueOf(5));
+        }
+        return SweepCommitment.of(asset, Hash32.of(outpoint.txId().hash()), outpoint.index().longValue(),
+                BigInteger.valueOf(3_000_000), natives);
+    }
+
+    /** The {@code SweepExit} redeemer for {@code commitment}, with its leaf proved in {@code state}. */
+    private static PlutusData sweepRedeemer(SweepCommitment commitment, Hash32 claimId, StateTrie state, int shard) {
+        List<PlutusData> assets = new ArrayList<>();
+        commitment.value().entries().forEach((asset, quantity) -> assets.add(PlutusData.constr(0,
+                PlutusData.bytes(asset.policyId()), PlutusData.bytes(asset.assetName()), PlutusData.integer(quantity))));
+        return PlutusData.constr(2, PlutusData.bytes(claimId.bytes()), PlutusData.bytes(SWEEP_RECIPIENT),
+                PlutusData.integer(95), PlutusData.integer(NOW - 2 * DAY),
+                PlutusData.list(assets.toArray(new PlutusData[0])),
+                state.proof(GatewayFixtures.concat(CLAIM_PREFIX, claimId.bytes())), state.proof(STATUS_KEY),
+                PlutusData.integer(5), PlutusData.integer(shard));
+    }
+
+    /** A governed sweep of {@code swept} under {@code commitment} (anchored), paying {@code paid}. */
+    private Scenario sweep(AssetId asset, TxInInfo swept, SweepCommitment commitment, byte[] status, Value paid,
+                           Tx tx) {
+        Hash32 vault = asset.isAda() ? ADA_VAULT : TOKEN_VAULT;
+        Hash32 claimId = commitment.claimId(DOMAIN, vault, SWEEP_RECIPIENT, 5);
         int shard = claimId.bytes()[31] & 0x0f;
-        StateTrie state = stateWith(64, status, TOKEN_VAULT, TOKEN, List.of(claim));
-        ShardTrie shardTrie = new ShardTrie(shard).seed(4);
-        Inserts inserts = shardTrie.plan(List.of(claim.id()));
-        PlutusData redeemer = PlutusData.constr(2, PlutusData.constr(0, claim.data(), state.proof(claim.key())),
-                state.proof(STATUS_KEY), PlutusData.bytes(outpoint), PlutusData.integer(sequence),
-                PlutusData.integer(shard));
-        Tx tx = new Tx().spend(junk, redeemer)
+        StateTrie state = new StateTrie().fill("ap/account/", 64).put(STATUS_KEY, status)
+                .put(GatewayFixtures.concat(CLAIM_PREFIX, claimId.bytes()),
+                        commitment.leaf(claimId, vault, SWEEP_RECIPIENT, 95, NOW - 2 * DAY).encode());
+        Inserts inserts = new ShardTrie(shard).seed(4).plan(List.of(claimId.bytes()));
+        tx.spend(swept, sweepRedeemer(commitment, claimId, state, shard))
                 .spend(new TxInInfo(shardRef(shard), new TxOut(GatewayFixtures.scriptAddress(SHARD_HASH),
                         lovelace(2_000_000).merge(token(SHARD_POLICY, new byte[] {(byte) shard}, 1)),
                         new OutputDatum.OutputDatumInline(shardDatum(shard, inserts.before())), Optional.empty())),
                         inserts.redeemer())
                 .spend(keyInput(FEE_REF, 50_000_000L), null)
-                .output(payTo(recipient, fullValue ? junk.resolved().value() : assetValue(TOKEN, 3_000_000, 40)))
+                .output(out(GatewayFixtures.ledgerAddress(SWEEP_RECIPIENT), paid,
+                        PlutusData.constr(4, PlutusData.bytes(claimId.bytes()))))
                 .output(out(GatewayFixtures.scriptAddress(SHARD_HASH),
                         lovelace(2_000_000).merge(token(SHARD_POLICY, new byte[] {(byte) shard}, 1)),
                         shardDatum(shard, inserts.after())))
                 .reference(anchorInput(anchorDatum(2, state.root(), 120, MEMBERS, THRESHOLD, NOW - HOUR)))
                 .reference(exitModeInput(normalMode()));
-        return new Scenario(tx, junk.outRef(), shardRef(shard), inserts);
+        return new Scenario(tx, swept.outRef(), shardRef(shard), inserts);
+    }
+
+    /** The default sweep: an unaccepted outpoint (a junk integer datum) with a foreign token, fully committed. */
+    private Scenario sweep(AssetId asset) {
+        TxInInfo junk = vaultInput(SWEPT, sweptValue(asset), PlutusData.integer(7));
+        return sweep(asset, junk, commitment(asset, SWEPT, true), active(), sweptValue(asset), new Tx());
     }
 
     @Test
-    void aGovernedSweepTakesExactlyItsNamedUnacceptedOutpoint() {
-        Scenario scenario = sweep(true, true, active());
-        ok(vault(TOKEN), scenario.vault());
-        ok(shard(), scenario.shard());
+    void aGovernedSweepTakesExactlyItsNamedUnacceptedOutpointWithItsFullValue() {
+        for (AssetId asset : List.of(TOKEN, AssetId.ADA)) {
+            Scenario scenario = sweep(asset);
+            ok(vault(asset), scenario.vault());
+            ok(shard(), scenario.shard());
+        }
     }
 
     @Test
-    void aSweepOfAnotherOutpointOrWithoutItsForeignTokensFails() {
-        rejected(vault(TOKEN), sweep(false, true, active()).vault());
-        rejected(vault(TOKEN), sweep(true, false, active()).vault());
-        rejected(vault(TOKEN), sweep(true, true,
-                statusLeaf(DomainStatusV1.Status.PAUSED, NOW - 30 * DAY, EXIT_DELAY)).vault());
+    void theOnChainCommitmentIsTheJavaSweepCommitment() {
+        // A leaf committing only the vault asset (no foreign token) is not the swept value.
+        TxInInfo junk = vaultInput(SWEPT, sweptValue(TOKEN), PlutusData.integer(7));
+        rejected(vault(TOKEN), sweep(TOKEN, junk, commitment(TOKEN, SWEPT, false), active(), sweptValue(TOKEN),
+                new Tx()).vault());
+        // A commitment of another outpoint.
+        rejected(vault(TOKEN), sweep(TOKEN, junk, commitment(TOKEN, ref(0x6a, 3), true), active(),
+                sweptValue(TOKEN), new Tx()).vault());
     }
 
     @Test
-    void aSweepIsRejectedInExitMode() {
-        Scenario scenario = sweep(true, true, active());
+    void aSweepPaysTheFullValueWithItsSweepPaidDatum() {
+        TxInInfo junk = vaultInput(SWEPT, sweptValue(TOKEN), PlutusData.integer(7));
+        // Without its foreign token the payout is short.
+        rejected(vault(TOKEN), sweep(TOKEN, junk, commitment(TOKEN, SWEPT, true), active(),
+                assetValue(TOKEN, 3_000_000, 40), new Tx()).vault());
+        // The payout must name the paid claim: no datum, another id.
+        Scenario noDatum = sweep(TOKEN);
+        TxOut payout = noDatum.tx().outputs.get(0);
+        noDatum.tx().outputs.set(0, new TxOut(payout.address(), payout.value(), new OutputDatum.NoOutputDatum(),
+                Optional.empty()));
+        rejected(vault(TOKEN), noDatum.vault());
+        Scenario otherId = sweep(TOKEN);
+        otherId.tx().outputs.set(0, out(payout.address(), payout.value(),
+                PlutusData.constr(4, PlutusData.bytes(filled(0x31, 32)))));
+        rejected(vault(TOKEN), otherId.vault());
+    }
+
+    @Test
+    void outputsWithNoDatumOrOnlyADatumHashAreSweepable() {
+        TxInInfo datumless = datumlessVaultInput(SWEPT, sweptValue(TOKEN));
+        Scenario none = sweep(TOKEN, datumless, commitment(TOKEN, SWEPT, true), active(), sweptValue(TOKEN),
+                new Tx());
+        ok(vault(TOKEN), none.vault());
+        ok(shard(), none.shard());
+
+        Tx tx = new Tx();
+        TxInInfo hashed = datumHashVaultInput(tx, SWEPT, sweptValue(TOKEN), continuationDatum(List.of()));
+        ok(vault(TOKEN), sweep(TOKEN, hashed, commitment(TOKEN, SWEPT, true), active(), sweptValue(TOKEN), tx)
+                .vault());
+    }
+
+    @Test
+    void acceptedCleanCustodyIsNeverSwept() {
+        Value clean = assetValue(TOKEN, 3_000_000, 40);
+        Map<AssetId, BigInteger> natives = Map.of(TOKEN, BigInteger.valueOf(40));
+        SweepCommitment cleanCommitment = SweepCommitment.of(TOKEN, Hash32.of(SWEPT.txId().hash()), 2,
+                BigInteger.valueOf(3_000_000), natives);
+        // Control: the same clean value under a junk datum is unattributed, and sweeps.
+        ok(vault(TOKEN), sweep(TOKEN, vaultInput(SWEPT, clean, PlutusData.integer(7)), cleanCommitment, active(),
+                clean, new Tx()).vault());
+        for (PlutusData accepted : List.of(continuationDatum(List.of()), continuationDatum(List.of(shardId(1, 1))),
+                floorDatum())) {
+            TxInInfo custody = vaultInput(SWEPT, clean, accepted);
+            rejected(vault(TOKEN), sweep(TOKEN, custody, cleanCommitment, active(), clean, new Tx()).vault());
+        }
+        // The same datum on a value with a foreign token is not accepted custody, so it can be swept.
+        TxInInfo dirty = vaultInput(SWEPT, sweptValue(TOKEN), continuationDatum(List.of()));
+        ok(vault(TOKEN), sweep(TOKEN, dirty, commitment(TOKEN, SWEPT, true), active(), sweptValue(TOKEN),
+                new Tx()).vault());
+    }
+
+    @Test
+    void aSweepNeedsActiveAndNormalMode() {
+        TxInInfo junk = vaultInput(SWEPT, sweptValue(TOKEN), PlutusData.integer(7));
+        rejected(vault(TOKEN), sweep(TOKEN, junk, commitment(TOKEN, SWEPT, true),
+                statusLeaf(DomainStatusV1.Status.PAUSED, NOW - 30 * DAY, EXIT_DELAY), sweptValue(TOKEN), new Tx())
+                .vault());
+        Scenario scenario = sweep(TOKEN);
         scenario.tx().references.removeIf(r -> r.outRef().equals(ref(0x64, 0)));
         scenario.tx().reference(exitModeInput(exitMode(filled(0x55, 32))));
         rejected(vault(TOKEN), scenario.vault());

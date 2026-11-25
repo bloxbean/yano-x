@@ -62,10 +62,27 @@ final class GatewayFixtures {
         return concat(concat(new byte[] {0x00}, keyHash), stakeKeyHash);
     }
 
-    /** A julc ledger address from raw Shelley base or enterprise bytes. */
+    /** A julc ledger address from raw Shelley base, pointer or enterprise bytes. */
     static Address ledgerAddress(byte[] raw) {
         int type = (raw[0] & 0xff) >> 4;
         byte[] payment = Arrays.copyOfRange(raw, 1, 29);
+        if (type == 4 || type == 5) {
+            long[] ptr = new long[3];
+            int at = 29;
+            for (int i = 0; i < 3; i++) {
+                long n = 0;
+                int b;
+                do {
+                    b = raw[at++] & 0xff;
+                    n = n * 128 + (b & 0x7f);
+                } while ((b & 0x80) != 0);
+                ptr[i] = n;
+            }
+            Credential credential = type == 4 ? new Credential.PubKeyCredential(new PubKeyHash(payment))
+                    : new Credential.ScriptCredential(new ScriptHash(payment));
+            return new Address(credential, Optional.of(new StakingCredential.StakingPtr(BigInteger.valueOf(ptr[0]),
+                    BigInteger.valueOf(ptr[1]), BigInteger.valueOf(ptr[2]))));
+        }
         Credential paymentCredential = (type & 1) == 0 && type != 7
                 ? new Credential.PubKeyCredential(new PubKeyHash(payment))
                 : new Credential.ScriptCredential(new ScriptHash(payment));

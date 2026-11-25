@@ -262,6 +262,32 @@ class VaultAcceptRefundConformanceTest extends GatewayTestBase {
                 exitMode(credited.root())).spending(depositRef(0)));
     }
 
+    /**
+     * P0-1: a credited deposit's own leaf, named through a conflicting key hash that differs from the deposit key's
+     * hash in one nibble above the leaf, does not prove the deposit absent, wherever the flipped nibble is.
+     */
+    @Test
+    void refundAbsentWithAForgedAbsenceOfACreditedDepositFails() {
+        StateTrie credited = depositState(TOKEN, 1, -1, -1);
+        byte[] key = depositKey(TOKEN, 0);
+        int cursor = (int) leafCursor(credited.inclusion(key).leafSuffix());
+        for (int flip : new int[] {0, cursor / 2, cursor - 1}) {
+            rejected(vault(TOKEN), refund(TOKEN, PlutusData.constr(5, credited.forgedAbsence(key, flip)),
+                    exitMode(credited.root())).spending(depositRef(0)));
+        }
+    }
+
+    /**
+     * P1-2: a deposit whose key leaves a branch's compressed prefix in the frozen trie is provably absent, so it is
+     * refundable after the freeze like any other uncredited deposit.
+     */
+    @Test
+    void aDepositWhosePathLeavesABranchPrefixIsRefundable() {
+        StateTrie frozen = branchPrefixTrie(depositKey(TOKEN, 0));
+        ok(vault(TOKEN), refund(TOKEN, PlutusData.constr(5, frozen.absence(depositKey(TOKEN, 0))),
+                exitMode(frozen.root())).spending(depositRef(0)));
+    }
+
     @Test
     void refundOnlyInExitModeWithTheRefundKeyToTheRefundAddressForTheExactValue() {
         StateTrie absent = depositState(TOKEN, 1, -1, 0);

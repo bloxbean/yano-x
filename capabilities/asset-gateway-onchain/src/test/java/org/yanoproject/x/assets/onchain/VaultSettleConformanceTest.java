@@ -387,8 +387,79 @@ class VaultSettleConformanceTest extends GatewayTestBase {
         Spent second = scenario.tx().inputs.get(1);
         PlutusData other = settleRedeemer(List.of(payout.claims.get(0)), 0);
         scenario.tx().inputs.set(1, new Spent(second.input(), other));
-        rejected(vault(TOKEN), scenario.vault());
+        // The lead's check covers the transaction under its own redeemer; the follower's own check rejects it.
+        ok(vault(TOKEN), scenario.vault());
         rejected(vault(TOKEN), scenario.tx().spending(VAULT_REF_2));
+    }
+
+    /**
+     * V13 with the {@code Follow} marker: a non-lead vault input may carry the marker instead of repeating the lead's
+     * redeemer; only the lead's (an action) applies. The lead may never be the marker, and a follower may never carry
+     * another action.
+     */
+    @Test
+    void v13AFollowerMayCarryTheFollowMarkerButTheLeadMayNot() {
+        Payout payout = settle(TOKEN, 2);
+        payout.floorTopUpInput = true;
+        Scenario scenario = payout.build();
+        Spent second = scenario.tx().inputs.get(1);
+        scenario.tx().inputs.set(1, new Spent(second.input(), follow()));
+        ok(vault(TOKEN), scenario.vault());
+        ok(vault(TOKEN), scenario.tx().spending(VAULT_REF_2));
+        ok(shard(), scenario.shard());
+
+        // The lead (the smaller outpoint) carries the marker and the follower the action: nothing applies.
+        Scenario swapped = payout.build();
+        Spent lead = swapped.tx().inputs.get(0);
+        Spent follower = swapped.tx().inputs.get(1);
+        swapped.tx().inputs.set(0, new Spent(lead.input(), follow()));
+        swapped.tx().inputs.set(1, new Spent(follower.input(), payout.vaultRedeemer));
+        rejected(vault(TOKEN), swapped.vault());
+        rejected(vault(TOKEN), swapped.tx().spending(VAULT_REF_2));
+
+        // A follower carrying a different action (here Consolidate) is rejected by its own check.
+        Scenario mixed = payout.build();
+        Spent other = mixed.tx().inputs.get(1);
+        mixed.tx().inputs.set(1, new Spent(other.input(), consolidate()));
+        rejected(vault(TOKEN), mixed.tx().spending(VAULT_REF_2));
+    }
+
+    @Test
+    void v7AContinuationCarryingAReferenceScriptFails() {
+        Scenario scenario = settle(TOKEN, 1).build();
+        int index = continuationIndex(scenario);
+        TxOut out = scenario.tx().outputs.get(index);
+        scenario.tx().outputs.set(index, new TxOut(out.address(), out.value(), out.datum(),
+                Optional.of(new org.julclang.ledger.ScriptHash(filled(0x5b, 28)))));
+        rejected(vault(TOKEN), scenario.vault());
+    }
+
+    /** A batch never exceeds 64 claims, the bound of a continuation's id list, whatever the profile says. */
+    @Test
+    void aBatchIsCappedAt64ClaimsWhateverTheProfile() {
+        PlutusData[] params = vaultParams(AssetId.ADA);
+        params[19] = PlutusData.integer(100);
+        org.julclang.core.Program generous = program(AssetVaultValidator.class, params);
+        for (int count : new int[] {64, 65}) {
+            Payout payout = settle(AssetId.ADA, count);
+            Scenario scenario = payout.build();
+            // Execution units are not the point here: evaluate the rule alone.
+            boolean success = run(generous, scenario.vault()).isSuccess();
+            org.assertj.core.api.Assertions.assertThat(success).as("%d claims", count).isEqualTo(count == 64);
+        }
+    }
+
+    /** P1-6: a pointer-address recipient is payable (its raw bytes are rebuilt on chain). */
+    @Test
+    void v5APointerAddressRecipientIsPaid() {
+        com.bloxbean.cardano.client.address.Address pointer = com.bloxbean.cardano.client.address.AddressProvider
+                .getPointerAddress(com.bloxbean.cardano.client.address.Credential.fromKey(filled(0x8a, 28)),
+                        new com.bloxbean.cardano.client.address.Pointer(2_498_243, 27, 3),
+                        com.bloxbean.cardano.client.common.model.Networks.testnet());
+        Payout payout = settle(TOKEN, 2);
+        payout.claims.set(1, payout.claims.get(1).withRecipient(pointer.getBytes()));
+        payout.vaultRedeemer = settleRedeemer(payout.claims, 0);
+        ok(vault(TOKEN), payout.build().vault());
     }
 
     @Test

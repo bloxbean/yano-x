@@ -3,6 +3,7 @@ package org.yanoproject.x.assets.onchain;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.address.Pointer;
 import com.bloxbean.cardano.client.common.model.Networks;
 import org.julclang.core.PlutusData;
 import org.julclang.testkit.ContractTest;
@@ -19,6 +20,7 @@ import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.ExitLeafV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.SweepCommitment;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -79,13 +81,24 @@ class GatewayCodecContractTest extends ContractTest {
         for (BigInteger quantity : List.of(BigInteger.ZERO, BigInteger.valueOf(7_000_000))) {
             AssetValue value = quantity.signum() == 0 ? AssetValue.EMPTY
                     : AssetValue.single(GatewayFixtures.TOKEN, quantity);
+            byte[] assetValue = codec.call("assetValue", GatewayFixtures.TOKEN.policyId(),
+                    GatewayFixtures.TOKEN.assetName(), quantity).asByteString();
+            assertThat(assetValue).isEqualTo(value.encode());
             byte[] onChain = codec.call("claimId", domain.bytes(), vault.bytes(),
-                    BigInteger.valueOf(ClaimKind.SWEEP_UNATTRIBUTED.code()), outpoint, recipient,
-                    GatewayFixtures.TOKEN.policyId(), GatewayFixtures.TOKEN.assetName(), quantity,
+                    BigInteger.valueOf(ClaimKind.USER_WITHDRAWAL.code()), outpoint, recipient, assetValue,
                     BigInteger.valueOf(1_500_000), BigInteger.valueOf(9)).asByteString();
-            assertThat(onChain).isEqualTo(GatewayIds.claimId(domain, vault, ClaimKind.SWEEP_UNATTRIBUTED, outpoint,
+            assertThat(onChain).isEqualTo(GatewayIds.claimId(domain, vault, ClaimKind.USER_WITHDRAWAL, outpoint,
                     recipient, value, BigInteger.valueOf(1_500_000), 9).bytes());
         }
+        // A full multi-asset value (a sweep's commitment) hashes the same on and off chain.
+        SweepCommitment sweep = SweepCommitment.of(GatewayFixtures.TOKEN, Hash32.of(txId), 2,
+                BigInteger.valueOf(3_000_000), java.util.Map.of(GatewayFixtures.TOKEN, BigInteger.valueOf(40),
+                        AssetId.of(GatewayFixtures.filled(0x11, 28), new byte[] {1}), BigInteger.valueOf(5)));
+        assertThat(sweep.withdrawalKey()).isEqualTo(outpoint);
+        assertThat(codec.call("claimId", domain.bytes(), vault.bytes(),
+                BigInteger.valueOf(ClaimKind.SWEEP_UNATTRIBUTED.code()), outpoint, recipient, sweep.value().encode(),
+                sweep.vaultLovelace(), BigInteger.valueOf(5)).asByteString())
+                .isEqualTo(sweep.claimId(domain, vault, recipient, 5).bytes());
     }
 
     @Test
@@ -105,8 +118,7 @@ class GatewayCodecContractTest extends ContractTest {
             byte[] expected = new ClaimLeafV1(claimId, c.vaultId, c.kind, value, BigInteger.valueOf(c.vaultLovelace),
                     recipient, 1_000_000L, 1_732_000_000_000L).encode();
             byte[] onChain = codec.call("claimLeaf", claimId.bytes(), c.vaultId.bytes(),
-                    BigInteger.valueOf(c.kind.code()), c.asset.policyId(), c.asset.assetName(),
-                    BigInteger.valueOf(c.quantity), BigInteger.valueOf(c.vaultLovelace), recipient,
+                    BigInteger.valueOf(c.kind.code()), value.encode(), BigInteger.valueOf(c.vaultLovelace), recipient,
                     BigInteger.valueOf(1_000_000L), BigInteger.valueOf(1_732_000_000_000L)).asByteString();
             assertThat(onChain).isEqualTo(expected);
         }
@@ -164,6 +176,37 @@ class GatewayCodecContractTest extends ContractTest {
             long network = address.getBytes()[0] & 0x0f;
             assertThat(codec.call("addressBytes", data, network).asByteString())
                     .as(address.toBech32()).isEqualTo(address.getBytes());
+        }
+    }
+
+    /** Pointer addresses: slot, transaction index and certificate index as CIP-19 variable-length naturals. */
+    @Test
+    void pointerAddressBytesMatchCardanoClientLib() {
+        byte[] key = GatewayFixtures.filled(0x80, 28);
+        byte[] script = GatewayFixtures.filled(0x82, 28);
+        List<Pointer> pointers = List.of(new Pointer(0, 0, 0), new Pointer(127, 128, 16_383),
+                new Pointer(2_498_243, 27, 3), new Pointer(4_294_967_295L, 65_535, 1),
+                new Pointer(116_000_000L, 2_147_483_647, 0));
+        for (Pointer pointer : pointers) {
+            for (Address address : List.of(
+                    AddressProvider.getPointerAddress(Credential.fromKey(key), pointer, Networks.mainnet()),
+                    AddressProvider.getPointerAddress(Credential.fromScript(script), pointer, Networks.testnet()))) {
+                PlutusData data = new org.julclang.ledger.Address(
+                        (address.getBytes()[0] & 0x10) == 0
+                                ? new org.julclang.ledger.Credential.PubKeyCredential(
+                                new org.julclang.ledger.PubKeyHash(key))
+                                : new org.julclang.ledger.Credential.ScriptCredential(
+                                new org.julclang.ledger.ScriptHash(script)),
+                        java.util.Optional.of(new org.julclang.ledger.StakingCredential.StakingPtr(
+                                BigInteger.valueOf(pointer.getSlot()), BigInteger.valueOf(pointer.getTxIndex()),
+                                BigInteger.valueOf(pointer.getCertIndex())))).toPlutusData();
+                long network = address.getBytes()[0] & 0x0f;
+                assertThat(codec.call("addressBytes", data, network).asByteString())
+                        .as("%s %d/%d/%d", address.toBech32(), pointer.getSlot(), pointer.getTxIndex(),
+                                pointer.getCertIndex())
+                        .isEqualTo(address.getBytes());
+                assertThat(GatewayFixtures.ledgerAddress(address.getBytes()).toPlutusData()).isEqualTo(data);
+            }
         }
     }
 
