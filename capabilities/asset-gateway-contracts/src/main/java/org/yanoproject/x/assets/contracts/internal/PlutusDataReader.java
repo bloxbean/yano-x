@@ -50,6 +50,38 @@ public final class PlutusDataReader {
         }
     }
 
+    /**
+     * The constructor index of the outermost value, read from its head alone, in every encoding the ledger accepts
+     * (compact tags {@code 121..127} and {@code 1280..1400}, the general {@code 102 [index, fields]} form, heads of
+     * any width), without decoding the fields; {@code -1} when the value does not start as a constructor.
+     */
+    public static long outerConstructor(byte[] cbor) {
+        if (cbor == null || cbor.length == 0) {
+            return -1;
+        }
+        PlutusDataReader reader = new PlutusDataReader(cbor);
+        try {
+            int initial = reader.next();
+            if (initial >> 5 != 6) return -1;
+            BigInteger tag = reader.argument(initial & 0x1f);
+            if (tag.bitLength() > 31) return -1;
+            long t = tag.longValue();
+            if (t >= 121 && t <= 127) return t - 121;
+            if (t >= 1280 && t <= 1400) return t - 1280 + 7;
+            if (t != 102) return -1;
+            int array = reader.next();
+            if (array >> 5 != 4 || ((array & 0x1f) != 31 && !reader.argument(array & 0x1f).equals(BigInteger.TWO))) {
+                return -1;
+            }
+            int index = reader.next();
+            if (index >> 5 != 0) return -1;
+            BigInteger value = reader.argument(index & 0x1f);
+            return value.bitLength() > 62 ? -1 : value.longValue();
+        } catch (IllegalStateException | ArithmeticException invalid) {
+            return -1;
+        }
+    }
+
     private Object item(int depth) {
         if (depth > MAX_DEPTH) throw invalid();
         int initial = next();

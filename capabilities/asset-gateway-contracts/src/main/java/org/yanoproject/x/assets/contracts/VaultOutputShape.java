@@ -25,10 +25,17 @@ import java.util.List;
  * </ul>
  * Anything else, including no datum, a datum hash, bytes that are not Plutus Data, and a
  * look-alike with the right constructor and the wrong fields, is {@link #OTHER}: unattributed
- * custody, never credited. One exception keeps deposit attempts visible: bytes the bounded reader
- * cannot decode (too deep, too long, or not Plutus Data) that start with the compact constructor-0
- * head {@code d8 79} are {@link #DEPOSIT}, which the observer records as malformed. The vault validator's {@code acceptedDatum} applies the same rules to
- * continuations and top-ups ({@code GatewayShapeCrossTest} feeds both the same bytes).
+ * custody, never credited. One exception keeps deposit attempts visible whatever their encoding:
+ * bytes the bounded reader cannot decode (too deep, too long, or with undecodable fields) whose
+ * outermost value is constructor 0, in any ledger-valid form (compact {@code 121}, a non-minimal
+ * tag head, or the general {@code 102 [0, ...]}), are {@link #DEPOSIT}, which the observer records
+ * as malformed ({@link PlutusDataReader#outerConstructor}).
+ *
+ * <p>The shape is not the whole acceptance rule. The vault validator's {@code accepted} uses the same
+ * shapes ({@code GatewayShapeCrossTest} feeds both the same bytes) and also requires the value to be
+ * clean: lovelace alone for a {@code FloorTopUpV1}, lovelace and the vault asset for a
+ * continuation, as {@link DepositAdmission} does. {@link #MIGRATION_IN} is never accepted custody
+ * before M4b: the validator does not accept it and admission records it {@code UNATTRIBUTED}.
  */
 public enum VaultOutputShape {
     DEPOSIT(0),
@@ -69,10 +76,9 @@ public enum VaultOutputShape {
      */
     public static VaultOutputShape classify(byte[] inlineDatum) {
         if (!(PlutusDataReader.read(inlineDatum) instanceof PlutusDataReader.Constr constr)) {
-            // Beyond the reader's bounds (or not Plutus Data at all), a compact constructor-0 head still marks a
-            // deposit attempt, which the observer records as malformed and never credits.
-            return inlineDatum != null && inlineDatum.length >= 2 && (inlineDatum[0] & 0xff) == 0xd8
-                    && (inlineDatum[1] & 0xff) == DEPOSIT_CONSTRUCTOR_TAG ? DEPOSIT : OTHER;
+            // Beyond the reader's bounds (or with undecodable fields), an outer constructor 0, in any encoding,
+            // still marks a deposit attempt, which the observer records as malformed and never credits.
+            return PlutusDataReader.outerConstructor(inlineDatum) == 0 ? DEPOSIT : OTHER;
         }
         List<Object> fields = constr.fields();
         if (constr.index() == 0) return DEPOSIT;

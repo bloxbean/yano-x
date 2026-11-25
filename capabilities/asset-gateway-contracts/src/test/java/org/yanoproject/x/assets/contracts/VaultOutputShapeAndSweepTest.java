@@ -55,6 +55,24 @@ class VaultOutputShapeAndSweepTest {
         assertThat(shape(sixtyFour.toString())).isEqualTo(VaultOutputShape.CONTINUATION);
     }
 
+    /** B8: a constructor-0 datum with undecodable fields is a (malformed) deposit attempt in every encoding. */
+    @Test
+    void anUndecodableConstructorZeroIsADepositInEveryEncoding() {
+        String deep = "81".repeat(200) + "80";
+        for (String head : new String[] {"d879", "d90079", "da00000079", "d8668200", "d866820000".substring(0, 8),
+                "d8669f00", "d866821800", "d86682190000"}) {
+            assertThat(shape(head + deep)).as(head).isEqualTo(VaultOutputShape.DEPOSIT);
+        }
+        // The same over a truncated field list.
+        for (String head : new String[] {"d87983", "d8668200" + "83"}) {
+            assertThat(shape(head + "4100")).as(head).isEqualTo(VaultOutputShape.DEPOSIT);
+        }
+        // Any other outer constructor stays OTHER.
+        for (String head : new String[] {"d87a", "d8668201", "d9050080", "d866830000"}) {
+            assertThat(shape(head + deep)).as(head).isEqualTo(VaultOutputShape.OTHER);
+        }
+    }
+
     @Test
     void sweepPaidRoundTripsInAnySerialization() {
         Hash32 id = Hash32.ofHex(ID);
