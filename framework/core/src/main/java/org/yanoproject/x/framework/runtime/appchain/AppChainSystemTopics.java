@@ -20,6 +20,15 @@ final class AppChainSystemTopics {
                 || ObservationTopics.isDiffusionOnly(topic));
     }
 
+    /**
+     * Control traffic carried in the protocol-100 priority lane (ADR-060 D2): consensus rounds and anchor
+     * co-signatures, whose loss stalls the chain. Bridge and observation diffusion stay ordinary.
+     */
+    static boolean isPriorityDiffusion(String topic) {
+        return topic != null && (topic.startsWith(CONSENSUS_DIFFUSION_PREFIX)
+                || topic.startsWith(ANCHOR_DIFFUSION_PREFIX));
+    }
+
     static boolean isUnknownObservationTopic(String topic) {
         return ObservationTopics.isReserved(topic) && !ObservationTopics.isAllowed(topic);
     }
