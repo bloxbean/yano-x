@@ -19,7 +19,7 @@ class AppLedgerContributionKindsTest {
         Map<String, ContributionKind> kinds = AppLedgerPluginKinds.KINDS.registry().kinds().stream()
                 .collect(Collectors.toMap(ContributionKind::manifestKey, kind -> kind));
         assertThat(kinds.keySet()).containsExactlyInAnyOrder("node-plugin", "utxo-index-contributor", "health",
-                "metrics", "app-state-machine", "authenticated-map-validator", "sequencer-mode", "l1-observer",
+                "metrics", "app-state-machine", "authenticated-map-validator", "sequencer-mode", "membership-handoff-gate", "l1-observer",
                 "l1-epoch-observer", "observation-provider", "signer-provider", "effect-executor",
                 "finalized-sink", "domain-api", "local-read-model");
 
@@ -29,6 +29,8 @@ class AppLedgerContributionKindsTest {
                 true, PluginTrustTier.CONSENSUS, "", Set.of());
         expect(kinds, "sequencer-mode", API + "appchain.sequencer.SequencerModeProvider", false,
                 PluginTrustTier.CONSENSUS, "", Set.of("fixed", "rotating"));
+        expect(kinds, "membership-handoff-gate", API + "appchain.membership.MembershipHandoffGateProvider",
+                false, PluginTrustTier.CONSENSUS, "", Set.of());
         expect(kinds, "l1-observer", API + "appchain.l1view.L1ObserverProvider", false,
                 PluginTrustTier.CONSENSUS, "", Set.of("metadata-label", "address-deposit"));
         expect(kinds, "l1-epoch-observer", API + "appchain.l1view.L1EpochObserverProvider", false,

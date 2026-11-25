@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.yanoproject.x.framework.api.appchain.effects.EffectOutcomeCommitment;
 import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -103,6 +104,118 @@ class AppChainConsensusProfileCommitmentTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("blockMaxForwardSkewMs");
         }
+    }
+
+    /** ADR-059 framework addition 8: an opt-in, flag-gated tail; unset profiles keep their bytes. */
+    @Test
+    void backwardSkewIsAFlagGatedTailThatLeavesUnboundedProfilesUnchanged() {
+        AppChainConsensusProfile unbounded = enabledProfile(List.of(SIGNER_1, SIGNER_2));
+        assertThat(unbounded.blockMaxBackwardSkewMs()).isZero();
+        assertThat(unbounded.blockBackwardSkewBounded()).isFalse();
+        assertThat(HexUtil.encodeHexString(AppChainConsensusProfileCommitment.encode(
+                unbounded.withBlockMaxBackwardSkewMs(0)))).isEqualTo(GOLDEN_BYTES);
+
+        AppChainConsensusProfile bounded = unbounded.withBlockMaxBackwardSkewMs(30_000);
+        byte[] encoded = AppChainConsensusProfileCommitment.encode(bounded);
+        String expected = GOLDEN_BYTES.substring(0, 72) + "0f" + GOLDEN_BYTES.substring(74)
+                + "0000000000007530";
+        assertThat(HexUtil.encodeHexString(encoded)).isEqualTo(expected);
+        assertThat(AppChainConsensusProfileCommitment.decode(encoded)).isEqualTo(bounded);
+        assertThat(AppChainConsensusProfileCommitment.digest(bounded))
+                .isNotEqualTo(AppChainConsensusProfileCommitment.digest(unbounded));
+
+        byte[] zeroTail = encoded.clone();
+        java.util.Arrays.fill(zeroTail, zeroTail.length - 8, zeroTail.length, (byte) 0);
+        assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(zeroTail))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(
+                java.util.Arrays.copyOf(encoded, encoded.length - 1)))
+                .isInstanceOf(IllegalArgumentException.class);
+        byte[] flagWithoutTail = HexUtil.decodeHexString(GOLDEN_BYTES);
+        flagWithoutTail[36] |= 0x08;
+        assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(flagWithoutTail))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(AppChainConsensusProfile.blockMaxBackwardSkewMs(Map.of())).isZero();
+        assertThat(AppChainConsensusProfile.blockMaxBackwardSkewMs(
+                Map.of("block-time.max-backward-skew-ms", " 750 "))).isEqualTo(750);
+        assertThatThrownBy(() -> AppChainConsensusProfile.blockMaxBackwardSkewMs(
+                Map.of("block-time.max-backward-skew-ms", "slow")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("block-time.max-backward-skew-ms");
+        for (long invalid : new long[] {-1, 1, 999, 600_001}) {
+            assertThatThrownBy(() -> unbounded.withBlockMaxBackwardSkewMs(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("blockMaxBackwardSkewMs");
+        }
+        assertThat(unbounded.withBlockMaxBackwardSkewMs(1_000).blockMaxBackwardSkewMs()).isEqualTo(1_000);
+    }
+
+    /**
+     * ADR-059 D8b: the membership handoff and its gate id are a flag plus a length-prefixed
+     * tail; profiles without the handoff keep their bytes.
+     */
+    @Test
+    void membershipHandoffGateIsAConsensusTailThatLeavesUngatedProfilesUnchanged() {
+        AppChainConsensusProfile ungated = enabledProfile(List.of(SIGNER_1, SIGNER_2));
+        assertThat(ungated.membershipAnchorHandoff()).isFalse();
+        assertThat(ungated.membershipHandoffGate()).isEmpty();
+        assertThat(HexUtil.encodeHexString(AppChainConsensusProfileCommitment.encode(
+                ungated.withMembershipHandoffGate("")))).isEqualTo(GOLDEN_BYTES);
+
+        AppChainConsensusProfile gated = ungated.withMembershipHandoffGate("asset-anchor-v1");
+        assertThat(gated.membershipAnchorHandoff()).isTrue();
+        byte[] encoded = AppChainConsensusProfileCommitment.encode(gated);
+        String gateTail = "0f" + HexUtil.encodeHexString("asset-anchor-v1".getBytes(StandardCharsets.US_ASCII));
+        String expected = GOLDEN_BYTES.substring(0, 72) + "17" + GOLDEN_BYTES.substring(74) + gateTail;
+        assertThat(HexUtil.encodeHexString(encoded)).isEqualTo(expected);
+        assertThat(AppChainConsensusProfileCommitment.decode(encoded)).isEqualTo(gated);
+        assertThat(AppChainConsensusProfileCommitment.digest(gated))
+                .isNotEqualTo(AppChainConsensusProfileCommitment.digest(ungated));
+        assertThat(AppChainConsensusProfileCommitment.digest(gated)).isNotEqualTo(
+                AppChainConsensusProfileCommitment.digest(ungated.withMembershipHandoffGate("other-gate")));
+
+        // Both opt-in fields together: the skew tail first, then the gate tail.
+        AppChainConsensusProfile both = gated.withBlockMaxBackwardSkewMs(30_000);
+        byte[] bothBytes = AppChainConsensusProfileCommitment.encode(both);
+        assertThat(HexUtil.encodeHexString(bothBytes)).isEqualTo(GOLDEN_BYTES.substring(0, 72) + "1f"
+                + GOLDEN_BYTES.substring(74) + "0000000000007530" + gateTail);
+        assertThat(AppChainConsensusProfileCommitment.decode(bothBytes)).isEqualTo(both);
+        assertThat(both.withMembershipHandoffGate("").withBlockMaxBackwardSkewMs(0)).isEqualTo(ungated);
+
+        // Malformed gate tails: flag without a tail, a short or long length, an invalid id.
+        byte[] flagOnly = HexUtil.decodeHexString(GOLDEN_BYTES);
+        flagOnly[36] |= 0x10;
+        assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(flagOnly))
+                .isInstanceOf(IllegalArgumentException.class);
+        for (String badTail : new String[] {"00", "10" + gateTail.substring(2), "0e" + gateTail.substring(2),
+                "01" + "41"}) {
+            byte[] bad = HexUtil.decodeHexString(GOLDEN_BYTES.substring(0, 72) + "17"
+                    + GOLDEN_BYTES.substring(74) + badTail);
+            assertThatThrownBy(() -> AppChainConsensusProfileCommitment.decode(bad))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThatThrownBy(() -> ungated.withMembershipHandoffGate("Bad Gate"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        // Settings: the gate is required with the handoff and rejected without it.
+        assertThat(AppChainConsensusProfile.membershipAnchorHandoff(Map.of())).isFalse();
+        assertThat(AppChainConsensusProfile.membershipHandoffGate(Map.of())).isEmpty();
+        assertThat(AppChainConsensusProfile.membershipHandoffGate(Map.of(
+                "membership.anchor-handoff", " TRUE ", "membership.anchor-handoff-gate", " asset-anchor-v1 ")))
+                .isEqualTo("asset-anchor-v1");
+        assertThatThrownBy(() -> AppChainConsensusProfile.membershipHandoffGate(
+                Map.of("membership.anchor-handoff", "true")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("membership.anchor-handoff-gate");
+        assertThatThrownBy(() -> AppChainConsensusProfile.membershipHandoffGate(
+                Map.of("membership.anchor-handoff-gate", "asset-anchor-v1")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("membership.anchor-handoff=true");
+        assertThatThrownBy(() -> AppChainConsensusProfile.membershipAnchorHandoff(
+                Map.of("membership.anchor-handoff", "yes")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("membership.anchor-handoff");
     }
 
     @Test

@@ -1,0 +1,52 @@
+; =============================================================================
+; Yano App-Chain: Script Anchor on-chain ABI (v2) — ADR-059 framework addition 5
+; (D8g §1). Opt-in successor of anchor-v1.cddl; v1 is unchanged.
+; =============================================================================
+; A chain selects v2 with `anchor-profile.version: 2`. The thread NFT policy and
+; the redeemer are those of v1. The validator is parameterized by the thread
+; policy id (28 bytes) and `max-window-ms` (the validity-window bound,
+; `anchor-profile.max-window-ms`, default 600000 = 10 minutes):
+;
+;   validator(thread-policy-id : bstr .size 28, max-window-ms : uint)
+;
+; Spend ("Advance") rules enforced on-chain (Plutus V3): every v1 rule
+; (anchor-v1.cddl rules 1-5, with "out.height > in.height" replaced by rule 6),
+; plus
+;   6. a PURE HEARTBEAT is allowed: out.height == in.height requires
+;      out.block-hash == in.block-hash, out.state-root == in.state-root,
+;      out.member-keys == in.member-keys, out.threshold == in.threshold and
+;      out.updated-at-ms > in.updated-at-ms (identity fields are unchanged by
+;      rule 2). Any other advance requires out.height > in.height.
+;   7. the transaction validity interval has finite POSIX bounds lb and ub with
+;      out.updated-at-ms == ub and ub - lb <= max-window-ms. The ledger converts
+;      the body's validity-interval-start / ttl slots to lb / ub, so the anchor
+;      time can be neither backdated nor future-dated.
+;
+; Off-chain, a member co-signs a v2 advance only after recomputing ub and lb
+; from the body's slots with the network's slot-to-time conversion and checking
+; rules 6 and 7 against its own ledger (ScriptAnchorService.verifyAdvance).
+; An observer identifies a heartbeat by (height, updated-at-ms).
+;
+; WIRE FORMAT: Plutus Data, constructor 0 —
+; Constr(0, [version, chain-id, chain-genesis-id, application-id,
+; commitment-profile-id, format-fingerprint, height, block-hash, state-root,
+; member-keys, threshold, updated-at-ms]). The field list below describes the
+; payload inside the wrapper; the first eleven fields are those of v1.
+
+anchor-datum-v2 = [
+    version      : 2,                ; ABI version = 2
+    chain-id     : bstr .size (1..128), ; app-chain identity (UTF-8 bytes)
+    chain-genesis-id : bstr .size 32, ; exact clean-baseline chain generation
+    application-id : bstr .size (1..128), ; state-machine/application profile id
+    commitment-profile-id : bstr .size (1..128), ; e.g. mpf-blake2b256-v1
+    format-fingerprint : bstr .size 32, ; exact commitment/proof format contract
+    height       : uint,             ; app-block height this anchor attests
+    block-hash   : bstr .size 32,    ; blake2b-256 app-block hash at height
+    state-root   : bstr .size 32,    ; MPF root bound by that block
+    member-keys  : [ 1*32 bstr .size 32 ], ; Ed25519 member public keys, sorted
+    threshold    : uint,             ; advance threshold (1..len)
+    updated-at-ms : uint,            ; POSIX ms; == validity upper bound (rule 7)
+]
+
+; Same reserved, uninspected redeemer as v1.
+anchor-redeemer-v2 = 0

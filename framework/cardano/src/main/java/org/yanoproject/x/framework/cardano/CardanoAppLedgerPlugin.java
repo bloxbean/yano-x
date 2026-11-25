@@ -33,6 +33,8 @@ public final class CardanoAppLedgerPlugin extends AppLedgerHostPlugin {
         CardanoHostServices services = cardano(context);
         AppChainSubsystem cardano = (AppChainSubsystem) chain;
         cardano.wireL1(services.txSubmitter(), services.utxoState());
+        context.getService(HostApi.SERVICE_KEY, HostApi.class)
+                .ifPresent(host -> cardano.wireL1UtxoFilter(host.runtimeOptions().globals()));
         cardano.wireL1Chain(services.chain(), services.retainBodies().apply(OptionalLong.of(0)));
         cardano.wireTxEvaluation(services.txEvaluation());
         cardano.wireAnchorFees(() -> anchorFees(services, context));

@@ -106,7 +106,7 @@ snapshot lifetime, and retry semantics.
 | `view` | certified-consensus view at this height |
 | `prevHash` | 32 zero bytes at height 1 |
 | `l1Slot`, `l1BlockHash` | the stable L1 reference (§6), 0/empty when disabled |
-| `timestamp` | millis stamped by the proposer as `max(localNow, parent.timestamp)` — the ONLY time a state machine may use. Every block's timestamp is ≥ its parent's (block validity, re-checked on catch-up), and a member votes for a fresh proposal only if it is at most `block-time.max-forward-skew-ms` (consensus profile, default 5,000, at most 600,000) ahead of its own clock; a re-proposed prepared value keeps its timestamp (ADR app-layer/039 D12) |
+| `timestamp` | millis stamped by the proposer as `max(localNow, parent.timestamp)` — the ONLY time a state machine may use. Every block's timestamp is ≥ its parent's (block validity, re-checked on catch-up), and a member votes for a fresh proposal only if it is at most `block-time.max-forward-skew-ms` (consensus profile, default 5,000, at most 600,000) ahead of its own clock; a re-proposed prepared value keeps its timestamp (ADR app-layer/039 D12). Opt-in: with `block-time.max-backward-skew-ms` set (1,000..600,000; unset or 0 = off, the default), a member also refuses a fresh proposal more than that far behind its own clock, with the same prepared-value exemption (ADR-059 framework addition 8). The setting joins the consensus profile only when set, so chains without it keep their profile bytes and digest |
 | `messagesRoot` | binary blake2b-256 merkle root over the ordered **message ids** (odd width duplicates the last node; empty list = 32 zero bytes) |
 | `stateRoot` | MPF root AFTER applying this block (§7) |
 | `messages` | the full ordered message envelopes |
@@ -298,6 +298,24 @@ change approved before an earlier one takes effect is computed without it.
 That is why step 2 waits. To shrink, run the steps the other way: lower the
 threshold first when a removal would leave `t > n − f`.
 
+**Anchor handoff (opt-in, ADR-059 D8b).** With `membership.anchor-handoff:
+true` and `membership.anchor-handoff-gate: <id>` (both in the consensus
+profile) an approved change does not append an epoch. It is persisted as one
+pending handoff; the script anchor carries the pending set, and the epoch is
+appended `activation-lag` blocks after the first finalized block for which the
+selected gate (a `membership-handoff-gate` plugin contribution) reports an
+L1-stable anchor output carrying exactly that set for that change. Gates are
+deterministic functions of the finalized block and must bind the fact to the
+change (for example anchor height ≥ the change's committed height). They must
+also be total: return false on any block without the fact and never throw,
+because the gate runs inside the block commit and a throwing or unloaded gate
+fails it (fail-stop, as with a state machine). While a
+handoff is pending, other changes are void; a governed cancel (op 3, naming the
+committed height, current threshold) withdraws it. Startup fails without a
+registered gate, a script anchor or L1 access. Script-anchor co-signing also
+requires each member's UTxO view to resolve every input of the leader's body,
+including the leader's fee and collateral inputs (see the user guide).
+
 A joining node refuses local submissions with 503 until it is a member at
 the next height (status `memberActiveForNextBlock`). Members already admit
 gossip from it, and a message of its that reaches the pool early waits there,
@@ -428,7 +446,11 @@ Startup re-verifies rather than trusts:
    AND its cert carries ≥ threshold valid member-at-height signatures — a
    snapshot whose contents merely self-agree is rejected;
 5. own sender-seq floor restored so a restarted member never reuses a
-   finalized sequence number.
+   finalized sequence number;
+6. with L1 access, the persisted script-anchor identity's script hash equals the
+   configured validator's (`anchor-profile.version`, `anchor.script.validator`),
+   or startup fails: an existing anchor thread keeps its validator. The built-in
+   validator hashes are golden-tested, so an upgrade cannot trip this check.
 
 ### 8.3 Snapshots
 

@@ -17,6 +17,10 @@ Packages under `org.yanoproject.x.framework.cardano.api`:
 - `anchor.AnchorDatumV1`: strict codec for the script-anchor datum ABI v1
   (canonical CBOR, UTF-8 chain id without NUL, sorted unique members). The ABI is
   specified in `src/main/cddl/appchain/anchor-v1.cddl`.
+- `anchor.AnchorDatumV2`: the same strict codec for the opt-in anchor datum v2
+  (ADR-059 framework addition 5): the v1 fields with version 2 and an appended
+  `updatedAtMs`. The ABI, including the heartbeat and validity-window rules, is
+  specified in `src/main/cddl/appchain/anchor-v2.cddl`.
 - `effects.AppEffectExecutorFactory`, `effects.AppChainEffectContext`: the
   `effect-executor` contribution SPI, configured under
   `yano.app-chain.effects.executors.<scheme>.*`.

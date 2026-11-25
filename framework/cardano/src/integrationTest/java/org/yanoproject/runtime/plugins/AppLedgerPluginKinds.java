@@ -11,6 +11,7 @@ final class AppLedgerPluginKinds {
     static final ContributionKind APP_STATE_MACHINE = kind("app-state-machine");
     static final ContributionKind AUTHENTICATED_MAP_VALIDATOR = kind("authenticated-map-validator");
     static final ContributionKind SEQUENCER_MODE = kind("sequencer-mode");
+    static final ContributionKind MEMBERSHIP_HANDOFF_GATE = kind("membership-handoff-gate");
     static final ContributionKind L1_OBSERVER = kind("l1-observer");
     static final ContributionKind L1_EPOCH_OBSERVER = kind("l1-epoch-observer");
     static final ContributionKind OBSERVATION_PROVIDER = kind("observation-provider");

@@ -38,17 +38,39 @@ import java.util.Objects;
 final class AnchorScriptArtifacts {
 
     static final String BUILTIN_VALIDATOR_RESOURCE = "META-INF/plutus/AnchorValidator.plutus.json";
+    /** Anchor v2 (ADR-059 framework addition 5), selected by {@code anchor-profile.version: 2}. */
+    static final String BUILTIN_VALIDATOR_V2_RESOURCE = "META-INF/plutus/AnchorValidatorV2.plutus.json";
     static final String BUILTIN_POLICY_RESOURCE = "META-INF/plutus/AnchorThreadPolicy.plutus.json";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final String validatorTemplateHex;
     private final String policyTemplateHex;
+    private final int version;
+    private final long maxWindowMs;
 
     AnchorScriptArtifacts(AnchorScriptConfig config) {
+        this(config, AnchorProfileSettings.defaults());
+    }
+
+    /**
+     * With {@code anchor-profile.version: 2}, {@code builtin:aiken} selects the v2 validator,
+     * which takes the validity-window bound as its second parameter. A {@code file:} or
+     * {@code hex:} validator ref must then be a v2 artifact. The thread policy is shared.
+     */
+    AnchorScriptArtifacts(AnchorScriptConfig config, AnchorProfileSettings profile) {
         Objects.requireNonNull(config, "anchor script config");
-        this.validatorTemplateHex = resolve(config.validatorRef(), BUILTIN_VALIDATOR_RESOURCE);
+        Objects.requireNonNull(profile, "anchor profile");
+        this.version = profile.version();
+        this.maxWindowMs = profile.maxWindowMs();
+        this.validatorTemplateHex = resolve(config.validatorRef(),
+                profile.v2() ? BUILTIN_VALIDATOR_V2_RESOURCE : BUILTIN_VALIDATOR_RESOURCE);
         this.policyTemplateHex = resolve(config.threadPolicyRef(), BUILTIN_POLICY_RESOURCE);
+    }
+
+    /** The anchor datum/validator ABI version these artifacts implement (1 or 2). */
+    int version() {
+        return version;
     }
 
     /**
@@ -62,8 +84,15 @@ final class AnchorScriptArtifacts {
                 BigIntPlutusData.of(BigInteger.valueOf(seedIndex)));
     }
 
-    /** The anchor spending validator, parameterized by the thread policy id. */
+    /**
+     * The anchor spending validator, parameterized by the thread policy id (and, for v2, by
+     * the maximum validity window in ms).
+     */
     PlutusV3Script validator(byte[] threadPolicyId) {
+        if (version == 2) {
+            return apply(validatorTemplateHex, BytesPlutusData.of(threadPolicyId),
+                    BigIntPlutusData.of(BigInteger.valueOf(maxWindowMs)));
+        }
         return apply(validatorTemplateHex, BytesPlutusData.of(threadPolicyId));
     }
 

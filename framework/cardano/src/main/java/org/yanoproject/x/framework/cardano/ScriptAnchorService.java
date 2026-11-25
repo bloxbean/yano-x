@@ -48,6 +48,7 @@ import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
 import org.yanoproject.x.framework.runtime.appchain.AppChainEngine;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerStore;
 import org.yanoproject.x.framework.runtime.appchain.AppMessageSigner;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -65,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,6 +77,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -98,6 +101,24 @@ import java.util.function.Supplier;
  * if some don't respond before the round deadline, the leader rebuilds the
  * body with the responsive subset — provided it still meets the on-chain
  * threshold — and re-collects (signatures are body-specific).
+ *
+ * <p>ADR-059 framework additions, all opt-in through {@link AnchorProfileSettings} and
+ * {@code membership.anchor-handoff}:
+ * <ul>
+ *   <li>anchor v2 (addition 5): the datum carries {@code updatedAtMs}, bound to the
+ *       body's validity upper bound within {@code max-window-ms}; the leader sends a pure
+ *       heartbeat when no advance happened for {@code anchor.max-interval-minutes}, and
+ *       members check the same rules before co-signing;</li>
+ *   <li>body hardening (addition 6, always on): a member resolves every input, including
+ *       collateral, in its own UTxO view, refuses any script input other than the anchor,
+ *       any input locked by its own member key, and any mint, certificate, withdrawal,
+ *       vote or proposal; the leader runs the same structural checks on its own body;</li>
+ *   <li>pinned identity (addition 3): the identity comes from configuration, never from a
+ *       sign request, and startup fails closed on a mismatch;</li>
+ *   <li>membership handoff (addition 4, anchor side): a committed pending membership is
+ *       the anchor's next member set, and co-signers are the current anchor datum's
+ *       members.</li>
+ * </ul>
  */
 final class ScriptAnchorService {
 
@@ -113,6 +134,7 @@ final class ScriptAnchorService {
                     AppChainConfig.MAX_MESSAGE_BYTES);
 
     private static final long MIN_INPUT_LOVELACE = 1_000_000;
+    private static final String COSIGN_REFUSED = "Co-sign refused: ";
     private static final long RESUBMIT_AFTER_MS = 120_000;
     /** Co-sign round deadline before falling back to the responsive subset. */
     private static final long COSIGN_ROUND_TIMEOUT_MS = 30_000;
@@ -210,6 +232,20 @@ final class ScriptAnchorService {
     private volatile long anchoredCount;
     private volatile long lastAnchoredL1Slot;
     private volatile String lastAnchorTxHash;
+    /** Chain-wide anchor profile (ADR-059); v1 without a pin unless wired. */
+    private volatile AnchorProfileSettings profile = AnchorProfileSettings.defaults();
+    /** {@code membership.anchor-handoff}: next members and co-signers follow the handoff (D8h §2). */
+    private volatile boolean handoffMode;
+    private volatile Supplier<Optional<MembershipHandoff>> pendingHandoff = Optional::empty;
+    /** Wall clock for heartbeat scheduling (replaceable in tests). */
+    private volatile LongSupplier wallClock = System::currentTimeMillis;
+    /** This node's configured UTxO storage filter (review P2-1); NONE when unfiltered. */
+    private volatile L1UtxoViewFilter utxoViewFilter = L1UtxoViewFilter.NONE;
+    /** Startup finding on {@link #utxoViewFilter} for status, or null. */
+    private volatile String utxoViewWarning;
+    /** Last co-sign request this member refused on the body rules, for status (review P2-1). */
+    private volatile BodyRefusal lastCosignRefusal;
+    private volatile long lastCosignRefusalAt;
 
     ScriptAnchorService(String chainId,
                         String applicationId,
@@ -283,6 +319,168 @@ final class ScriptAnchorService {
         this.confirmationListener = Objects.requireNonNull(listener, "listener");
     }
 
+    /** Select the chain's anchor profile; the artifacts must implement the same ABI version. */
+    void wireAnchorProfile(AnchorProfileSettings settings) {
+        Objects.requireNonNull(settings, "settings");
+        if (settings.version() != artifacts.version()) {
+            throw new IllegalArgumentException("Anchor profile version " + settings.version()
+                    + " does not match the anchor artifacts (v" + artifacts.version() + ")");
+        }
+        this.profile = settings;
+    }
+
+    /** Opt in to the D8b membership handoff with the committed pending change source. */
+    void wireMembershipHandoff(boolean enabled, Supplier<Optional<MembershipHandoff>> pending) {
+        this.pendingHandoff = Objects.requireNonNull(pending, "pending");
+        this.handoffMode = enabled;
+    }
+
+    void setWallClock(LongSupplier clock) {
+        this.wallClock = Objects.requireNonNull(clock, "clock");
+    }
+
+    /**
+     * Check this node's configured UTxO storage filter against what script anchoring needs
+     * (review P2-1). Every member resolves every input of a co-sign body, including the
+     * leader's fee and collateral inputs, in its own UTxO view and refuses what it cannot
+     * resolve, so a filter that drops the leader's wallet makes the member refuse every
+     * advance. Fails (startup) where the misconfiguration is certain: this node's own anchor
+     * wallet (leader) or the known anchor script address is filtered out. Otherwise, with a
+     * filter on, records a prominent status warning: a follower cannot know the leader's
+     * wallet address, so the operator must make sure the filter admits it.
+     */
+    void checkUtxoViewFilter(L1UtxoViewFilter filter) {
+        this.utxoViewFilter = Objects.requireNonNull(filter, "filter");
+        if (!filter.filtering()) {
+            utxoViewWarning = null;
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        if (walletAddress != null && !filter.admits(walletAddress.getAddress(),
+                walletAddress.getPaymentCredentialHash().orElse(null))) {
+            missing.add("this node's anchor wallet " + walletAddress.getAddress());
+        }
+        byte[] scriptHash = ledger.metaBytes(META_SCRIPT_HASH);
+        if (scriptHash != null && scriptHash.length == 28) {
+            Address scriptAddress = AddressProvider.getEntAddress(Credential.fromScript(scriptHash), network);
+            if (!filter.admits(scriptAddress.getAddress(), scriptHash)) {
+                missing.add("the anchor script address " + scriptAddress.getAddress());
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("App-chain '" + chainId + "': script anchoring needs "
+                    + "every member's UTxO view to hold the anchor thread and the leader's fee and "
+                    + "collateral inputs, but " + L1UtxoViewFilter.ENABLED + "=true drops "
+                    + String.join(" and ", missing) + ". Add them to " + L1UtxoViewFilter.ADDRESSES
+                    + " or " + L1UtxoViewFilter.PAYMENT_CREDENTIALS + ", or disable the UTxO filter");
+        }
+        utxoViewWarning = L1UtxoViewFilter.ENABLED + "=true: this member co-signs an anchor "
+                + "advance only if its filtered UTxO view resolves every input, so the filter must "
+                + "admit the anchor leader's wallet address (fee and collateral inputs); otherwise "
+                + "every advance is refused as an unresolvable input";
+        if (scriptAnchoringInUse()) {
+            logWarnSafely("Script-anchor: {}", utxoViewWarning);
+        }
+    }
+
+    /**
+     * Does this chain use script anchoring? True when this node leads in script mode or a
+     * script-anchor identity is known (bootstrapped, adopted or pinned). Followers of chains
+     * that anchor in metadata mode, or not at all, never see a co-sign request.
+     */
+    private boolean scriptAnchoringInUse() {
+        if (leader && anchorConfig.scriptMode() || profile.pinned() != null) {
+            return true;
+        }
+        byte[] scriptHash = ledger.metaBytes(META_SCRIPT_HASH);
+        return scriptHash != null && scriptHash.length == 28;
+    }
+
+    /**
+     * ADR-059 review P3: the persisted anchor identity must have been made by the configured
+     * validator. An {@code anchor-profile.version} (or validator) switch on an existing thread
+     * would otherwise leave the node refusing every advance; fail startup with the cause.
+     */
+    void verifyPersistedScriptHash() {
+        byte[] policyId = ledger.metaBytes(META_SCRIPT_POLICY_ID);
+        byte[] persisted = ledger.metaBytes(META_SCRIPT_HASH);
+        if (policyId == null || policyId.length != 28 || persisted == null || persisted.length != 28) {
+            return;
+        }
+        byte[] configured = AnchorScriptArtifacts.scriptHash(artifacts.validator(policyId));
+        if (!Arrays.equals(configured, persisted)) {
+            throw new IllegalStateException("App-chain '" + chainId + "': the persisted script-anchor "
+                    + "identity (scriptHash " + HexUtil.encodeHexString(persisted) + ") was made by a "
+                    + "different validator than the configured anchor artifacts (scriptHash "
+                    + HexUtil.encodeHexString(configured) + ", anchor-profile.version="
+                    + artifacts.version() + "). An existing anchor thread keeps its ABI version and "
+                    + "validator: restore the previous anchor-profile.version / anchor.script.validator, "
+                    + "or start a new chain with a new anchor thread");
+        }
+    }
+
+    AnchorProfileSettings profile() {
+        return profile;
+    }
+
+    /**
+     * ADR-059 D8b: with a pinned identity, check it against the configured artifacts and
+     * this chain's commitment identity, and install it as the authoritative identity.
+     * Throws (failing startup) on any mismatch, including an already persisted identity
+     * that differs. Without a pin it does nothing.
+     */
+    void installPinnedIdentity() {
+        AnchorProfileSettings.PinnedIdentity pinned = profile.pinned();
+        if (pinned == null) {
+            return;
+        }
+        synchronized (anchorLock) {
+            byte[] expectedScriptHash = AnchorScriptArtifacts.scriptHash(
+                    artifacts.validator(pinned.threadPolicyId()));
+            List<String> mismatches = new ArrayList<>();
+            if (!Arrays.equals(expectedScriptHash, pinned.scriptHash())) {
+                mismatches.add("script-hash (configured artifact gives "
+                        + HexUtil.encodeHexString(expectedScriptHash) + ")");
+            }
+            if (!Arrays.equals(chainGenesisId(), pinned.genesisId())) {
+                mismatches.add("genesis-id");
+            }
+            if (!applicationId.equals(pinned.applicationId())) {
+                mismatches.add("application-id");
+            }
+            if (!commitmentProfileId().equals(pinned.commitmentProfile())) {
+                mismatches.add("commitment-profile");
+            }
+            if (!Arrays.equals(formatFingerprint(), pinned.formatFingerprint())) {
+                mismatches.add("format-fingerprint");
+            }
+            byte[] knownPolicy = ledger.metaBytes(META_SCRIPT_POLICY_ID);
+            byte[] knownScript = ledger.metaBytes(META_SCRIPT_HASH);
+            boolean persisted = knownPolicy != null && knownPolicy.length == 28;
+            if (persisted && (!Arrays.equals(knownPolicy, pinned.threadPolicyId())
+                    || !Arrays.equals(knownScript, pinned.scriptHash()))) {
+                mismatches.add("persisted anchor identity");
+            }
+            if (!mismatches.isEmpty()) {
+                throw new IllegalStateException("App-chain '" + chainId
+                        + "': pinned anchor identity does not match " + String.join(", ", mismatches));
+            }
+            Map<String, Long> longs = new LinkedHashMap<>();
+            Map<String, byte[]> bytes = new LinkedHashMap<>();
+            candidateResetValues(longs, bytes);
+            // A pinned identity is configuration, not an L1 checkpoint: no rollback or dead
+            // bootstrap confirmation may reset it.
+            longs.put(META_SCRIPT_BOOTSTRAP_SLOT, 0L);
+            longs.put(META_SCRIPT_IDENTITY_ADOPTED, 0L);
+            bytes.put(META_SCRIPT_POLICY_ID, pinned.threadPolicyId());
+            bytes.put(META_SCRIPT_HASH, pinned.scriptHash());
+            bytes.put(META_SCRIPT_BOOTSTRAP_TX, new byte[0]);
+            ledger.metaPutAll(longs, bytes);
+            logInfoSafely("Script-anchor identity PINNED by configuration: policyId={}, scriptHash={}",
+                    pinned.threadPolicyHex(), HexUtil.encodeHexString(pinned.scriptHash()));
+        }
+    }
+
     String anchorAddress() {
         byte[] scriptHash = ledger.metaBytes(META_SCRIPT_HASH);
         if (scriptHash != null && scriptHash.length == 28) {
@@ -333,6 +531,7 @@ final class ScriptAnchorService {
                 pendingBootstrap = new PendingBootstrap(txHash, built.policyId(), built.scriptHash(),
                         built.datumHeight(), System.currentTimeMillis());
                 lastError = null;
+                lastCosignRefusal = null;
                 log.info("Script-anchor bootstrap tx submitted: {} (policyId={}, scriptAddress={})",
                         txHash, HexUtil.encodeHexString(built.policyId()), built.scriptAddress());
                 Map<String, Object> result = new LinkedHashMap<>();
@@ -473,13 +672,26 @@ final class ScriptAnchorService {
 
             long tip = tipHeightSupplier.get();
             long lastAnchored = lastAnchoredHeight();
-            if (tip <= lastAnchored)
+            if (tip <= lastAnchored) {
+                // Anchor v2: keep an idle chain's anchor fresh with a pure heartbeat.
+                if (profile.v2() && heartbeatDue()) {
+                    startCosignRound(null);
+                }
                 return null;
+            }
             boolean dueByCount = tip - lastAnchored >= anchorConfig.everyBlocks();
-            boolean dueByTime = lastAnchorAttemptAt > 0
-                    ? System.currentTimeMillis() - lastAnchorAttemptAt
-                            >= anchorConfig.maxIntervalMinutes() * 60_000
-                    : true;
+            // v1: the interval runs from the last round START. v2 (review P2-4): from the anchor
+            // datum's updatedAtMs, which only an L1-confirmed advance or heartbeat moves, so a
+            // failed round never resets the time trigger and pending blocks never delay it.
+            boolean dueByTime;
+            if (profile.v2()) {
+                dueByTime = !dueByCount && (lastAnchorAttemptAt == 0 || anchorAgeDue());
+            } else {
+                dueByTime = lastAnchorAttemptAt > 0
+                        ? System.currentTimeMillis() - lastAnchorAttemptAt
+                                >= anchorConfig.maxIntervalMinutes() * 60_000
+                        : true;
+            }
             if (dueByCount || dueByTime) {
                 startCosignRound(null);
             }
@@ -525,10 +737,11 @@ final class ScriptAnchorService {
      */
     private void startCosignRound(Set<String> signerSubsetHex) {
         try {
+            SignerProfile signerProfile = signerProfile();
             Set<String> signers = signerSubsetHex != null
                     ? signerSubsetHex
-                    : new TreeSet<>(membersSupplier.get());
-            int threshold = thresholdSupplier.getAsInt();
+                    : initialSigners(signerProfile);
+            int threshold = signerProfile.threshold();
             if (signers.size() < threshold) {
                 lastError = "Co-sign signer set (" + signers.size()
                         + ") below on-chain threshold (" + threshold + ") — anchoring paused";
@@ -538,6 +751,16 @@ final class ScriptAnchorService {
             BuiltAdvance built = buildAdvanceTx(signers);
             if (built == null)
                 return; // nothing to anchor / anchor UTxO not visible yet
+            // Owner self-check (ADR-059 D8h §1, I28): the leader applies the members' body
+            // rules to its own body before signing it.
+            BodyRefusal refusal = bodyHazard(built.tx().getBody(), built.anchorUtxo(),
+                    built.scriptHash(), null);
+            if (refusal != null) {
+                lastError = "Script-anchor own advance body refused (" + refusal.kind().label() + "): "
+                        + refusal.detail();
+                log.warn("Script-anchor: {}", lastError);
+                return;
+            }
 
             PendingCosign cosign = new PendingCosign(built.tx(), built.bodyBytes(), built.bodyHash(),
                     built.requestBody(), signers, new ConcurrentHashMap<>(),
@@ -572,7 +795,7 @@ final class ScriptAnchorService {
         }
         Set<String> responsive = new TreeSet<>(cosign.signatures().keySet());
         pendingCosign = null;
-        int threshold = thresholdSupplier.getAsInt();
+        int threshold = signerProfile().threshold();
         if (responsive.size() >= threshold) {
             log.warn("Script-anchor co-sign round timed out with {}/{} signatures — retrying with "
                     + "the responsive subset", responsive.size(), cosign.signerSetHex().size());
@@ -618,6 +841,7 @@ final class ScriptAnchorService {
             pendingSubmit = new PendingSubmit(cosign.fromHeight(), cosign.toHeight(), txHash,
                     System.currentTimeMillis());
             lastError = null;
+            lastCosignRefusal = null;
             log.info("Script-anchor tx submitted: {} (app blocks {}..{}, {} member witnesses)",
                     txHash, cosign.fromHeight(), cosign.toHeight(), cosign.signatures().size());
         } catch (Throwable failure) {
@@ -627,7 +851,130 @@ final class ScriptAnchorService {
     }
 
     private record BuiltAdvance(Transaction tx, byte[] bodyBytes, byte[] bodyHash, byte[] requestBody,
-                                long fromHeight, long toHeight) {
+                                long fromHeight, long toHeight, Utxo anchorUtxo, byte[] scriptHash) {
+    }
+
+    /** Who co-signs an advance, and how many of them the anchor's input datum requires. */
+    private record SignerProfile(Set<String> members, int threshold) {
+    }
+
+    /**
+     * The co-signer set. Normally the current membership epoch. With the D8b membership
+     * handoff it is the current anchor datum's member set and threshold, which the
+     * validator checks (rule 3), so an anchor already carrying a committed pending set is
+     * advanced by that set (ADR-059 D8h §2).
+     */
+    private SignerProfile signerProfile() {
+        if (handoffMode) {
+            try {
+                Utxo anchorUtxo = findAnchorUtxo(ledger.metaBytes(META_SCRIPT_POLICY_ID),
+                        ledger.metaBytes(META_SCRIPT_HASH));
+                if (anchorUtxo != null) {
+                    AnchorDatumCodec.AnchorDatum current = AnchorDatumCodec.decode(anchorUtxo.inlineDatum());
+                    return new SignerProfile(hexKeys(current.memberKeys()), (int) current.threshold());
+                }
+            } catch (RuntimeException unreadable) {
+                logFailure("anchor datum signer profile", unreadable);
+            }
+        }
+        return new SignerProfile(new TreeSet<>(membersSupplier.get()), thresholdSupplier.getAsInt());
+    }
+
+    /**
+     * The first round's signer set. Normally every authorizing member. With the D8b handoff
+     * the anchor datum's members can include keys that are not yet (or no longer) consensus
+     * members and so may not receive or answer sign requests; when the datum members that are
+     * also current consensus members (old ∩ new) still meet the datum threshold, the round
+     * starts with them instead of waiting out a timeout before the responsive-subset retry.
+     * The validator only counts datum members, so any subset meeting the threshold is valid.
+     */
+    private Set<String> initialSigners(SignerProfile signerProfile) {
+        Set<String> all = new TreeSet<>(signerProfile.members());
+        if (!handoffMode) {
+            return all;
+        }
+        Set<String> live = new TreeSet<>(all);
+        live.retainAll(membersSupplier.get());
+        return live.size() >= signerProfile.threshold() && live.size() < all.size() ? live : all;
+    }
+
+    /** The anchor's next member set: a committed pending handoff, else the current epoch. */
+    private SignerProfile nextMembership() {
+        if (handoffMode) {
+            Optional<MembershipHandoff> handoff = pendingHandoff.get();
+            if (handoff.isPresent()) {
+                return new SignerProfile(handoff.get().members(), handoff.get().threshold());
+            }
+        }
+        return new SignerProfile(new TreeSet<>(membersSupplier.get()), thresholdSupplier.getAsInt());
+    }
+
+    /** A datum member set this node accepts: the current epoch, or the committed pending handoff. */
+    private boolean acceptableMembership(Set<String> datumMembers, long datumThreshold) {
+        if (datumMembers.equals(new TreeSet<>(membersSupplier.get()))
+                && datumThreshold == thresholdSupplier.getAsInt()) {
+            return true;
+        }
+        if (!handoffMode) {
+            return false;
+        }
+        Optional<MembershipHandoff> handoff = pendingHandoff.get();
+        return handoff.isPresent() && handoff.get().sameSet(datumMembers, (int) datumThreshold);
+    }
+
+    private static Set<String> hexKeys(List<byte[]> keys) {
+        Set<String> hex = new TreeSet<>();
+        for (byte[] key : keys) {
+            hex.add(HexUtil.encodeHexString(key).toLowerCase(Locale.ROOT));
+        }
+        return hex;
+    }
+
+    /** Anchor v2: the leader's heartbeat is due when the anchor's updatedAtMs is old enough. */
+    private boolean heartbeatDue() {
+        AnchorDatumCodec.AnchorDatum current = currentV2Datum();
+        return current != null && current.height() >= 1 && aged(current);
+    }
+
+    /** Anchor v2: the on-L1 anchor is at least anchor.max-interval-minutes old (any height). */
+    private boolean anchorAgeDue() {
+        AnchorDatumCodec.AnchorDatum current = currentV2Datum();
+        return current != null && aged(current);
+    }
+
+    private boolean aged(AnchorDatumCodec.AnchorDatum current) {
+        return wallClock.getAsLong() - current.updatedAtMs()
+                >= anchorConfig.maxIntervalMinutes() * 60_000L;
+    }
+
+    private AnchorDatumCodec.AnchorDatum currentV2Datum() {
+        Utxo anchorUtxo = findAnchorUtxo(ledger.metaBytes(META_SCRIPT_POLICY_ID),
+                ledger.metaBytes(META_SCRIPT_HASH));
+        if (anchorUtxo == null) {
+            return null;
+        }
+        AnchorDatumCodec.AnchorDatum current = AnchorDatumCodec.decode(anchorUtxo.inlineDatum());
+        return current.version() == AnchorDatumCodec.ABI_VERSION_V2 ? current : null;
+    }
+
+    /** Anchor v2 validity window in slots: [lower, upper), upper − lower ≤ max-window-ms. */
+    private record ValidityWindow(long lowerSlot, long upperSlot, long upperPosixMs) {
+    }
+
+    private ValidityWindow validityWindow() {
+        AnchorProfileSettings.SlotTime slotTime = profile.slotTime();
+        AppChainEngine.L1Ref tipPoint = observedL1TipPoint();
+        if (slotTime == null || tipPoint == null || tipPoint.slot() <= 0) {
+            return null;
+        }
+        long span = Math.min(anchorConfig.validitySlots(),
+                profile.maxWindowMs() / slotTime.slotLengthMs());
+        if (span < 1) {
+            throw new IllegalStateException("anchor-profile.max-window-ms is shorter than one slot");
+        }
+        long lower = tipPoint.slot();
+        long upper = lower + span;
+        return new ValidityWindow(lower, upper, slotTime.toPosixMs(upper));
     }
 
     private BuiltAdvance buildAdvanceTx(Set<String> signersHex) throws Exception {
@@ -640,11 +987,27 @@ final class ScriptAnchorService {
         }
         AnchorDatumCodec.AnchorDatum prev = AnchorDatumCodec.decode(anchorUtxo.inlineDatum());
         long tip = tipHeightSupplier.get();
-        if (tip <= prev.height())
-            return null;
-        AnchorDatumCodec.AnchorDatum next = datumAtTip();
+        boolean heartbeat = false;
+        if (tip <= prev.height()) {
+            // Anchor v2 pure heartbeat: same height, block, root, members and threshold.
+            if (!profile.v2() || prev.version() != AnchorDatumCodec.ABI_VERSION_V2 || !heartbeatDue())
+                return null;
+            heartbeat = true;
+        }
+        AnchorDatumCodec.AnchorDatum next = heartbeat ? prev : datumAtTip();
         if (next == null)
             return null;
+        ValidityWindow window = null;
+        if (profile.v2()) {
+            window = validityWindow();
+            if (window == null) {
+                log.debug("Script-anchor: no L1 tip slot for the v2 validity window yet");
+                return null;
+            }
+            next = next.withUpdatedAtMs(window.upperPosixMs());
+            if (heartbeat && next.updatedAtMs() <= prev.updatedAtMs())
+                return null;
+        }
 
         PlutusV3Script validator = artifacts.validator(policyId);
         Address scriptAddress = AddressProvider.getEntAddress(
@@ -674,15 +1037,19 @@ final class ScriptAnchorService {
                 .collectFrom(NodeUtxoSupplier.toCcl(anchorUtxo), BigIntPlutusData.of(0))
                 .attachSpendingValidator(validator)
                 .payToContract(scriptAddress.getAddress(), continuing, AnchorDatumCodec.encode(next));
-        Transaction tx = txContext(scriptTx, signersHex.size())
-                .withRequiredSigners(requiredSigners)
-                .buildAndSign();
+        QuickTxBuilder.TxContext context = txContext(scriptTx, signersHex.size())
+                .withRequiredSigners(requiredSigners);
+        if (window != null) {
+            context = context.validFrom(window.lowerSlot()).validTo(window.upperSlot());
+        }
+        Transaction tx = context.buildAndSign();
 
         byte[] bodyBytes = CborSerializationUtil.serialize(tx.getBody().serialize(Era.Conway));
         byte[] bodyHash = Blake2bUtil.blake2bHash256(bodyBytes);
         byte[] requestBody = encodeSignRequest(bodyBytes, policyId, scriptHash);
+        // A heartbeat anchors no new block: its confirmation covers exactly its height.
         return new BuiltAdvance(tx, bodyBytes, bodyHash, requestBody,
-                prev.height() + 1, next.height());
+                heartbeat ? prev.height() : prev.height() + 1, next.height(), anchorUtxo, scriptHash);
     }
 
     /**
@@ -699,12 +1066,16 @@ final class ScriptAnchorService {
                 .feePayer(walletAddress.getAddress())
                 .collateralPayer(walletAddress.getAddress())
                 .additionalSignersCount(pendingCosigners)
-                .withTxEvaluator(new JulcTransactionEvaluator(
-                        cclUtxoSupplier, this::effectiveProtocolParams, scriptHash -> java.util.Optional.empty()))
+                .withTxEvaluator(profile.v2()
+                        ? new JulcTransactionEvaluator(cclUtxoSupplier, this::effectiveProtocolParams,
+                                scriptHash -> java.util.Optional.empty(), profile.slotTime().julcSlotConfig())
+                        : new JulcTransactionEvaluator(cclUtxoSupplier, this::effectiveProtocolParams,
+                                scriptHash -> java.util.Optional.empty()))
                 .withSigner(SignerProviders.signerFrom(walletKey));
-        // No validity upper bound: the anchor scripts do not read the validity range, and a bound would have to stay
-        // within the ledger's forecast horizon to be convertible to time (TimeTranslationPastHorizon), which on a
-        // network with short epochs is closer than any fixed window. Spending the thread UTxO orders anchor txs.
+        // v1: no validity upper bound. The v1 scripts do not read the validity range, and a bound would have to
+        // stay within the ledger's forecast horizon to be convertible to time (TimeTranslationPastHorizon), which
+        // on a network with short epochs is closer than any fixed window. Spending the thread UTxO orders anchor
+        // txs. v2 advances set a bounded window (validityWindow); bootstrap never sets one.
         return context;
     }
 
@@ -767,6 +1138,7 @@ final class ScriptAnchorService {
                 .anyMatch(pkh -> java.util.Arrays.equals(pkh, selfPkh));
         if (!verifyAdvance(body, request.policyId(), request.scriptHash()))
             return;
+        clearCosignRefusal();
 
         byte[] bodyHash = Blake2bUtil.blake2bHash256(request.bodyBytes());
         Utxo anchorUtxo = findAnchorUtxo(request.policyId(), request.scriptHash());
@@ -803,7 +1175,8 @@ final class ScriptAnchorService {
             log.warn("Script-anchor: sign request validator does not match configured artifact — refused");
             return false;
         }
-        // 0. Adopt (or match) the anchor identity
+        // 0. Adopt (or match) the anchor identity. A pinned identity is already
+        // installed, so a request can only match it (ADR-059 D8b).
         boolean adopting = ledger.metaBytes(META_SCRIPT_POLICY_ID) == null
                 || ledger.metaBytes(META_SCRIPT_POLICY_ID).length != 28;
         if (!adoptOrMatchIdentity(policyId, scriptHash))
@@ -821,6 +1194,14 @@ final class ScriptAnchorService {
                         && in.getIndex() == anchorUtxo.outpoint().index());
         if (!spendsAnchor) {
             log.warn("Script-anchor: sign request does not spend my anchor UTxO — refused");
+            return false;
+        }
+        // 1a. ADR-059 D8h §1 / framework addition 6: every input resolved, no other script
+        // input, nothing locked by my member key, no mint/certificate/withdrawal/vote/proposal.
+        BodyRefusal refusal = bodyHazard(body, anchorUtxo, scriptHash,
+                Blake2bUtil.blake2bHash224(memberSigner.publicKey()));
+        if (refusal != null) {
+            recordCosignRefusal(refusal);
             return false;
         }
         if (adopting && !validAdoptionBaseline(anchorUtxo)) {
@@ -850,8 +1231,10 @@ final class ScriptAnchorService {
 
         // 3. The next datum matches MY chain history and membership
         AnchorDatumCodec.AnchorDatum datum;
+        AnchorDatumCodec.AnchorDatum prev;
         try {
             datum = AnchorDatumCodec.decode(next.getInlineDatum());
+            prev = AnchorDatumCodec.decode(anchorUtxo.inlineDatum());
         } catch (Throwable failure) {
             logFailure("continuing datum decode", failure);
             return false;
@@ -874,13 +1257,18 @@ final class ScriptAnchorService {
                     datum.height());
             return false;
         }
-        Set<String> myMembers = new TreeSet<>(membersSupplier.get());
-        Set<String> datumMembers = new TreeSet<>();
-        for (byte[] key : datum.memberKeys()) {
-            datumMembers.add(HexUtil.encodeHexString(key).toLowerCase(Locale.ROOT));
+        // 3a. Anchor v2 (ADR-059 D8g §1): the validator's heartbeat and time rules.
+        if (profile.v2()) {
+            String v2Problem = v2AdvanceProblem(body, prev, datum);
+            if (v2Problem != null) {
+                log.warn("Script-anchor: v2 advance refused — {}", v2Problem);
+                return false;
+            }
         }
-        if (!myMembers.equals(datumMembers) || datum.threshold() != thresholdSupplier.getAsInt()) {
-            log.warn("Script-anchor: datum membership/threshold differ from my current epoch — refused");
+        Set<String> datumMembers = hexKeys(datum.memberKeys());
+        if (!acceptableMembership(datumMembers, datum.threshold())) {
+            log.warn("Script-anchor: datum membership/threshold differ from my current epoch "
+                    + "(and any committed pending handoff) — refused");
             return false;
         }
         Set<String> requiredSignerHashes = new TreeSet<>();
@@ -889,17 +1277,196 @@ final class ScriptAnchorService {
                 requiredSignerHashes.add(HexUtil.encodeHexString(signerHash));
             }
         }
-        long requiredMembers = myMembers.stream()
+        // With the D8b handoff the validator authorizes against the anchor's current
+        // datum, which may already carry the committed pending set.
+        Set<String> authorizing = handoffMode ? hexKeys(prev.memberKeys())
+                : new TreeSet<>(membersSupplier.get());
+        long authorizingThreshold = handoffMode ? prev.threshold() : thresholdSupplier.getAsInt();
+        long requiredMembers = authorizing.stream()
                 .map(HexUtil::decodeHexString)
                 .map(Blake2bUtil::blake2bHash224)
                 .map(HexUtil::encodeHexString)
                 .filter(requiredSignerHashes::contains)
                 .count();
-        if (requiredMembers < thresholdSupplier.getAsInt()) {
+        if (requiredMembers < authorizingThreshold) {
             log.warn("Script-anchor: sign request lists fewer than the local member threshold — refused");
             return false;
         }
         return true;
+    }
+
+    /**
+     * Anchor v2 member-side rules (anchor-v2.cddl rules 6 and 7), or null when they hold.
+     * The time bounds are recomputed from the body's slots with this node's configured
+     * slot-to-time conversion, the same one the ledger applies.
+     */
+    private String v2AdvanceProblem(TransactionBody body, AnchorDatumCodec.AnchorDatum prev,
+                                    AnchorDatumCodec.AnchorDatum datum) {
+        if (prev.version() != AnchorDatumCodec.ABI_VERSION_V2
+                || datum.version() != AnchorDatumCodec.ABI_VERSION_V2) {
+            return "not a v2 datum";
+        }
+        if (datum.height() == prev.height()) {
+            if (!java.util.Arrays.equals(datum.blockHash(), prev.blockHash())
+                    || !java.util.Arrays.equals(datum.stateRoot(), prev.stateRoot())
+                    || !hexKeys(datum.memberKeys()).equals(hexKeys(prev.memberKeys()))
+                    || datum.threshold() != prev.threshold()) {
+                return "an equal-height advance must be a pure heartbeat";
+            }
+            if (datum.updatedAtMs() <= prev.updatedAtMs()) {
+                return "a heartbeat must strictly increase updatedAtMs";
+            }
+        } else if (datum.height() < prev.height()) {
+            return "height regresses";
+        }
+        long startSlot = body.getValidityStartInterval();
+        long ttlSlot = body.getTtl();
+        if (startSlot <= 0 || ttlSlot <= 0 || ttlSlot < startSlot) {
+            return "the body needs finite validity bounds";
+        }
+        long lowerMs;
+        long upperMs;
+        try {
+            lowerMs = profile.slotTime().toPosixMs(startSlot);
+            upperMs = profile.slotTime().toPosixMs(ttlSlot);
+        } catch (RuntimeException outOfRange) {
+            return "validity bounds outside the slot-time origin";
+        }
+        if (datum.updatedAtMs() != upperMs) {
+            return "updatedAtMs is not the validity upper bound";
+        }
+        if (upperMs - lowerMs > profile.maxWindowMs()) {
+            return "validity window wider than max-window-ms";
+        }
+        return null;
+    }
+
+    /**
+     * ADR-059 D8h §1 / framework addition 6 body rules for an anchor co-sign, or null when the
+     * body is acceptable: every input and collateral input resolves in this node's own UTxO
+     * view (fail closed on unknown); the anchor UTxO is the only script-locked input; no input
+     * is locked by {@code refuseKeyHash} (this member's own key, so its witness authorizes
+     * nothing else; null for the leader's self-check, whose fee inputs it chose itself); and
+     * mint, certificates, withdrawals, votes and proposals are empty.
+     */
+    private BodyRefusal bodyHazard(TransactionBody body, Utxo anchorUtxo, byte[] scriptHash,
+                                   byte[] refuseKeyHash) {
+        if (body.getMint() != null && !body.getMint().isEmpty()) {
+            return BodyRefusal.hazard("it mints or burns");
+        }
+        if (body.getCerts() != null && !body.getCerts().isEmpty()) {
+            return BodyRefusal.hazard("it carries certificates");
+        }
+        if (body.getWithdrawals() != null && !body.getWithdrawals().isEmpty()) {
+            return BodyRefusal.hazard("it withdraws rewards");
+        }
+        if (body.getVotingProcedures() != null && body.getVotingProcedures().getVoting() != null
+                && !body.getVotingProcedures().getVoting().isEmpty()) {
+            return BodyRefusal.hazard("it votes");
+        }
+        if (body.getProposalProcedures() != null && !body.getProposalProcedures().isEmpty()) {
+            return BodyRefusal.hazard("it proposes");
+        }
+        UtxoState utxoState = utxoStateSupplier.get();
+        if (utxoState == null) {
+            return BodyRefusal.unresolved("no local UTxO view");
+        }
+        List<com.bloxbean.cardano.client.transaction.spec.TransactionInput> inputs = new ArrayList<>();
+        if (body.getInputs() != null) {
+            inputs.addAll(body.getInputs());
+        }
+        if (body.getCollateral() != null) {
+            inputs.addAll(body.getCollateral());
+        }
+        for (var input : inputs) {
+            boolean isAnchor = input.getTransactionId().equalsIgnoreCase(anchorUtxo.outpoint().txHash())
+                    && input.getIndex() == anchorUtxo.outpoint().index();
+            Utxo resolved;
+            try {
+                resolved = utxoState.getUtxo(input.getTransactionId().toLowerCase(Locale.ROOT),
+                        input.getIndex()).orElse(null);
+            } catch (RuntimeException failure) {
+                resolved = null;
+            }
+            if (resolved == null) {
+                return BodyRefusal.unresolved("input " + input.getTransactionId() + "#" + input.getIndex()
+                        + " is not in my UTxO view" + (utxoViewFilter.filtering()
+                                ? " (" + L1UtxoViewFilter.ENABLED + "=true: does the filter admit the "
+                                        + "leader's wallet?)" : ""));
+            }
+            Credential payment;
+            try {
+                payment = AddressProvider.getPaymentCredential(new Address(resolved.address())).orElse(null);
+            } catch (RuntimeException unparseable) {
+                payment = null;
+            }
+            if (payment == null) {
+                return BodyRefusal.hazard("input " + input.getTransactionId() + "#" + input.getIndex()
+                        + " has no readable payment credential");
+            }
+            if (payment.getType() == com.bloxbean.cardano.client.address.CredentialType.Script) {
+                if (!isAnchor || !java.util.Arrays.equals(payment.getBytes(), scriptHash)) {
+                    return BodyRefusal.hazard("it spends a script input other than the anchor");
+                }
+            } else if (refuseKeyHash != null && java.util.Arrays.equals(payment.getBytes(), refuseKeyHash)) {
+                return BodyRefusal.hazard("it spends an input locked by my own member key");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Why a co-sign body was refused (review P2-1). {@link Kind#UNRESOLVED_INPUT} means this
+     * node's UTxO view lacks an input (a lagging or filtered view: an availability problem);
+     * {@link Kind#HAZARD} means the body itself is unsafe to sign. Both fail closed.
+     */
+    record BodyRefusal(Kind kind, String detail) {
+        enum Kind {
+            UNRESOLVED_INPUT("unresolvable-input"),
+            HAZARD("hazard");
+
+            private final String label;
+
+            Kind(String label) {
+                this.label = label;
+            }
+
+            String label() {
+                return label;
+            }
+        }
+
+        static BodyRefusal unresolved(String detail) {
+            return new BodyRefusal(Kind.UNRESOLVED_INPUT, detail);
+        }
+
+        static BodyRefusal hazard(String detail) {
+            return new BodyRefusal(Kind.HAZARD, detail);
+        }
+    }
+
+    /** A later verified request (or an observed anchor) supersedes an earlier refusal. */
+    private void clearCosignRefusal() {
+        if (lastCosignRefusal != null) {
+            lastCosignRefusal = null;
+            String error = lastError;
+            if (error != null && error.startsWith(COSIGN_REFUSED)) {
+                lastError = null;
+            }
+        }
+    }
+
+    private void recordCosignRefusal(BodyRefusal refusal) {
+        lastCosignRefusal = refusal;
+        lastCosignRefusalAt = System.currentTimeMillis();
+        if (refusal.kind() == BodyRefusal.Kind.UNRESOLVED_INPUT) {
+            lastError = COSIGN_REFUSED + "unresolvable input — " + refusal.detail()
+                    + " (this member's UTxO view must hold every input of the leader's body)";
+        } else {
+            lastError = COSIGN_REFUSED + "body hazard — " + refusal.detail();
+        }
+        log.warn("Script-anchor: sign request body refused ({}) — {}", refusal.kind().label(),
+                refusal.detail());
     }
 
     private boolean validAdoptionBaseline(Utxo anchorUtxo) {
@@ -923,12 +1490,7 @@ final class ScriptAnchorService {
                     || !java.util.Arrays.equals(expectedStateRoot, datum.stateRoot())) {
                 return false;
             }
-            Set<String> datumMembers = new TreeSet<>();
-            for (byte[] key : datum.memberKeys()) {
-                datumMembers.add(HexUtil.encodeHexString(key).toLowerCase(Locale.ROOT));
-            }
-            return datumMembers.equals(new TreeSet<>(membersSupplier.get()))
-                    && datum.threshold() == thresholdSupplier.getAsInt();
+            return acceptableMembership(hexKeys(datum.memberKeys()), datum.threshold());
         } catch (Throwable failure) {
             logFailure("candidate identity datum verification", failure);
             return false;
@@ -1145,6 +1707,7 @@ final class ScriptAnchorService {
             lastAnchoredL1Slot = observed.l1Slot();
             lastAnchorTxHash = observed.txHash();
             lastError = null;
+            lastCosignRefusal = null;
             logInfoSafely("Script-anchor bootstrap CONFIRMED on L1: tx={}, policyId={}, l1Slot={}",
                     observed.txHash(), HexUtil.encodeHexString(observed.policyId()), observed.l1Slot());
         } catch (Throwable failure) {
@@ -1173,6 +1736,10 @@ final class ScriptAnchorService {
             AnchorService.Confirmation confirmation = new AnchorService.Confirmation(
                     observed.fromHeight(), observed.toHeight(), observed.txHash(), observed.l1Slot(),
                     anchoredBlockHash, observed.l1BlockHash());
+            // An anchor v2 heartbeat re-anchors the already anchored height: it is journaled
+            // (rollback tracking) but publishes no anchored-range event.
+            boolean heartbeat = profile.v2() && observed.toHeight() <= lastAnchoredHeight()
+                    && !observed.txHash().equals(ledger.metaString(META_ANCHOR_TX));
             persistConfirmation(confirmation, historyWith(confirmation), Map.of(),
                     Map.of(META_SCRIPT_OBSERVED_SUBMIT, new byte[0]));
 
@@ -1184,6 +1751,12 @@ final class ScriptAnchorService {
             lastAnchoredL1Slot = observed.l1Slot();
             lastAnchorTxHash = observed.txHash();
             lastError = null;
+            lastCosignRefusal = null;
+            if (heartbeat) {
+                logInfoSafely("Script-anchor heartbeat CONFIRMED on L1: tx={}, app height {}, l1Slot={}",
+                        observed.txHash(), observed.toHeight(), observed.l1Slot());
+                return null;
+            }
             logInfoSafely("Script-anchor CONFIRMED on L1: tx={}, app blocks {}..{}, l1Slot={}",
                     observed.txHash(), observed.fromHeight(), observed.toHeight(), observed.l1Slot());
             return new AnchorService.ConfirmedAnchor(observed.fromHeight(), observed.toHeight(),
@@ -1396,6 +1969,15 @@ final class ScriptAnchorService {
                     return null;
                 }
                 boolean advances = observedHeight > persistedHeight;
+                // Anchor v2 pure heartbeat: the same anchored height in a newer thread output.
+                boolean heartbeat = profile.v2() && authoritativeIdentity && !advances
+                        && observedHeight > 0L && observedHeight == persistedHeight
+                        && inclusionSlot > persistedSlot && !observedTx.equals(persistedTx)
+                        && datum.version() == AnchorDatumCodec.ABI_VERSION_V2;
+                if (heartbeat) {
+                    return recordObservedHeartbeat(anchorUtxo, observedHeight, observedTx,
+                            inclusionSlot, expectedBlockHash, inclusionHash);
+                }
                 long fromHeight = advances && persistedHeight > 0L
                         ? persistedHeight + 1L : (observedHeight > 0L ? 1L : 0L);
                 AnchorService.Confirmation confirmation = new AnchorService.Confirmation(
@@ -1448,6 +2030,7 @@ final class ScriptAnchorService {
                 lastAnchoredL1Slot = inclusionSlot;
                 lastAnchorTxHash = observedTx;
                 lastError = null;
+                lastCosignRefusal = null;
                 if (!advances) {
                     pendingCosign = null;
                     pendingSubmit = null;
@@ -1466,6 +2049,35 @@ final class ScriptAnchorService {
                 return null;
             }
         }
+    }
+
+    /** Journal an observed v2 heartbeat; no anchored-range event (callers hold the lock). */
+    private AnchorService.ConfirmedAnchor recordObservedHeartbeat(Utxo anchorUtxo, long height,
+                                                                  String txHash, long inclusionSlot,
+                                                                  byte[] blockHash, byte[] inclusionHash) {
+        AnchorService.Confirmation confirmation = new AnchorService.Confirmation(
+                height, height, txHash, inclusionSlot, blockHash, inclusionHash.clone());
+        PendingSubmit submit = pendingSubmit;
+        boolean completesLocalSubmit = leader && submit != null
+                && txHash.equals(submit.txHash()) && height == submit.toHeight();
+        Map<String, byte[]> bytes = new LinkedHashMap<>();
+        if (completesLocalSubmit) {
+            bytes.put(META_SCRIPT_OBSERVED_SUBMIT, new byte[0]);
+        }
+        persistConfirmation(confirmation, historyWith(confirmation),
+                Map.of(META_SCRIPT_OUT_INDEX, (long) anchorUtxo.outpoint().index()), bytes);
+        observedAnchorCount++;
+        if (completesLocalSubmit) {
+            pendingSubmit = null;
+            anchoredCount++;
+        }
+        lastAnchoredL1Slot = inclusionSlot;
+        lastAnchorTxHash = txHash;
+        lastError = null;
+        lastCosignRefusal = null;
+        logInfoSafely("Script-anchor heartbeat OBSERVED on committed local L1 view: tx={}, "
+                + "app height {}, l1Slot={}, leader={}", txHash, height, inclusionSlot, leader);
+        return null;
     }
 
     private AppChainEngine.L1Ref observedL1TipPoint() {
@@ -1612,6 +2224,7 @@ final class ScriptAnchorService {
         Map<String, Long> longs = new LinkedHashMap<>();
         Map<String, byte[]> bytes = new LinkedHashMap<>();
         identityResetValues(longs, bytes);
+        keepPinnedIdentity(longs, bytes);
         ledger.metaPutAll(longs, bytes);
         clearVolatileAnchorState();
         logWarnSafely("L1 rollback to slot {} invalidated script-anchor {} identity checkpoint "
@@ -1636,6 +2249,7 @@ final class ScriptAnchorService {
                 Map<String, Long> longs = new LinkedHashMap<>();
                 Map<String, byte[]> bytes = new LinkedHashMap<>();
                 identityResetValues(longs, bytes);
+                keepPinnedIdentity(longs, bytes);
                 return batch -> {
                     longs.forEach((key, value) -> ledger.stageMetaLong(batch, key, value));
                     bytes.forEach((key, value) -> ledger.stageMetaBytes(batch, key, value));
@@ -1682,6 +2296,17 @@ final class ScriptAnchorService {
         pendingSubmit = null;
         lastAnchorTxHash = null;
         lastAnchoredL1Slot = 0L;
+    }
+
+    /** A reset clears the anchor frontier but never a pinned identity (ADR-059 D8b). */
+    private void keepPinnedIdentity(Map<String, Long> longs, Map<String, byte[]> bytes) {
+        AnchorProfileSettings.PinnedIdentity pinned = profile.pinned();
+        if (pinned != null) {
+            bytes.put(META_SCRIPT_POLICY_ID, pinned.threadPolicyId());
+            bytes.put(META_SCRIPT_HASH, pinned.scriptHash());
+            longs.put(META_SCRIPT_BOOTSTRAP_SLOT, 0L);
+            longs.put(META_SCRIPT_IDENTITY_ADOPTED, 0L);
+        }
     }
 
     private static void identityResetValues(Map<String, Long> longs, Map<String, byte[]> bytes) {
@@ -1779,6 +2404,41 @@ final class ScriptAnchorService {
             status.put("walletAddress", walletAddress.getAddress());
         }
         status.putAll(identityStatus());
+        AnchorProfileSettings currentProfile = profile;
+        if (currentProfile.v2()) {
+            status.put("anchorVersion", 2);
+            try {
+                Utxo anchorUtxo = findAnchorUtxo(ledger.metaBytes(META_SCRIPT_POLICY_ID),
+                        ledger.metaBytes(META_SCRIPT_HASH));
+                if (anchorUtxo != null) {
+                    // Anchor age for operators and the doctor (ADR-059 D8g heartbeat timeout).
+                    status.put("anchorUpdatedAtMs",
+                            AnchorDatumCodec.decode(anchorUtxo.inlineDatum()).updatedAtMs());
+                }
+            } catch (RuntimeException unreadable) {
+                status.put("anchorUpdatedAtMs", "unreadable");
+            }
+        }
+        if (currentProfile.pinned() != null) {
+            status.put("identityPinned", true);
+        }
+        if (handoffMode) {
+            pendingHandoff.get().ifPresent(handoff ->
+                    status.put("pendingHandoffMembers", handoff.members().size()));
+        }
+        if (utxoViewFilter.filtering() && scriptAnchoringInUse()) {
+            status.put("utxoViewFiltered", true);
+            String warning = utxoViewWarning;
+            if (warning != null) {
+                status.put("utxoViewWarning", warning);
+            }
+        }
+        BodyRefusal refusal = lastCosignRefusal;
+        if (refusal != null) {
+            status.put("lastCosignRefusalKind", refusal.kind().label());
+            status.put("lastCosignRefusal", refusal.detail());
+            status.put("lastCosignRefusalAt", lastCosignRefusalAt);
+        }
         status.put("lastAnchoredHeight", lastAnchoredHeight());
         status.put("observedAnchorCount", observedAnchorCount);
         status.put("anchoredCount", anchoredCount);
@@ -1857,11 +2517,21 @@ final class ScriptAnchorService {
         List<byte[]> memberKeys = membersSupplier.get().stream()
                 .map(HexUtil::decodeHexString)
                 .toList();
+        // v2: the identity-only bootstrap datum is stamped with the current L1 time; the
+        // first threshold-signed advance replaces it with a bounded updatedAtMs.
+        long updatedAtMs = 0L;
+        if (profile.v2()) {
+            AppChainEngine.L1Ref tipPoint = observedL1TipPoint();
+            if (tipPoint == null || tipPoint.slot() <= 0) {
+                throw new IllegalStateException("Anchor v2 bootstrap needs the current L1 slot");
+            }
+            updatedAtMs = profile.slotTime().toPosixMs(tipPoint.slot());
+        }
         return new AnchorDatumCodec.AnchorDatum(
-                AnchorDatumCodec.ABI_VERSION, chainId, chainGenesisId(), applicationId,
+                profile.version(), chainId, chainGenesisId(), applicationId,
                 commitmentProfileId(), formatFingerprint(), 0L,
                 new byte[32], new byte[32],
-                AnchorDatumCodec.sortedKeys(memberKeys), thresholdSupplier.getAsInt());
+                AnchorDatumCodec.sortedKeys(memberKeys), thresholdSupplier.getAsInt(), updatedAtMs);
     }
 
     private AnchorDatumCodec.AnchorDatum datumAtTip() {
@@ -1875,13 +2545,14 @@ final class ScriptAnchorService {
             blockHash = AppBlockCodec.blockHash(tipBlock);
             stateRoot = tipBlock.stateRoot();
         }
-        List<byte[]> memberKeys = membersSupplier.get().stream()
+        SignerProfile next = nextMembership();
+        List<byte[]> memberKeys = next.members().stream()
                 .map(HexUtil::decodeHexString)
                 .toList();
-        return new AnchorDatumCodec.AnchorDatum(AnchorDatumCodec.ABI_VERSION, chainId,
+        return new AnchorDatumCodec.AnchorDatum(profile.version(), chainId,
                 chainGenesisId(), applicationId, commitmentProfileId(), formatFingerprint(), tip,
                 blockHash, stateRoot, AnchorDatumCodec.sortedKeys(memberKeys),
-                thresholdSupplier.getAsInt());
+                next.threshold());
     }
 
     private byte[] chainGenesisId() {
@@ -1898,7 +2569,7 @@ final class ScriptAnchorService {
     }
 
     private boolean hasExpectedIdentity(AnchorDatumCodec.AnchorDatum datum) {
-        return datum.version() == AnchorDatumCodec.ABI_VERSION
+        return datum.version() == profile.version()
                 && chainId.equals(datum.chainId())
                 && applicationId.equals(datum.applicationId())
                 && commitmentProfileId().equals(datum.commitmentProfileId())
@@ -1960,16 +2631,19 @@ final class ScriptAnchorService {
         return isThreadUtxo(candidate, scriptAddress, policyHex) ? candidate : null;
     }
 
-    private static boolean isThreadUtxo(Utxo candidate, String scriptAddress,
-                                        String policyHex) {
+    private boolean isThreadUtxo(Utxo candidate, String scriptAddress,
+                                 String policyHex) {
         if (candidate == null || !scriptAddress.equals(candidate.address())
                 || candidate.inlineDatum() == null || candidate.inlineDatum().length == 0) {
             return false;
         }
+        AnchorProfileSettings.PinnedIdentity pinned = profile.pinned();
         return candidate.assets() != null
                 && candidate.assets().stream().anyMatch(asset ->
                         policyHex.equalsIgnoreCase(asset.policyId())
-                                && BigInteger.ONE.equals(asset.quantity()));
+                                && BigInteger.ONE.equals(asset.quantity())
+                                && (pinned == null || pinned.threadAssetNameHex().equalsIgnoreCase(
+                                        asset.assetName() != null ? asset.assetName() : "")));
     }
 
     private List<Utxo> usableWalletUtxos() {
@@ -1983,14 +2657,25 @@ final class ScriptAnchorService {
                 .toList();
     }
 
-    private static boolean carriesThreadToken(Value value, byte[] policyId) {
+    private boolean carriesThreadToken(Value value, byte[] policyId) {
         if (value == null || value.getMultiAssets() == null)
             return false;
         String policyHex = HexUtil.encodeHexString(policyId);
+        AnchorProfileSettings.PinnedIdentity pinned = profile.pinned();
         return value.getMultiAssets().stream()
                 .anyMatch(ma -> policyHex.equalsIgnoreCase(ma.getPolicyId())
                         && ma.getAssets() != null
-                        && ma.getAssets().stream().anyMatch(a -> BigInteger.ONE.equals(a.getValue())));
+                        && ma.getAssets().stream().anyMatch(a -> BigInteger.ONE.equals(a.getValue())
+                                && (pinned == null || pinned.threadAssetNameHex().equalsIgnoreCase(
+                                        assetNameHex(a)))));
+    }
+
+    private static String assetNameHex(com.bloxbean.cardano.client.transaction.spec.Asset asset) {
+        String hex = asset.getNameAsHex();
+        if (hex == null) {
+            return "";
+        }
+        return hex.startsWith("0x") || hex.startsWith("0X") ? hex.substring(2) : hex;
     }
 
     private TransactionBody deserializeBody(byte[] bodyBytes) {

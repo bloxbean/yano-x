@@ -24,6 +24,12 @@
       "reservedSystemNames": ["fixed", "rotating"]
     },
     {
+      "key": "membership-handoff-gate",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider",
+      "manifestRequired": false,
+      "trustTier": "CONSENSUS"
+    },
+    {
       "key": "l1-observer",
       "serviceInterface": "org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider",
       "manifestRequired": false,

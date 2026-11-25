@@ -43,6 +43,36 @@ class StateProofPruningSettingsTest {
                 .hasMessageContaining(StateProofPruningSettings.RETAIN_HEIGHTS);
     }
 
+    /** ADR-059 framework addition 2: retainFrom = min(tip retention, L1-stable anchor height). */
+    @Test
+    void l1StableAnchorFloorKeepsProofsFromTheStableAnchorAndPrunesNothingWithoutOne() {
+        StateProofPruningSettings plain = StateProofPruningSettings.from(config(
+                StateCommitmentProfiles.MPF, Map.of(
+                        StateProofPruningSettings.ENABLED, "true",
+                        StateProofPruningSettings.RETAIN_HEIGHTS, "3")));
+        assertThat(plain.l1StableAnchorFloor()).isFalse();
+        // Without the floor the anchor height is ignored (existing behaviour).
+        assertThat(plain.retainFrom(100, 0)).isEqualTo(98);
+        assertThat(plain.retainFrom(100, 40)).isEqualTo(98);
+
+        StateProofPruningSettings floored = StateProofPruningSettings.from(config(
+                StateCommitmentProfiles.MPF, Map.of(
+                        StateProofPruningSettings.ENABLED, "true",
+                        StateProofPruningSettings.RETAIN_HEIGHTS, "3",
+                        StateProofPruningSettings.L1_STABLE_ANCHOR_FLOOR, "true")));
+        assertThat(floored.l1StableAnchorFloor()).isTrue();
+        assertThat(floored.retainFrom(100, 40)).isEqualTo(40);
+        assertThat(floored.retainFrom(100, 99)).isEqualTo(98);
+        assertThat(floored.retainFrom(100, 0)).isZero();
+        assertThat(floored.retainFrom(0, 40)).isZero();
+
+        assertThatThrownBy(() -> StateProofPruningSettings.from(config(
+                StateCommitmentProfiles.MPF,
+                Map.of(StateProofPruningSettings.L1_STABLE_ANCHOR_FLOOR, "yes"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(StateProofPruningSettings.L1_STABLE_ANCHOR_FLOOR);
+    }
+
     private static AppChainConfig config(
             org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfile profile,
             Map<String, String> settings) {
