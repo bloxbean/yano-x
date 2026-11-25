@@ -50,10 +50,13 @@ deposit_datum_v1      = #6.121([beneficiary: hash28, refund_address: bytes .size
 vault_continuation_v1 = #6.122([[0*64 hash32]])   ; ids paid (claims, or the one escape id) or [] after Accept
 floor_top_up_v1       = #6.123([])
 ; Shapes are judged on the decoded Plutus Data (any serialization), by the script and by
-; VaultOutputShape.classify alike. A vault output may also have no datum or only a datum hash:
-; unattributed custody, sweepable.
+; VaultOutputShape.classify alike. Accepted custody (V10, one rule for payouts, Consolidate and
+; the sweep exclusion): vault_continuation_v1 holding only lovelace and the vault asset, or
+; floor_top_up_v1 holding lovelace alone. A vault output may also have no datum or only a datum
+; hash: unattributed custody, sweepable. migration_in_v1 is not accepted before M4b.
 
-; The payout output (output 0) of a SweepExit: the paid claim, for the payout observer (D10).
+; The payout output (output 0) of a SweepExit: the paid claim, for the payout observer (D10). The
+; observer reads it only when the shard-authenticated transaction has no vault continuation.
 sweep_paid_v1 = #6.125([claim_id: hash32])
 
 ; ---------------------------------------------------------------------------
@@ -81,7 +84,7 @@ vault_redeemer =
   / #6.1280([holder_id: bytes .size (1..64), holder_key_hash: hash28,
              amount: uint, vault_lovelace: uint, recipient: raw_addr,
              proof: inclusion_proof, shard_index: 0..15])                  ; 7 BalanceExit (EXIT)
-  / #6.1281([])                                                            ; 8 Consolidate (NORMAL and EXIT)
+  / #6.1281([])                                                            ; 8 Consolidate (EXIT only)
   / #6.1282([])                                                            ; 9 Follow (non-lead inputs only)
 
 sweep_asset = #6.121([policy_id: bytes, asset_name: bytes, quantity: uint])  ; canonical AssetId order
@@ -93,7 +96,9 @@ sweep_asset = #6.121([policy_id: bytes, asset_name: bytes, quantity: uint])  ; c
 ; (the outpoint's lovelace, 0 for the ADA vault) - the SweepCommitment of
 ; asset-gateway-contracts - then claim_id = ClaimId(domain, vault, SWEEP_UNATTRIBUTED,
 ; withdrawal_key, recipient, asset_value, vault_lovelace, sequence) and the leaf.
-; Output 0 pays exactly the outpoint's value to the recipient with sweep_paid_v1.
+; Output 0 pays the recipient exactly the outpoint's native assets and at least its lovelace,
+; with sweep_paid_v1. An outpoint whose value has more than 16 entries cannot be committed
+; (asset_value's bound) and stays as stranded donor dust.
 ; Consolidate merges two or more accepted, clean inputs into one exact
 ; vault_continuation_v1([]); no shard, no payout.
 
@@ -134,4 +139,4 @@ inbox_spend_redeemer = #6.121([proof: inclusion_proof]) ; record forced/<id> und
                      / #6.122([])                       ; exit mode
 ; Each spend burns its token and refunds the requester: the outputs whose payment key
 ; is requester_key_hash hold at least the summed lovelace of every inbox input of that
-; requester in the transaction.
+; requester in the transaction, which spends no script input other than this inbox's.
