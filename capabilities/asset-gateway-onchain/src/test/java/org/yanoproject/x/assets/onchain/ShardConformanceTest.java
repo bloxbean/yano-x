@@ -6,7 +6,11 @@ import org.julclang.ledger.OutputDatum;
 import org.julclang.ledger.TxInInfo;
 import org.julclang.ledger.TxOut;
 import org.julclang.ledger.Value;
+import org.julclang.core.types.JulcList;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.assets.onchain.mpf.MerklePatriciaForestry;
+import org.yanoproject.x.assets.onchain.mpf.Neighbor;
+import org.yanoproject.x.assets.onchain.mpf.ProofStep;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +50,72 @@ class ShardConformanceTest extends GatewayTestBase {
         for (int count : new int[] {1, 4, 16}) {
             ok(shard(), shardSpend(new ShardTrie(SHARD), count, VAULT_HASH).spending(shardRef(SHARD)));
             ok(shard(), shardSpend(new ShardTrie(SHARD).seed(40), count, VAULT_HASH).spending(shardRef(SHARD)));
+        }
+    }
+
+    /**
+     * M4-F1 (reviewer3): a real branch on a paid id's path at odd cursor {@code c}, whose {@code 2 + (63 - c) / 2}
+     * nibble prefix starts with 0, has the shape of an odd leaf. A terminal {@code Leaf} step whose key carries that
+     * prefix's nibbles as raw bytes is well formed and excludes to the shard root that holds the id, so before the
+     * fix {@code miss()} passed and {@code including()} re-inserted the paid id (a double payment) and overwrote the
+     * branch, erasing the other nullifiers under it. The shard now rejects it, at every odd cursor tried.
+     */
+    @Test
+    void aPaidIdIsNeverReinsertedThroughABranchReadAsALeaf() {
+        for (int c : new int[] {1, 3, 5, 9, 13}) {
+            int length = 2 + (63 - c) / 2;
+            byte[] id = null;
+            byte[] path = null;
+            for (int seed = 0; ; seed++) {
+                id = shardId(SHARD, 70_000 + 1_000 * c + seed);
+                path = GatewayFixtures.blake2b256(id);
+                if (MerklePatriciaForestry.nibble(path, c) == 0 && MerklePatriciaForestry.nibble(path, c + 1) != 0) {
+                    break;
+                }
+            }
+            byte[] d1 = GatewayFixtures.blake2b256(new byte[] {1});
+            byte[] d2 = GatewayFixtures.blake2b256(new byte[] {2});
+            int lower = (MerklePatriciaForestry.nibble(path, c + length) + 1) % 16;
+            int upper = (MerklePatriciaForestry.nibble(path, c - 1) + 1) % 16;
+            byte[] leaf = MerklePatriciaForestry.combine(MerklePatriciaForestry.suffix(path, c + length + 1),
+                    GatewayFixtures.blake2b256(id));
+            byte[] branchMerkle = MerklePatriciaForestry.sparseMerkle16(MerklePatriciaForestry.nibble(path, c + length),
+                    leaf, lower, MerklePatriciaForestry.combine(new byte[0], d1));
+            byte[] prefix = MerklePatriciaForestry.nibbles(path, c, c + length);
+            byte[] branch = MerklePatriciaForestry.combine(prefix, branchMerkle);
+            byte[] root = MerklePatriciaForestry.doFork(path, 0, c - 1, branch, upper, new byte[0], d2);
+            ProofStep upperStep = new ProofStep.Fork(c - 1, new Neighbor(upper, new byte[0], d2));
+            JulcList<ProofStep> inclusion = JulcList.of(upperStep,
+                    new ProofStep.Fork(length, new Neighbor(lower, new byte[0], d1)));
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.has(root, id, id, inclusion))
+                    .as("cursor %d: the id is paid", c).isTrue();
+
+            byte[] conflicting = new byte[32];
+            System.arraycopy(path, 0, conflicting, 0, (c - 1) / 2);
+            conflicting[(c - 1) / 2] = (byte) ((MerklePatriciaForestry.nibble(path, c - 1) << 4) | prefix[1]);
+            System.arraycopy(prefix, 2, conflicting, (c + 1) / 2, length - 2);
+            JulcList<ProofStep> forged = JulcList.of(upperStep, new ProofStep.Leaf(0, conflicting, branchMerkle));
+            // The forgery is well formed and excludes to the paid root; only the branch-as-leaf rule stops it.
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.isWellFormed(path, 0, forged)).isTrue();
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.doExcluding(path, 0, forged))
+                    .isEqualTo(root);
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.miss(root, id, forged)).isFalse();
+
+            PlutusData insert = PlutusData.constr(0, PlutusData.list(PlutusData.constr(0, PlutusData.bytes(id),
+                    PlutusData.list(PlutusData.constr(1, PlutusData.integer(c - 1), PlutusData.constr(0,
+                                    PlutusData.integer(upper), PlutusData.bytes(new byte[0]), PlutusData.bytes(d2))),
+                            PlutusData.constr(2, PlutusData.integer(0), PlutusData.bytes(conflicting),
+                                    PlutusData.bytes(branchMerkle))))));
+            byte[] next = MerklePatriciaForestry.including(id, id, forged);
+            Tx tx = new Tx();
+            tx.spend(new TxInInfo(shardRef(SHARD), new TxOut(GatewayFixtures.scriptAddress(SHARD_HASH),
+                    threadValue(), new OutputDatum.OutputDatumInline(shardDatum(SHARD, root)), Optional.empty())),
+                    insert);
+            tx.spend(new TxInInfo(VAULT_REF, new TxOut(vaultAddress(), lovelace(9_000_000),
+                    new OutputDatum.OutputDatumInline(continuationDatum(List.of())), Optional.empty())),
+                    PlutusData.constr(0));
+            tx.output(out(GatewayFixtures.scriptAddress(SHARD_HASH), threadValue(), shardDatum(SHARD, next)));
+            rejected(shard(), tx.spending(shardRef(SHARD)));
         }
     }
 

@@ -19,7 +19,9 @@ import java.util.List;
  * Copied from bloxbean/julc-examples PR #4 at 22b4e00f2d0406aeb25b209586124fa87add6e36, with its proof shape checks.
  * This is a byte-for-byte copy (package renamed) of the EUTxO bridge's
  * {@code org.yanoproject.x.eutxo.bridge.onchain.mpf} library, so the gateway's nullifier shards use the
- * same trie format as the bridge's without depending on the bridge module (ADR-059 D16).
+ * same trie format as the bridge's without depending on the bridge module (ADR-059 D16). It tracks PR #113
+ * at e8aefa38: miss() rejects a terminal leaf that reads as a branch, and a fork's neighbor must end above
+ * the leaf level.
  * <p>
  * {@link #has} and {@link #miss} check the shape of every proof step before comparing
  * roots (see {@link #isWellFormed}); a malformed proof makes them return false.
@@ -345,7 +347,9 @@ public class MerklePatriciaForestry {
      * <ul>
      *   <li>Branch: neighbors is 128 bytes.</li>
      *   <li>Fork: the neighbor nibble is 0..15 and differs from the path's nibble, every
-     *       prefix byte is a nibble, and the neighbor root is 32 bytes.</li>
+     *       prefix byte is a nibble, the neighbor branch ends above the leaf level
+     *       ({@code at + 1 + length(prefix) < 64}, so a neighbor can never be an odd leaf near
+     *       the bottom of the trie read as a branch), and the neighbor root is 32 bytes.</li>
      *   <li>Leaf: key and value are 32 bytes, and the key shares the path's nibbles up to
      *       the branch and differs from it there.</li>
      * </ul>
@@ -370,6 +374,7 @@ public class MerklePatriciaForestry {
                 return skip >= 0 && skip < 64 - cursor
                         && n >= 0 && n <= 15
                         && n != nibble(path, at)
+                        && at + 1 + ByteStringLib.length(neighbor.prefix()) < 64
                         && allNibbles(neighbor.prefix(), 0)
                         && ByteStringLib.length(neighbor.root()) == 32
                         && isWellFormed(path, at + 1, steps);
@@ -383,6 +388,36 @@ public class MerklePatriciaForestry {
                         && ByteStringLib.length(l.value()) == 32
                         && forksAt(key, path, at)
                         && isWellFormed(path, at + 1, steps);
+            }
+        }
+    }
+
+    /**
+     * For an exclusion proof: a terminal Leaf at an odd cursor must have a raw key byte above 15 at index
+     * {@code (cursor + 1) / 2} or later. Leaf and branch commitments carry no domain tag: the excluded leaf is
+     * {@code combine(suffix(key, cursor), value)}, and at an odd cursor its suffix {@code 00 <nibble> <raw bytes>}
+     * has the shape of a branch prefix (all nibbles) when every raw byte is below 16. Without this rule a real
+     * branch on the path, whose prefix starts with nibble 0, could pass as the conflicting leaf and prove a present
+     * key absent. An honest leaf fails with probability {@code 16^-((63 - cursor) / 2)}, negligible at any
+     * reachable depth.
+     */
+    public static boolean excludedLeafIsNotABranch(int cursor, JulcList<ProofStep> proof) {
+        if (proof.isEmpty()) {
+            return true;
+        } else {
+            ProofStep step = proof.head();
+            JulcList<ProofStep> steps = proof.tail();
+            if (step instanceof ProofStep.Branch b) {
+                return steps.isEmpty() || excludedLeafIsNotABranch(cursor + b.skip() + 1, steps);
+            } else if (step instanceof ProofStep.Fork f) {
+                return steps.isEmpty() || excludedLeafIsNotABranch(cursor + f.skip() + 1, steps);
+            } else {
+                ProofStep.Leaf l = (ProofStep.Leaf) step;
+                if (steps.isEmpty()) {
+                    return cursor % 2 == 0 || !allNibbles(l.key(), (cursor + 1) / 2);
+                } else {
+                    return excludedLeafIsNotABranch(cursor + l.skip() + 1, steps);
+                }
             }
         }
     }
@@ -415,10 +450,14 @@ public class MerklePatriciaForestry {
                 && ByteStringLib.equals(doIncluding(path, CryptoLib.blake2b_256(value), 0, proof), trieRoot);
     }
 
-    /** Check if a key is missing from the trie. False for a malformed proof. */
+    /**
+     * Check if a key is missing from the trie. False for a malformed proof, and for a terminal leaf that reads as a
+     * branch ({@link #excludedLeafIsNotABranch}).
+     */
     public static boolean miss(byte[] trieRoot, byte[] key, JulcList<ProofStep> proof) {
         byte[] path = CryptoLib.blake2b_256(key);
         return isWellFormed(path, 0, proof)
+                && excludedLeafIsNotABranch(0, proof)
                 && ByteStringLib.equals(doExcluding(path, 0, proof), trieRoot);
     }
 }
