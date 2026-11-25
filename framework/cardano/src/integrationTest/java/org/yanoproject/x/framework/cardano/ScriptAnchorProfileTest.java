@@ -336,6 +336,11 @@ class ScriptAnchorProfileTest {
                         beat.chainGenesisId(), beat.applicationId(), beat.commitmentProfileId(),
                         beat.formatFingerprint(), beat.height(), beat.blockHash(), beat.stateRoot(),
                         beat.memberKeys(), 1, beat.updatedAtMs()))));
+        // Review M4-F2: a heartbeat whose window opens a week after the member's L1 tip
+        // (4 000) is not co-signed, so it cannot be stockpiled to refresh the anchor later.
+        long weekAhead = 4_000 + 7 * 86_400;
+        deliverRequest(probe, window(beatFixture, weekAhead, weekAhead + 600), beatFixture);
+        assertHazard(probe, witnesses, 1, "after my L1 tip");
 
         // The heartbeat is journaled without an anchored-range event, on both nodes.
         String heartbeatHash = txHash(submitted.get(2));
@@ -438,6 +443,67 @@ class ScriptAnchorProfileTest {
         });
         deliverRequest(probe, fixture.advance().getBody(), fixture);
         assertThat(witnesses).hasValue(2);
+    }
+
+    /**
+     * Review M4-F2: a member bounds the proposed validity window against its own L1 tip, so a
+     * leader cannot stockpile co-signed far-future heartbeats (or reuse expired ones).
+     */
+    @Test
+    void v2MembersBoundTheValidityWindowByTheirOwnL1Tip() throws Exception {
+        Pair pair = pair(V2, false, Optional::empty);
+        Fixture fixture = bootstrapAndAdvance(pair, 9); // window [500, 1100), local tip 500
+        AtomicInteger witnesses = new AtomicInteger();
+        ScriptAnchorService probe = probe(V2, false, Optional::empty, followerSigner, witnesses);
+
+        // A normal window starting at the tip is accepted, as is one starting at the bound.
+        deliverRequest(probe, fixture.advance().getBody(), fixture);
+        assertThat(witnesses).hasValue(1);
+        deliverRequest(probe, window(fixture, 800, 1_100), fixture); // tip + 300 000 ms
+        assertThat(witnesses).hasValue(2);
+
+        // A window a week ahead of the member's tip: a typed hazard.
+        long weekAhead = 500 + 7 * 86_400;
+        deliverRequest(probe, window(fixture, weekAhead, weekAhead + 600), fixture);
+        assertHazard(probe, witnesses, 2, "after my L1 tip");
+        // Just past the start bound.
+        deliverRequest(probe, window(fixture, 801, 1_100), fixture);
+        assertHazard(probe, witnesses, 2, "after my L1 tip");
+        // An empty window (ttl == start).
+        deliverRequest(probe, window(fixture, 1_100, 1_100), fixture);
+        assertHazard(probe, witnesses, 2, "non-empty");
+
+        // The member's tip moved past the window's end: the honest body has expired.
+        l1Slot.set(1_100);
+        deliverRequest(probe, fixture.advance().getBody(), fixture);
+        assertHazard(probe, witnesses, 2, "already ended");
+        // No local L1 tip at all: nothing to bound the window by, so fail closed.
+        l1Slot.set(0);
+        deliverRequest(probe, fixture.advance().getBody(), fixture);
+        assertHazard(probe, witnesses, 2, "no local L1 tip");
+
+        // Back at the leader's tip the honest body is accepted again.
+        l1Slot.set(500);
+        deliverRequest(probe, fixture.advance().getBody(), fixture);
+        assertThat(witnesses).hasValue(3);
+    }
+
+    /** The fixture's advance with validity [startSlot, ttlSlot) and updatedAtMs at the bound. */
+    private static TransactionBody window(Fixture fixture, long startSlot, long ttlSlot) throws Exception {
+        TransactionBody body = Transaction.deserialize(fixture.advance().serialize()).getBody();
+        body.setValidityStartInterval(startSlot);
+        body.setTtl(ttlSlot);
+        TransactionOutput out = outputTo(body, fixture.scriptAddress());
+        AnchorDatumCodec.AnchorDatum datum = AnchorDatumCodec.decode(out.getInlineDatum().serializeToBytes());
+        out.setInlineDatum(AnchorDatumCodec.encode(datum.withUpdatedAtMs(SLOT_TIME.toPosixMs(ttlSlot))));
+        return body;
+    }
+
+    private static void assertHazard(ScriptAnchorService probe, AtomicInteger witnesses, int expected,
+                                     String detail) {
+        assertThat(witnesses).hasValue(expected);
+        assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "hazard");
+        assertThat((String) probe.status().get("lastCosignRefusal")).contains(detail);
     }
 
     @Test

@@ -622,7 +622,13 @@ yano:
   advance happened for `anchor.max-interval-minutes`. On v2 the time trigger for
   advances and heartbeats runs from the on-L1 anchor's `updatedAtMs`, not from
   the last attempt: a failed round is retried on the next tick while the anchor
-  is older than `anchor.max-interval-minutes`. The validity window is
+  is older than `anchor.max-interval-minutes`. Members also bound the window by
+  their own L1 tip: they refuse a body whose window starts more than
+  `min(max-window-ms, 5 minutes)` after their tip, has already ended at their
+  tip, or is empty, and refuse to co-sign at all without a local L1 tip. A
+  leader therefore cannot collect far-future heartbeats to submit later; any
+  co-signed body can set `updatedAtMs` at most that skew plus `max-window-ms`
+  beyond the time it was signed. The validity window is
   `min(anchor.validity-slots, max-window-ms)` from the current L1 slot, so keep
   it inside the network's forecast horizon. A v2 chain is a new anchor
   identity; it bootstraps its own thread. `anchor-profile.version` cannot change
