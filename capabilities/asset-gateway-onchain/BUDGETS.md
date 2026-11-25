@@ -103,8 +103,9 @@ julc VM against real tries and serializes each whole transaction. Rerun it with:
 - The lead's per-input work and each follower's search for the lead both grow with the input count, so the cost of a
   transaction with many vault inputs grows faster than linearly (`Consolidate`: 0.9 M memory at 2 inputs, 15.9 M at
   36).
-- `Consolidate` rows are measured in EXIT mode; `Accept`/`Consolidate` treat a `FloorTopUpV1` as accepted custody only
-  with lovelace alone, and every vault input is judged by that one acceptance rule.
+- `Consolidate` rows are measured in EXIT mode. The custody predicate `accepted(datum, value)` (a clean continuation,
+  or a `FloorTopUpV1` holding lovelace alone) judges the inputs of the payouts (`Settle`, `Exit`, `BalanceExit`) and of
+  `Consolidate`, and the sweep exclusion; `Accept` takes deposit-shaped inputs instead.
 
 ## Script sizes
 
@@ -123,11 +124,12 @@ script bytes, as the ledger stores them.
 The vault is the largest script. A first draft compiled to 18,630 bytes, which cannot be published as a reference
 script. It fits after changes that keep the rules unchanged: the redeemer is decoded without julc's typed boundary
 check (an ill-typed field still fails the script), multi-accumulator loops became explicit recursion, the
-`SweepExit` payout check compares the swept value exactly instead of with a general multi-asset comparison, and
-`acceptedDatum` reads the datum's canonical Plutus serialization (`serialiseData`), which is also what makes it
-total. `GatewayBudgetTest.scriptSizes` fails if an applied vault reaches 15,500 bytes; about 100 bytes of headroom
+`SweepExit` payout check compares the swept native assets as one map instead of with a general multi-asset
+comparison, and `accepted(datum, value)` reads the datum's canonical Plutus serialization (`serialiseData`), which is
+also what makes it total. `GatewayBudgetTest.scriptSizes` fails if an applied vault reaches 15,500 bytes; about 100 bytes of headroom
 remain under that self-imposed guard (about 600 under the real ceiling of roughly 16,000 bytes after the publishing
-transaction's overhead).
+transaction's overhead). The next on-chain rule may raise the guard, to at most 15,750 bytes, with its reason
+recorded here.
 
 `ForcedInboxValidator` was 6,890 bytes. With the previous `MpfOnChainVerifier` sources it compiled to 7,067 bytes
 (before the single-script-input rule); the rest of the growth comes from the rewritten `verifyAbsence`, which the inbox never calls (it only calls

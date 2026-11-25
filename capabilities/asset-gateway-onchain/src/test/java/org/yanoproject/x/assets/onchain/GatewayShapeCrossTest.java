@@ -11,7 +11,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * P2-9: the observer ({@code VaultOutputShape.classify}) and the vault script ({@code acceptedDatum}) judge the same
+ * P2-9: the observer ({@code VaultOutputShape.classify}) and the vault script ({@code accepted(datum, value)}) judge the same
  * datum bytes the same way. Each case decodes the bytes as the ledger would and puts the decoded datum on an
  * ADA-only vault input of an EXIT-mode {@code Consolidate}, whose lead check accepts it exactly when classify says
  * CONTINUATION or FLOOR_TOP_UP.

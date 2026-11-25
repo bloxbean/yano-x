@@ -44,14 +44,19 @@ Implementation notes:
   `UNATTRIBUTED(NOT_A_DEPOSIT)`.
 - Recipients may have base, enterprise or pointer key addresses: the script rebuilds pointer addresses' raw bytes
   (slot, transaction index and certificate index as CIP-19 variable-length naturals, shortest form). It does not
-  decode addresses, so the canonical form is enforced off chain (`CardanoAddresses`): the ledger's reservation rejects
+  decode addresses, so the canonical form, within the Conway limits (slot below 2^32, indexes below 2^16), is
+  enforced off chain (`CardanoAddresses`): the ledger's reservation rejects
   a non-canonical pointer recipient as infeasible (D7), deposit admission treats a `DepositDatumV1` whose refund address
   is a non-canonical pointer as malformed (recovered by a governed sweep), and builders emit only the canonical form.
 - A sweep commits to the swept output's full value as an `AssetValue`, at most 16 entries. An output with more
   entries (17 or more assets, or 16 native assets on the ADA vault) cannot be swept: it stays as stranded donor dust.
   It is not custody, so it has no solvency impact (ADR-059 D8d).
 - The forced inbox's spend admits no script input other than its own address, so a refund output can only be counted
-  by requests of this one inbox.
+  by requests of this one inbox. A relayer or wallet burning requests must pay the fee and collateral from a key-held
+  input; a script or multisig fee input fails the spend.
+- A `BalanceExit` continuation lists the escape nullifier, not a claim id: the payout observer records a balance-exit
+  observation (the nullifier redeems the exit leaf) and never a claim transition. A `SweepExit` observation has no
+  continuation fields.
 - D10 discriminator. On a transaction authenticated by its shard thread output, the payout observer reads the paid
   claim ids from the vault's `VaultContinuationV1` output whenever one is present (`Settle`, `Exit`, `BalanceExit`),
   and reads output 0's `SweepPaidV1(claimId)` only when there is no vault continuation. A sweep spends one outpoint
