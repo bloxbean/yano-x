@@ -298,6 +298,21 @@ change approved before an earlier one takes effect is computed without it.
 That is why step 2 waits. To shrink, run the steps the other way: lower the
 threshold first when a removal would leave `t > n − f`.
 
+**Anchor handoff (opt-in, ADR-059 D8b).** With `membership.anchor-handoff:
+true` and `membership.anchor-handoff-gate: <id>` (both in the consensus
+profile) an approved change does not append an epoch. It is persisted as one
+pending handoff; the script anchor carries the pending set, and the epoch is
+appended `activation-lag` blocks after the first finalized block for which the
+selected gate (a `membership-handoff-gate` plugin contribution) reports an
+L1-stable anchor output carrying exactly that set for that change. Gates are
+deterministic functions of the finalized block and must bind the fact to the
+change (for example anchor height ≥ the change's committed height). While a
+handoff is pending, other changes are void; a governed cancel (op 3, naming the
+committed height, current threshold) withdraws it. Startup fails without a
+registered gate, a script anchor or L1 access. Script-anchor co-signing also
+requires each member's UTxO view to resolve every input of the leader's body,
+including the leader's fee and collateral inputs (see the user guide).
+
 A joining node refuses local submissions with 503 until it is a member at
 the next height (status `memberActiveForNextBlock`). Members already admit
 gossip from it, and a message of its that reaches the pool early waits there,
@@ -428,7 +443,11 @@ Startup re-verifies rather than trusts:
    AND its cert carries ≥ threshold valid member-at-height signatures — a
    snapshot whose contents merely self-agree is rejected;
 5. own sender-seq floor restored so a restarted member never reuses a
-   finalized sequence number.
+   finalized sequence number;
+6. with L1 access, the persisted script-anchor identity's script hash equals the
+   configured validator's (`anchor-profile.version`, `anchor.script.validator`),
+   or startup fails: an existing anchor thread keeps its validator. The built-in
+   validator hashes are golden-tested, so an upgrade cannot trip this check.
 
 ### 8.3 Snapshots
 
