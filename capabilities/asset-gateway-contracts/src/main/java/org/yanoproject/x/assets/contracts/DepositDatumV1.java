@@ -23,8 +23,11 @@ import java.util.Arrays;
  * ({@code 9f … ff}), and each byte string as a definite string with a shortest-form head or an
  * indefinite chunked string ({@code 5f … ff}) of definite chunks. Everything else is rejected:
  * another tag head, the general {@code tag 102} constructor form, a non-shortest head, other
- * field types or counts, and trailing bytes. The parser is flat and iterative, so it is safe on
- * any public L1 content.
+ * field types or counts, and trailing bytes. A refund address that is a pointer address with a
+ * non-shortest variable-length natural or trailing bytes ({@link CardanoAddresses}) is rejected too,
+ * so such a deposit is recorded as malformed and recovered by a governed sweep (D8d); the
+ * constructor applies the same rule, so a builder can only emit the canonical form. The parser is
+ * flat and iterative, so it is safe on any public L1 content.
  */
 public record DepositDatumV1(byte[] beneficiaryAccount, byte[] refundAddress, byte[] refundKeyHash) {
     public static final int ACCOUNT_BYTES = 28;
@@ -43,6 +46,10 @@ public record DepositDatumV1(byte[] beneficiaryAccount, byte[] refundAddress, by
         }
         if (refundKeyHash == null || refundKeyHash.length != KEY_HASH_BYTES) {
             throw new IllegalArgumentException("refund key hash must be 28 bytes");
+        }
+        if (CardanoAddresses.nonCanonicalPointer(refundAddress)) {
+            // The vault script rebuilds only the shortest pointer encoding, so such a refund could never pay.
+            throw new IllegalArgumentException("refund address is a non-canonical pointer address");
         }
         beneficiaryAccount = beneficiaryAccount.clone();
         refundAddress = refundAddress.clone();
