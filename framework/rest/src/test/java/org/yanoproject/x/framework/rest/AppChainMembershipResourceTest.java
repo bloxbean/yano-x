@@ -50,6 +50,13 @@ class AppChainMembershipResourceTest {
         try (Response response = resource.cancelMembershipHandoff()) {
             assertEquals(400, response.getStatus());
         }
+        // A rejected submission is a 400 like the sibling member endpoints, never a 500.
+        outcome.set(new IllegalArgumentException("bad governance command"));
+        try (Response response = resource.cancelMembershipHandoff()) {
+            assertEquals(400, response.getStatus());
+        }
+        outcome.set(REJECTED);
+        assertCoded(resource.cancelMembershipHandoff());
     }
 
     private static void assertCoded(Response response) {

@@ -1297,7 +1297,9 @@ public class AppChainResource {
                 long committedHeight = gateway.cancelPendingMembershipHandoff();
                 return Response.ok(Map.of("chainId", gateway.chainId(),
                         "cancelSubmitted", true, "committedHeight", committedHeight)).build();
-            } catch (UnsupportedOperationException | IllegalStateException e) {
+            } catch (MembershipChangeRejectedException e) {
+                return membershipRejected(e);
+            } catch (UnsupportedOperationException | IllegalStateException | IllegalArgumentException e) {
                 return badRequest(e.getMessage());
             }
         }

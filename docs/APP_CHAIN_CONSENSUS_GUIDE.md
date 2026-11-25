@@ -306,7 +306,10 @@ appended `activation-lag` blocks after the first finalized block for which the
 selected gate (a `membership-handoff-gate` plugin contribution) reports an
 L1-stable anchor output carrying exactly that set for that change. Gates are
 deterministic functions of the finalized block and must bind the fact to the
-change (for example anchor height ≥ the change's committed height). While a
+change (for example anchor height ≥ the change's committed height). They must
+also be total: return false on any block without the fact and never throw,
+because the gate runs inside the block commit and a throwing or unloaded gate
+fails it (fail-stop, as with a state machine). While a
 handoff is pending, other changes are void; a governed cancel (op 3, naming the
 committed height, current threshold) withdraws it. Startup fails without a
 registered gate, a script anchor or L1 access. Script-anchor co-signing also

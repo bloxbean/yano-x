@@ -21,6 +21,11 @@ import org.yanoproject.x.framework.api.appchain.AppBlock;
  * set is always built at or above the height that committed it). Matching the member set
  * and threshold alone would let a stale anchor output finalize a re-proposed handoff.</p>
  *
+ * <p><b>Be total.</b> On any finalized block the gate must return (false when the block
+ * carries no matching fact) and never throw. The call is part of committing the block, so
+ * a gate that throws, or a gate bundle that is not loaded, fails the block commit on that
+ * member: the node stops (fail-stop), exactly as a throwing state machine does.</p>
+ *
  * <p>Gates are contributed by a capability bundle through
  * {@link MembershipHandoffGateProvider} (contribution kind
  * {@code membership-handoff-gate}) and selected per chain with the consensus-committed
