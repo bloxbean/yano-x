@@ -71,7 +71,11 @@ allprojects {
             // Coordinated development consumes the exact local host, not locally republished
             // third-party compilers whose same-version bytes can change on-chain identities.
             mavenLocal {
-                content { includeGroup('org.yanoproject') }
+                content {
+                    includeGroup('org.yanoproject')
+                    // Locally published Yaci snapshots for coordinated protocol work (never release versions).
+                    includeVersionByRegex('com\\.bloxbean\\.cardano', 'yaci.*', '.*-SNAPSHOT')
+                }
             }
         }
         mavenCentral()
