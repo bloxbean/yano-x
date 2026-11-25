@@ -332,8 +332,9 @@ public final class AuthenticatedSnapshotOnChainVerifier {
      * A conflicting leaf's encoded suffix must not also read as a branch node: a branch is
      * {@code blake2b-256(prefix ‖ merkle)} with every prefix byte a nibble, and an odd leaf suffix starts
      * {@code 00 <nibble>} before its raw path bytes. Requiring one raw byte above 15 makes the two shapes
-     * disjoint, so a real branch on the query's own path cannot pass as a conflicting leaf. An honest leaf
-     * fails only if all its raw path bytes are below 16 (about 2^-116 at any reachable depth).
+     * disjoint, so a real branch on the query's own path cannot pass as a conflicting leaf. An honest leaf at
+     * cursor {@code c} fails only if all its {@code (63 - c) / 2} raw path bytes are below 16, with probability
+     * {@code 16^-((63 - c) / 2)}: depth-dependent, and negligible at any reachable depth.
      */
     private static boolean notABranch(byte[] encoded) {
         long length = Builtins.lengthOfByteString(encoded);

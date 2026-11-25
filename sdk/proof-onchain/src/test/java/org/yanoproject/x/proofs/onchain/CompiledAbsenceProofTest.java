@@ -148,12 +148,15 @@ class CompiledAbsenceProofTest extends ContractTest {
      */
     @Test
     void rejectsABranchOnThePathReadAsAConflictingLeaf() {
-        MpfTestTrie.BranchAsLeaf forgery = MpfTestTrie.branchReadAsLeaf();
-        assertThat(forgery.inclusion().verify()).as("the key is present under the root").isTrue();
-        assertThat(forgery.forgedAbsence().verify()).as("off-chain").isFalse();
-        PlutusData forged = MpfTestTrie.absenceData(forgery.forgedAbsence());
-        for (Class<?> verifier : VERIFIERS) {
-            assertThat(verifyAbsence(verifier, forgery.root(), forged)).as(verifier.getSimpleName()).isFalse();
+        for (int cursor : new int[] {1, 3, 5, 9, 13}) {
+            MpfTestTrie.BranchAsLeaf forgery = MpfTestTrie.branchReadAsLeaf(cursor);
+            assertThat(forgery.inclusion().verify()).as("cursor %d: the key is present", cursor).isTrue();
+            assertThat(forgery.forgedAbsence().verify()).as("cursor %d: off-chain", cursor).isFalse();
+            PlutusData forged = MpfTestTrie.absenceData(forgery.forgedAbsence());
+            for (Class<?> verifier : VERIFIERS) {
+                assertThat(verifyAbsence(verifier, forgery.root(), forged))
+                        .as("%s, cursor %d", verifier.getSimpleName(), cursor).isFalse();
+            }
         }
     }
 

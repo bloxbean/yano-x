@@ -104,7 +104,8 @@ public record MpfNormalizedNonMembershipProof(
     /**
      * True when an odd leaf suffix ({@code 00 <nibble> <raw bytes>}) has only nibble-valued raw bytes, so its
      * hash could equally be a branch node {@code blake2b-256(prefix ‖ merkle)}; such a "leaf" is never accepted
-     * as a conflicting leaf (the on-chain verifiers apply the same rule).
+     * as a conflicting leaf (the on-chain verifiers apply the same rule). An honest leaf at cursor {@code c} is
+     * refused with probability {@code 16^-((63 - c) / 2)}, depth-dependent and negligible.
      */
     static boolean readsAsBranch(byte[] encodedSuffix) {
         if (encodedSuffix.length == 0 || encodedSuffix[0] != 0) {
