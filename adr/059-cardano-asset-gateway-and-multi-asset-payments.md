@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r14). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. Design only; nothing here is implemented.
+- **Status:** Proposed (2026-11-25, r15). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 records the rules settled while implementing the M4 on-chain code (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -425,9 +425,19 @@ The bundle ships observer type `asset-vault-deposit-v1`.
 |---|---|---|
 | Deposit | `DepositDatumV1(beneficiaryAccount, refundAddress, refundKeyHash, …)`, with its own constructor tag | Creditable if admitted (D6). Spendable by `Settle` or `Exit` only after `Accept` (D8f). |
 | Continuation | `VaultContinuationV1(claimIds)`, a different tag | Created by `Settle`, `Exit` or `Accept`. Anyone may also donate one (D8f). Never a deposit. |
-| Migration in | `MigrationInV1(sourceVaultId, ClaimId)` | M4b only (D8d). Accepted custody of the target vault. |
-| Floor top-up | `FloorTopUpV1` | Operational ADA. Never credited. |
+| Migration in | `MigrationInV1(sourceVaultId, ClaimId)` | M4b only (D8d). Accepted custody of the target vault from M4b. Until then the observer classifies it but admission records it `UNATTRIBUTED(NOT_A_DEPOSIT)`, and the vault script does not accept it (r15). |
+| Floor top-up | `FloorTopUpV1` | Operational ADA, lovelace alone. Never credited. A top-up carrying any token is `UNATTRIBUTED(MIXED_ASSETS)` off chain and is not accepted custody on chain (V10, r15). |
 | Anything else | none, or any other datum | Unattributed custody. Never credited. |
+
+**Classification (r15).** The script only ever sees the decoded datum, so the observer classifies an
+output by its decoded Plutus Data structure, in any serialization the ledger accepts (compact
+constructor tags, the general `102 [index, fields]` form, indefinite lists, chunked byte strings,
+non-minimal heads), never by raw tag bytes. A datum whose outermost value is constructor 0 is a
+deposit attempt in every encoding, even when its fields cannot be decoded (then it is recorded as
+malformed). A `DepositDatumV1` whose `refundAddress` is a pointer address in non-canonical form
+(a non-shortest variable-length natural, or trailing bytes) is malformed too, because the script
+can only rebuild the canonical form (D7), so the deposit takes the malformed path to a governed
+sweep (D8d).
 
 A vault-spending transaction may not create any output at the vault address other than its single
 continuation. This rule is in the script (rule V7). A deposit-shaped output therefore never comes
@@ -539,6 +549,11 @@ When a consumer authorizes a withdrawal, the same `apply()` does the following:
 1. **Feasibility.** It checks that the claim can be paid, and rejects it otherwise:
    - the recipient is a Shelley **payment** address on the domain's network, never a reward address;
    - the recipient address is not a script address;
+   - a pointer recipient is in canonical form: slot, transaction index and certificate index as
+     shortest CIP-19 variable-length naturals and nothing after them (r15). The vault script
+     rebuilds a payout's raw address bytes and never decodes the recipient, so a padded pointer
+     could never be paid. `CardanoAddresses.payableRecipient` is the shared check, and builders
+     emit only the canonical form;
    - an ADA claim is at least the governed `minAdaPayout`.
 2. **Reservation.** It moves the amount from available to reserved.
 3. **Claim records.** It writes:
@@ -917,6 +932,21 @@ about the min-ADA, and needs no special drain path. A sweep with no continuation
 that outpoint is not accepted (V10). It is allowed only through `Exit`, only in `NORMAL`, and
 only for a claim leaf that commits to the outpoint and its full value.
 
+**Sweep commitment and payout (r15).**
+- The commitment is canonical (`SweepCommitment`): `withdrawalKey` is the outpoint's CBOR; for a
+  token vault, `AssetValue` holds every native asset of the output (the vault asset among them)
+  and `vaultLovelace` its lovelace; for the ADA vault, `AssetValue` holds the lovelace as its ADA
+  entry plus every native asset, and `vaultLovelace` is 0. The script rebuilds `ClaimId` and the
+  leaf from the spent input.
+- The outpoint must not be accepted custody (the one V10 rule).
+- Output 0 pays the recipient exactly the outpoint's native assets and **at least** its lovelace,
+  so the builder can add the min-ADA that the output's datum needs. The commitment and the vault's
+  debit stay exact.
+- Output 0 carries the inline datum `SweepPaidV1(claimId)` (D10).
+- An output whose value has more than 16 entries (17 or more assets, or 16 native assets on the
+  ADA vault) exceeds `AssetValue`'s bound and cannot be committed. It stays as stranded donor dust.
+  It was never custody, so it has no solvency impact.
+
 ### D8e. One settlement configuration for every chain; `PROOF_ONLY` is a future option (rewritten in r6)
 
 **v1.** The maintainer decided on 2026-11-25 that every chain uses the same design:
@@ -960,8 +990,9 @@ against the root. Exit-mode solvency (D8g §6) relies on it under the threshold 
 **V10. What payouts may spend.** `MigrationInV1` custody is added to the accepted shapes with
 M4b.
 - `Settle` and `Exit` may spend only **accepted** vault UTxOs: those whose datum is
-  `VaultContinuationV1` or `FloorTopUpV1` and whose value holds only the vault's asset and
-  lovelace. Relayers skip any other UTxO.
+  `VaultContinuationV1` holding only the vault's asset and lovelace, or `FloorTopUpV1` holding
+  lovelace alone (r15, matching admission). Relayers skip any other UTxO. This one acceptance
+  rule, judged on the decoded datum, also governs `Consolidate` and the sweep exclusion.
 - Anyone can create an output that carries one of these datums. That is a donation and is
   counted as surplus. Junk-bearing look-alikes are never selected, so they can leave only through
   `SWEEP_UNATTRIBUTED` (D8d).
@@ -970,6 +1001,11 @@ M4b.
 **V13. Every vault input carries the same redeemer (new in r7).**
 - Within one transaction, every input at this vault's address must carry the identical redeemer.
   The script checks this through `txInfo.redeemers`.
+- **`Follow` exception (r15).** The lead (the first vault input in ledger order) carries the
+  action and runs the full check over every vault input. Every other vault input carries either
+  the identical redeemer or the 4-byte `Follow` marker, and only checks that the lead carries an
+  action. Exactly one action still applies, and large proofs appear once per transaction instead
+  of once per input.
 - `Refund` and `BalanceExit` must each be the transaction's only vault redeemer.
 
 **`DepositId` is computed on chain.** `Accept` and `Refund` compute `DepositId` from each spent
@@ -1029,7 +1065,10 @@ colluding threshold that fabricates a root. §13a covers that case and the later
   mint in the same transaction. A burn is valid only together with the R2 spend.
 - **R2. `ForcedInboxValidator`, spending purpose.** It never lets the token move. It allows only
   a **burn** of the token, in two cases (listed below). The min-ADA goes back to an address whose
-  payment credential is `requesterKeyHash`. For a `STAKE_KEY` account, that is the enterprise
+  payment credential is `requesterKeyHash`. **(r15)** The outputs to that key must hold at least
+  the summed lovelace of every inbox input of that requester in the transaction, and the
+  transaction may spend no script input other than this inbox's own address, so one refund output
+  never covers two requests, of this domain or another. For a `STAKE_KEY` account, that is the enterprise
   address of the stake key hash, which the stake key can spend. M4a may add an optional
   `refundAddress` to `ForcedWithdrawalV1` if wallets do not show such UTxOs; this was reviewer3's
   M4a note. The two cases:
@@ -1098,6 +1137,11 @@ Exit mode is terminal in v1 (Q17).
   That is one state proof plus one shard proof. For the ADA vault, `vaultLovelace` is always 0
   (V5).
 - **Proved `Accept` and `Refund`** follow D8f.
+- **`Consolidate` (r15)** is permissionless and EXIT-only. It merges two or more accepted, clean
+  vault UTxOs into one exact `VaultContinuationV1([])`, with no shard input and no payout, so
+  fragmented custody never blocks a `BalanceExit` by transaction size. In `NORMAL` it would let
+  anyone invalidate in-flight `Settle` and `Exit` transactions every round by donating a top-up
+  and consolidating it with live custody, and `Settle` already merges its inputs.
 
 **5. Exit leaves.** Exit leaves are consumer-neutral and form a partition (I25):
 - Every consumer that wants the escape-hatch trust label maintains exactly one exit leaf per
@@ -1324,6 +1368,13 @@ phase-2-valid transaction only when the transaction **has an output carrying one
 shard thread tokens at the pinned shard script address**. The policy is one-shot and the tokens
 never leave the shard script, so their presence proves that the shard validator, and therefore
 the vault validator (V4), accepted this transaction.
+
+**Which output names the paid claims (r15).** On a transaction authenticated by its shard
+thread output, the observer reads the claim ids from the vault's `VaultContinuationV1` output
+whenever one is present (`Settle`, `Exit`, `BalanceExit`). Only when there is no vault
+continuation, which is a `SweepExit` (D8d), does it read output 0's `SweepPaidV1(claimId)`, which
+the script requires there for the very id it inserts into the shard. A `SweepPaidV1` on output 0
+of any other transaction is ignored.
 
 The observation carries:
 - the L1 tx id;
@@ -1849,7 +1900,7 @@ can authorize an invalid root. The surfaces also state:
 | I20 | *(new in r3)* Both redeemers share one nullifier set and one `ClaimId`, and the output-shape rules V5-V8 apply to both. A claim is paid at most once, whichever path pays it. | D8, D8c |
 | I21 | *(r3; reworded in r6)* Every vault in v1 accepts both `Settle` and `Exit`. No node-local setting can disable `Exit`. | D8, D8e |
 | I22 | *(r3; r7)* Governed claims are payable only through `Exit`, only in `NORMAL`, and never in exit mode. | D8d, D8g |
-| I23 | *(r5; r7)* `Settle` and `Exit` spend only accepted UTxOs (V10). `Accept` and `Refund` compute `DepositId` from the spent outpoint. A credited deposit can never be refunded, and an uncredited one can never be accepted. Every vault input in a transaction carries one redeemer (V13). | D8f |
+| I23 | *(r5; r7)* `Settle` and `Exit` spend only accepted UTxOs (V10). `Accept` and `Refund` compute `DepositId` from the spent outpoint. A credited deposit can never be refunded, and an uncredited one can never be accepted. One action applies to every vault input of a transaction: each carries the lead's redeemer or the `Follow` marker (V13, r15). | D8f |
 | I24 | *(r5; r7)* Every request token that trigger (b) can reference gets exactly one record (R1–R3), even while `PAUSED`. Exit mode is triggered only by a stale anchor, a request unprocessed past its deadline, or a pause longer than `maxPauseMs`. | D8g |
 | I25 | *(r5; rewritten in r7)* Exit leaves partition all non-claim value of an escape-hatch consumer. At the exit L1 point, per vault and unit, custody covers: the exit leaves and frozen `RESERVED` claims, each net of nullifiers already on L1, with each credited but unaccepted deposit UTxO counted once, as backing. The remainder is surplus. Uncredited deposits are refunded from their own UTxO. Each exit leaf is redeemed at most once. | D8f, D8g |
 | I26 | *(new in r5)* `Settle` pays only claims reserved at or below the referenced anchor's height (V12). | D8g |
@@ -1857,6 +1908,9 @@ can authorize an invalid root. The surfaces also state:
 | I28 | *(new in r7)* No co-signing member signs a body whose inputs, redeemers or datums it has not resolved and checked. That includes the owner. | D8h |
 | I29 | *(new in r7)* v1 has exactly one vault per `AssetId`. | D5 |
 | I30 | *(new in r7)* In exit mode, a reserved user claim or an exit leaf is payable regardless of the frozen status leaf. Governed claims never are. | D8g |
+| I31 | *(new in r15)* Every absent key has an absence proof, and no present key has one: a conflicting leaf's suffix differs from the key's own and never reads as a branch, and a conflicting branch's prefix leaves the key's path. | §7 item 9 |
+| I32 | *(new in r15)* A sweep spends only its named, non-accepted outpoint and pays its recipient exactly that outpoint's native assets and at least its lovelace, marked with `SweepPaidV1(claimId)`. Accepted custody is judged by one rule everywhere: a clean continuation, or a lovelace-only top-up. `Consolidate` runs only in exit mode. | D8d, D8f, D8g |
+| I33 | *(new in r15)* A forced-inbox burn refunds each requester at least the summed lovelace of their burned requests, in a transaction with no other script input. | D8g |
 
 ## 7. Compatibility
 
@@ -1893,7 +1947,12 @@ bytes and behaviour (I14).
    is earlier than `now − maxBackwardSkewMs`. Without it, a proposer on an idle chain could
    backdate `reservedAtMs` and shorten the exit delay and the brake (r7).
 9. A public `MpfOnChainVerifier.verifyAbsence`, lifted from `MpfPairOnChainVerifier`'s private
-   helper. It is needed for `Refund` and trigger (b).
+   helper. It is needed for `Refund` and trigger (b). **(r15)** It accepts three terminals, which
+   cover every absent key: an empty slot, a conflicting leaf, and a branch whose compressed
+   prefix leaves the key's path. A conflicting leaf's authenticated suffix must differ from the
+   key's own suffix at that depth, and an odd leaf suffix must have a raw byte above 15, so that a
+   real branch on the key's path can never pass as a leaf (leaf and branch commitments carry no
+   domain tag). The same leaf rules are fixed in the shipped verifiers by PR #113.
 
 Without 1–6, 8 and 9, the profile is not safe to fund. Items 1–4, 6, 8 and 9 are M4 entry gates. Item 5, anchor v2, is an M4 **deliverable**, so the M4 vault pins the final anchor hash. Item 7 gates M4b only.
 
@@ -1908,8 +1967,8 @@ selected. The ZIP and Central size budget is checked when they are added.
 | M1 | Contracts: types, ids, codecs, CDDL, `AssetAccounts`, invariant checker | M0 | V1 (synthetic and negative vectors; the real-preprod vectors run in M3 with the observer), V2 and V4 pass. Property tests for I3 and I4. Contract freeze reviewed against `asset-payments` and `asset-escrow` (D17a). Module names fixed. |
 | M2 | `cardano-wallet-auth` | M1 (codecs) | V3 passes. The cryptographic oracles agree, or every disagreement is recorded. I10 and I11. |
 | M3 | Ingress: deposit observer, `DepositAdmission`, payment ledger without withdrawals, `asset-escrow` deposits | M1, M2 | On devnet, ADA and two native tokens are credited exactly once across restart and rescan. Every V5 fixture meets its stated expected outcome. A9 and A10 credit exactly the genuine deposits; the others never credit or halt. I1, I2, I13, I16, I29. |
-| M4 | Settlement: vault (`Settle`, `Exit`, `Accept`, governed claims), shard and policy validators; payout observer; relayer; brake; anchor v2, pinning, handoff and proof floor | M3; framework additions 1–4, 6, 8 and 9 (§7). Anchor v2 (item 5) is delivered within M4. | Co-signed `Settle` path, with each member running the body check. V6 negative suite for both redeemers. Measured `Settle` and `Exit` batch caps and costs. On devnet, an `Exit` after the owner node is stopped. A `Settle` racing an `Exit` on the same claim: exactly one succeeds. Partial and full devnet withdrawals in each asset while transfers continue. A third-party relayer pays a claim. The last liability is withdrawn from the last UTxO. A sub-minimum ADA request is rejected. A token payout supplemented by the builder succeeds. Sustained `Settle` throughput and p95 latency are measured under the configured anchor interval. I5-I9, I12, I15, I17-I23, I26-I29. |
-| M4a | *(r5; r7)* Escape hatch: forced-withdrawal inbox, policy and observer; exit-mode thread and triggers (a)–(c); `Refund` and `BalanceExit`; exit leaves; snapshot publication; SDK proof saving and L1-only shard rebuild; leader handover runbook | M4 | Devnet drills. (1) Stop all operators: after the heartbeat timeout anyone enters exit mode, and every account exits its frozen balance, every reserved claim is paid, every credited-but-unaccepted deposit is accepted by proof, and every uncredited deposit is refunded. Then the vault holds only the floor and unattributed value. (2) Censor one forced request: exit mode is triggered by trigger (b). (3) An honestly processed forced request cannot trigger exit mode. (4) A second `BalanceExit` fails. (5) `Settle` is rejected in exit mode. (6) Keep the domain paused: trigger (c) fires after `maxPauseMs`. Also the toggle case: `PAUSE`, then `RESUME`/`PAUSE` before `maxPauseMs`. A user `Exit` succeeds once the claim reaches its maximum age, proving the `PAUSED` status leaf, whose status is ignored. (7) Refund an `UNCREDITED` deposit, and fail to refund a credited one. (8) Two holders on the same shard redeem with **every operator API offline**, using only L1 and saved or published data. (9) Measured `BalanceExit` budget and mass-exit throughput. I24, I25, I30. |
+| M4 | Settlement: vault (`Settle`, `Exit`, `Accept`, governed claims), shard and policy validators; payout observer; relayer; brake; anchor v2, pinning, handoff and proof floor | M3; framework additions 1–4, 6, 8 and 9 (§7). Anchor v2 (item 5) is delivered within M4. | Co-signed `Settle` path, with each member running the body check. V6 negative suite for both redeemers. Measured `Settle` and `Exit` batch caps and costs. On devnet, an `Exit` after the owner node is stopped. A `Settle` racing an `Exit` on the same claim: exactly one succeeds. Partial and full devnet withdrawals in each asset while transfers continue. A third-party relayer pays a claim. The last liability is withdrawn from the last UTxO. A sub-minimum ADA request is rejected. A token payout supplemented by the builder succeeds. *(r15)* The absence verifier's forgery and completeness suites pass; measured caps cover units and full transaction size, with several vault inputs (`Follow`). Sustained `Settle` throughput and p95 latency are measured under the configured anchor interval. I5-I9, I12, I15, I17-I23, I26-I29. |
+| M4a | *(r5; r7)* Escape hatch: forced-withdrawal inbox, policy and observer; exit-mode thread and triggers (a)–(c); `Refund` and `BalanceExit`; exit leaves; snapshot publication; SDK proof saving and L1-only shard rebuild; leader handover runbook | M4 | Devnet drills. (1) Stop all operators: after the heartbeat timeout anyone enters exit mode, and every account exits its frozen balance, every reserved claim is paid, every credited-but-unaccepted deposit is accepted by proof, and every uncredited deposit is refunded. Then the vault holds only the floor and unattributed value. (2) Censor one forced request: exit mode is triggered by trigger (b). (3) An honestly processed forced request cannot trigger exit mode. (4) A second `BalanceExit` fails. (5) `Settle` is rejected in exit mode. (6) Keep the domain paused: trigger (c) fires after `maxPauseMs`. Also the toggle case: `PAUSE`, then `RESUME`/`PAUSE` before `maxPauseMs`. A user `Exit` succeeds once the claim reaches its maximum age, proving the `PAUSED` status leaf, whose status is ignored. (7) Refund an `UNCREDITED` deposit, and fail to refund a credited one. (8) Two holders on the same shard redeem with **every operator API offline**, using only L1 and saved or published data. (9) Measured `BalanceExit` budget and mass-exit throughput. *(r15)* (10) Fragmented custody (hundreds of small accepted UTxOs) is consolidated in exit mode, then exited. (11) Several forced requests of one requester are burned in one transaction with one summed refund. I24, I25, I30, I32, I33. |
 | M4b | *(new in r5)* `MIGRATE` and post-genesis vault addition. Its full spending and confirmation rules are specified in an ADR revision before work starts. | Framework addition 7 | Devnet: migrate a vault, with both its liabilities and its custody, to a new vault while transfers continue. Reconciliation shows no false deficit. |
 | M5 | Second consumer end to end, conformance kit, EUTxO helper adoption | M4a | `asset-escrow` passes the kit. EUTxO golden bytes unchanged (I14). Substitution passes, and an incompatible configuration fails closed. |
 | M6 | Hardening and qualification | M5 | Drills: multi-node failure, deep rollback (both D15b cases), relayer, signer and anchor outages, handoff under an anchor outage, contention. Wallet interoperability report covering Lace, Eternl, Yoroi and hardware wallets, mobile, user rejection, and unsupported `signData`. Metrics (D15a) running. Throughput, p50/p95/p99 finality latency, resource use and L1 costs reported for single-asset and multi-asset workloads. Trust and operations documentation. |
@@ -1994,6 +2053,9 @@ Evidence must be independent of the code under test.
 - A5: wrong network or chain.
 - A6: phase-2-invalid transaction.
 - A7: a fake continuation or payout without a thread token.
+- *(r15)* A4 also covers every encoding of each shape: the same datum in compact, general-form
+  (`102`), indefinite and chunked serializations classifies the same, and the vault script accepts
+  exactly the classified custody shapes (`GatewayShapeCrossTest`).
 - A8: a continuation output, never credited.
 - A9: two deposits in one transaction.
 - A10: a deposit and a vault spend (`Settle` or `Exit`) in the same block, in both hash orders.
@@ -2018,6 +2080,15 @@ And these cases:
 - `BalanceExit` without the owner's signature, twice, or against a non-frozen root;
 - `EnterExitMode` with a fresh anchor and no censored request;
 - `EnterExitMode` using a request that was processed;
+- *(r15)* a forged absence of a present key: a conflicting key hash that differs only above the
+  terminal (several depths), and a real branch on the key's path read as a conflicting leaf, in
+  `Refund` and `EnterExitMode`; completeness over random absent keys, including keys that leave a
+  branch prefix;
+- *(r15)* `Consolidate` in `NORMAL`; a lead carrying `Follow`; a follower carrying another action;
+- *(r15)* a `FloorTopUpV1` carrying a token spent as custody; a sweep of accepted custody; a sweep
+  payout with fewer lovelace or another asset, and a min-ADA output swept with added lovelace;
+- *(r15)* two inbox burns, of one or two domains, sharing one refund output;
+- *(r15)* a non-canonical pointer refund address or recipient;
 - a backdated `postedAtMs`;
 - `Settle` with `reservedHeight` above the anchor's height.
 
@@ -2418,3 +2489,20 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
   is relayed even while the domain is `PAUSED`. D8a and I5 now say the same.
 - **r14** (2026-11-25): Codex's two P3 wording notes from approving r13. M4a drill 6 now proves
   the `PAUSED` status leaf, and D8a names the aged-user exception.
+- **r15** (2026-11-25): Rules settled while implementing the M4 on-chain code, after the Codex and
+  Fable re-review of `13b870ca`.
+  - V13: the `Follow` exception. Non-lead vault inputs may carry a 4-byte marker; the lead carries
+    the action and runs the full check.
+  - D10: the observer reads claim ids from the vault continuation when there is one, and from
+    output 0's `SweepPaidV1` only when there is none.
+  - D8g §4: `Consolidate`, permissionless and EXIT-only.
+  - V10 and D5: `FloorTopUpV1` is accepted custody only with lovelace alone, as admission
+    requires; one acceptance rule everywhere; `MigrationInV1` is not accepted before M4b.
+  - D8d: the canonical sweep commitment; the payout carries exactly the native assets and at
+    least the lovelace, with `SweepPaidV1`; outputs over 16 value entries stay stranded donor dust.
+  - D5 and D7: classification by decoded structure in every encoding, and the canonical pointer
+    rule for recipients and refund addresses.
+  - §7 item 9: three absence terminals; a conflicting leaf must differ from the key's own suffix
+    and must not read as a branch (also fixed in the shipped verifiers by PR #113).
+  - D8g R2: inbox refunds are summed per requester, with no other script input in the transaction.
+  - New invariants I31–I33; V5, V6 and the M4/M4a exit criteria extended.
