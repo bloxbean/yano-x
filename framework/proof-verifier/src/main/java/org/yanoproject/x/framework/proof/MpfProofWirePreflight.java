@@ -8,6 +8,18 @@ package org.yanoproject.x.framework.proof;
  *
  * <p>Proofs follow the Aiken library's canonical steps: a branch whose only
  * other child is a leaf is a {@code Leaf} step, wherever it is on the path.
+ *
+ * <p>{@link #acceptsExclusion} adds one semantic rule for non-membership proofs.
+ * Leaf and branch commitments carry no domain tag: an odd leaf is
+ * {@code blake2b-256(00 <nibble> <raw path bytes> ‖ valueHash)} and a branch
+ * {@code blake2b-256(prefix nibbles ‖ merkle)}. A real branch on the key's own
+ * path at an odd cursor, whose prefix starts with nibble 0, therefore has the
+ * shape of an odd leaf, and a terminal {@code Leaf} step whose key hash carries
+ * that prefix's nibbles as raw bytes would let the proof show a
+ * present key absent. A terminal {@code Leaf} at an odd cursor must therefore
+ * have a raw key byte above 15 (branch prefixes are all nibbles). An honest
+ * leaf fails with probability {@code 16^-((63 - cursor) / 2)}, which depends on
+ * the depth and is negligible at any reachable one.
  */
 public final class MpfProofWirePreflight {
     private static final long TAG_BRANCH = 121;
@@ -19,35 +31,71 @@ public final class MpfProofWirePreflight {
 
     private final byte[] wire;
     private int offset;
+    private long lastTag = -2;
+    private int lastKeyStart = -1;
 
     private MpfProofWirePreflight(byte[] wire) {
         this.wire = wire;
     }
 
     public static boolean accepts(byte[] wire) {
+        return parse(wire) >= -1;
+    }
+
+    /**
+     * {@link #accepts}, plus the rule for a non-membership proof: a terminal
+     * {@code Leaf} step at an odd cursor must have a raw key byte above 15, so a
+     * branch on the key's own path cannot pass as the conflicting leaf.
+     */
+    public static boolean acceptsExclusion(byte[] wire) {
+        return parse(wire) == -1;
+    }
+
+    /**
+     * -2 when the wire is malformed; -1 when it is well formed and the exclusion
+     * rule holds; 0 when it is well formed but its terminal leaf reads as a branch.
+     */
+    private static int parse(byte[] wire) {
         if (wire == null || wire.length == 0) {
-            return false;
+            return -2;
         }
         try {
             MpfProofWirePreflight parser = new MpfProofWirePreflight(wire);
             int steps = parser.readContainerLength(4);
             if (steps > MAX_PATH_NIBBLES) {
-                return false;
+                return -2;
             }
             int consumedNibbles = 0;
+            int lastCursor = 0;
             for (int index = 0; index < steps; index++) {
                 int remainingNibbles = MAX_PATH_NIBBLES - consumedNibbles;
+                lastCursor = consumedNibbles;
                 int skip = parser.readStep(remainingNibbles);
                 consumedNibbles += 1 + skip;
             }
-            return parser.offset == wire.length;
+            if (parser.offset != wire.length) {
+                return -2;
+            }
+            return steps == 0 || parser.lastTag != TAG_LEAF || lastCursor % 2 == 0
+                    || parser.hasRawByteAbove15(parser.lastKeyStart + (lastCursor + 1) / 2,
+                    parser.lastKeyStart + HASH_BYTES) ? -1 : 0;
         } catch (IllegalArgumentException malformed) {
-            return false;
+            return -2;
         }
+    }
+
+    private boolean hasRawByteAbove15(int from, int to) {
+        for (int index = from; index < to; index++) {
+            if ((wire[index] & 0xff) > 15) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int readStep(int remainingNibbles) {
         long tag = readOptionalTag();
+        lastTag = tag;
         int fields = readContainerLength(4);
         if (tag == -1 || tag == TAG_BRANCH) {
             if (fields != 2 && fields != 3) {
@@ -84,7 +132,7 @@ public final class MpfProofWirePreflight {
                 throw malformed();
             }
             int skip = readSkip(remainingNibbles);
-            readFixedByteString(HASH_BYTES);
+            lastKeyStart = readFixedByteString(HASH_BYTES);
             readFixedByteString(HASH_BYTES);
             return skip;
         }
@@ -114,12 +162,15 @@ public final class MpfProofWirePreflight {
         return (int) length;
     }
 
-    private void readFixedByteString(int expectedLength) {
+    /** Reads a byte string of exactly {@code expectedLength} bytes; returns where its content starts. */
+    private int readFixedByteString(int expectedLength) {
         long length = readUnsigned(2);
         if (length != expectedLength || length > wire.length - offset) {
             throw malformed();
         }
+        int start = offset;
         offset += (int) length;
+        return start;
     }
 
     private void readNibbleByteString(int maximumLength) {
