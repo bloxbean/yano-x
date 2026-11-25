@@ -581,8 +581,12 @@ filtered out; on any member with the filter on, anchor status carries
 leader's wallet address. Storage filters registered by plugins are not visible to
 this check; they must admit the same outputs. Anchor status reports the last
 refused co-sign as `lastCosignRefusalKind` — `unresolvable-input` (the member's
-view lacks an input: a lagging or filtered view) or `hazard` (the body itself is
-unsafe) — with `lastCosignRefusal` and `lastError` giving the detail.
+view lacks an input: a lagging or filtered view), `hazard` (the body itself is
+unsafe) or, on anchor profile v2, `l1-tip-bound`. `l1-tip-bound` means the body's validity
+window is not bounded by the member's own L1 tip: there is no tip, or the window opens
+too far after it. The member cannot tell a lagging L1 view of its own from a
+future-dated body, so check the member's L1 sync before suspecting the leader.
+`lastCosignRefusal` and `lastError` give the detail.
 
 #### Anchor profile: v2, pinned identity, membership handoff (opt-in)
 
@@ -622,7 +626,13 @@ yano:
   advance happened for `anchor.max-interval-minutes`. On v2 the time trigger for
   advances and heartbeats runs from the on-L1 anchor's `updatedAtMs`, not from
   the last attempt: a failed round is retried on the next tick while the anchor
-  is older than `anchor.max-interval-minutes`. The validity window is
+  is older than `anchor.max-interval-minutes`. Members also bound the window by
+  their own L1 tip: they refuse a body whose window starts more than
+  `min(max-window-ms, 5 minutes)` after their tip, has already ended at their
+  tip, or is empty, and refuse to co-sign at all without a local L1 tip. A
+  leader therefore cannot collect far-future heartbeats to submit later; any
+  co-signed body can set `updatedAtMs` at most that skew plus `max-window-ms`
+  beyond the time it was signed. The validity window is
   `min(anchor.validity-slots, max-window-ms)` from the current L1 slot, so keep
   it inside the network's forecast horizon. A v2 chain is a new anchor
   identity; it bootstraps its own thread. `anchor-profile.version` cannot change

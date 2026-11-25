@@ -755,6 +755,12 @@ final class ScriptAnchorService {
             // rules to its own body before signing it.
             BodyRefusal refusal = bodyHazard(built.tx().getBody(), built.anchorUtxo(),
                     built.scriptHash(), null);
+            if (refusal == null && profile.v2()) {
+                // The same v2 rules followers apply, including the bound on the validity
+                // window against the local L1 tip, so the leader never asks for a body its
+                // members refuse (review M4-F2).
+                refusal = v2AdvanceProblem(built.tx().getBody(), built.prev(), built.next());
+            }
             if (refusal != null) {
                 lastError = "Script-anchor own advance body refused (" + refusal.kind().label() + "): "
                         + refusal.detail();
@@ -851,7 +857,8 @@ final class ScriptAnchorService {
     }
 
     private record BuiltAdvance(Transaction tx, byte[] bodyBytes, byte[] bodyHash, byte[] requestBody,
-                                long fromHeight, long toHeight, Utxo anchorUtxo, byte[] scriptHash) {
+                                long fromHeight, long toHeight, Utxo anchorUtxo, byte[] scriptHash,
+                                AnchorDatumCodec.AnchorDatum prev, AnchorDatumCodec.AnchorDatum next) {
     }
 
     /** Who co-signs an advance, and how many of them the anchor's input datum requires. */
@@ -1049,7 +1056,8 @@ final class ScriptAnchorService {
         byte[] requestBody = encodeSignRequest(bodyBytes, policyId, scriptHash);
         // A heartbeat anchors no new block: its confirmation covers exactly its height.
         return new BuiltAdvance(tx, bodyBytes, bodyHash, requestBody,
-                heartbeat ? prev.height() : prev.height() + 1, next.height(), anchorUtxo, scriptHash);
+                heartbeat ? prev.height() : prev.height() + 1, next.height(), anchorUtxo, scriptHash,
+                prev, next);
     }
 
     /**
@@ -1259,9 +1267,9 @@ final class ScriptAnchorService {
         }
         // 3a. Anchor v2 (ADR-059 D8g §1): the validator's heartbeat and time rules.
         if (profile.v2()) {
-            String v2Problem = v2AdvanceProblem(body, prev, datum);
+            BodyRefusal v2Problem = v2AdvanceProblem(body, prev, datum);
             if (v2Problem != null) {
-                log.warn("Script-anchor: v2 advance refused — {}", v2Problem);
+                recordCosignRefusal(v2Problem);
                 return false;
             }
         }
@@ -1296,33 +1304,49 @@ final class ScriptAnchorService {
     }
 
     /**
-     * Anchor v2 member-side rules (anchor-v2.cddl rules 6 and 7), or null when they hold.
-     * The time bounds are recomputed from the body's slots with this node's configured
-     * slot-to-time conversion, the same one the ledger applies.
+     * How far a v2 body's validity START may lie ahead of this member's own L1 tip (review
+     * M4-F2): {@code min(max-window-ms, 5 minutes)}. An honest leader starts the window at its
+     * own L1 tip, and a member's tip trails it by block propagation and delivery lag only
+     * (seconds), so five minutes leaves ample room while ensuring a co-signed body becomes
+     * valid no later than shortly after the member signed it. Together with the existing
+     * {@code upper - lower <= max-window-ms}, a stockpiled heartbeat can therefore set
+     * {@code updatedAtMs} at most {@code skew + max-window-ms} beyond the moment it was
+     * co-signed, so a leader cannot pre-collect far-future heartbeats that later keep the
+     * anchor looking fresh without the members' consent.
      */
-    private String v2AdvanceProblem(TransactionBody body, AnchorDatumCodec.AnchorDatum prev,
-                                    AnchorDatumCodec.AnchorDatum datum) {
+    static final long MAX_FUTURE_START_SKEW_MS = 300_000;
+
+    /**
+     * Anchor v2 member-side rules (anchor-v2.cddl rules 6 and 7, plus the review M4-F2 bound
+     * on the window against this node's L1 tip), or null when they hold. The time bounds are
+     * recomputed from the body's slots with this node's configured slot-to-time conversion,
+     * the same one the ledger applies. Every failure is a {@link BodyRefusal.Kind#HAZARD},
+     * including a missing local L1 tip: with nothing to bound the window by, the member
+     * cannot tell a current body from a stockpiled one, so it fails closed.
+     */
+    private BodyRefusal v2AdvanceProblem(TransactionBody body, AnchorDatumCodec.AnchorDatum prev,
+                                         AnchorDatumCodec.AnchorDatum datum) {
         if (prev.version() != AnchorDatumCodec.ABI_VERSION_V2
                 || datum.version() != AnchorDatumCodec.ABI_VERSION_V2) {
-            return "not a v2 datum";
+            return BodyRefusal.hazard("not a v2 datum");
         }
         if (datum.height() == prev.height()) {
             if (!java.util.Arrays.equals(datum.blockHash(), prev.blockHash())
                     || !java.util.Arrays.equals(datum.stateRoot(), prev.stateRoot())
                     || !hexKeys(datum.memberKeys()).equals(hexKeys(prev.memberKeys()))
                     || datum.threshold() != prev.threshold()) {
-                return "an equal-height advance must be a pure heartbeat";
+                return BodyRefusal.hazard("an equal-height advance must be a pure heartbeat");
             }
             if (datum.updatedAtMs() <= prev.updatedAtMs()) {
-                return "a heartbeat must strictly increase updatedAtMs";
+                return BodyRefusal.hazard("a heartbeat must strictly increase updatedAtMs");
             }
         } else if (datum.height() < prev.height()) {
-            return "height regresses";
+            return BodyRefusal.hazard("height regresses");
         }
         long startSlot = body.getValidityStartInterval();
         long ttlSlot = body.getTtl();
-        if (startSlot <= 0 || ttlSlot <= 0 || ttlSlot < startSlot) {
-            return "the body needs finite validity bounds";
+        if (startSlot <= 0 || ttlSlot <= 0 || ttlSlot <= startSlot) {
+            return BodyRefusal.hazard("the body needs finite, non-empty validity bounds");
         }
         long lowerMs;
         long upperMs;
@@ -1330,13 +1354,31 @@ final class ScriptAnchorService {
             lowerMs = profile.slotTime().toPosixMs(startSlot);
             upperMs = profile.slotTime().toPosixMs(ttlSlot);
         } catch (RuntimeException outOfRange) {
-            return "validity bounds outside the slot-time origin";
+            return BodyRefusal.hazard("validity bounds outside the slot-time origin");
         }
         if (datum.updatedAtMs() != upperMs) {
-            return "updatedAtMs is not the validity upper bound";
+            return BodyRefusal.hazard("updatedAtMs is not the validity upper bound");
         }
         if (upperMs - lowerMs > profile.maxWindowMs()) {
-            return "validity window wider than max-window-ms";
+            return BodyRefusal.hazard("validity window wider than max-window-ms");
+        }
+        AppChainEngine.L1Ref tipPoint = observedL1TipPoint();
+        long tipMs;
+        try {
+            if (tipPoint == null || tipPoint.slot() <= 0) {
+                return BodyRefusal.tipBound("no local L1 tip to bound the validity window by");
+            }
+            tipMs = profile.slotTime().toPosixMs(tipPoint.slot());
+        } catch (RuntimeException outOfRange) {
+            return BodyRefusal.tipBound("the local L1 tip precedes the slot-time origin");
+        }
+        long maxStartSkewMs = Math.min(profile.maxWindowMs(), MAX_FUTURE_START_SKEW_MS);
+        if (lowerMs > tipMs + maxStartSkewMs) {
+            return BodyRefusal.tipBound("validity window starts " + (lowerMs - tipMs)
+                    + " ms after my L1 tip (at most " + maxStartSkewMs + ")");
+        }
+        if (upperMs <= tipMs) {
+            return BodyRefusal.hazard("validity window already ended at my L1 tip");
         }
         return null;
     }
@@ -1418,12 +1460,16 @@ final class ScriptAnchorService {
     /**
      * Why a co-sign body was refused (review P2-1). {@link Kind#UNRESOLVED_INPUT} means this
      * node's UTxO view lacks an input (a lagging or filtered view: an availability problem);
-     * {@link Kind#HAZARD} means the body itself is unsafe to sign. Both fail closed.
+     * {@link Kind#HAZARD} means the body itself is unsafe to sign; {@link Kind#L1_TIP_BOUND}
+     * (review M4-F2) means the body's v2 validity window is not bounded by this node's own L1 tip
+     * (no tip, or the window opens too far after it). This node cannot tell a lagging L1 view of
+     * its own from a future-dated body, so the label names both. All fail closed.
      */
     record BodyRefusal(Kind kind, String detail) {
         enum Kind {
             UNRESOLVED_INPUT("unresolvable-input"),
-            HAZARD("hazard");
+            HAZARD("hazard"),
+            L1_TIP_BOUND("l1-tip-bound");
 
             private final String label;
 
@@ -1442,6 +1488,10 @@ final class ScriptAnchorService {
 
         static BodyRefusal hazard(String detail) {
             return new BodyRefusal(Kind.HAZARD, detail);
+        }
+
+        static BodyRefusal tipBound(String detail) {
+            return new BodyRefusal(Kind.L1_TIP_BOUND, detail);
         }
     }
 
@@ -1462,6 +1512,9 @@ final class ScriptAnchorService {
         if (refusal.kind() == BodyRefusal.Kind.UNRESOLVED_INPUT) {
             lastError = COSIGN_REFUSED + "unresolvable input — " + refusal.detail()
                     + " (this member's UTxO view must hold every input of the leader's body)";
+        } else if (refusal.kind() == BodyRefusal.Kind.L1_TIP_BOUND) {
+            lastError = COSIGN_REFUSED + "validity window not bounded by my L1 tip — " + refusal.detail()
+                    + " (either this member's L1 view is behind, or the body is future-dated)";
         } else {
             lastError = COSIGN_REFUSED + "body hazard — " + refusal.detail();
         }
