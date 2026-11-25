@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -33,6 +34,9 @@ import java.util.Set;
  * domain.application-id (asset-payments), domain.profile-id (anchored-claim-vault-v1),
  * domain.profile-version (1)                                              GatewayDomain; chain id is the chain's
  * deposit-observer-id                                                     required; the ~l1/&lt;id&gt; topic credited
+ * payout-observer-id                                                      optional; the ~l1/&lt;id&gt; payout topic (D10)
+ *                                                                         that confirms claims; not the deposit one
+ * exit-delay-ms (86400000)                                                the status leaf's delay, [6 h, 30 d] (D8e)
  * max-intent-ttl-ms (600000)                                              must exceed the forward clock skew
  * min-stability-depth (1, at least 1)                                    the chain's l1.stability-depth must be ≥
  * vaults.N.asset, vaults.N.script-hash, vaults.N.address                  the fixed vault set (I29), N = 0, 1, ...
@@ -43,14 +47,20 @@ import java.util.Set;
  * When the chain also configures {@code observers.<deposit-observer-id>.*}, its type must be
  * {@code asset-vault-deposit-v1} and its domain, vault and {@code min-stability-depth} settings must
  * equal these, so the observer and the ledger can never disagree about the domain, the vault set or
- * the stability depth they assume.
+ * the stability depth they assume. {@code observers.<payout-observer-id>.*}, when configured, must be
+ * {@code asset-vault-payout-v1} with the same domain, vaults and depth.
  */
 record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkMagic, Hash32 genesisId,
                              String applicationId, String profileId, long profileVersion, Hash32 domainId,
-                             String depositObserverId, long maxIntentTtlMs, int minStabilityDepth,
-                             List<PaymentsRecords.RegistryEntryV1> vaults) {
+                             String depositObserverId, Optional<String> payoutObserverId, long maxIntentTtlMs,
+                             int minStabilityDepth, long exitDelayMs, List<PaymentsRecords.RegistryEntryV1> vaults) {
     static final String PREFIX = "machines." + AssetPaymentsContract.STATE_MACHINE_ID + ".";
     static final String OBSERVER_TYPE = "asset-vault-deposit-v1";
+    static final String PAYOUT_OBSERVER_TYPE = "asset-vault-payout-v1";
+    /** D8e: the exit delay's on-chain bounds, [6 h, 30 d]; the default is 24 h. */
+    static final long MIN_EXIT_DELAY_MS = 6L * 3_600_000;
+    static final long MAX_EXIT_DELAY_MS = 30L * 24 * 3_600_000;
+    static final long DEFAULT_EXIT_DELAY_MS = 24L * 3_600_000;
     private static final Set<String> VAULT_SETTINGS = Set.of("asset", "script-hash", "address", "status", "ticker",
             "decimals", "active-from-slot");
 
@@ -74,6 +84,12 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         Hash32 domainId = GatewayIds.domainId(networkId, magic, chainId, genesis, applicationId, profileId,
                 profileVersion);
         String observerId = required(settings, "deposit-observer-id");
+        String payoutId = optional(settings, "payout-observer-id", "");
+        if (payoutId.equals(observerId)) {
+            throw new IllegalArgumentException(PREFIX + "payout-observer-id must differ from deposit-observer-id");
+        }
+        long exitDelay = bounded(optional(settings, "exit-delay-ms", String.valueOf(DEFAULT_EXIT_DELAY_MS)),
+                MIN_EXIT_DELAY_MS, MAX_EXIT_DELAY_MS, "exit-delay-ms");
         long ttl = bounded(optional(settings, "max-intent-ttl-ms", "600000"), 1, 7L * 24 * 3_600_000,
                 "max-intent-ttl-ms");
         // Depth 0 would credit deposits from blocks that can still roll back (ADR-059 D5).
@@ -128,8 +144,10 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
             }
         }
         AssetPaymentsSettings parsed = new AssetPaymentsSettings(chainId, networkId, magic, genesis, applicationId,
-                profileId, profileVersion, domainId, observerId, ttl, minDepth, vaults);
-        parsed.checkObserver(all);
+                profileId, profileVersion, domainId, observerId,
+                payoutId.isEmpty() ? Optional.empty() : Optional.of(payoutId), ttl, minDepth, exitDelay, vaults);
+        parsed.checkObserver(all, observerId, OBSERVER_TYPE);
+        parsed.payoutObserverId.ifPresent(id -> parsed.checkObserver(all, id, PAYOUT_OBSERVER_TYPE));
         return parsed;
     }
 
@@ -141,6 +159,11 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         return "~l1/" + depositObserverId;
     }
 
+    /** The payout confirmation topic, or empty when no payout observer is configured. */
+    Optional<String> payoutTopic() {
+        return payoutObserverId.map(id -> "~l1/" + id);
+    }
+
     PaymentsRecords.DomainRecordV1 domainRecord() {
         return new PaymentsRecords.DomainRecordV1(domainId, addressNetworkId, networkMagic, chainId, genesisId,
                 applicationId, profileId, profileVersion, digest());
@@ -150,7 +173,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
     Hash32 digest() {
         List<String> fields = new ArrayList<>(List.of(
                 "chain-id=" + chainId, "domain-id=" + domainId.hex(), "deposit-observer-id=" + depositObserverId,
-                "max-intent-ttl-ms=" + maxIntentTtlMs, "min-stability-depth=" + minStabilityDepth));
+                "max-intent-ttl-ms=" + maxIntentTtlMs, "min-stability-depth=" + minStabilityDepth,
+                "payout-observer-id=" + payoutObserverId.orElse(""), "exit-delay-ms=" + exitDelayMs));
         for (PaymentsRecords.RegistryEntryV1 vault : vaults) fields.add("vault=" + HexFormat.of().formatHex(vault.encode()));
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -168,12 +192,12 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         }
     }
 
-    /** The observer and this ledger must describe the same domain and vault set. */
-    private void checkObserver(Map<String, String> all) {
-        String observer = "observers." + depositObserverId + ".";
+    /** An observer this ledger reads and this ledger must describe the same domain and vault set. */
+    private void checkObserver(Map<String, String> all, String observerId, String type) {
+        String observer = "observers." + observerId + ".";
         if (!all.containsKey(observer + "type")) return;
-        if (!OBSERVER_TYPE.equals(all.get(observer + "type").trim())) {
-            throw new IllegalArgumentException(observer + "type must be " + OBSERVER_TYPE);
+        if (!type.equals(all.get(observer + "type").trim())) {
+            throw new IllegalArgumentException(observer + "type must be " + type);
         }
         Map<String, String> expected = new LinkedHashMap<>();
         expected.put("domain.address-network-id", String.valueOf(addressNetworkId));

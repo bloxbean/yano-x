@@ -9,8 +9,11 @@ import java.util.Set;
  * Identity, topics, actions and state layout of the {@code asset-payments} ledger (ADR-059 D14).
  *
  * <p>Every key lives under {@link #PREFIX}. The balance leaves and per-vault counters are
- * {@code AssetAccounts}' ({@code ap/x/…}, {@code ap/c/…}) and the deposit records are
- * {@code DepositAdmission}'s ({@code ap/deposit/<DepositId>}); the rest are this ledger's:
+ * {@code AssetAccounts}' ({@code ap/x/…}, {@code ap/c/…}), the deposit records are
+ * {@code DepositAdmission}'s ({@code ap/deposit/<DepositId>}), and the claim leaves, claim status,
+ * payout records, escape redemptions and the domain status leaf are {@code PayoutConfirmation}'s
+ * ({@code ap/claim/…}, {@code ap/claim-status/…}, {@code ap/payout/…}, {@code ap/escape/…},
+ * {@code ap/domain-status}); the rest are this ledger's:
  *
  * <pre>
  * ap/domain                      DomainRecordV1      genesis domain and settings digest
@@ -85,6 +88,11 @@ public final class AssetPaymentsContract {
 
     public static byte[] usedQueueMetaKey() {
         return concat(PREFIX, ascii("used-queue-meta"));
+    }
+
+    /** The domain status leaf (D8a): the vault script's pinned status key, written ACTIVE at genesis. */
+    public static byte[] domainStatusKey() {
+        return concat(PREFIX, ascii("domain-status"));
     }
 
     public static byte[] receiptKey(Hash32 intentId) {

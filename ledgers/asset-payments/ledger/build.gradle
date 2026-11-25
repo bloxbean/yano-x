@@ -173,7 +173,7 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Yano X Asset Payments Ledger'
-                description = 'The #109 multi-asset payment ledger state machine (ADR-059 D14), M3 ingress and transfers'
+                description = 'The #109 multi-asset payment ledger state machine (ADR-059 D14): ingress, transfers and payout confirmation'
             }
         }
     }

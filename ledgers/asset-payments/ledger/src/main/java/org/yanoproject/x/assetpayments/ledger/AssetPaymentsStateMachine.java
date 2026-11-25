@@ -11,9 +11,11 @@ import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.RegistryEntryV1
 import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.DepositAdmission;
+import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.ExitLeafV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.PayoutConfirmation;
 import org.yanoproject.x.assets.contracts.Quantities;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
@@ -38,16 +40,20 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The #109 multi-asset payment ledger, milestone M3 (ADR-059 D14): a genesis asset registry,
- * accounts owned by Cardano wallet credentials, session grants, transfers, owner rotation, and
- * deposit credit from finalized L1 observations. Withdrawals, settlement and governed registry
- * changes come in later milestones.
+ * The #109 multi-asset payment ledger (ADR-059 D14): a genesis asset registry, accounts owned by
+ * Cardano wallet credentials, session grants, transfers, owner rotation, deposit credit from
+ * finalized L1 observations and, from M4, payout confirmation. Withdrawal reservation, settlement
+ * and governed registry changes come in later stages.
  *
  * <p><b>Inputs.</b> User intents are the bodies of ordinary messages on
  * {@link AssetPaymentsContract#INTENT_TOPIC} ({@link PaymentsMessageV1}). Deposits are credited
  * only from {@code ~l1/<deposit-observer-id>} observations in a finalized block, through
  * {@link DepositAdmission} and {@link AssetAccounts} in the same transition (D6, I1). No command
- * creates value (I3).
+ * creates value (I3). Claims are confirmed only from {@code ~l1/<payout-observer-id>}
+ * observations, through {@link PayoutConfirmation} (D10, I12, I18): {@code RESERVED → PAID} on a
+ * thread-authenticated payout that matches, a recorded no-op for an already-paid claim, and
+ * {@code PAID_MISMATCH} with the domain status leaf moved to {@code HALTED} otherwise. Genesis
+ * writes that status leaf {@code ACTIVE} with the configured exit delay (D8a).
  *
  * <p><b>Determinism.</b> The only clock is the block timestamp. Every message runs against a
  * {@link StagedStore} that is committed only on success, so a rejection leaves no partial writes,
@@ -89,7 +95,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     @Override
     public AdmissionResult validate(AppMessage message) {
-        if (settings.depositTopic().equals(message.getTopic())) return AdmissionResult.accept();
+        if (settings.depositTopic().equals(message.getTopic())
+                || settings.payoutTopic().filter(message.getTopic()::equals).isPresent()) {
+            return AdmissionResult.accept();
+        }
         if (!AssetPaymentsContract.INTENT_TOPIC.equals(message.getTopic())) {
             return AdmissionResult.reject("asset-payments accepts only topic " + AssetPaymentsContract.INTENT_TOPIC);
         }
@@ -150,6 +159,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                 context.l1ObservationAt(context.originalMessageIndex(visible))
                         .map(SequencedL1Observation::observation)
                         .ifPresent(observation -> creditDeposit(state, observation, block.height()));
+            } else if (settings.payoutTopic().filter(topic::equals).isPresent()) {
+                context.l1ObservationAt(context.originalMessageIndex(visible))
+                        .map(SequencedL1Observation::observation)
+                        .ifPresent(observation -> confirmPayout(state, observation, block));
             } else if (AssetPaymentsContract.INTENT_TOPIC.equals(topic)) {
                 processIntent(state, message.getBody(), block);
             }
@@ -163,6 +176,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         for (RegistryEntryV1 vault : settings.vaults()) {
             state.put(AssetPaymentsContract.registryKey(vault.vaultId()), vault.encode());
         }
+        state.put(AssetPaymentsContract.domainStatusKey(),
+                new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 0, 0, settings.exitDelayMs()).encode());
     }
 
     /**
@@ -220,6 +235,31 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             outcome.credit().ifPresent(credit -> accounts.credit(credit.vaultId(), credit.beneficiary(),
                     account(staged, credit.beneficiary()).orElseThrow().keyHash(), credit.amount(),
                     credit.minAdaCredit()));
+            staged.commit();
+        } catch (RuntimeException unexpected) {
+            // Deterministic on every member; the staged writes are dropped and the chain continues (I2).
+        }
+    }
+
+    // ------------------------------------------------------------------ payouts (D10)
+
+    /**
+     * Confirms one finalized payout observation in one staged transition. A governed claim's reserved
+     * value would sit in separate governed counters (D8d); this ledger reserves none yet, so it has none
+     * to settle.
+     */
+    private void confirmPayout(AssetAccounts.Store state, L1Observation observation, AppBlock block) {
+        StagedStore staged = new StagedStore(state);
+        try {
+            byte[] anchor = observation.anchor() instanceof L1Observation.TransactionAnchor tx
+                    ? tx.transactionHash() : null;
+            PayoutConfirmation confirmation = new PayoutConfirmation(AssetPaymentsContract.PREFIX,
+                    settings.payoutObserverId().orElseThrow(), settings.domainId(), settings.exitDelayMs(),
+                    vaultId -> registry(staged, vaultId).map(entry ->
+                            new PayoutConfirmation.VaultBinding(entry.vaultId(), entry.asset())));
+            confirmation.apply(staged, new PayoutConfirmation.ObservedPayout(observation.observerId(), anchor,
+                    observation.eventOrdinal(), observation.slot(), observation.blockHash(), observation.claim()),
+                    block.height(), block.timestamp());
             staged.commit();
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; the staged writes are dropped and the chain continues (I2).
