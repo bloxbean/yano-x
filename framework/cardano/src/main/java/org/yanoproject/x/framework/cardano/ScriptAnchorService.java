@@ -134,6 +134,7 @@ final class ScriptAnchorService {
                     AppChainConfig.MAX_MESSAGE_BYTES);
 
     private static final long MIN_INPUT_LOVELACE = 1_000_000;
+    private static final String COSIGN_REFUSED = "Co-sign refused: ";
     private static final long RESUBMIT_AFTER_MS = 120_000;
     /** Co-sign round deadline before falling back to the responsive subset. */
     private static final long COSIGN_ROUND_TIMEOUT_MS = 30_000;
@@ -377,7 +378,22 @@ final class ScriptAnchorService {
                 + "advance only if its filtered UTxO view resolves every input, so the filter must "
                 + "admit the anchor leader's wallet address (fee and collateral inputs); otherwise "
                 + "every advance is refused as an unresolvable input";
-        logWarnSafely("Script-anchor: {}", utxoViewWarning);
+        if (scriptAnchoringInUse()) {
+            logWarnSafely("Script-anchor: {}", utxoViewWarning);
+        }
+    }
+
+    /**
+     * Does this chain use script anchoring? True when this node leads in script mode or a
+     * script-anchor identity is known (bootstrapped, adopted or pinned). Followers of chains
+     * that anchor in metadata mode, or not at all, never see a co-sign request.
+     */
+    private boolean scriptAnchoringInUse() {
+        if (leader && anchorConfig.scriptMode() || profile.pinned() != null) {
+            return true;
+        }
+        byte[] scriptHash = ledger.metaBytes(META_SCRIPT_HASH);
+        return scriptHash != null && scriptHash.length == 28;
     }
 
     /**
@@ -515,6 +531,7 @@ final class ScriptAnchorService {
                 pendingBootstrap = new PendingBootstrap(txHash, built.policyId(), built.scriptHash(),
                         built.datumHeight(), System.currentTimeMillis());
                 lastError = null;
+                lastCosignRefusal = null;
                 log.info("Script-anchor bootstrap tx submitted: {} (policyId={}, scriptAddress={})",
                         txHash, HexUtil.encodeHexString(built.policyId()), built.scriptAddress());
                 Map<String, Object> result = new LinkedHashMap<>();
@@ -824,6 +841,7 @@ final class ScriptAnchorService {
             pendingSubmit = new PendingSubmit(cosign.fromHeight(), cosign.toHeight(), txHash,
                     System.currentTimeMillis());
             lastError = null;
+            lastCosignRefusal = null;
             log.info("Script-anchor tx submitted: {} (app blocks {}..{}, {} member witnesses)",
                     txHash, cosign.fromHeight(), cosign.toHeight(), cosign.signatures().size());
         } catch (Throwable failure) {
@@ -1120,6 +1138,7 @@ final class ScriptAnchorService {
                 .anyMatch(pkh -> java.util.Arrays.equals(pkh, selfPkh));
         if (!verifyAdvance(body, request.policyId(), request.scriptHash()))
             return;
+        clearCosignRefusal();
 
         byte[] bodyHash = Blake2bUtil.blake2bHash256(request.bodyBytes());
         Utxo anchorUtxo = findAnchorUtxo(request.policyId(), request.scriptHash());
@@ -1426,14 +1445,25 @@ final class ScriptAnchorService {
         }
     }
 
+    /** A later verified request (or an observed anchor) supersedes an earlier refusal. */
+    private void clearCosignRefusal() {
+        if (lastCosignRefusal != null) {
+            lastCosignRefusal = null;
+            String error = lastError;
+            if (error != null && error.startsWith(COSIGN_REFUSED)) {
+                lastError = null;
+            }
+        }
+    }
+
     private void recordCosignRefusal(BodyRefusal refusal) {
         lastCosignRefusal = refusal;
         lastCosignRefusalAt = System.currentTimeMillis();
         if (refusal.kind() == BodyRefusal.Kind.UNRESOLVED_INPUT) {
-            lastError = "Co-sign refused: unresolvable input — " + refusal.detail()
+            lastError = COSIGN_REFUSED + "unresolvable input — " + refusal.detail()
                     + " (this member's UTxO view must hold every input of the leader's body)";
         } else {
-            lastError = "Co-sign refused: body hazard — " + refusal.detail();
+            lastError = COSIGN_REFUSED + "body hazard — " + refusal.detail();
         }
         log.warn("Script-anchor: sign request body refused ({}) — {}", refusal.kind().label(),
                 refusal.detail());
@@ -1677,6 +1707,7 @@ final class ScriptAnchorService {
             lastAnchoredL1Slot = observed.l1Slot();
             lastAnchorTxHash = observed.txHash();
             lastError = null;
+            lastCosignRefusal = null;
             logInfoSafely("Script-anchor bootstrap CONFIRMED on L1: tx={}, policyId={}, l1Slot={}",
                     observed.txHash(), HexUtil.encodeHexString(observed.policyId()), observed.l1Slot());
         } catch (Throwable failure) {
@@ -1720,6 +1751,7 @@ final class ScriptAnchorService {
             lastAnchoredL1Slot = observed.l1Slot();
             lastAnchorTxHash = observed.txHash();
             lastError = null;
+            lastCosignRefusal = null;
             if (heartbeat) {
                 logInfoSafely("Script-anchor heartbeat CONFIRMED on L1: tx={}, app height {}, l1Slot={}",
                         observed.txHash(), observed.toHeight(), observed.l1Slot());
@@ -1998,6 +2030,7 @@ final class ScriptAnchorService {
                 lastAnchoredL1Slot = inclusionSlot;
                 lastAnchorTxHash = observedTx;
                 lastError = null;
+                lastCosignRefusal = null;
                 if (!advances) {
                     pendingCosign = null;
                     pendingSubmit = null;
@@ -2041,6 +2074,7 @@ final class ScriptAnchorService {
         lastAnchoredL1Slot = inclusionSlot;
         lastAnchorTxHash = txHash;
         lastError = null;
+        lastCosignRefusal = null;
         logInfoSafely("Script-anchor heartbeat OBSERVED on committed local L1 view: tx={}, "
                 + "app height {}, l1Slot={}, leader={}", txHash, height, inclusionSlot, leader);
         return null;
@@ -2392,7 +2426,7 @@ final class ScriptAnchorService {
             pendingHandoff.get().ifPresent(handoff ->
                     status.put("pendingHandoffMembers", handoff.members().size()));
         }
-        if (utxoViewFilter.filtering()) {
+        if (utxoViewFilter.filtering() && scriptAnchoringInUse()) {
             status.put("utxoViewFiltered", true);
             String warning = utxoViewWarning;
             if (warning != null) {

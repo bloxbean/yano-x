@@ -172,9 +172,10 @@ class ScriptAnchorProfileTest {
         assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "hazard");
         assertThat((String) probe.status().get("lastError")).startsWith("Co-sign refused: body hazard");
 
-        // The honest body is still accepted afterwards.
+        // The honest body is still accepted afterwards, which clears the stale refusal.
         deliverRequest(probe, fixture.advance().getBody(), fixture);
         assertThat(witnesses).hasValue(2);
+        assertThat(probe.status()).doesNotContainKeys("lastCosignRefusalKind", "lastCosignRefusal", "lastError");
     }
 
 
@@ -205,17 +206,6 @@ class ScriptAnchorProfileTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("anchor script address");
 
-        // Both admitted: the leader starts, with a prominent warning in status; a follower
-        // (which cannot know the leader's wallet) gets the same warning.
-        L1UtxoViewFilter both = L1UtxoViewFilter.fromGlobals(Map.of(L1UtxoViewFilter.ENABLED, "true",
-                L1UtxoViewFilter.ADDRESSES, wallet + ", " + fixture.scriptAddress()));
-        pair.leader().checkUtxoViewFilter(both);
-        pair.follower().checkUtxoViewFilter(both);
-        for (ScriptAnchorService node : List.of(pair.leader(), pair.follower())) {
-            assertThat(node.status()).containsEntry("utxoViewFiltered", true);
-            assertThat((String) node.status().get("utxoViewWarning")).contains("leader's wallet");
-        }
-
         // A filtered follower that cannot resolve the leader's fee input refuses, and says why.
         AtomicInteger witnesses = new AtomicInteger();
         ScriptAnchorService probe = probe(AnchorProfileSettings.defaults(), false, Optional::empty,
@@ -226,6 +216,24 @@ class ScriptAnchorProfileTest {
                 new TransactionInput("cd".repeat(32), 3)));
         assertThat(probe.status()).containsEntry("lastCosignRefusalKind", "unresolvable-input");
         assertThat((String) probe.status().get("lastCosignRefusal")).contains(L1UtxoViewFilter.ENABLED);
+
+        // Both admitted: the leader starts, with a prominent warning in status. A follower
+        // (which cannot know the leader's wallet) gets the same warning once the chain is
+        // known to anchor with a script, and none before (a metadata or unanchored chain).
+        L1UtxoViewFilter both = L1UtxoViewFilter.fromGlobals(Map.of(L1UtxoViewFilter.ENABLED, "true",
+                L1UtxoViewFilter.ADDRESSES, wallet + ", " + fixture.scriptAddress()));
+        pair.leader().checkUtxoViewFilter(both);
+        pair.follower().checkUtxoViewFilter(both);
+        assertThat(pair.leader().status()).containsEntry("utxoViewFiltered", true);
+        assertThat((String) pair.leader().status().get("utxoViewWarning")).contains("leader's wallet");
+        assertThat(pair.follower().status()).doesNotContainKey("utxoViewWarning");
+        utxoState.put(fixture.scriptAddress(), List.of(anchorUtxo(fixture.advanceHash(),
+                fixture.advanceOutIndex(), fixture.advanceOut(), fixture.policy(), 200)));
+        pair.leader().onL1Block(200, l1Hash(200), List.of(fixture.advanceHash()));
+        assertThat(tickConfirmed(pair.follower())).isNotNull();
+        assertThat(pair.follower().status()).containsEntry("utxoViewFiltered", true);
+        assertThat((String) pair.follower().status().get("utxoViewWarning")).contains("leader's wallet");
+
     }
 
     /** Review P3: switching anchor-profile.version on an existing thread fails with its cause. */

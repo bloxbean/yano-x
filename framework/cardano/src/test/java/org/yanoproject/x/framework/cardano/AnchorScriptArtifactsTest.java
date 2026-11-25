@@ -29,7 +29,10 @@ class AnchorScriptArtifactsTest {
     // DELIBERATE (new validator logic or an intentional julc bump), regenerate
     // the release artifacts and update
     // these constants — a new hash means a NEW anchor identity for newly
-    // bootstrapped chains.
+    // bootstrapped chains. Existing nodes also fail startup on it: the persisted
+    // identity's script hash must equal the configured validator's
+    // (ScriptAnchorService.verifyPersistedScriptHash), so an upgrade that moves
+    // the built-in v1 or v2 hash strands every running script-anchor chain.
     private static final byte[] GOLDEN_SEED = fill(32, 0x5E);
     private static final int GOLDEN_INDEX = 1;
     private static final String GOLDEN_POLICY_ID =
