@@ -145,8 +145,8 @@ grep -q "^soaktest orders-chain --duration 3 --rate 4 --conc 2 -s 32 --sample 1 
 # ADR-UTXO-009: settlement info reads the sealed settlement chain and the executor's settings.
 SETTLEMENT_INFO="$("$ROOT/showcase.sh" settlement info --instance three)"
 grep -q 'machine profile       : yano-eutxo-v3-bridge-settlement-devnet' <<< "$SETTLEMENT_INFO"
-grep -q 'vault (script)        : addr_test1wz9ge2pu53ecdsnwuddlmypc0427j508tvak0cgnc0gmepqyz4r6k' <<< "$SETTLEMENT_INFO"
-grep -q 'nullifier shards      : addr_test1wzarfnyx5hefyfrt60qj8s72ffmq4x6kcvxulnk85g8vyms6nj4qc' <<< "$SETTLEMENT_INFO"
+grep -q 'vault (script)        : addr_test1wp7hvsnkc5l3w6qv4hxrptwmzmq4lwpj37n2rcha09j8xlcsljg8z' <<< "$SETTLEMENT_INFO"
+grep -q 'nullifier shards      : addr_test1wrlj2j3gd7nlyvl4wzmk6cazdd69h59lgd8zl8hte5zthlcq5efx4' <<< "$SETTLEMENT_INFO"
 grep -q 'No single key is custody' <<< "$SETTLEMENT_INFO"
 
 # Membership growth: node 3 requests with the sealed file, every node approves it, then it joins and starts.

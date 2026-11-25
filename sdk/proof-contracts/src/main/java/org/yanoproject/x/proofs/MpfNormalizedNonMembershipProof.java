@@ -84,9 +84,13 @@ public record MpfNormalizedNonMembershipProof(
         byte[] queryPath = MpfNormalizedProof.nibbles(Blake2bUtil.blake2bHash256(key));
         byte[] child;
         if (conflictingLeaf()) {
-            // Only the suffix below the terminal is authenticated, so the key's own suffix at that depth is what
-            // must differ, never the whole conflicting key hash.
             byte[] conflictPath = MpfNormalizedProof.nibbles(conflictingKeyHash);
+            // The folds authenticate only the query's path above the terminal, so the conflicting leaf must share
+            // that exact prefix, and its suffix at that depth (the authenticated part) must differ from the key's
+            // own suffix there.
+            if (!Arrays.equals(conflictPath, 0, terminalCursor, queryPath, 0, terminalCursor)) {
+                return false;
+            }
             byte[] expectedSuffix = MpfNormalizedProof.encodeLeafSuffix(
                     Arrays.copyOfRange(conflictPath, terminalCursor, conflictPath.length));
             byte[] querySuffix = MpfNormalizedProof.encodeLeafSuffix(
@@ -134,7 +138,8 @@ public record MpfNormalizedNonMembershipProof(
     /**
      * True when an odd leaf suffix ({@code 00 <nibble> <raw bytes>}) has only nibble-valued raw bytes, so its
      * hash could equally be a branch node {@code blake2b-256(prefix ‖ merkle)}; such a "leaf" is never accepted
-     * as a conflicting leaf (the on-chain verifiers apply the same rule).
+     * as a conflicting leaf (the on-chain verifiers apply the same rule). An honest leaf at cursor {@code c} is
+     * refused with probability {@code 16^-((63 - c) / 2)}, depth-dependent and negligible.
      */
     static boolean readsAsBranch(byte[] encodedSuffix) {
         if (encodedSuffix.length == 0 || encodedSuffix[0] != 0) {

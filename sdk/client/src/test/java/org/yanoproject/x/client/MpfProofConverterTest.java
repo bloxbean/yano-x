@@ -6,6 +6,7 @@ import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import org.yanoproject.x.client.AppChainClient;
@@ -16,12 +17,14 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -180,6 +183,59 @@ class MpfProofConverterTest {
                 assertThat(claim.verify()).as("key %d, flipped nibble %d", i, flip).isFalse();
             }
         }
+    }
+
+    /**
+     * The folds of a normalized absence proof authenticate only the query's path above the terminal cursor. A
+     * conflicting key hash that differs from a present key only above that cursor still yields the present leaf's
+     * suffix, so it names that key's own leaf and must not prove the key absent.
+     */
+    @Test
+    void normalizedAbsenceRejectsAConflictingKeyThatDiffersOnlyAboveTheCursor() {
+        MpfTrie trie = new MpfTrie(new MapNodeStore());
+        List<byte[]> keys = new ArrayList<>();
+        for (int i = 0; i < 300; i++) {
+            byte[] key = ("present-" + i).getBytes(StandardCharsets.US_ASCII);
+            keys.add(key);
+            trie.put(key, key);
+        }
+        byte[] root = trie.getRootHash();
+        Set<Integer> depths = new TreeSet<>();
+        for (byte[] key : keys) {
+            MpfNormalizedProof present = MpfProofConverter.convert(proof(trie, root, key, key));
+            byte[] suffix = present.leafSuffix();
+            int cursor = MpfNormalizedProof.PATH_NIBBLES
+                    - ((suffix[0] & 0xff) == 0 ? 1 + (suffix.length - 2) * 2 : (suffix.length - 1) * 2);
+            byte[] keyHash = Blake2bUtil.blake2bHash256(key);
+            byte[] valueHash = Blake2bUtil.blake2bHash256(key);
+            depths.add(cursor);
+            assertThat(absence(root, key, cursor, suffix, keyHash, valueHash, present).verify()).isFalse();
+            for (int nibble = 0; nibble < cursor; nibble++) {
+                byte[] forged = keyHash.clone();
+                forged[nibble / 2] ^= (byte) (nibble % 2 == 0 ? 0x10 : 0x01);
+                assertThat(MpfNormalizedProof.encodeLeafSuffix(Arrays.copyOfRange(
+                        MpfNormalizedProof.nibbles(forged), cursor, MpfNormalizedProof.PATH_NIBBLES)))
+                        .isEqualTo(suffix);
+                assertThat(absence(root, key, cursor, suffix, forged, valueHash, present).verify())
+                        .as("cursor %d, flipped nibble %d", cursor, nibble).isFalse();
+            }
+        }
+        assertThat(depths).hasSizeGreaterThanOrEqualTo(2);
+        for (int i = 0; i < 50; i++) {
+            byte[] missing = ("missing-" + i).getBytes(StandardCharsets.US_ASCII);
+            try {
+                assertThat(MpfProofConverter.convertAbsence(proof(trie, root, missing, null)).verify()).isTrue();
+            } catch (IllegalArgumentException unsupportedTerminal) {
+                assertThat(unsupportedTerminal).hasMessageContaining("leave a branch prefix");
+            }
+        }
+    }
+
+    private static MpfNormalizedNonMembershipProof absence(byte[] root, byte[] key, int cursor, byte[] suffix,
+                                                           byte[] conflictingKeyHash, byte[] conflictingValueHash,
+                                                           MpfNormalizedProof present) {
+        return new MpfNormalizedNonMembershipProof(root, key, cursor, suffix, conflictingKeyHash,
+                conflictingValueHash, present.folds(), 42L);
     }
 
     private static List<Long> stepTags(AppChainClient.Proof proof) {
