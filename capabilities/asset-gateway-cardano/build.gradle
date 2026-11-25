@@ -94,11 +94,18 @@ tasks.register('verifyAssetGatewayCardanoArtifactBoundaries') {
         }
         def contractClass = 'org/yanoproject/x/assets/contracts/AssetDepositClaimV1.class'
         def supportClass = 'org/yanoproject/x/assets/cardano/support/DatumPreflight.class'
-        def providerClass = 'org/yanoproject/x/assets/cardano/gateway/AssetVaultDepositObserverProvider.class'
+        def providerClasses = ['AssetVaultDepositObserverProvider', 'AssetVaultPayoutObserverProvider',
+                               'AssetAnchorObserverProvider', 'AssetShardBootstrapObserverProvider'].collect {
+            "org/yanoproject/x/assets/cardano/gateway/${it}.class".toString()
+        }
         if (thinEntries.contains(contractClass) || !bundleEntries.contains(contractClass)
                 || thinEntries.contains(supportClass) || !bundleEntries.contains(supportClass)
-                || !thinEntries.contains(providerClass) || !bundleEntries.contains(providerClass)) {
+                || providerClasses.any { !thinEntries.contains(it) || !bundleEntries.contains(it) }) {
             throw new GradleException('Asset-gateway thin/bundle class boundary is incomplete')
+        }
+        def services = ['META-INF/services/org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider']
+        if (!services.every { bundleEntries.contains(it) }) {
+            throw new GradleException('Asset-gateway bundle service registrations are missing')
         }
         def manifests = bundleEntries.findAll { it.startsWith('META-INF/yano/plugins/') && it.endsWith('.json') }
         if (manifests != ['META-INF/yano/plugins/org.yanoproject.x.asset-gateway.cardano.json'] as Set) {
@@ -135,7 +142,7 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Yano X Asset Gateway Cardano'
-                description = 'Optional Cardano asset-gateway runtime bundle: the multi-asset vault deposit observer (ADR-059 D5)'
+                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers (ADR-059 D5, D8b, D8c, D10)'
             }
         }
     }

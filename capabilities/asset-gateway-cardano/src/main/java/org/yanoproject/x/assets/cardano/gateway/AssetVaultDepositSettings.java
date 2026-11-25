@@ -12,10 +12,15 @@ import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.asset;
+import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.bounded;
+import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.hex;
+import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.optional;
+import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
 
 /**
  * The consensus settings of one {@code asset-vault-deposit-v1} observer (ADR-059 D5), read from
@@ -173,52 +178,5 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
         List<String> out = new ArrayList<>();
         fields.forEach((key, value) -> out.add(key + "=" + value));
         return out;
-    }
-
-    /** {@code lovelace}, or {@code <56 hex policy>.<0..64 hex name>} in lowercase. */
-    static AssetId asset(String value, String field) {
-        if ("lovelace".equals(value)) return AssetId.ADA;
-        int dot = value.indexOf('.');
-        if (dot != 56 || !value.equals(value.toLowerCase(Locale.ROOT))) {
-            throw new IllegalArgumentException(field + " must be lovelace or <policy hex>.<asset name hex>");
-        }
-        try {
-            return AssetId.of(HexFormat.of().parseHex(value.substring(0, dot)),
-                    HexFormat.of().parseHex(value.substring(dot + 1)));
-        } catch (IllegalArgumentException invalid) {
-            throw new IllegalArgumentException(field + ": " + invalid.getMessage(), invalid);
-        }
-    }
-
-    private static String required(Map<String, String> settings, String key) {
-        String value = settings.get(key);
-        if (value == null || value.isBlank()) throw new IllegalArgumentException(key + " is required");
-        return value.trim();
-    }
-
-    private static String optional(Map<String, String> settings, String key, String fallback) {
-        String value = settings.get(key);
-        return value == null || value.isBlank() ? fallback : value.trim();
-    }
-
-    private static long bounded(String value, long min, long max, String field) {
-        try {
-            long parsed = Long.parseLong(value);
-            if (parsed < min || parsed > max) throw new IllegalArgumentException(field + " is out of range");
-            return parsed;
-        } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException(field + " must be an integer", invalid);
-        }
-    }
-
-    private static byte[] hex(String value, int bytes, String field) {
-        if (value.length() != bytes * 2 || !value.equals(value.toLowerCase(Locale.ROOT))) {
-            throw new IllegalArgumentException(field + " must be " + bytes + "-byte lowercase hex");
-        }
-        try {
-            return HexFormat.of().parseHex(value);
-        } catch (IllegalArgumentException invalid) {
-            throw new IllegalArgumentException(field + " must be " + bytes + "-byte lowercase hex", invalid);
-        }
     }
 }

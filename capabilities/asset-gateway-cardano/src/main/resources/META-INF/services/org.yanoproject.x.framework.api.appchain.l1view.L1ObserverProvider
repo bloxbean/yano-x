@@ -1,1 +1,4 @@
 org.yanoproject.x.assets.cardano.gateway.AssetVaultDepositObserverProvider
+org.yanoproject.x.assets.cardano.gateway.AssetVaultPayoutObserverProvider
+org.yanoproject.x.assets.cardano.gateway.AssetAnchorObserverProvider
+org.yanoproject.x.assets.cardano.gateway.AssetShardBootstrapObserverProvider

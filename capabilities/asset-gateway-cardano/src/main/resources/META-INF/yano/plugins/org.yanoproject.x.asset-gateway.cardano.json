@@ -9,6 +9,21 @@
       "kind": "l1-observer",
       "name": "asset-vault-deposit-v1",
       "provider": "org.yanoproject.x.assets.cardano.gateway.AssetVaultDepositObserverProvider"
+    },
+    {
+      "kind": "l1-observer",
+      "name": "asset-vault-payout-v1",
+      "provider": "org.yanoproject.x.assets.cardano.gateway.AssetVaultPayoutObserverProvider"
+    },
+    {
+      "kind": "l1-observer",
+      "name": "asset-anchor-v1",
+      "provider": "org.yanoproject.x.assets.cardano.gateway.AssetAnchorObserverProvider"
+    },
+    {
+      "kind": "l1-observer",
+      "name": "asset-shard-bootstrap-v1",
+      "provider": "org.yanoproject.x.assets.cardano.gateway.AssetShardBootstrapObserverProvider"
     }
   ]
 }

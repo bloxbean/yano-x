@@ -23,7 +23,12 @@ import java.util.TreeMap;
 final class L1BlockBytes {
     record Output(byte[] address, long lovelace, java.util.Map<AssetId, Long> assets, byte[] inlineDatum) { }
 
-    record Tx(int inputSeed, List<Output> outputs) { }
+    /** A transaction; {@code mint} and the spend redeemers' Plutus Data bytes are optional (empty for none). */
+    record Tx(int inputSeed, List<Output> outputs, java.util.Map<AssetId, Long> mint, List<byte[]> spendRedeemers) {
+        Tx(int inputSeed, List<Output> outputs) {
+            this(inputSeed, outputs, java.util.Map.of(), List.of());
+        }
+    }
 
     private L1BlockBytes() {
     }
@@ -33,7 +38,7 @@ final class L1BlockBytes {
         Array witnesses = new Array();
         for (Tx tx : transactions) {
             bodies.add(body(tx));
-            witnesses.add(new Map());
+            witnesses.add(witnesses(tx));
         }
         Array invalidTxs = new Array();
         invalid.forEach(index -> invalidTxs.add(new UnsignedInteger(index)));
@@ -67,7 +72,48 @@ final class L1BlockBytes {
         for (Output output : tx.outputs()) outputs.add(output(output));
         body.put(new UnsignedInteger(1), outputs);
         body.put(new UnsignedInteger(2), new UnsignedInteger(200_000));
+        if (!tx.mint().isEmpty()) body.put(new UnsignedInteger(9), multiAsset(tx.mint()));
         return body;
+    }
+
+    /** Conway map-form redeemers: {@code {[0, index] => [data, [mem, steps]]}}. */
+    private static DataItem witnesses(Tx tx) {
+        Map witnesses = new Map();
+        if (tx.spendRedeemers().isEmpty()) return witnesses;
+        Map redeemers = new Map();
+        for (int i = 0; i < tx.spendRedeemers().size(); i++) {
+            Array key = new Array();
+            key.add(new UnsignedInteger(0));
+            key.add(new UnsignedInteger(i));
+            Array value = new Array();
+            try {
+                value.add(co.nstant.in.cbor.CborDecoder.decode(tx.spendRedeemers().get(i)).getFirst());
+            } catch (co.nstant.in.cbor.CborException invalid) {
+                throw new IllegalArgumentException(invalid);
+            }
+            Array units = new Array();
+            units.add(new UnsignedInteger(1_000));
+            units.add(new UnsignedInteger(1_000_000));
+            value.add(units);
+            redeemers.put(key, value);
+        }
+        witnesses.put(new UnsignedInteger(5), redeemers);
+        return witnesses;
+    }
+
+    private static Map multiAsset(java.util.Map<AssetId, Long> assets) {
+        TreeMap<String, Map> policies = new TreeMap<>();
+        for (var entry : new TreeMap<>(assets).entrySet()) {
+            String policy = java.util.HexFormat.of().formatHex(entry.getKey().policyId());
+            long quantity = entry.getValue();
+            policies.computeIfAbsent(policy, ignored -> new Map()).put(new ByteString(entry.getKey().assetName()),
+                    quantity < 0 ? new co.nstant.in.cbor.model.NegativeInteger(quantity)
+                            : new UnsignedInteger(BigInteger.valueOf(quantity)));
+        }
+        Map multiAsset = new Map();
+        policies.forEach((policy, names) ->
+                multiAsset.put(new ByteString(java.util.HexFormat.of().parseHex(policy)), names));
+        return multiAsset;
     }
 
     private static DataItem output(Output output) {
@@ -78,17 +124,7 @@ final class L1BlockBytes {
         } else {
             Array value = new Array();
             value.add(new UnsignedInteger(output.lovelace()));
-            TreeMap<String, Map> policies = new TreeMap<>();
-            for (var entry : new TreeMap<>(output.assets()).entrySet()) {
-                String policy = java.util.HexFormat.of().formatHex(entry.getKey().policyId());
-                policies.computeIfAbsent(policy, ignored -> new Map())
-                        .put(new ByteString(entry.getKey().assetName()),
-                                new UnsignedInteger(BigInteger.valueOf(entry.getValue())));
-            }
-            Map multiAsset = new Map();
-            policies.forEach((policy, names) ->
-                    multiAsset.put(new ByteString(java.util.HexFormat.of().parseHex(policy)), names));
-            value.add(multiAsset);
+            value.add(multiAsset(output.assets()));
             map.put(new UnsignedInteger(1), value);
         }
         if (output.inlineDatum() != null) {
