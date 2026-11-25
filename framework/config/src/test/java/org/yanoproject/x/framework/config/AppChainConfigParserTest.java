@@ -146,9 +146,10 @@ class AppChainConfigParserTest {
         // switch is exact: a near-miss spelling fails instead of silently reading as off.
         settings.put("membership.custom-strategy.option", "plugin-owned");
         settings.put("membership.anchor-handoff", "true");
+        settings.put("membership.anchor-handoff-gate", "asset-anchor-v1");
         AppChainConfigParser.validateStrict(settings);
         for (String typo : new String[] {"membership.anchor-handof", "membership.anchorhandoff",
-                "membership.anchor.handoff", "membership.handoff"}) {
+                "membership.anchor.handoff", "membership.handoff", "membership.anchor-handoff-gates"}) {
             settings.put(typo, "true");
             assertThatThrownBy(() -> AppChainConfigParser.validateStrict(settings))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -158,6 +159,7 @@ class AppChainConfigParserTest {
         }
         settings.remove("membership.custom-strategy.option");
         settings.remove("membership.anchor-handoff");
+        settings.remove("membership.anchor-handoff-gate");
         settings.put("block-time.max-forward-skew-ms", "2000");
         settings.put("topics.mode", "enabled");
         settings.put("topics.creation.registrars.keys", MEMBER);

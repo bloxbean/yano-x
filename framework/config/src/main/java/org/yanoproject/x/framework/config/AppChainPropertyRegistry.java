@@ -434,6 +434,10 @@ public final class AppChainPropertyRegistry {
                 PropertyType.BOOLEAN, "false", null, null, Set.of(),
                 "Opt-in: governed membership changes activate only after an L1-stable script anchor "
                         + "carries the new set; consensus-committed (ADR-059 D8b)"));
+        definitions.add(coreParsed(AppChainConsensusProfile.MEMBERSHIP_HANDOFF_GATE_SETTING,
+                PropertyType.STRING, null, null, null, Set.of(),
+                "Id of the registered membership-handoff-gate contribution; required with "
+                        + "membership.anchor-handoff=true; consensus-committed (ADR-059 D8b)"));
         definitions.add(coreParsed("anchor-profile.version", PropertyType.INTEGER, "1", 1L, 2L,
                 Set.of(), "Script-anchor ABI: 1, or 2 for heartbeats and a bounded updatedAtMs (ADR-059)"));
         definitions.add(coreParsed("anchor-profile.max-window-ms", PropertyType.LONG, "600000", 1L,

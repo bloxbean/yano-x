@@ -1,4 +1,4 @@
-package org.yanoproject.x.framework.runtime.appchain;
+package org.yanoproject.x.framework.api.appchain.membership;
 
 import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
 
@@ -10,14 +10,14 @@ import java.util.TreeSet;
 /**
  * A committed governed membership change waiting for its L1 anchor handoff
  * (ADR-059 D8b, framework addition 4). With {@code membership.anchor-handoff=true}
- * an approved change does not activate at once: it stays pending until a
+ * an approved change does not activate at once: it stays pending until the chain's
  * {@link MembershipHandoffGate} reports, from finalized chain content, that an
  * L1-stable anchor output carrying exactly {@link #members()} and {@link #threshold()}
- * (signed by the old threshold) exists. Meanwhile the script-anchor service carries
- * this set as the anchor's next member set.
+ * (signed by the old threshold) exists for this change. Meanwhile the script-anchor
+ * service carries this set as the anchor's next member set.
  *
- * <p>Public for the optional Cardano module within this framework release. It is an
- * implementation collaboration surface, not the Yano Host API or a plugin contract.</p>
+ * <p>Part of the {@code membership-handoff-gate} contribution contract
+ * ({@link MembershipHandoffGateProvider}).</p>
  *
  * @param committedHeight the height of the block whose approvals committed the change
  * @param members         the next member set (lowercase hex Ed25519 keys)
@@ -28,6 +28,8 @@ public record MembershipHandoff(long committedHeight, Set<String> members, int t
                                 long activationLag) {
     /** The opt-in chain setting: {@code membership.anchor-handoff: true}. */
     public static final String SETTING = AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING;
+    /** The chain setting naming the registered gate: {@code membership.anchor-handoff-gate: <id>}. */
+    public static final String GATE_SETTING = AppChainConsensusProfile.MEMBERSHIP_HANDOFF_GATE_SETTING;
 
     /**
      * Is the handoff gate selected? Only {@code true} and {@code false} (default) are valid.

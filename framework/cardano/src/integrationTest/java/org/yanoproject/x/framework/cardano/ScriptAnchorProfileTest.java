@@ -39,7 +39,7 @@ import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.x.framework.runtime.appchain.AppChainEngine;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerStore;
 import org.yanoproject.x.framework.runtime.appchain.AppMessageSigner;
-import org.yanoproject.x.framework.runtime.appchain.MembershipHandoff;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
 
 import java.io.InputStream;
 import java.math.BigInteger;

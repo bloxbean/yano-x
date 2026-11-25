@@ -48,7 +48,7 @@ import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
 import org.yanoproject.x.framework.runtime.appchain.AppChainEngine;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerStore;
 import org.yanoproject.x.framework.runtime.appchain.AppMessageSigner;
-import org.yanoproject.x.framework.runtime.appchain.MembershipHandoff;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

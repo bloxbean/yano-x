@@ -1285,6 +1285,23 @@ public class AppChainResource {
             }
         }
 
+        /**
+         * ADR-059 D8b: submit this member's approval to cancel the pending
+         * {@code membership.anchor-handoff} change. Each approving member calls it; the change is
+         * withdrawn once the current threshold approves.
+         */
+        @POST
+        @Path("admin/membership-handoff/cancel")
+        public Response cancelMembershipHandoff() {
+            try {
+                long committedHeight = gateway.cancelPendingMembershipHandoff();
+                return Response.ok(Map.of("chainId", gateway.chainId(),
+                        "cancelSubmitted", true, "committedHeight", committedHeight)).build();
+            } catch (UnsupportedOperationException | IllegalStateException e) {
+                return badRequest(e.getMessage());
+            }
+        }
+
         // --- Admin (ADR 006 E5.4): node-local operability controls ---
 
         @POST

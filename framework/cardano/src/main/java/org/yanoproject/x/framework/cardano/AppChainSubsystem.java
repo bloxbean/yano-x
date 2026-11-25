@@ -34,7 +34,7 @@ import org.yanoproject.x.framework.cardano.api.effects.AppChainEffectContext;
 import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 import org.yanoproject.x.framework.cardano.api.events.AppChainAnchoredEvent;
 import org.yanoproject.x.framework.runtime.appchain.AppChainEngine;
-import org.yanoproject.x.framework.runtime.appchain.MembershipHandoff;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerStore;
 

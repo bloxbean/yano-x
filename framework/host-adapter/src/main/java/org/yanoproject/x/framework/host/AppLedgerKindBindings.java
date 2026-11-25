@@ -43,6 +43,9 @@ import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider;
 import org.yanoproject.x.framework.api.appchain.sequencer.SequencerContext;
 import org.yanoproject.x.framework.api.appchain.sequencer.SequencerMode;
 import org.yanoproject.x.framework.api.appchain.sequencer.SequencerMode.ProposalEligibility;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGate;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider;
 import org.yanoproject.x.framework.api.appchain.sequencer.SequencerModeProvider;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProviderFactory;
@@ -164,6 +167,13 @@ public final class AppLedgerKindBindings {
         public Sequencer() {
             super("sequencer-mode", SequencerModeProvider.class, SequencerModeProvider::id,
                     SequencerProviderFacade::new);
+        }
+    }
+
+    public static final class HandoffGate extends Binding<MembershipHandoffGateProvider> {
+        public HandoffGate() {
+            super("membership-handoff-gate", MembershipHandoffGateProvider.class,
+                    MembershipHandoffGateProvider::id, HandoffGateProviderFacade::new);
         }
     }
 
@@ -1271,6 +1281,41 @@ public final class AppLedgerKindBindings {
         }
     }
 
+
+    private record HandoffGateProviderFacade(
+            MembershipHandoffGateProvider delegate,
+            PluginCallbackScope scope
+    ) implements MembershipHandoffGateProvider {
+        private HandoffGateProviderFacade {
+            Objects.requireNonNull(delegate, "delegate");
+        }
+
+        @Override
+        public String id() {
+            return scope.call(delegate::id);
+        }
+
+        @Override
+        public MembershipHandoffGate create(String chainId, Map<String, String> chainSettings) {
+            return scope.activation("create membership handoff gate", () -> scope.call(() -> scope.product(
+                    delegate.create(chainId, chainSettings), gate -> new HandoffGateFacade(gate, scope))));
+        }
+    }
+
+    /** Called on the consensus path once per finalized block while a handoff is pending. */
+    private record HandoffGateFacade(
+            MembershipHandoffGate delegate,
+            PluginCallbackScope scope
+    ) implements MembershipHandoffGate {
+        private HandoffGateFacade {
+            Objects.requireNonNull(delegate, "delegate");
+        }
+
+        @Override
+        public boolean finalizesHandoff(AppBlock block, MembershipHandoff handoff) {
+            return scope.call(() -> delegate.finalizesHandoff(block, handoff));
+        }
+    }
 
     private record SinkFactoryFacade(
             FinalizedStreamSinkFactory delegate,

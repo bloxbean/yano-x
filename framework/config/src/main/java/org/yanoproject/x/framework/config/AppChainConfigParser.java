@@ -80,9 +80,12 @@ public final class AppChainConfigParser {
      * strategies, but a key sharing one of these stems must be the exact runtime key, so a
      * typo of a consensus-committed switch fails startup instead of silently reading as off.
      */
-    private static final Map<String, String> GUARDED_KEY_STEMS = Map.of(
-            "membership.anchor", AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING,
-            "membership.handoff", AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING);
+    private static final Set<String> HANDOFF_KEYS = Set.of(
+            AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING,
+            AppChainConsensusProfile.MEMBERSHIP_HANDOFF_GATE_SETTING);
+    private static final Map<String, Set<String>> GUARDED_KEY_STEMS = Map.of(
+            "membership.anchor", HANDOFF_KEYS,
+            "membership.handoff", HANDOFF_KEYS);
 
     private AppChainConfigParser() {
     }
@@ -121,10 +124,10 @@ public final class AppChainConfigParser {
                             + "runtime-owned domain: " + key);
                 }
             }
-            for (Map.Entry<String, String> guarded : GUARDED_KEY_STEMS.entrySet()) {
-                if (key.startsWith(guarded.getKey()) && !key.equals(guarded.getValue())) {
+            for (Map.Entry<String, Set<String>> guarded : GUARDED_KEY_STEMS.entrySet()) {
+                if (key.startsWith(guarded.getKey()) && !guarded.getValue().contains(key)) {
                     throw new IllegalArgumentException("Unknown app-chain property " + key
-                            + " (did you mean " + guarded.getValue() + "?)");
+                            + " (did you mean one of " + new java.util.TreeSet<>(guarded.getValue()) + "?)");
                 }
             }
         }

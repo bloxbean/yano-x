@@ -10,6 +10,8 @@ import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.slf4j.Logger;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGate;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.framework.api.appchain.codec.internal.CborStructurePreflight;

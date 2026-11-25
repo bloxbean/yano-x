@@ -46,7 +46,8 @@ class AnchorProfileStartupTest {
 
     @Test
     void membershipHandoffRequiresGovernedMembership() {
-        AppChainConfig config = config("handoff-static", Map.of("membership.anchor-handoff", "true"), null);
+        AppChainConfig config = config("handoff-static", Map.of("membership.anchor-handoff", "true",
+                "membership.anchor-handoff-gate", "test-gate"), null);
         assertStartFails(config, "membership.mode=governed");
     }
 
@@ -57,13 +58,20 @@ class AnchorProfileStartupTest {
     @Test
     void membershipHandoffFailsStartWithoutAScriptAnchorOrAGate() {
         Map<String, String> governed = Map.of("membership.mode", "governed",
-                "membership.anchor-handoff", "true");
+                "membership.anchor-handoff", "true", "membership.anchor-handoff-gate", "test-gate");
         assertStartFails(config("handoff-metadata", governed, new AppChainConfig.AnchorConfig(
                 true, "aa".repeat(32), 10, 60, 7014)), "anchor.mode=script");
         assertStartFails(config("handoff-no-l1", governed, null), "L1 access");
-        // Script anchor with L1 access, but the framework ships no gate.
-        assertStartFails(config("handoff-no-gate", governed, null), "handoff gate", node ->
-                node.wireL1(cbor -> "00".repeat(32), () -> null));
+        // Script anchor with L1 access, but no bundle registered the selected gate.
+        assertStartFails(config("handoff-no-gate", governed, null), "names no registered membership handoff gate",
+                node -> node.wireL1(cbor -> "00".repeat(32), () -> null));
+        // The handoff without a gate id is a configuration error.
+        AppChainConfig noGateId = config("handoff-no-gate-id", Map.of("membership.mode", "governed",
+                "membership.anchor-handoff", "true"), null);
+        assertThatThrownBy(() -> new AppChainSubsystem(noGateId, 42, null, null,
+                directory.resolve(noGateId.chainId()).toString(), null,
+                LoggerFactory.getLogger(AnchorProfileStartupTest.class)).close())
+                .hasStackTraceContaining("membership.anchor-handoff-gate");
     }
 
     private void assertStartFails(AppChainConfig config, String message) {

@@ -21,6 +21,9 @@ import org.yanoproject.runtime.kernel.Subsystem;
 import org.yanoproject.runtime.kernel.SubsystemHealth;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.runtime.util.LifecycleFailures;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGate;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider;
 import org.yanoproject.x.framework.api.appchain.AppAnchorCommitment;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
@@ -3605,6 +3608,7 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
      *
      * @throws IllegalStateException when no handoff is pending on this node
      */
+    @Override
     public long cancelPendingMembershipHandoff() {
         return requireGenerationUse(() -> {
             GovernedMembership governed = governedMembership;
@@ -6245,10 +6249,28 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
     protected long stableAnchoredHeight() { return 0; }
 
     /**
-     * The deterministic finalizer for {@code membership.anchor-handoff} (ADR-059 D8b). The
-     * framework has none; a capability that observes L1-stable anchor outputs overrides it.
+     * The deterministic finalizer for {@code membership.anchor-handoff} (ADR-059 D8b): the
+     * {@code membership-handoff-gate} contribution named by the consensus-committed
+     * {@code membership.anchor-handoff-gate}, created for this chain. Fails startup when
+     * that gate is not registered; the framework ships none.
      */
-    protected MembershipHandoffGate membershipHandoffGate() { return MembershipHandoffGate.NONE; }
+    protected MembershipHandoffGate membershipHandoffGate() {
+        String gateId = consensusProfile.membershipHandoffGate();
+        if (gateId.isEmpty()) {
+            return MembershipHandoffGate.NONE;
+        }
+        MembershipHandoffGateProvider provider = pluginProviders.find(
+                MembershipHandoffGateProvider.class, gateId).orElse(null);
+        if (provider == null) {
+            throw new PluginActivationException("App-chain '" + config.chainId() + "': "
+                    + AppChainConsensusProfile.MEMBERSHIP_HANDOFF_GATE_SETTING + "=" + gateId
+                    + " names no registered membership handoff gate (registered: "
+                    + pluginProviders.names(MembershipHandoffGateProvider.class) + "). Without it every "
+                    + "governed change would stay pending forever", null);
+        }
+        return Objects.requireNonNull(provider.create(config.chainId(), config.pluginSettings()),
+                "MembershipHandoffGateProvider.create returned null");
+    }
 
     /**
      * Why this runtime cannot carry a {@code membership.anchor-handoff} change on a script
