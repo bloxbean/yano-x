@@ -101,7 +101,8 @@ public record MpfNormalizedNonMembershipProof(
         } else if (conflictingBranch()) {
             if (terminalCursor + conflictingLeafSuffix.length >= MpfNormalizedProof.PATH_NIBBLES
                     || Arrays.equals(conflictingLeafSuffix, Arrays.copyOfRange(queryPath, terminalCursor,
-                    terminalCursor + conflictingLeafSuffix.length))) {
+                    terminalCursor + conflictingLeafSuffix.length))
+                    || readsAsOddLeaf(terminalCursor, conflictingLeafSuffix)) {
                 return false;
             }
             child = hash(conflictingLeafSuffix, conflictingValueHash);
@@ -145,6 +146,18 @@ public record MpfNormalizedNonMembershipProof(
             }
         }
         return true;
+    }
+
+    /**
+     * True when a conflicting branch prefix at {@code terminalCursor} has the shape of an odd leaf suffix: an odd
+     * cursor, first nibble 0 and exactly {@code 2 + (63 - cursor) / 2} nibbles. The present key's own leaf there,
+     * when its raw path bytes are all below 16, hashes like such a branch, so it is never accepted as one (the
+     * on-chain verifier applies the same rule). An honest branch of that shape needs two keys sharing at least 34
+     * nibbles.
+     */
+    static boolean readsAsOddLeaf(int terminalCursor, byte[] branchPrefix) {
+        return terminalCursor % 2 == 1 && branchPrefix.length == 2 + (63 - terminalCursor) / 2
+                && branchPrefix[0] == 0;
     }
 
     @Override public byte[] stateRoot() { return stateRoot.clone(); }

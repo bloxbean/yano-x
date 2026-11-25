@@ -209,6 +209,45 @@ final class MpfTestTrie {
         return new BranchAsLeaf(root, inclusion, forged);
     }
 
+    /**
+     * The converse forgery at odd cursor {@code c}: the victim key's own leaf sits at {@code c} under the root
+     * branch, and every raw path byte of its suffix {@code 00 <nibble> <raw bytes>} is below 16. Read as a branch
+     * with prefix {@code 0 <nibble> <raw bytes as nibbles>} and merkle root the value hash, it leaves the key's path
+     * at its first nibble and hashes to the very node, so it is a "conflicting branch" that proves the present key
+     * absent, unless the verifier refuses the odd-leaf shape. The key needs about {@code 2^(4 (63 - c) / 2)} tries
+     * (a real trie about 2^84 work at the best cursor).
+     */
+    static BranchAsLeaf ownLeafReadAsBranch(int c) {
+        if (c % 2 == 0 || c < 1 || c > 59) throw new IllegalArgumentException("odd cursor 1..59");
+        byte[] key = null;
+        byte[] path = null;
+        search:
+        for (int i = 0; ; i++) {
+            key = key("own-leaf/" + c + "/", i);
+            path = MpfNormalizedProof.nibbles(Blake2bUtil.blake2bHash256(key));
+            if (path[c] == 0) continue;
+            for (int j = c + 1; j < 64; j += 2) {
+                if (path[j] != 0) continue search;
+            }
+            break;
+        }
+        byte[] leafSuffix = MpfNormalizedProof.encodeLeafSuffix(Arrays.copyOfRange(path, c, 64));
+        byte[] valueHash = Blake2bUtil.blake2bHash256(key);
+        byte[] leaf = hash(leafSuffix, valueHash);
+        List<byte[]> upper = MpfNormalizedProof.sparseNeighbors(path[c - 1], (path[c - 1] + 1) % 16,
+                Blake2bUtil.blake2bHash256(new byte[] {2}));
+        byte[] rootPrefix = Arrays.copyOfRange(path, 0, c - 1);
+        byte[] root = hash(rootPrefix, merkle(path[c - 1], leaf, upper));
+        MpfNormalizedProof.FoldStep top = new MpfNormalizedProof.FoldStep(0, rootPrefix, path[c - 1], upper,
+                new byte[0]);
+        MpfNormalizedProof inclusion = new MpfNormalizedProof(root, key, key, leafSuffix, List.of(top), 42);
+        byte[] branchPrefix = new byte[leafSuffix.length];
+        System.arraycopy(leafSuffix, 0, branchPrefix, 0, leafSuffix.length);
+        MpfNormalizedNonMembershipProof forged = new MpfNormalizedNonMembershipProof(root, key, c, branchPrefix,
+                new byte[0], valueHash, List.of(top), 42);
+        return new BranchAsLeaf(root, inclusion, forged);
+    }
+
     private static byte[] merkle(int nibble, byte[] child, List<byte[]> neighbors) {
         byte[] merkle = child;
         for (int level = 0; level < 4; level++) {

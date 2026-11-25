@@ -185,6 +185,26 @@ class CompiledAbsenceProofTest extends ContractTest {
                 .call("verifyAbsence", forged, forgery.root()).asBoolean()).isFalse();
     }
 
+    /**
+     * The converse direction: a present key's own odd leaf, whose raw path bytes are all below 16, has the shape of a
+     * branch whose prefix leaves the path at its first nibble. Read as the third terminal it proves the key absent
+     * under the very root that proves it present, unless the verifier refuses a branch prefix at an odd cursor that
+     * starts with 0 at exactly the odd-leaf length. {@code MpfOnChainVerifier}, compiled, and the off-chain
+     * normalized proof both refuse it at every cursor tried.
+     */
+    @Test
+    void rejectsAPresentKeysOwnLeafReadAsAConflictingBranch() {
+        for (int cursor : new int[] {53, 55, 57, 59}) {
+            MpfTestTrie.BranchAsLeaf forgery = MpfTestTrie.ownLeafReadAsBranch(cursor);
+            assertThat(forgery.inclusion().verify()).as("cursor %d: the key is present", cursor).isTrue();
+            assertThat(forgery.forgedAbsence().conflictingBranch()).isTrue();
+            assertThat(CompiledLoopArithmeticTest.evaluator(MpfOnChainVerifier.class)
+                    .call("verifyAbsence", MpfTestTrie.absenceData(forgery.forgedAbsence()), forgery.root())
+                    .asBoolean()).as("cursor %d: compiled", cursor).isFalse();
+            assertThat(forgery.forgedAbsence().verify()).as("cursor %d: off-chain", cursor).isFalse();
+        }
+    }
+
     private static boolean verifyAbsence(Class<?> verifier, PlutusData proof) {
         return CompiledLoopArithmeticTest.evaluator(verifier).call("verifyAbsence", proof, trie.root()).asBoolean();
     }

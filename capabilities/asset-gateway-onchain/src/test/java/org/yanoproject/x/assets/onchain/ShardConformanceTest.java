@@ -119,6 +119,62 @@ class ShardConformanceTest extends GatewayTestBase {
         }
     }
 
+    /**
+     * The converse forgery (PR #113 fcd107c0): a paid id's own leaf at odd cursor {@code c}, whose raw path bytes are
+     * all below 16, has the shape of a branch. A terminal {@code Fork} step at {@code c} (skip 0, neighbor nibble 0,
+     * neighbor prefix the rest of the leaf suffix, neighbor root the value hash) reconstructs exactly that node, so
+     * the forged miss is well formed and excludes to the shard root that holds the id; {@code including()} would then
+     * re-insert the paid id. The shard rejects it ({@code excludedTerminalIsUnambiguous}) at every cursor tried.
+     */
+    @Test
+    void aPaidIdIsNeverReinsertedThroughItsOwnLeafReadAsABranch() {
+        byte[] d = GatewayFixtures.blake2b256(new byte[] {3});
+        for (int c : new int[] {55, 57, 59}) {
+            byte[] id = null;
+            byte[] path = null;
+            for (int seed = 0; ; seed++) {
+                id = shardId(SHARD, 90_000 + 100_000 * c + seed);
+                path = GatewayFixtures.blake2b256(id);
+                if (MerklePatriciaForestry.nibble(path, c) != 0 && MerklePatriciaForestry.allNibbles(path, (c + 1) / 2)) {
+                    break;
+                }
+            }
+            byte[] valueHash = GatewayFixtures.blake2b256(id);
+            byte[] suffix = MerklePatriciaForestry.suffix(path, c);
+            int other = (MerklePatriciaForestry.nibble(path, c - 1) + 1) % 16;
+            byte[] root = MerklePatriciaForestry.doFork(path, 0, c - 1,
+                    MerklePatriciaForestry.combine(suffix, valueHash), other, new byte[0], d);
+            ProofStep upper = new ProofStep.Fork(c - 1, new Neighbor(other, new byte[0], d));
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.has(root, id, id, JulcList.of(upper)))
+                    .as("cursor %d: the id is paid", c).isTrue();
+
+            byte[] neighborPrefix = java.util.Arrays.copyOfRange(suffix, 1, suffix.length);
+            JulcList<ProofStep> forged = JulcList.of(upper,
+                    new ProofStep.Fork(0, new Neighbor(0, neighborPrefix, valueHash)));
+            // The forgery is well formed and excludes to the paid root; only the terminal-fork rule stops it.
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.isWellFormed(path, 0, forged)).isTrue();
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.doExcluding(path, 0, forged))
+                    .isEqualTo(root);
+
+            PlutusData insert = PlutusData.constr(0, PlutusData.list(PlutusData.constr(0, PlutusData.bytes(id),
+                    PlutusData.list(PlutusData.constr(1, PlutusData.integer(c - 1), PlutusData.constr(0,
+                                    PlutusData.integer(other), PlutusData.bytes(new byte[0]), PlutusData.bytes(d))),
+                            PlutusData.constr(1, PlutusData.integer(0), PlutusData.constr(0, PlutusData.integer(0),
+                                    PlutusData.bytes(neighborPrefix), PlutusData.bytes(valueHash)))))));
+            byte[] next = MerklePatriciaForestry.including(id, id, forged);
+            Tx tx = new Tx();
+            tx.spend(new TxInInfo(shardRef(SHARD), new TxOut(GatewayFixtures.scriptAddress(SHARD_HASH),
+                    threadValue(), new OutputDatum.OutputDatumInline(shardDatum(SHARD, root)), Optional.empty())),
+                    insert);
+            tx.spend(new TxInInfo(VAULT_REF, new TxOut(vaultAddress(), lovelace(9_000_000),
+                    new OutputDatum.OutputDatumInline(continuationDatum(List.of())), Optional.empty())),
+                    PlutusData.constr(0));
+            tx.output(out(GatewayFixtures.scriptAddress(SHARD_HASH), threadValue(), shardDatum(SHARD, next)));
+            rejected(shard(), tx.spending(shardRef(SHARD)));
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.miss(root, id, forged)).isFalse();
+        }
+    }
+
     @Test
     void theShardOfAnotherVaultFails() {
         rejected(shard(), shardSpend(new ShardTrie(SHARD), 1, OTHER_VAULT_HASH).spending(shardRef(SHARD)));

@@ -35,31 +35,31 @@ julc VM against real tries and serializes each whole transaction. Rerun it with:
 
 | Transaction | k | Vault inputs | CPU | Memory | CPU % | Memory % | Tx bytes | Notes |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
-| `Settle` | 1 | 1 | 562,380,910 | 1,902,629 | 5.6 | 11.5 | 1,735 | redeemers 559 |
-| `Settle` | 4 | 1 | 980,776,028 | 3,437,916 | 9.8 | 20.8 | 3,848 | redeemers 2336 |
-| `Settle` | 8 | 1 | 1,597,712,400 | 5,690,138 | 16.0 | 34.5 | 6,766 | redeemers 4805 |
-| `Settle` | 16 | 1 | 2,731,954,673 | 9,844,028 | 27.3 | 59.7 | 12,381 | redeemers 9524 |
-| `Settle` | 20 | 1 | 3,318,604,687 | 11,990,022 | 33.2 | 72.7 | 15,225 | redeemers 11920 |
-| `Settle` | 21 | 1 | 3,484,327,046 | 12,591,051 | 34.8 | 76.3 | 15,957 | redeemers 12539 |
-| `Settle` | 22 | 1 | 3,616,498,372 | 13,074,232 | 36.2 | 79.2 | 16,615 | redeemers 13085 **exceeds size** |
-| `Settle` | 16 | 4 | 3,016,382,735 | 10,759,775 | 30.2 | 65.2 | 12,546 | redeemers 9536 |
-| `Settle` | 21 | 4 | 3,768,755,108 | 13,506,798 | 37.7 | 81.9 | 16,122 | redeemers 12551 |
-| `Settle` | 16 | 8 | 3,461,645,663 | 12,101,983 | 34.6 | 73.3 | 12,766 | redeemers 9552 |
-| `Settle` | 21 | 8 | 4,214,018,036 | 14,849,006 | 42.1 | 90.0 | 16,342 | redeemers 12567 |
-| `Exit` | 1 | 1 | 859,434,856 | 2,906,962 | 8.6 | 17.6 | 3,023 | folds 4 redeemers 2114 |
-| `Exit` | 2 | 1 | 1,140,703,688 | 3,879,833 | 11.4 | 23.5 | 4,511 | folds 4 redeemers 3490 |
-| `Exit` | 4 | 1 | 1,703,953,419 | 5,829,002 | 17.0 | 35.3 | 7,487 | folds 4 redeemers 6242 |
-| `Exit` | 6 | 1 | 2,309,550,713 | 7,931,526 | 23.1 | 48.1 | 10,746 | folds 4 redeemers 9277 |
-| `Exit` | 8 | 1 | 2,931,034,256 | 10,080,974 | 29.3 | 61.1 | 13,940 | folds 5 redeemers 12246 |
-| `Exit` | 9 | 1 | 3,240,703,073 | 11,150,844 | 32.4 | 67.6 | 15,572 | folds 5 redeemers 13766 |
-| `Exit` | 10 | 1 | 3,548,844,545 | 12,215,551 | 35.5 | 74.0 | 17,204 | folds 5 redeemers 15286 **exceeds size** |
-| `Exit` | 8 | 4 | 3,215,462,318 | 10,996,721 | 32.2 | 66.6 | 14,105 | folds 5 redeemers 12258 |
-| `Exit` | 9 | 4 | 3,525,131,135 | 12,066,591 | 35.3 | 73.1 | 15,737 | folds 5 redeemers 13778 |
-| `BalanceExit` | 1 | 1 | 590,684,220 | 1,991,801 | 5.9 | 12.1 | 2,448 | folds 5 |
-| `BalanceExit` | 1 | 4 | 938,005,491 | 3,068,894 | 9.4 | 18.6 | 2,613 | folds 5 |
-| `BalanceExit` | 1 | 8 | 1,467,126,031 | 4,626,230 | 14.7 | 28.0 | 2,833 | folds 5 |
-| `BalanceExit` | 1 | 16 | 2,751,740,295 | 8,156,486 | 27.5 | 49.4 | 3,273 | folds 5 |
-| `BalanceExit` | 1 | 24 | 4,338,185,471 | 12,240,854 | 43.4 | 74.2 | 3,717 | folds 5 |
+| `Settle` | 1 | 1 | 562,524,910 | 1,903,529 | 5.6 | 11.5 | 1,735 | redeemers 559 |
+| `Settle` | 4 | 1 | 981,400,028 | 3,441,816 | 9.8 | 20.9 | 3,848 | redeemers 2336 |
+| `Settle` | 8 | 1 | 1,599,056,400 | 5,698,538 | 16.0 | 34.5 | 6,766 | redeemers 4805 |
+| `Settle` | 16 | 1 | 2,734,594,673 | 9,860,528 | 27.3 | 59.8 | 12,381 | redeemers 9524 |
+| `Settle` | 20 | 1 | 3,321,916,687 | 12,010,722 | 33.2 | 72.8 | 15,225 | redeemers 11920 |
+| `Settle` | 21 | 1 | 3,487,831,046 | 12,612,951 | 34.9 | 76.4 | 15,957 | redeemers 12539 |
+| `Settle` | 22 | 1 | 3,620,146,372 | 13,097,032 | 36.2 | 79.4 | 16,615 | redeemers 13085 **exceeds size** |
+| `Settle` | 16 | 4 | 3,019,022,735 | 10,776,275 | 30.2 | 65.3 | 12,546 | redeemers 9536 |
+| `Settle` | 21 | 4 | 3,772,259,108 | 13,528,698 | 37.7 | 82.0 | 16,122 | redeemers 12551 |
+| `Settle` | 16 | 8 | 3,464,285,663 | 12,118,483 | 34.6 | 73.4 | 12,766 | redeemers 9552 |
+| `Settle` | 21 | 8 | 4,217,522,036 | 14,870,906 | 42.2 | 90.1 | 16,342 | redeemers 12567 |
+| `Exit` | 1 | 1 | 859,626,856 | 2,908,162 | 8.6 | 17.6 | 3,023 | folds 4 redeemers 2114 |
+| `Exit` | 2 | 1 | 1,141,039,688 | 3,881,933 | 11.4 | 23.5 | 4,511 | folds 4 redeemers 3490 |
+| `Exit` | 4 | 1 | 1,704,577,419 | 5,832,902 | 17.0 | 35.4 | 7,487 | folds 4 redeemers 6242 |
+| `Exit` | 6 | 1 | 2,310,510,713 | 7,937,526 | 23.1 | 48.1 | 10,746 | folds 4 redeemers 9277 |
+| `Exit` | 8 | 1 | 2,932,330,256 | 10,089,074 | 29.3 | 61.1 | 13,940 | folds 5 redeemers 12246 |
+| `Exit` | 9 | 1 | 3,242,143,073 | 11,159,844 | 32.4 | 67.6 | 15,572 | folds 5 redeemers 13766 |
+| `Exit` | 10 | 1 | 3,550,428,545 | 12,225,451 | 35.5 | 74.1 | 17,204 | folds 5 redeemers 15286 **exceeds size** |
+| `Exit` | 8 | 4 | 3,216,758,318 | 11,004,821 | 32.2 | 66.7 | 14,105 | folds 5 redeemers 12258 |
+| `Exit` | 9 | 4 | 3,526,571,135 | 12,075,591 | 35.3 | 73.2 | 15,737 | folds 5 redeemers 13778 |
+| `BalanceExit` | 1 | 1 | 590,828,220 | 1,992,701 | 5.9 | 12.1 | 2,448 | folds 5 |
+| `BalanceExit` | 1 | 4 | 938,149,491 | 3,069,794 | 9.4 | 18.6 | 2,613 | folds 5 |
+| `BalanceExit` | 1 | 8 | 1,467,270,031 | 4,627,130 | 14.7 | 28.0 | 2,833 | folds 5 |
+| `BalanceExit` | 1 | 16 | 2,751,884,295 | 8,157,386 | 27.5 | 49.4 | 3,273 | folds 5 |
+| `BalanceExit` | 1 | 24 | 4,338,329,471 | 12,241,754 | 43.4 | 74.2 | 3,717 | folds 5 |
 | `AcceptProved` | 1 | 1 | 391,187,383 | 1,335,577 | 3.9 | 8.1 | 1,418 | folds 4 redeemers 869 |
 | `AcceptProved` | 4 | 4 | 1,118,436,462 | 3,783,669 | 11.2 | 22.9 | 4,172 | folds 4 redeemers 3470 |
 | `AcceptProved` | 8 | 8 | 2,152,693,527 | 7,163,194 | 21.5 | 43.4 | 7,844 | folds 4 redeemers 6938 |
@@ -114,10 +114,10 @@ script bytes, as the ledger stores them.
 
 | Script | Template bytes | Applied bytes |
 |---|---:|---:|
-| `AssetVaultValidator` | 14,881 | 15,397 (token vault), 15,364 (ADA vault) |
-| `AssetShardValidator` | 4,368 | |
-| `ExitModeThreadValidator` | 7,152 | |
-| `ForcedInboxValidator` | 10,237 | |
+| `AssetVaultValidator` | 14,936 | 15,452 (token vault), 15,419 (ADA vault) |
+| `AssetShardValidator` | 4,493 | |
+| `ExitModeThreadValidator` | 7,207 | |
+| `ForcedInboxValidator` | 10,347 | |
 | `AssetShardThreadPolicy` | 1,713 | |
 | `ExitModeThreadPolicy` | 1,042 | |
 
@@ -126,8 +126,8 @@ script. It fits after changes that keep the rules unchanged: the redeemer is dec
 check (an ill-typed field still fails the script), multi-accumulator loops became explicit recursion, the
 `SweepExit` payout check compares the swept native assets as one map instead of with a general multi-asset
 comparison, and `accepted(datum, value)` reads the datum's canonical Plutus serialization (`serialiseData`), which is
-also what makes it total. `GatewayBudgetTest.scriptSizes` fails if an applied vault reaches 15,500 bytes; about 100 bytes of headroom
-remain under that self-imposed guard (about 600 under the real ceiling of roughly 16,000 bytes after the publishing
+also what makes it total. `GatewayBudgetTest.scriptSizes` fails if an applied vault reaches 15,500 bytes; 48 bytes of headroom
+remain under that self-imposed guard (about 550 under the real ceiling of roughly 16,000 bytes after the publishing
 transaction's overhead). The next on-chain rule may raise the guard, to at most 15,750 bytes, with its reason
 recorded here.
 
@@ -135,6 +135,13 @@ recorded here.
 now rejects a terminal leaf that reads as a branch in `miss()`, and a fork neighbor that does not end above the leaf
 level, exactly as PR #113 does for the bridge. The shard's share of every payout rose accordingly (for example
 `Settle` k = 16 from 57.4% to 59.7% of the memory limit); no cap changed.
+
+The converse rule (r17) grew the shard to 4,493 bytes and the vault to 14,936 (15,452 applied for the token vault):
+the shard's `miss()` refuses a terminal fork whose reconstructed prefix has the shape of the excluded id's own odd
+leaf, and `MpfOnChainVerifier.verifyAbsence`, which the vault (`RefundAbsent`) and the exit-mode thread call, refuses
+the same shape as a conflicting branch. `ExitModeThreadValidator` (7,207) and `ForcedInboxValidator` (10,347, which
+carries `verifyAbsence` as dead code) grew with it. Payout costs rose by at most 0.2 points of the memory limit
+(`Settle` k = 16 now 59.8%); `AcceptProved`, `Consolidate` and `EnterExitMode` are unchanged, and no cap changed.
 
 `ForcedInboxValidator` was 6,890 bytes. With the previous `MpfOnChainVerifier` sources it compiled to 7,067 bytes
 (before the single-script-input rule); the rest of the growth comes from the rewritten `verifyAbsence`, which the inbox never calls (it only calls

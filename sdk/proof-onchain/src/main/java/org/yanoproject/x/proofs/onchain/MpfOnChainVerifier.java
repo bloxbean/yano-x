@@ -76,15 +76,17 @@ public final class MpfOnChainVerifier {
      * absent when that node is an empty slot, or a leaf whose authenticated suffix differs from the key's own suffix
      * encoding at that depth (the conflicting key hash only has to produce that suffix; its prefix is not
      * authenticated, so it is never compared), or a branch whose authenticated prefix differs from the key's path in
-     * at least one nibble and ends above the leaf level.
+     * at least one nibble, ends above the leaf level and does not have the shape of an odd leaf.
      *
      * <p>A node's hash does not say whether it is a leaf or a branch: an odd leaf is
      * {@code blake2b-256(00 <nibble> <raw path bytes> ‖ valueHash)} and a branch {@code blake2b-256(prefix ‖ merkle)}
      * with every prefix byte a nibble. The two readings are kept apart in both directions. A conflicting leaf with the
      * odd marker must have a raw byte above 15, so a real branch on the key's path never passes as a leaf (an honest
-     * leaf fails only if all its raw path bytes are below 16, about 2^-116 at any reachable depth). A conflicting
-     * branch must hold only nibbles, so a real leaf passes as a branch only if all its raw path bytes are below 16,
-     * which needs about {@code 4 * (63 - depth) / 2} bits of grinding on a chosen key.
+     * leaf fails only if all its raw path bytes are below 16). Conversely the present key's own leaf at an odd
+     * depth {@code c}, whose raw path bytes are all below 16, reads as a branch with prefix
+     * {@code 0 <nibble> <raw bytes>} that leaves the path at its first nibble; so at an odd depth a conflicting
+     * branch must not start with nibble 0 at exactly the odd-leaf length {@code 2 + (63 - c) / 2}. An honest
+     * branch of that shape ends at nibble {@code (c + 67) / 2}, so two of its keys share at least 34 nibbles.
      */
     public static boolean verifyAbsence(AbsenceProof proof, byte[] expectedRoot) {
         long keyLength = Builtins.lengthOfByteString(proof.key());
@@ -104,6 +106,8 @@ public final class MpfOnChainVerifier {
                 && (keyHashLength == 0
                 ? cursorEnd + suffixLength < PATH_NIBBLES
                 && divergentPrefix(queryPath, cursorEnd, proof.leafSuffix(), 0, false)
+                && (cursorEnd % 2 == 0 || suffixLength != 2 + (63 - cursorEnd) / 2
+                || Builtins.indexByteString(proof.leafSuffix(), 0) != 0)
                 : keyHashLength == 32 && suffixLength <= 33
                 && validLeafSuffix(proof.conflictingKeyHash(), cursorEnd, proof.leafSuffix())
                 && !validLeafSuffix(queryPath, cursorEnd, proof.leafSuffix())

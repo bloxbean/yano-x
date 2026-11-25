@@ -27,13 +27,15 @@ only anchored reservations) is the members' body check and is not visible to the
 
 Implementation notes:
 
-- The nullifier shards use the EUTxO bridge's Aiken-format MPF library, copied unchanged into `mpf/` (at PR #113's
-  `e8aefa38`: `miss()` rejects a terminal leaf that reads as a branch, and a fork neighbor must end above the leaf
-  level; the shard's `fold` calls `miss()` before `including()`, so a forged miss can no longer re-insert a paid id),
-  so this module
-  does not depend on the bridge. App-ledger state proofs use `sdk/proof-onchain` (`MpfOnChainVerifier`,
-  `MpfAnchorLib`); `verifyAbsence` covers every absent key (empty slot, other leaf, or a branch whose prefix leaves the
-  key's path), so a post-freeze deposit is always refundable and a censored request always provable.
+- The nullifier shards use the EUTxO bridge's Aiken-format MPF library, copied unchanged into `mpf/`, so this module
+  does not depend on the bridge. It tracks PR #113: `miss()` rejects a terminal step that reads as the other node
+  kind (a terminal leaf at an odd cursor with raw key bytes all below 16, read as a branch; a terminal fork whose
+  reconstructed prefix starts with nibble 0 at exactly the odd-leaf length, read as the excluded id's own leaf),
+  and a fork neighbor must end above the leaf level. The shard's `fold` calls `miss()` before `including()`, so a
+  forged miss can no longer re-insert a paid id. App-ledger state proofs use `sdk/proof-onchain`
+  (`MpfOnChainVerifier`, `MpfAnchorLib`); `verifyAbsence` covers every absent key (empty slot, other leaf, or a
+  branch whose prefix leaves the key's path and does not have the shape of the key's own odd leaf), so a post-freeze
+  deposit is always refundable and a censored request always provable.
 - V13: only the first vault input of a transaction (the lead) runs the full check, under its own redeemer, which must
   be an action. Every other vault input carries either the identical redeemer or the 4-byte `Follow` marker and only
   checks that the lead carries an action, so exactly one action applies and large proofs appear once per transaction.

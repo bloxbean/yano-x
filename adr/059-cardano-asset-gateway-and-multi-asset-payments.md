@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r16). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 and r16 record the rules settled while implementing the M4 on-chain code (see the revision history).
+- **Status:** Proposed (2026-11-25, r17). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15, r16 and r17 record the rules settled while implementing the M4 on-chain code (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -1999,7 +1999,13 @@ bytes and behaviour (I14).
    prefix leaves the key's path. A conflicting leaf's authenticated suffix must differ from the
    key's own suffix at that depth, and an odd leaf suffix must have a raw byte above 15, so that a
    real branch on the key's path can never pass as a leaf (leaf and branch commitments carry no
-   domain tag). The same leaf rules are fixed in the shipped verifiers by PR #113.
+   domain tag). The same leaf rules are fixed in the shipped verifiers by PR #113. **(r17)**
+   Conversely, at an odd depth a conflicting branch must not start with nibble 0 at exactly the
+   odd-leaf length `2 + (63 - depth) / 2`, so the key's own leaf (raw path bytes all below 16) can
+   never pass as a branch that leaves its path. The nullifier shards' copy of the bridge MPF
+   library applies both directions to `miss()` (a terminal leaf that reads as a branch, a terminal
+   fork that reads as the excluded id's own leaf) and bounds fork neighbor prefixes above the leaf
+   level, as PR #113 does for the bridge.
 
 Without 1–6, 8 and 9, the profile is not safe to fund. Items 1–4, 6, 8 and 9 are M4 entry gates. Item 5, anchor v2, is an M4 **deliverable**, so the M4 vault pins the final anchor hash. Item 7 gates M4b only.
 
@@ -2569,3 +2575,9 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     accepted trade-off.
   - §7 item 4: the framework's `membership-handoff-gate` contribution kind is recorded as a
     decision, and §2 and D1 are amended to match.
+- **r17** (2026-11-25): reviewer3 M4-F1: the nullifier-shard MPF copy rejects a branch read as the
+  terminal leaf and bounds fork neighbor prefixes; in the other direction it rejects a terminal
+  fork that reads as the excluded id's own odd leaf, and `MpfOnChainVerifier.verifyAbsence` (with
+  the off-chain normalized proof) rejects the same shape as a conflicting branch (§7 item 9). The
+  applied token vault is 15,452 bytes, under the 15,500 guard; `BUDGETS.md` is re-measured and no
+  cap changed.
