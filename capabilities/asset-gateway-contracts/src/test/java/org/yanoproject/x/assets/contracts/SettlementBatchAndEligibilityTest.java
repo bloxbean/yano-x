@@ -43,6 +43,20 @@ class SettlementBatchAndEligibilityTest {
         assertThat(SettlementBatchV1.sequenceOf("other/1")).isEqualTo(-1);
     }
 
+    /** Review P2-6: the ledger derives its batch cap from the effect payload limit, so the size must be exact. */
+    @Test
+    void theEncodedSizeIsExactAndBoundsTheClaimsAPayloadCarries() {
+        for (int claims : List.of(1, 16, 23, 24, 64)) {
+            List<Hash32> ids = new java.util.ArrayList<>();
+            for (int i = 0; i < claims; i++) ids.add(id(7, i + 1));
+            assertThat(new SettlementBatchV1(VAULT, 7, ids).encode()).hasSize(SettlementBatchV1.encodedSize(claims));
+        }
+        assertThat(SettlementBatchV1.maxClaimsWithin(SettlementBatchV1.encodedSize(16))).isEqualTo(16);
+        assertThat(SettlementBatchV1.maxClaimsWithin(SettlementBatchV1.encodedSize(16) - 1)).isEqualTo(15);
+        assertThat(SettlementBatchV1.maxClaimsWithin(70)).isZero();
+        assertThat(SettlementBatchV1.maxClaimsWithin(1 << 20)).isEqualTo(SettlementBatchV1.MAX_CLAIMS);
+    }
+
     @Test
     void claimQueryAnswersOnlyAMatchingLeafAndStatus() {
         Hash32 claimId = id(3, 9);

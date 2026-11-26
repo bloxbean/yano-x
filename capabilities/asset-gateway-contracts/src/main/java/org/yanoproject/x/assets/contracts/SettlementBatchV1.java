@@ -47,6 +47,19 @@ public record SettlementBatchV1(Hash32 vaultId, int shardIndex, List<Hash32> cla
         return claimId.bytes()[Hash32.BYTES - 1] & 0x0f;
     }
 
+    /** The encoded size of a batch of {@code claims} ids: the fixed head, the id list's header, 34 bytes per id. */
+    public static int encodedSize(int claims) {
+        // [1, bstr(32), shard, [ids]]: array header 1, version 1, vault id 34, shard 1, list header 1 or 2.
+        return 37 + (claims < 24 ? 1 : 2) + 34 * claims;
+    }
+
+    /** The most claims one batch payload of at most {@code payloadBytes} carries (0 when none fits). */
+    public static int maxClaimsWithin(int payloadBytes) {
+        int claims = MAX_CLAIMS;
+        while (claims > 0 && encodedSize(claims) > payloadBytes) claims--;
+        return claims;
+    }
+
     /** The effect scope of batch {@code sequence}. */
     public static String scope(long sequence) {
         if (sequence < 0) throw new IllegalArgumentException("sequence is non-negative");
