@@ -9,11 +9,14 @@ dependencies {
     compileOnly libs.cardano.client.core
     compileOnly libs.cardano.client.mpf
     compileOnly libs.cbor
+    // The bounded MPF proof form that node proofs are normalized to (D8b, D9); host-provided with the framework API.
+    compileOnly project(':sdk:proof-contracts')
 
     testImplementation libs.yaci.core
     testImplementation libs.cardano.client.core
     testImplementation libs.cardano.client.mpf
     testImplementation libs.cbor
+    testImplementation project(':sdk:proof-contracts')
     // The built transactions are evaluated against the compiled, parameterized validators (julc VM).
     testImplementation project(':capabilities:asset-gateway-onchain')
     testImplementation libs.julc.vm.java

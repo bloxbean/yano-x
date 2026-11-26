@@ -392,6 +392,12 @@ final class PayoutWorld {
             return trie.getRootHash();
         }
 
+        /** The node's native proof of {@code key} at {@code height}, under the current root. */
+        NodeStateProofs.NativeProof nativeProof(byte[] key, long height) {
+            return new NodeStateProofs.NativeProof(height, root(), key, trie.get(key),
+                    trie.getProofWire(key).orElseThrow());
+        }
+
         StateProof proof(byte[] key) {
             ProofVerifier.ProfileMetadata metadata = ProofVerifier.profileMetadata(
                     ProofVerifier.MPF_BLAKE2B256_V1).orElseThrow();
