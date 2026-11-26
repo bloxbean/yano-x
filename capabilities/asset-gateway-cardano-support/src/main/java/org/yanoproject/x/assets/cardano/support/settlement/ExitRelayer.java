@@ -1,6 +1,7 @@
 package org.yanoproject.x.assets.cardano.support.settlement;
 
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import org.yanoproject.x.assets.contracts.ClaimEligibility;
 import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
@@ -28,6 +29,10 @@ import java.util.function.IntFunction;
  * already holds (paid by someone else, who can win that race); group them by shard, at most {@code maxExitBatch} per
  * transaction, oldest reservation first; then {@link #build} each with the claim and status proofs under the
  * referenced anchor's root. Submission and polling belong to the caller. Nothing here changes a claim's status (I12).
+ *
+ * <p><b>Normal mode only.</b> In exit mode a claim is proved against the frozen root, with no exit delay and no live
+ * anchor (D8g §4); this relayer applies the normal-mode rules, so {@link #plan} and {@link #build} refuse when the
+ * exit-mode thread is not {@code NORMAL}. Exit-mode relaying is M4a.
  */
 public final class ExitRelayer {
     private ExitRelayer() {
@@ -48,16 +53,22 @@ public final class ExitRelayer {
         }
     }
 
+    /** The refusal of this normal-mode relayer once the exit-mode thread has left {@code NORMAL}. */
+    public static final String EXIT_MODE_REFUSAL = "exit-mode relaying is M4a";
+
     /**
      * The eligible claims of this vault, grouped by shard and capped at {@code maxExitBatch}.
      *
+     * @param exitMode       the exit-mode thread UTxO; a thread that is not {@code NORMAL} is refused (M4a)
      * @param anchorHeight   the referenced anchor's height
      * @param anchoredStatus the domain status leaf under that anchor's root (the one the Exit proves)
      * @param l1TimeMs       the L1 time of the transaction's validity lower bound
      * @param mirrors        the shard mirrors, by shard index
      */
-    public static List<Batch> plan(List<Candidate> candidates, VaultPins pins, long anchorHeight,
-                                   DomainStatusV1 anchoredStatus, long l1TimeMs, IntFunction<ShardMirror> mirrors) {
+    public static List<Batch> plan(List<Candidate> candidates, VaultPins pins, ResolvedOutput exitMode,
+                                   long anchorHeight, DomainStatusV1 anchoredStatus, long l1TimeMs,
+                                   IntFunction<ShardMirror> mirrors) {
+        requireNormalMode(exitMode);
         Map<Integer, List<ClaimLeafV1>> byShard = new TreeMap<>();
         for (Candidate candidate : candidates) {
             ClaimLeafV1 leaf = candidate.leaf();
@@ -86,6 +97,7 @@ public final class ExitRelayer {
      */
     public static PayoutTxBuilder.Built build(PayoutTxBuilder.Context context, Batch batch, StateProof.Source proofs,
                                               ShardMirror mirror, TransactionEvaluator evaluator) {
+        requireNormalMode(context.exitMode());
         VaultPins pins = context.pins();
         List<StateProof> claimProofs = new ArrayList<>();
         for (ClaimLeafV1 leaf : batch.claims()) {
@@ -102,6 +114,18 @@ public final class ExitRelayer {
                 .filter(proof -> Arrays.equals(proof.key(), pins.domainStatusKey()))
                 .orElseThrow(() -> new PayoutTxBuilder.BuildException("no proof of the domain status leaf"));
         return PayoutTxBuilder.exit(context, batch.claims(), claimProofs, status, mirror, evaluator);
+    }
+
+    /** Refuses unless the exit-mode thread's datum is {@code NORMAL}. */
+    static void requireNormalMode(ResolvedOutput exitMode) {
+        boolean normal = exitMode != null && exitMode.inlineDatum().map(datum -> {
+            try {
+                return GatewayPlutus.isNormalMode(PlutusData.deserialize(datum));
+            } catch (Exception malformed) {
+                return false;
+            }
+        }).orElse(false);
+        if (!normal) throw new PayoutTxBuilder.BuildException(EXIT_MODE_REFUSAL);
     }
 
     /** The ids of a batch, for journaling. */

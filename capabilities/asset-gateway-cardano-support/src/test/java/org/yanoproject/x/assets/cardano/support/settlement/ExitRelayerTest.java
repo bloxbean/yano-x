@@ -37,7 +37,8 @@ class ExitRelayerTest {
         int shard = 2;
         List<ClaimLeafV1> claims = world.claims(shard, k);
         world.anchor(claims, 50_000);
-        List<ExitRelayer.Batch> batches = ExitRelayer.plan(reserved(claims), world.pins, world.anchorHeight, ACTIVE,
+        List<ExitRelayer.Batch> batches = ExitRelayer.plan(reserved(claims), world.pins, world.exitMode,
+                world.anchorHeight, ACTIVE,
                 PayoutWorld.NOW_MS, index -> world.mirrors[index]);
         assertThat(batches).singleElement().satisfies(batch -> assertThat(batch.claims()).hasSize(k));
         PayoutTxBuilder.Built built = ExitRelayer.build(world.context(shard), batches.getFirst(),
@@ -75,7 +76,8 @@ class ExitRelayerTest {
         List<ExitRelayer.Candidate> candidates = new ArrayList<>(reserved(List.of(immature, unanchored, paidElsewhere,
                 eligible)));
         candidates.add(new ExitRelayer.Candidate(world.claim(4, 5), ClaimStatus.PAID));
-        List<ExitRelayer.Batch> batches = ExitRelayer.plan(candidates, world.pins, world.anchorHeight, ACTIVE,
+        List<ExitRelayer.Batch> batches = ExitRelayer.plan(candidates, world.pins, world.exitMode,
+                world.anchorHeight, ACTIVE,
                 PayoutWorld.NOW_MS, index -> world.mirrors[index]);
         assertThat(batches).singleElement().satisfies(batch -> assertThat(batch.claims()).containsExactly(eligible));
 
@@ -83,7 +85,8 @@ class ExitRelayerTest {
         DomainStatusV1 paused = new DomainStatusV1(DomainStatusV1.Status.PAUSED, 50, 0, PayoutWorld.EXIT_DELAY);
         ClaimLeafV1 aged = reservedAt(world.claim(4, 6),
                 PayoutWorld.NOW_MS - PayoutWorld.EXIT_DELAY - PayoutWorld.MAX_PAUSE);
-        assertThat(ExitRelayer.plan(reserved(List.of(eligible, aged)), world.pins, world.anchorHeight, paused,
+        assertThat(ExitRelayer.plan(reserved(List.of(eligible, aged)), world.pins, world.exitMode,
+                world.anchorHeight, paused,
                 PayoutWorld.NOW_MS, index -> world.mirrors[index]))
                 .singleElement().satisfies(batch -> assertThat(batch.claims()).containsExactly(aged));
 
@@ -96,12 +99,33 @@ class ExitRelayerTest {
                 .isInstanceOf(PayoutTxBuilder.BuildException.class).hasMessageContaining("evaluation failed");
     }
 
+    /** Review P2-14 (deferred to M4a): this normal-mode relayer refuses once the exit-mode thread is in EXIT. */
+    @Test
+    void exitModeRelayingIsRefusedUntilM4a() {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        List<ClaimLeafV1> claims = world.claims(3, 1);
+        world.anchor(claims, 50_000);
+        ResolvedOutput exit = new ResolvedOutput(world.exitMode.outpoint(), world.exitMode.address(),
+                world.exitMode.lovelace(), world.exitMode.assets(),
+                Optional.of(new byte[] {(byte) 0xd8, 0x7a, (byte) 0x80}), Optional.empty());
+        assertThatThrownBy(() -> ExitRelayer.plan(reserved(claims), world.pins, exit, world.anchorHeight, ACTIVE,
+                PayoutWorld.NOW_MS, index -> world.mirrors[index])).hasMessage(ExitRelayer.EXIT_MODE_REFUSAL);
+        PayoutTxBuilder.Context base = world.context(3);
+        PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(base.pins(), base.vaultUtxos(),
+                base.shardInput(), base.anchor(), exit, base.scriptRefs(), base.funding(), base.validFromSlot(),
+                base.ttlSlot(), base.protocolParams(), base.maxVaultInputs());
+        assertThatThrownBy(() -> ExitRelayer.build(context, new ExitRelayer.Batch(3, claims),
+                key -> Optional.of(world.state.proof(key)), world.mirrors[3], world.evaluator()))
+                .hasMessage(ExitRelayer.EXIT_MODE_REFUSAL);
+    }
+
     @Test
     void batchesAreCappedAtMaxExitBatchAndAProofOfAnotherLeafIsRefused() {
         PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
         List<ClaimLeafV1> claims = world.claims(1, 11);
         world.anchor(claims, 50_000);
-        List<ExitRelayer.Batch> batches = ExitRelayer.plan(reserved(claims), world.pins, world.anchorHeight, ACTIVE,
+        List<ExitRelayer.Batch> batches = ExitRelayer.plan(reserved(claims), world.pins, world.exitMode,
+                world.anchorHeight, ACTIVE,
                 PayoutWorld.NOW_MS, index -> world.mirrors[index]);
         assertThat(batches).extracting(batch -> batch.claims().size()).containsExactly(8, 3);
         ClaimLeafV1 first = claims.getFirst();
