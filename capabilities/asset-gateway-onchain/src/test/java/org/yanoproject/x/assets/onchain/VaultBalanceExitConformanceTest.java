@@ -12,6 +12,7 @@ import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,18 +53,28 @@ class VaultBalanceExitConformanceTest extends GatewayTestBase {
         return state;
     }
 
-    private static PlutusData redeemer(Holder h, PlutusData proof, int shard, byte[] recipient) {
-        return PlutusData.constr(7, PlutusData.bytes(h.holderId()), PlutusData.bytes(HOLDER_KEY),
+    /** The seven {@code BalanceExit} fields, then {@code trailing} ones the validator never reads. */
+    private static PlutusData redeemer(Holder h, PlutusData proof, int shard, byte[] recipient,
+                                       List<PlutusData> trailing) {
+        List<PlutusData> fields = new ArrayList<>(List.of(PlutusData.bytes(h.holderId()), PlutusData.bytes(HOLDER_KEY),
                 PlutusData.integer(h.amount()), PlutusData.integer(h.vaultLovelace()), PlutusData.bytes(recipient),
-                proof, PlutusData.integer(shard));
+                proof, PlutusData.integer(shard)));
+        fields.addAll(trailing);
+        return PlutusData.constr(7, fields.toArray(PlutusData[]::new));
     }
 
     /** A BalanceExit transaction in exit mode with {@code frozenRoot}. */
     private static Scenario balanceExit(AssetId asset, Holder h, StateTrie proofs, byte[] frozenRoot,
                                         ShardTrie shardTrie, List<byte[]> inserted) {
+        return balanceExit(asset, h, proofs, frozenRoot, shardTrie, inserted, List.of());
+    }
+
+    private static Scenario balanceExit(AssetId asset, Holder h, StateTrie proofs, byte[] frozenRoot,
+                                        ShardTrie shardTrie, List<byte[]> inserted, List<PlutusData> trailing) {
         byte[] escape = escapeId(asset, h.holderId());
         int shard = escape[31] & 0x0f;
-        PlutusData vaultRedeemer = redeemer(h, proofs.proof(exitKey(asset, h.holderId())), shard, RECIPIENT);
+        PlutusData vaultRedeemer = redeemer(h, proofs.proof(exitKey(asset, h.holderId())), shard, RECIPIENT,
+                trailing);
         long inLovelace = 20_000_000L + (asset.isAda() ? h.amount() : 0);
         long inQuantity = asset.isAda() ? 0 : 5_000L;
         Inserts inserts = shardTrie.plan(inserted == null ? List.of(escape) : inserted);
@@ -89,9 +100,13 @@ class VaultBalanceExitConformanceTest extends GatewayTestBase {
     }
 
     private static Scenario balanceExit(AssetId asset, Holder h) {
+        return balanceExit(asset, h, List.of());
+    }
+
+    private static Scenario balanceExit(AssetId asset, Holder h, List<PlutusData> trailing) {
         StateTrie state = exitState(asset, List.of(h, holder(asset, 1)));
         int shard = escapeId(asset, h.holderId())[31] & 0x0f;
-        return balanceExit(asset, h, state, state.root(), new ShardTrie(shard).seed(6), null);
+        return balanceExit(asset, h, state, state.root(), new ShardTrie(shard).seed(6), null, trailing);
     }
 
     @Test
@@ -100,6 +115,24 @@ class VaultBalanceExitConformanceTest extends GatewayTestBase {
             Scenario scenario = balanceExit(asset, holder(asset, 0));
             ok(vault(asset), scenario.vault());
             ok(shard(), scenario.shard());
+        }
+    }
+
+    /**
+     * The validator reads its redeemer's fields by position, so an eighth field, even one nested deeper than any
+     * bounded decoder reads, leaves a valid BalanceExit valid. This is why the payout observer reads only the
+     * redeemer's prefix (D10).
+     */
+    @Test
+    void trailingRedeemerFieldsLeaveABalanceExitValid() {
+        PlutusData deep = PlutusData.integer(0);
+        for (int depth = 0; depth < 70; depth++) deep = PlutusData.list(deep);
+        for (AssetId asset : List.of(TOKEN, AssetId.ADA)) {
+            for (PlutusData trailing : List.of(PlutusData.integer(0), deep)) {
+                Scenario scenario = balanceExit(asset, holder(asset, 0), List.of(trailing));
+                ok(vault(asset), scenario.vault());
+                ok(shard(), scenario.shard());
+            }
         }
     }
 
@@ -161,7 +194,7 @@ class VaultBalanceExitConformanceTest extends GatewayTestBase {
         Holder greedy = new Holder(h.holderId(), h.amount() + 1, h.vaultLovelace());
         Scenario more = balanceExit(TOKEN, h, state, state.root(), new ShardTrie(shard).seed(6), null);
         more.tx().replaceRedeemer(more.tx().inputs.get(0).redeemer(),
-                redeemer(greedy, state.proof(exitKey(TOKEN, h.holderId())), shard, RECIPIENT));
+                redeemer(greedy, state.proof(exitKey(TOKEN, h.holderId())), shard, RECIPIENT, List.of()));
         rejected(vault(TOKEN), more.vault());
 
         Scenario elsewhere = balanceExit(TOKEN, h);
@@ -172,7 +205,7 @@ class VaultBalanceExitConformanceTest extends GatewayTestBase {
         byte[] script = GatewayFixtures.concat(new byte[] {0x70}, filled(0x5d, 28));
         Scenario toScript = balanceExit(TOKEN, h);
         toScript.tx().replaceRedeemer(toScript.tx().inputs.get(0).redeemer(),
-                redeemer(h, state.proof(exitKey(TOKEN, h.holderId())), shard, script));
+                redeemer(h, state.proof(exitKey(TOKEN, h.holderId())), shard, script, List.of()));
         toScript.tx().outputs.set(0, payTo(script, toScript.tx().outputs.get(0).value()));
         rejected(vault(TOKEN), toScript.vault());
     }
@@ -186,7 +219,7 @@ class VaultBalanceExitConformanceTest extends GatewayTestBase {
         Scenario scenario = balanceExit(TOKEN, h, state, state.root(), new ShardTrie(shard).seed(6), null);
         // The proof is the other holder's leaf; the key the script computes is this holder's.
         scenario.tx().replaceRedeemer(scenario.tx().inputs.get(0).redeemer(),
-                redeemer(h, state.proof(exitKey(TOKEN, other.holderId())), shard, RECIPIENT));
+                redeemer(h, state.proof(exitKey(TOKEN, other.holderId())), shard, RECIPIENT, List.of()));
         rejected(vault(TOKEN), scenario.vault());
     }
 }

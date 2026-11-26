@@ -9,6 +9,7 @@ import org.yanoproject.x.assets.cardano.support.ValidTransactions;
 import org.yanoproject.x.assets.contracts.BalanceExitObservationV1;
 import org.yanoproject.x.assets.contracts.CardanoAddresses;
 import org.yanoproject.x.assets.contracts.GatewayDatums;
+import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.assets.contracts.PayoutClaimV1;
 import org.yanoproject.x.assets.contracts.PayoutObservationV1;
@@ -38,16 +39,23 @@ import java.util.Optional;
  *
  * <p><b>The discriminator (r15, r16).</b> On an authenticated transaction:
  * <ul>
- *   <li>a vault redeemer of {@code BalanceExit} shape: a {@link BalanceExitObservationV1}, when the vault's
- *       continuation is output 1, lists exactly one id and that id is the escape nullifier of the redeemer's holder
- *       for this vault;</li>
+ *   <li>a spend redeemer that names a {@code BalanceExit} holder {@code h} (constructor 7, first field a 1..64-byte
+ *       byte string, read as a prefix the way the validator reads its fields by position, so trailing fields never
+ *       matter) with {@code escapeNullifier(V, h)} equal to the continuation's first id: a
+ *       {@link BalanceExitObservationV1}, when that continuation is output 1 and lists exactly one id. Several vault
+ *       inputs may carry the same redeemer instead of {@code Follow}. The block does not carry the spent outputs, so
+ *       a redeemer cannot be attributed to the vault input by its address; the nullifier binding is what makes the
+ *       attribution irrelevant: a shard or foreign redeemer of the same shape (the shard validator does not check
+ *       its own constructor) can match only a continuation that already lists that escape nullifier, and a claim id
+ *       never equals one without a blake2b-256 collision, so it never turns a payout into a balance exit;</li>
  *   <li>otherwise, the one {@code VaultContinuationV1} output at {@code V}'s address, at index {@code k}, names the
  *       {@code k} paid claims, paid by outputs {@code 0..k-1} ({@code Settle}, {@code Exit});</li>
  *   <li>with no vault output at all: output 0's {@code SweepPaidV1(claimId)} ({@code SweepExit}), and no
  *       continuation fields (r16). A {@code SweepPaidV1} on any other transaction's output 0 is never read.</li>
  * </ul>
  * Anything else (two vault outputs, a continuation at the wrong index, an unreadable witness set) cannot come from a
- * valid vault spend and is skipped. Each payout output is reported as the recipient bytes the vault script compares
+ * valid vault spend and is skipped, as is an authenticated transaction with no readable spend redeemer at all. Each
+ * payout output is reported as the recipient bytes the vault script compares
  * ({@link CardanoAddresses#scriptRebuiltForm}: a pointer's naturals in shortest form, as the script rebuilds them),
  * the vault asset's quantity (the lovelace, for the ADA vault) and its lovelace; {@code eventOrdinal} is the shard
  * output's index.
@@ -159,23 +167,17 @@ final class AssetVaultPayoutObserver implements L1Observer {
         PayoutClaimV1.Continuation continuation = continuation(vault, continuationIndex, continuationOutput);
 
         List<byte[]> redeemers = L1Tx.spendRedeemers(block, blockIndex);
-        if (redeemers == null) return null; // the discriminator is unreadable: never guess (D10)
-        Optional<byte[]> holder = Optional.empty();
-        for (byte[] redeemer : redeemers) {
-            Optional<byte[]> named = GatewayDatums.balanceExitHolderId(redeemer);
-            if (named.isPresent()) {
-                if (holder.isPresent()) return null;
-                holder = named;
-            }
-        }
+        // Unreadable, or no spend redeemer at all (a vault spend always has one): the discriminator is unknown, so
+        // never guess (D10).
+        if (redeemers == null || redeemers.isEmpty()) return null;
+        Optional<byte[]> holder = balanceExitHolder(vault, redeemers, ids.get().getFirst());
         if (holder.isPresent()) {
+            // The continuation lists an escape nullifier, which only a BalanceExit writes, and always at output 1.
             if (continuationIndex != 1 || ids.get().size() != 1) return null;
             PayoutClaimV1.Payout payout = payout(vault, outputs.getFirst());
             if (payout == null) return null;
-            BalanceExitObservationV1 exit = new BalanceExitObservationV1(settings.domain().domainId(),
-                    vault.vaultId(), txId, slot, blockId, shardIndex, shardOutput, ids.get().getFirst(), holder.get(),
-                    payout, continuation);
-            return exit.nullifierMatchesHolder() ? exit : null;
+            return new BalanceExitObservationV1(settings.domain().domainId(), vault.vaultId(), txId, slot, blockId,
+                    shardIndex, shardOutput, ids.get().getFirst(), holder.get(), payout, continuation);
         }
 
         if (continuationIndex != ids.get().size()) return null; // V5/V7: payouts first, then the continuation
@@ -187,6 +189,20 @@ final class AssetVaultPayoutObserver implements L1Observer {
         }
         return new PayoutObservationV1(settings.domain().domainId(), vault.vaultId(), txId, slot, blockId, shardIndex,
                 shardOutput, PayoutObservationV1.Source.CONTINUATION, ids.get(), payouts, Optional.of(continuation));
+    }
+
+    /**
+     * The holder of a spend redeemer of {@code BalanceExit} shape whose escape nullifier for {@code vault} is
+     * {@code firstId}; empty when there is none. Identical redeemers on several vault inputs name the same holder.
+     */
+    private static Optional<byte[]> balanceExitHolder(AssetVaultShardSettings.Vault vault, List<byte[]> redeemers,
+                                                      Hash32 firstId) {
+        for (byte[] redeemer : redeemers) {
+            Optional<byte[]> holder = GatewayDatums.balanceExitHolderId(redeemer)
+                    .filter(candidate -> GatewayIds.escapeNullifier(vault.vaultId(), candidate).equals(firstId));
+            if (holder.isPresent()) return holder;
+        }
+        return Optional.empty();
     }
 
     private static PayoutClaimV1.Payout payout(AssetVaultShardSettings.Vault vault, TransactionOutput output) {

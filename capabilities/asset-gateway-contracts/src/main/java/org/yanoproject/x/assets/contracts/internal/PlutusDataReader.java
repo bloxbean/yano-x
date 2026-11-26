@@ -59,27 +59,58 @@ public final class PlutusDataReader {
         if (cbor == null || cbor.length == 0) {
             return -1;
         }
-        PlutusDataReader reader = new PlutusDataReader(cbor);
         try {
-            int initial = reader.next();
-            if (initial >> 5 != 6) return -1;
-            BigInteger tag = reader.argument(initial & 0x1f);
-            if (tag.bitLength() > 31) return -1;
-            long t = tag.longValue();
-            if (t >= 121 && t <= 127) return t - 121;
-            if (t >= 1280 && t <= 1400) return t - 1280 + 7;
-            if (t != 102) return -1;
-            int array = reader.next();
-            if (array >> 5 != 4 || ((array & 0x1f) != 31 && !reader.argument(array & 0x1f).equals(BigInteger.TWO))) {
-                return -1;
-            }
-            int index = reader.next();
-            if (index >> 5 != 0) return -1;
-            BigInteger value = reader.argument(index & 0x1f);
-            return value.bitLength() > 62 ? -1 : value.longValue();
+            return new PlutusDataReader(cbor).constructorHead();
         } catch (IllegalStateException | ArithmeticException invalid) {
             return -1;
         }
+    }
+
+    /**
+     * The first field of the outermost constructor when that constructor is {@code index} and its first field is a
+     * byte string (definite or chunked), read from the prefix alone. The fields after it, and the end of the value,
+     * are never decoded, exactly as a script that reads its fields by position never looks at them: trailing fields
+     * of any shape or depth do not change the result. {@code null} otherwise.
+     */
+    public static byte[] leadingByteStringField(byte[] cbor, long index) {
+        if (cbor == null || cbor.length == 0) {
+            return null;
+        }
+        PlutusDataReader reader = new PlutusDataReader(cbor);
+        try {
+            if (reader.constructorHead() != index) return null;
+            int fields = reader.next();
+            if (fields >> 5 != 4) return null;
+            if ((fields & 0x1f) == 31 ? reader.peek() == 0xff : reader.length(fields & 0x1f) == 0) return null;
+            int initial = reader.next();
+            if (initial >> 5 != 2) return null;
+            return (initial & 0x1f) == 31 ? reader.chunkedBytes() : reader.bytes(reader.length(initial & 0x1f));
+        } catch (IllegalStateException | ArithmeticException invalid) {
+            return null;
+        }
+    }
+
+    /**
+     * Reads a constructor head and returns its index, leaving the reader at the fields list; {@code -1} when the value
+     * does not start as a constructor.
+     */
+    private long constructorHead() {
+        int initial = next();
+        if (initial >> 5 != 6) return -1;
+        BigInteger tag = argument(initial & 0x1f);
+        if (tag.bitLength() > 31) return -1;
+        long t = tag.longValue();
+        if (t >= 121 && t <= 127) return t - 121;
+        if (t >= 1280 && t <= 1400) return t - 1280 + 7;
+        if (t != 102) return -1;
+        int array = next();
+        if (array >> 5 != 4 || ((array & 0x1f) != 31 && !argument(array & 0x1f).equals(BigInteger.TWO))) {
+            return -1;
+        }
+        int index = next();
+        if (index >> 5 != 0) return -1;
+        BigInteger value = argument(index & 0x1f);
+        return value.bitLength() > 62 ? -1 : value.longValue();
     }
 
     private Object item(int depth) {

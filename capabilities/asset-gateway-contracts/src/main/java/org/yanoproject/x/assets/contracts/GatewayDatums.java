@@ -41,27 +41,20 @@ public final class GatewayDatums {
     }
 
     /**
-     * The holder id named by a {@code BalanceExit} vault redeemer: constructor 7 with its seven fields
-     * {@code [holder_id: 1..64 bytes, holder_key_hash: 28 bytes, amount, vault_lovelace, recipient: 1..128 bytes,
-     * proof: constructor, shard_index: 0..15]}. This is the D10 discriminator; no other vault redeemer and no shard
-     * redeemer has this shape.
+     * The holder id a {@code BalanceExit} vault redeemer would name: constructor 7 whose first field is a 1..64-byte
+     * byte string. Only that prefix is read ({@link PlutusDataReader#leadingByteStringField}), because the vault
+     * validator reads its redeemer's fields by position and ignores whatever follows them: an extra field, or a field
+     * nested past the reader's depth bound, never hides a valid {@code BalanceExit}.
+     *
+     * <p>The shape alone is not a discriminator. A shard validator does not check its own redeemer's constructor, and
+     * a foreign input's redeemer is arbitrary, so a caller must bind the candidate to the transaction, as the payout
+     * observer does by requiring {@code escapeNullifier(vault, holder)} to equal the continuation's one id (D10).
      */
     public static Optional<byte[]> balanceExitHolderId(byte[] redeemer) {
-        if (!(PlutusDataReader.read(redeemer) instanceof PlutusDataReader.Constr constr)
-                || constr.index() != BALANCE_EXIT_CONSTRUCTOR || constr.fields().size() != 7) {
-            return Optional.empty();
-        }
-        List<Object> fields = constr.fields();
-        boolean shaped = fields.get(0) instanceof byte[] holder && holder.length >= 1
-                && holder.length <= GatewayIds.MAX_HOLDER_ID_BYTES
-                && fields.get(1) instanceof byte[] keyHash && keyHash.length == ExitLeafV1.KEY_HASH_BYTES
-                && nonNegative(fields.get(2)) && nonNegative(fields.get(3))
-                && fields.get(4) instanceof byte[] recipient && recipient.length >= 1
-                && recipient.length <= GatewayIds.MAX_ADDRESS_BYTES
-                && fields.get(5) instanceof PlutusDataReader.Constr
-                && fields.get(6) instanceof BigInteger shard && shard.signum() >= 0
-                && shard.compareTo(BigInteger.valueOf(16)) < 0;
-        return shaped ? Optional.of(((byte[]) fields.get(0)).clone()) : Optional.empty();
+        byte[] holder = PlutusDataReader.leadingByteStringField(redeemer, BALANCE_EXIT_CONSTRUCTOR);
+        return holder != null && holder.length >= 1 && holder.length <= GatewayIds.MAX_HOLDER_ID_BYTES
+                ? Optional.of(holder)
+                : Optional.empty();
     }
 
     /** A shard datum {@code ShardDatumV1 = Constr 0 [1, shard_index, nullifier_root]}. */
@@ -125,9 +118,5 @@ public final class GatewayDatums {
         }
         return Optional.of(new AnchorObservationV1.Anchored(height.longValueExact(), Hash32.of(blockHash),
                 Hash32.of(stateRoot), updatedAt.longValueExact(), threshold.intValueExact(), keys));
-    }
-
-    private static boolean nonNegative(Object value) {
-        return value instanceof BigInteger number && number.signum() >= 0;
     }
 }

@@ -155,9 +155,12 @@ class AssetVaultPayoutObserverTest {
                 BigInteger.valueOf(1_000_000)));
         assertThat(exit.continuation().outputIndex()).isEqualTo(1);
 
-        // A BalanceExit redeemer whose holder does not derive the listed nullifier is no observation at all.
+        // A BalanceExit-shaped redeemer whose holder does not derive the listed id is not bound to this transaction:
+        // it is read as a payout of the continuation's id, never as a balance exit.
         assertThat(observe(tx, spends(balanceExitRedeemer(filled(28, 0x45), shard), shardRedeemer(nullifier))))
-                .isEmpty();
+                .singleElement().satisfies(observation -> assertThat(claim(observation))
+                        .isInstanceOfSatisfying(PayoutObservationV1.class,
+                                payout -> assertThat(payout.claimIds()).containsExactly(nullifier)));
     }
 
     @Test
@@ -355,6 +358,104 @@ class AssetVaultPayoutObserverTest {
         assertThat(observations).singleElement().satisfies(observation -> assertThat(
                 ((PayoutObservationV1) claim(observation)).payouts().getFirst().recipient()).isEqualTo(canonical));
         assertPaidWithoutHalt(consumer, observations, leaf);
+    }
+
+    /** A USDM BalanceExit of {@code holder}: payout 0 to Alice, continuation 1 listing its nullifier, shard 2. */
+    static L1BlockBytes.Tx balanceExitTx(int seed, byte[] holder, List<byte[]> redeemers) {
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        int shard = nullifier.bytes()[31] & 0x0f;
+        return new L1BlockBytes.Tx(seed, List.of(
+                new L1BlockBytes.Output(raw(ALICE), 1_000_000, Map.of(USDM, 40L), null),
+                new L1BlockBytes.Output(raw(USDM_VAULT), 3_000_000, Map.of(USDM, 60L), continuation(nullifier)),
+                new L1BlockBytes.Output(raw(USDM_SHARD), 1_200_000, Map.of(shardAsset(shard), 1L),
+                        shardDatum(shard, filled(32, 2)))),
+                Map.of(), redeemers);
+    }
+
+    /** The BalanceExit redeemer with {@code trailing} fields after the seven the validator reads. */
+    static byte[] balanceExitRedeemerWith(byte[] holder, int shard, byte[]... trailing) {
+        List<byte[]> fields = new ArrayList<>(List.of(bytes(holder), bytes(ALICE_KEY), integer(40),
+                integer(1_000_000), bytes(raw(ALICE)), emptyProof(), integer(shard)));
+        fields.addAll(List.of(trailing));
+        return constr(7, fields.toArray(byte[][]::new));
+    }
+
+    void assertRecordedBalanceExit(List<L1Observation> observations, byte[] holder) {
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        assertThat(observations).singleElement().satisfies(observation -> assertThat(claim(observation))
+                .isInstanceOfSatisfying(BalanceExitObservationV1.class, exit -> {
+                    assertThat(exit.escapeNullifier()).isEqualTo(nullifier);
+                    assertThat(exit.holderId()).isEqualTo(holder);
+                }));
+        Consumer consumer = new Consumer();
+        assertThat(consumer.apply(observations, 10)).singleElement().satisfies(result -> {
+            assertThat(result.halted()).isFalse();
+            assertThat(result.disposition()).isEqualTo(PayoutConfirmation.Disposition.RECORDED);
+        });
+        assertThat(consumer.confirmation.domainStatus(consumer.store)).isEmpty();
+    }
+
+    @Test
+    void aBalanceExitRedeemerWithAnEighthFieldIsStillABalanceExit() {
+        byte[] holder = filled(28, 0x46);
+        int shard = GatewayIds.escapeNullifier(USDM_ID, holder).bytes()[31] & 0x0f;
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        assertRecordedBalanceExit(observeBytes(balanceExitTx(2, holder,
+                List.of(balanceExitRedeemerWith(holder, shard, integer(0)), shardRedeemer(nullifier)))), holder);
+    }
+
+    @Test
+    void aBalanceExitRedeemerWithAFieldNestedPastTheDecodeBoundIsStillABalanceExit() {
+        byte[] holder = filled(28, 0x46);
+        int shard = GatewayIds.escapeNullifier(USDM_ID, holder).bytes()[31] & 0x0f;
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        byte[] deep = integer(0);
+        for (int depth = 0; depth < 70; depth++) deep = list(deep);
+        assertRecordedBalanceExit(observeBytes(balanceExitTx(3, holder,
+                List.of(balanceExitRedeemerWith(holder, shard, deep), shardRedeemer(nullifier)))), holder);
+    }
+
+    @Test
+    void twoVaultInputsCarryingTheSameBalanceExitRedeemerAreOneBalanceExit() {
+        byte[] holder = filled(28, 0x46);
+        int shard = GatewayIds.escapeNullifier(USDM_ID, holder).bytes()[31] & 0x0f;
+        byte[] redeemer = balanceExitRedeemer(holder, shard);
+        assertRecordedBalanceExit(observeBytes(balanceExitTx(4, holder, List.of(redeemer, redeemer,
+                shardRedeemer(GatewayIds.escapeNullifier(USDM_ID, holder))))), holder);
+    }
+
+    @Test
+    void aConstructorSevenShardRedeemerNeverSuppressesAGenuinePayout() {
+        // The shard validator does not check its own redeemer's constructor: an Exit whose shard input carries a
+        // constructor-7 redeemer, even one of full BalanceExit shape, still pays its claim.
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, raw(ALICE), 1);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+        byte[] exit = constr(1, list(constr(0, constr(0, bytes(leaf.claimId().bytes())), emptyProof())), emptyProof(),
+                integer(shard));
+        byte[] insertsAsConstr7 = constr(7, list(constr(0, bytes(leaf.claimId().bytes()), list())));
+        byte[] balanceExitShaped = balanceExitRedeemer(filled(28, 0x47), shard);
+        int seed = 5;
+        for (byte[] shardRedeemer : List.of(insertsAsConstr7, balanceExitShaped)) {
+            List<L1Observation> observations = observeBytes(payoutTx(seed++, leaf, raw(ALICE),
+                    List.of(exit, shardRedeemer)));
+            assertThat(observations).singleElement().satisfies(observation -> assertThat(claim(observation))
+                    .isInstanceOfSatisfying(PayoutObservationV1.class,
+                            payout -> assertThat(payout.claimIds()).containsExactly(leaf.claimId())));
+            if (shardRedeemer == insertsAsConstr7) {
+                assertPaidWithoutHalt(consumer, observations, leaf);
+            } else {
+                assertThat(consumer.apply(observations, 11).getFirst().claims().getFirst().reason())
+                        .isEqualTo(PayoutConfirmation.Reason.ALREADY_PAID);
+            }
+        }
+    }
+
+    @Test
+    void anAuthenticatedTransactionWithoutSpendRedeemersIsNotObserved() {
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, raw(ALICE), 1);
+        assertThat(observeBytes(payoutTx(9, leaf, raw(ALICE), List.of()))).isEmpty();
     }
 
     static AssetId shardAsset(int shard) {
