@@ -1387,9 +1387,12 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
     for `Exit` and the next claims are tried. The unpaid remainder stays `RESERVED` and is
     re-queued.
   - **Signers.** The required signers are the owner, when it is an anchor member, then *(r20)*
-    the members that answered the effect's previous round, and for the rest the next members in
-    key order not yet tried (all tried: start over). A member that does not answer is replaced
-    while those that answered stay, so any healthy quorum is reached. The round accepts replies
+    the members that answered the effect's previous round, and for the rest the members not yet
+    tried in this pass, then a new pass in key order. When every member has been tried, the pass
+    ends and the next one starts from the responders alone, so a member that missed an earlier
+    request is asked again. A member that does not answer is replaced while those that answered
+    stay, so any healthy quorum is reached. The memory is dropped when the effect ends at the
+    executor and is capped (LRU) for effects that end by expiry. The round accepts replies
     only from the members named in that attempt.
   - **Confirmation.** The executor reports `Confirmed` only once *(r20)* every claim of the
     transaction is `PAID` by that very transaction in committed state, never on tip inclusion. A
@@ -2707,3 +2710,8 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     settlement queues.
   - D8h §1: members' clocks must be within about 5 minutes of the owner's; a tip-bound refusal is
     reported apart and shows as degraded co-sign status.
+  - Codex's confirmation pass: a new signer pass resets the tried set to the responders, so a
+    member that returns is reached (2-of-3 with B down and C back reaches {A, C}); the bitmap's
+    excess-bit check applies only below 64 claims, so a full 64-claim batch recovers; the signer
+    memory is bounded; the owner's passing check clears an earlier tip-bound refusal, so its status
+    recovers; `max-settle-batch` is every signing member's setting, at least the owner's cap.
