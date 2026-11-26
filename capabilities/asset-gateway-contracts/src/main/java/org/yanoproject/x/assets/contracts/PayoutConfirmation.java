@@ -428,8 +428,13 @@ public final class PayoutConfirmation {
         }
         if (current.isPresent() && current.get().status() == DomainStatusV1.Status.HALTED) return;
         long exitDelay = current.map(DomainStatusV1::exitDelayMs).orElse(defaultExitDelayMs);
+        // A domain already PAUSED keeps its since-point: trigger (c) of EnterExitMode measures how long the domain
+        // has been out of ACTIVE (D8g §3), and a halt must not restart that clock.
+        boolean stopped = current.isPresent() && current.get().status() != DomainStatusV1.Status.ACTIVE;
+        long sinceHeight = stopped ? current.get().sinceHeight() : height;
+        long sinceMs = stopped ? current.get().sinceMs() : blockTimeMs;
         store.put(domainStatusKey(),
-                new DomainStatusV1(DomainStatusV1.Status.HALTED, height, blockTimeMs, exitDelay).encode());
+                new DomainStatusV1(DomainStatusV1.Status.HALTED, sinceHeight, sinceMs, exitDelay).encode());
     }
 
     private Result redeem(AssetAccounts.Store store, BalanceExitObservationV1 exit, long height) {

@@ -237,13 +237,23 @@ class PayoutConfirmationTest {
     }
 
     @Test
-    void aHaltKeepsTheStatusLeafsExitDelayAndAHaltedDomainStaysHalted() {
+    void aHaltOfAnActiveDomainStartsItsClockAndKeepsTheExitDelay() {
+        store.put(confirmation.domainStatusKey(),
+                new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 3, 100, 21_600_000).encode());
+        ClaimLeafV1 leaf = reserve(USDM_VAULT, ClaimKind.USER_WITHDRAWAL, 10, 0);
+        apply(payout(USDM_VAULT, 0x5c, List.of(leaf.claimId()), List.of(pays(OTHER_RECIPIENT, 10, 1))));
+        assertThat(domain()).contains(new DomainStatusV1(DomainStatusV1.Status.HALTED, 20, 5_000_000, 21_600_000));
+    }
+
+    @Test
+    void aHaltKeepsAPausedDomainsClockAndExitDelayAndAHaltedDomainStaysHalted() {
         store.put(confirmation.domainStatusKey(),
                 new DomainStatusV1(DomainStatusV1.Status.PAUSED, 3, 100, 21_600_000).encode());
         ClaimLeafV1 leaf = reserve(USDM_VAULT, ClaimKind.USER_WITHDRAWAL, 10, 0);
         apply(payout(USDM_VAULT, 0x5d, List.of(leaf.claimId()), List.of(pays(OTHER_RECIPIENT, 10, 1))));
         DomainStatusV1 halted = domain().orElseThrow();
-        assertThat(halted).isEqualTo(new DomainStatusV1(DomainStatusV1.Status.HALTED, 20, 5_000_000, 21_600_000));
+        // Trigger (c) of EnterExitMode measures time out of ACTIVE (D8g §3): the PAUSED since-point is kept.
+        assertThat(halted).isEqualTo(new DomainStatusV1(DomainStatusV1.Status.HALTED, 3, 100, 21_600_000));
 
         ClaimLeafV1 next = reserve(USDM_VAULT, ClaimKind.USER_WITHDRAWAL, 10, 0);
         confirmation.apply(store, observed(payout(USDM_VAULT, 0x5e, List.of(next.claimId()),
