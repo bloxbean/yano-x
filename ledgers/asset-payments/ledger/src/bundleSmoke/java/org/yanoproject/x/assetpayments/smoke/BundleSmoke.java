@@ -143,6 +143,7 @@ public final class BundleSmoke {
         long receipts = state.keySet().stream().filter(k -> k.startsWith(receiptPrefix)).count();
         if (leaves != 1 || receipts != 1) throw new AssertionError("expected one credited leaf and one receipt: " + leaves + "/" + receipts);
         settlement(gateway, payments, observerSettings, settings, profile, usdmVault);
+        executor(gateway, observerSettings);
         System.out.println("bundle smoke OK: observer " + observerProvider.getClass().getName() + ", machine "
                 + machine.getClass().getName() + ", " + state.size() + " state keys, 1 receipt, 1 credited leaf");
     }
@@ -262,6 +263,64 @@ public final class BundleSmoke {
                 || gate.finalizesHandoff(block, new MembershipHandoff(8, java.util.Set.of(member), 1, 1))) {
             throw new AssertionError("the handoff gate did not bind the anchor fact to its committed height");
         }
+    }
+
+    /**
+     * The asset-settlement effect executor (ADR-059 D9): the factory loads from the bundle, a member's context-aware
+     * creation registers the co-sign service and yields a product that owns no effect type, and the service's body
+     * check (the support library's builder and checks over host cardano-client-lib) refuses a malformed request.
+     */
+    static void executor(ClassLoader gateway, Map<String, String> observerSettings) {
+        org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory factory = only(ServiceLoader.load(
+                org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory.class, gateway),
+                f -> f.scheme().equals("asset-settlement"));
+        if (factory.getClass().getClassLoader() != gateway) throw new AssertionError("executor not from bundle");
+        if (!factory.create(CHAIN, Map.of()).isEmpty()) throw new AssertionError("config-only creation must decline");
+        Map<String, String> config = new TreeMap<>(observerSettings);
+        config.put("vaults.0.shard-policy-id", "a2".repeat(28));
+        config.put("vaults.0.shard-script-hash", "12".repeat(28));
+        config.put("vaults.0.shard-address", AddressProvider.getEntAddress(Credential.fromScript(fill(28, 0x12)),
+                Networks.testnet()).getAddress());
+        config.put("vaults.0.script-ref", "65".repeat(32) + "#0");
+        config.put("vaults.0.shard-script-ref", "65".repeat(32) + "#1");
+        config.putAll(Map.of("anchor.thread-policy-id", "c1".repeat(28), "anchor.thread-asset-name", "",
+                "anchor.script-hash", "21".repeat(28), "anchor.genesis-id", GENESIS,
+                "anchor.application-id", "asset-payments", "anchor.commitment-profile", "mpf-blake2b256-v1",
+                "anchor.format-fingerprint", "fa".repeat(32), "exit-mode.policy-id", "d1".repeat(28),
+                "exit-mode.script-hash", "31".repeat(28), "continuation-floor", "2000000"));
+        config.remove("min-stability-depth");
+        org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler[] registered =
+                new org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler[1];
+        byte[] seed = fill(32, 7);
+        var context = new org.yanoproject.x.framework.cardano.api.effects.AppChainEffectContext() {
+            public String chainId() { return CHAIN; }
+            public void diffuse(String topic, byte[] body) { throw new AssertionError("a refused body is never signed"); }
+            public org.yanoproject.x.framework.api.appchain.signer.SignerProvider memberSigner() {
+                return new org.yanoproject.x.framework.api.appchain.signer.SignerProvider() {
+                    public byte[] sign(byte[] message) { return new EdDSASigningProvider().sign(message, seed); }
+                    public byte[] publicKey() { return KeyGenUtil.getPublicKeyFromPrivateKey(seed); }
+                };
+            }
+            public java.util.function.Supplier<Set<String>> members() { return Set::of; }
+            public java.util.function.IntSupplier threshold() { return () -> 1; }
+            public AppQueryResult query(String path, byte[] request) { return null; }
+            public java.util.function.Supplier<org.yanoproject.api.utxo.UtxoState> l1UtxoView() { return () -> null; }
+            public java.util.function.Supplier<com.bloxbean.cardano.client.api.model.ProtocolParams> protocolParams() {
+                return com.bloxbean.cardano.client.api.model.ProtocolParams::new;
+            }
+            public org.yanoproject.api.TxEvaluationGateway txEvaluation() { return null; }
+            public String submitTx(byte[] transactionCbor) { throw new AssertionError("a member never submits"); }
+            public void registerBridgeDiffusionHandler(
+                    org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler handler) {
+                registered[0] = handler;
+            }
+        };
+        var products = factory.create(CHAIN, config, context);
+        if (products.size() != 1 || !products.getFirst().effectTypes().isEmpty() || registered[0] == null) {
+            throw new AssertionError("a member gets the co-sign service and a product that owns no effect type");
+        }
+        byte[] request = cat(hex("8201"), head(3), new byte[] {1, 2, 3});
+        registered[0].onBridgeMessage(message("~bridge/asset-settlement/sign", request, 9));
     }
 
     static Amount lovelace(long quantity) {

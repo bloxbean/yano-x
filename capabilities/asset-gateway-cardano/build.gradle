@@ -4,6 +4,8 @@ plugins {
 
 dependencies {
     compileOnly project(':framework:api')
+    // The asset-settlement executor's context-aware factory surface (AppChainEffectContext, ADR-059 D9).
+    compileOnly project(':framework:cardano-api')
     // Embed only this repository's code (as ledgers/eutxo does): cbor, CCL, yaci, BouncyCastle, Jackson and
     // Guava come from the host, which loads plugins parent-first, so bundled copies would be dead weight.
     implementation(project(':capabilities:asset-gateway-cardano-support')) {
@@ -16,9 +18,13 @@ dependencies {
     compileOnly libs.cardano.client.address
     compileOnly libs.cardano.client.common
     compileOnly libs.cardano.client.crypto
+    compileOnly libs.cardano.client.core
+    compileOnly libs.cardano.client.mpf
     compileOnly libs.cbor
 
     testImplementation project(':framework:api')
+    testImplementation project(':framework:cardano-api')
+    testImplementation libs.cardano.client.mpf
     testImplementation libs.yaci.core
     testImplementation libs.cardano.client.address
     testImplementation libs.cardano.client.common
@@ -102,10 +108,10 @@ tasks.register('verifyAssetGatewayCardanoArtifactBoundaries') {
                             + forbidden.toList().sort().take(10))
         }
         def contractClass = 'org/yanoproject/x/assets/contracts/AssetDepositClaimV1.class'
-        def supportClass = 'org/yanoproject/x/assets/cardano/support/DatumPreflight.class'
+        def supportClass = 'org/yanoproject/x/assets/cardano/support/settlement/PayoutTxBuilder.class'
         def providerClasses = ['AssetVaultDepositObserverProvider', 'AssetVaultPayoutObserverProvider',
                                'AssetAnchorObserverProvider', 'AssetShardBootstrapObserverProvider',
-                               'AnchorHandoffGateProvider'].collect {
+                               'AnchorHandoffGateProvider', 'AssetSettlementExecutorFactory'].collect {
             "org/yanoproject/x/assets/cardano/gateway/${it}.class".toString()
         }
         if (thinEntries.contains(contractClass) || !bundleEntries.contains(contractClass)
@@ -114,7 +120,8 @@ tasks.register('verifyAssetGatewayCardanoArtifactBoundaries') {
             throw new GradleException('Asset-gateway thin/bundle class boundary is incomplete')
         }
         def services = ['META-INF/services/org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider',
-                        'META-INF/services/org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider']
+                        'META-INF/services/org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider',
+                        'META-INF/services/org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory']
         if (!services.every { bundleEntries.contains(it) }) {
             throw new GradleException('Asset-gateway bundle service registrations are missing')
         }
@@ -153,7 +160,7 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Yano X Asset Gateway Cardano'
-                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers and the anchor handoff gate (ADR-059 D5, D8b, D8c, D10)'
+                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers, the anchor handoff gate and the asset-settlement executor (ADR-059 D5, D8b, D8c, D9, D10)'
             }
         }
     }
