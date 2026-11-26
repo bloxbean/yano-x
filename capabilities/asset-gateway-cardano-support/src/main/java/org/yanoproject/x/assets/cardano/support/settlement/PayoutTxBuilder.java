@@ -85,8 +85,6 @@ public final class PayoutTxBuilder {
     private static final BigDecimal UNIT_MARGIN = new BigDecimal("1.05");
     private static final BigDecimal REF_SCRIPT_MULTIPLIER = new BigDecimal("1.2");
     private static final long REF_SCRIPT_SIZE_INCREMENT = 25_600;
-    /** The largest coin, priced at its widest (9-byte) encoding by min-UTxO estimates. */
-    private static final BigInteger WIDEST_COIN = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
 
     /** Why a payout cannot be built; the caller retries later, splits or re-selects. */
     public static class BuildException extends RuntimeException {
@@ -393,46 +391,46 @@ public final class PayoutTxBuilder {
     }
 
     /**
-     * Accepted custody (V10) at the exact vault address, most useful first (vault-asset quantity descending, then
-     * lovelace descending, then outpoint), skipping a candidate that adds nothing still needed, until the inputs
-     * cover the asset debit and the lovelace debit plus the continuation's real requirement: the larger of the floor
-     * and the min-UTxO of the serialized continuation with its id list. Dust at low outpoints therefore never fills
-     * {@code maxVaultInputs} ahead of the custody that pays. The selected inputs are returned in canonical outpoint
-     * order, the ledger order that redeemer indexes refer to; the scripts do not depend on selection order.
+     * Accepted custody (V10) at the exact vault address, chosen one input at a time by what is still needed: while
+     * the vault-asset debit is not covered, the input with the most vault asset (then the most lovelace, then the
+     * lowest outpoint); once it is, the input with the most lovelace (then the lowest outpoint). Selection stops as
+     * soon as the inputs cover the asset debit and the lovelace debit plus the continuation's real requirement: the
+     * larger of the floor and the min-UTxO of the continuation as it will be serialized, with its id list, remaining
+     * asset and actual lovelace. Dust at low outpoints therefore never fills {@code maxVaultInputs} ahead of the
+     * custody that pays, and token inputs are not taken for their lovelace. Needing more than
+     * {@code maxVaultInputs} inputs is {@link LimitExceeded}, so the caller splits; custody that cannot cover the
+     * batch at all is a {@link BuildException}. The selected inputs are returned in canonical outpoint order, the
+     * ledger order that redeemer indexes refer to; the scripts do not depend on selection order.
      */
     static List<ResolvedOutput> selectVaultInputs(Context context, BigInteger assetDebit, BigInteger lovelaceDebit,
                                                   List<Hash32> ids) {
         VaultPins pins = context.pins();
-        List<ResolvedOutput> candidates = new ArrayList<>();
+        List<ResolvedOutput> remaining = new ArrayList<>();
         for (ResolvedOutput utxo : context.vaultUtxos()) {
-            if (accepted(utxo, pins)) candidates.add(utxo);
+            if (accepted(utxo, pins)) remaining.add(utxo);
         }
-        candidates.sort(Comparator.comparing((ResolvedOutput out) -> vaultQuantity(out, pins)).reversed()
-                .thenComparing(Comparator.comparing(ResolvedOutput::lovelace).reversed())
-                .thenComparing(ResolvedOutput::outpoint));
+        Comparator<ResolvedOutput> byLovelace = Comparator.comparing(ResolvedOutput::lovelace).reversed()
+                .thenComparing(ResolvedOutput::outpoint);
+        Comparator<ResolvedOutput> byAsset = Comparator.comparing((ResolvedOutput out) -> vaultQuantity(out, pins))
+                .reversed().thenComparing(byLovelace);
         MinAdaCalculator minAda = new MinAdaCalculator(context.protocolParams());
         List<ResolvedOutput> selected = new ArrayList<>();
         BigInteger asset = BigInteger.ZERO;
         BigInteger lovelace = BigInteger.ZERO;
-        for (ResolvedOutput candidate : candidates) {
-            BigInteger lovelaceNeeded = lovelaceDebit.add(continuationRequirement(pins, minAda, ids,
-                    asset.subtract(assetDebit)));
+        while (!covers(pins, minAda, ids, asset.subtract(assetDebit), lovelace.subtract(lovelaceDebit))) {
             boolean needAsset = asset.compareTo(assetDebit) < 0;
-            boolean needLovelace = lovelace.compareTo(lovelaceNeeded) < 0;
-            if (!needAsset && !needLovelace) break;
-            if (selected.size() == context.maxVaultInputs()) break;
-            boolean useful = (needAsset && vaultQuantity(candidate, pins).signum() > 0)
-                    || (needLovelace && candidate.lovelace().signum() > 0);
-            if (!useful) continue;
-            selected.add(candidate);
-            asset = asset.add(vaultQuantity(candidate, pins));
-            lovelace = lovelace.add(candidate.lovelace());
-        }
-        BigInteger lovelaceNeeded = lovelaceDebit.add(continuationRequirement(pins, minAda, ids,
-                asset.subtract(assetDebit)));
-        if (asset.compareTo(assetDebit) < 0 || lovelace.compareTo(lovelaceNeeded) < 0) {
-            throw new BuildException("accepted vault custody does not cover the batch within "
-                    + context.maxVaultInputs() + " vault inputs");
+            ResolvedOutput best = remaining.stream().min(needAsset ? byAsset : byLovelace).orElse(null);
+            if (best == null || (needAsset && vaultQuantity(best, pins).signum() == 0)) {
+                throw new BuildException("accepted vault custody does not cover the batch");
+            }
+            if (selected.size() == context.maxVaultInputs()) {
+                throw new LimitExceeded("the batch needs more than " + context.maxVaultInputs()
+                        + " vault inputs; split the batch");
+            }
+            remaining.remove(best);
+            selected.add(best);
+            asset = asset.add(vaultQuantity(best, pins));
+            lovelace = lovelace.add(best.lovelace());
         }
         selected.sort(Comparator.comparing(ResolvedOutput::outpoint));
         return selected;
@@ -443,17 +441,18 @@ public final class PayoutTxBuilder {
     }
 
     /**
-     * The lovelace the continuation must keep: the floor, or the min-UTxO of the continuation as it will be serialized
-     * (its id list and any remaining vault asset), whichever is larger. The coin is priced at its widest encoding, so
-     * the estimate never falls below the final output's requirement.
+     * True when the continuation left by the selection, {@code assetLeft} of the vault asset and
+     * {@code lovelaceLeft}, exists and keeps its real requirement: at least the floor and the min-UTxO of the
+     * continuation as it will be serialized (its id list, its remaining asset and this lovelace).
      */
-    private static BigInteger continuationRequirement(VaultPins pins, MinAdaCalculator minAda, List<Hash32> ids,
-                                                      BigInteger assetLeft) {
-        Map<AssetId, BigInteger> assets = pins.adaVault() || assetLeft.signum() <= 0 ? Map.of()
+    private static boolean covers(VaultPins pins, MinAdaCalculator minAda, List<Hash32> ids, BigInteger assetLeft,
+                                  BigInteger lovelaceLeft) {
+        if (assetLeft.signum() < 0 || lovelaceLeft.signum() <= 0) return false;
+        Map<AssetId, BigInteger> assets = pins.adaVault() || assetLeft.signum() == 0 ? Map.of()
                 : Map.of(pins.asset(), assetLeft);
-        TransactionOutput continuation = output(pins.vaultAddress(), WIDEST_COIN, assets,
+        TransactionOutput continuation = output(pins.vaultAddress(), lovelaceLeft, assets,
                 GatewayPlutus.continuation(ids));
-        return pins.continuationFloor().max(minAda.calculateMinAda(continuation));
+        return lovelaceLeft.compareTo(pins.continuationFloor().max(minAda.calculateMinAda(continuation))) >= 0;
     }
 
     /**
@@ -479,10 +478,10 @@ public final class PayoutTxBuilder {
         try {
             result = evaluator.evaluateTx(serialize(tx), utxos(resolved));
         } catch (Exception failure) {
-            throw new BuildException("script evaluation failed: " + failure.getMessage(), failure);
+            throw evaluationFailure(String.valueOf(failure.getMessage()), failure);
         }
         if (result == null || !result.isSuccessful() || result.getValue() == null) {
-            throw new BuildException("script evaluation failed: " + (result == null ? "no result" : result.getResponse()));
+            throw evaluationFailure(result == null ? "no result" : String.valueOf(result.getResponse()), null);
         }
         List<Redeemer> redeemers = tx.getWitnessSet().getRedeemers();
         List<BigInteger> mem = new ArrayList<>();
@@ -499,6 +498,18 @@ public final class PayoutTxBuilder {
         for (int i = 0; i < redeemers.size(); i++) {
             redeemers.get(i).setExUnits(ExUnits.builder().mem(declaredMem.get(i)).steps(declaredSteps.get(i)).build());
         }
+    }
+
+    /**
+     * An evaluation failure. A script that ran out of budget ("Budget exhausted for Spend[i]") is a per-transaction
+     * limit, which a smaller batch may meet, so it is {@link LimitExceeded}; any other failure is not.
+     */
+    static BuildException evaluationFailure(String reason, Throwable cause) {
+        if (reason.toLowerCase(java.util.Locale.ROOT).contains("budget")) {
+            return new LimitExceeded("script evaluation ran out of budget: " + reason + "; split the batch");
+        }
+        return cause == null ? new BuildException("script evaluation failed: " + reason)
+                : new BuildException("script evaluation failed: " + reason, cause);
     }
 
     /**

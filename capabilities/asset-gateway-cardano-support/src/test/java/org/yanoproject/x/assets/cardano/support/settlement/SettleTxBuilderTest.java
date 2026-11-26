@@ -245,6 +245,96 @@ class SettleTxBuilderTest {
                 .isGreaterThan(BigInteger.valueOf(900_000));
     }
 
+    static ResolvedOutput custody(PayoutWorld world, int index, long tokens, long lovelace) {
+        boolean topUp = tokens == 0;
+        return world.add(new ResolvedOutput(PayoutWorld.outpoint(0x70, index), world.pins.vaultAddress(),
+                BigInteger.valueOf(lovelace), PayoutWorld.assets(PayoutWorld.TOKEN, tokens),
+                Optional.of(topUp ? FLOOR_TOP_UP : new byte[] {(byte) 0xd8, 0x7a, (byte) 0x81, (byte) 0x80}),
+                Optional.empty()));
+    }
+
+    static PayoutTxBuilder.Context withCustody(PayoutWorld world, int shard, List<ResolvedOutput> custody,
+                                                int maxVaultInputs) {
+        PayoutTxBuilder.Context base = world.context(shard);
+        return new PayoutTxBuilder.Context(base.pins(), custody, base.shardInput(), base.anchor(), base.exitMode(),
+                base.scriptRefs(), base.funding(), base.validFromSlot(), base.ttlSlot(), base.protocolParams(),
+                maxVaultInputs);
+    }
+
+    /** Re-review N2: once the token debit is covered, the remaining inputs are chosen for their lovelace. */
+    @Test
+    void afterTheTokenDebitIsCoveredInputsAreChosenByLovelace() {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        ResolvedOutput hundred = custody(world, 0, 100, 2_000_000);
+        ResolvedOutput fifty = custody(world, 1, 50, 2_000_000);
+        ResolvedOutput lovelace = custody(world, 2, 0, 20_000_000);
+        List<ResolvedOutput> selected = PayoutTxBuilder.selectVaultInputs(
+                withCustody(world, 0, List.of(hundred, fifty, lovelace), 2), BigInteger.valueOf(100),
+                BigInteger.valueOf(4_000_000), List.of(world.claim(0, 1).claimId()));
+        assertThat(selected).containsExactly(hundred, lovelace);
+    }
+
+    /** Re-review N3: the continuation is priced with its actual lovelace, not the widest coin. */
+    @Test
+    void aContinuationJustAboveItsMinUtxoBuilds() throws Exception {
+        PayoutWorld world = new PayoutWorld(AssetId.ADA);
+        world.vaultUtxos.forEach(utxo -> world.utxos.remove(utxo.outpoint()));
+        world.vaultUtxos.clear();
+        List<ClaimLeafV1> claims = world.claims(11, 16);
+        long paid = claims.stream().mapToLong(leaf -> leaf.value().quantityOf(AssetId.ADA).longValueExact()).sum();
+        world.vaultUtxos.add(world.add(new ResolvedOutput(PayoutWorld.outpoint(0x61, 0), world.pins.vaultAddress(),
+                BigInteger.valueOf(paid + 3_270_000), new java.util.TreeMap<>(),
+                Optional.of(new byte[] {(byte) 0xd8, 0x7a, (byte) 0x81, (byte) 0x80}), Optional.empty())));
+        world.anchor(claims, 84_000);
+        // The case: 3,270,000 lovelace covers the 16-id continuation's min-UTxO, but not its widest-coin price.
+        var minAda = new com.bloxbean.cardano.client.api.MinAdaCalculator(PayoutWorld.PARAMS);
+        var ids = GatewayPlutus.continuation(claims.stream().map(ClaimLeafV1::claimId).toList());
+        assertThat(minAda.calculateMinAda(PayoutTxBuilder.output(world.pins.vaultAddress(),
+                BigInteger.valueOf(3_270_000), java.util.Map.of(), ids)))
+                .isLessThanOrEqualTo(BigInteger.valueOf(3_270_000));
+        assertThat(minAda.calculateMinAda(PayoutTxBuilder.output(world.pins.vaultAddress(),
+                BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE), java.util.Map.of(), ids)))
+                .isGreaterThan(BigInteger.valueOf(3_270_000));
+        PayoutTxBuilder.Built built = PayoutTxBuilder.settle(world.context(11), claims, world.mirrors[11],
+                PayoutWorld.signers(2), world.evaluator());
+        assertThat(built.transaction().getBody().getOutputs().get(16).getValue().getCoin())
+                .isEqualTo(BigInteger.valueOf(3_270_000));
+        world.evaluate(built);
+    }
+
+    /** Re-review N4 (A): a script out of budget is a per-transaction limit, so the caller splits. */
+    @Test
+    void anExhaustedBudgetIsALimitTheCallerSplits() {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        List<ClaimLeafV1> claims = world.claims(12, 2);
+        world.anchor(claims, 85_000);
+        com.bloxbean.cardano.client.api.TransactionEvaluator exhausted = (cbor, inputs) ->
+                com.bloxbean.cardano.client.api.model.Result.error("Budget exhausted for Spend[1]");
+        assertThatThrownBy(() -> PayoutTxBuilder.settle(world.context(12), claims, world.mirrors[12],
+                PayoutWorld.signers(2), exhausted)).isInstanceOf(PayoutTxBuilder.LimitExceeded.class);
+        com.bloxbean.cardano.client.api.TransactionEvaluator broken = (cbor, inputs) ->
+                com.bloxbean.cardano.client.api.model.Result.error("the vault script failed");
+        assertThatThrownBy(() -> PayoutTxBuilder.settle(world.context(12), claims, world.mirrors[12],
+                PayoutWorld.signers(2), broken)).isInstanceOf(PayoutTxBuilder.BuildException.class)
+                .isNotInstanceOf(PayoutTxBuilder.LimitExceeded.class);
+    }
+
+    /** Re-review N4 (B): needing more than max-vault-inputs is a limit; custody that cannot cover is not. */
+    @Test
+    void exhaustingTheVaultInputCapIsALimitTheCallerSplits() {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        List<ResolvedOutput> fragments = List.of(custody(world, 0, 40, 6_000_000), custody(world, 1, 40, 6_000_000),
+                custody(world, 2, 40, 6_000_000));
+        List<Hash32> ids = List.of(world.claim(0, 1).claimId());
+        assertThatThrownBy(() -> PayoutTxBuilder.selectVaultInputs(withCustody(world, 0, fragments, 2),
+                BigInteger.valueOf(100), BigInteger.valueOf(1_000_000), ids))
+                .isInstanceOf(PayoutTxBuilder.LimitExceeded.class);
+        assertThatThrownBy(() -> PayoutTxBuilder.selectVaultInputs(withCustody(world, 0, fragments, 8),
+                BigInteger.valueOf(200), BigInteger.valueOf(1_000_000), ids))
+                .isInstanceOf(PayoutTxBuilder.BuildException.class)
+                .isNotInstanceOf(PayoutTxBuilder.LimitExceeded.class);
+    }
+
     static com.bloxbean.cardano.client.api.TransactionEvaluator units(long mem, long steps) {
         return (cbor, inputs) -> {
             try {
