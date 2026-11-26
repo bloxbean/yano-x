@@ -37,8 +37,12 @@ final class CommittedClaims implements SettleBodyCheck.Committed {
     }
 
     /**
-     * The confirmed nullifier inserts of one shard: every {@code PAID} claim of the vault routing to it (D8h §6). It
-     * walks the dense claim index, so it is complete or empty: a gap reads as unavailable.
+     * The confirmed nullifier inserts of one shard: every {@code PAID} or {@code PAID_MISMATCH} claim of the vault
+     * routing to it (D8h §6). A mismatched payout was still thread-authenticated, so its nullifier is in the shard;
+     * leaving it out would make the mirror miss the live root for good. It walks the dense claim index, so it is
+     * complete or empty: a gap reads as unavailable. An insert of an id this ledger never reserved (a governed or
+     * escape id, or a forged claim paid through a bug) is not in the index at all; only the L1-only shard rebuild
+     * (D8g §7) recovers such a shard.
      */
     Optional<List<Hash32>> paid(Hash32 vaultId, int shard) {
         Optional<Long> count = payload(SettlementQueries.CLAIM_COUNT, new byte[0]).map(SettlementQueries::decodeCount);
@@ -51,7 +55,9 @@ final class CommittedClaims implements SettleBodyCheck.Committed {
             if (SettlementBatchV1.shardOf(claimId) != shard) continue;
             Optional<SettlementQueries.ClaimView> view = claim(claimId);
             if (view.isEmpty()) return Optional.empty();
-            if (view.get().leaf().vaultId().equals(vaultId) && view.get().status().status() == ClaimStatus.PAID) {
+            ClaimStatus status = view.get().status().status();
+            if (view.get().leaf().vaultId().equals(vaultId)
+                    && (status == ClaimStatus.PAID || status == ClaimStatus.PAID_MISMATCH)) {
                 paid.add(claimId);
             }
         }

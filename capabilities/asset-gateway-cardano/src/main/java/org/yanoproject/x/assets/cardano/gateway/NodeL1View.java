@@ -44,17 +44,6 @@ final class NodeL1View {
         }
     }
 
-    /** True once {@code txId} has outputs in the view (spent or unspent): the transaction is included. */
-    boolean included(Hash32 txId) {
-        UtxoState state = view.get();
-        if (state == null) return false;
-        try {
-            return !state.getOutputsByTxHash(txId.hex()).isEmpty();
-        } catch (RuntimeException unavailable) {
-            return false;
-        }
-    }
-
     List<ResolvedOutput> at(byte[] rawAddress) {
         UtxoState state = view.get();
         List<ResolvedOutput> out = new ArrayList<>();

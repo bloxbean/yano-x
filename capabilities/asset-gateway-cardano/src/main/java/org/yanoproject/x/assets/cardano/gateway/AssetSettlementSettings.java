@@ -45,13 +45,21 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *                                   member's bound on the intervals it signs (D8h §1 step 0)
  * fee-wallet.key-file               owner only: a file holding the 32-byte Ed25519 seed (hex) of the fee wallet
  * validity-window-slots (600)       owner only: the Settle's validity window, at most 10 minutes of slots
- * max-vault-inputs (8), inclusion-timeout-ms (900000)
+ * max-vault-inputs (8)              owner only: vault inputs per Settle
+ * max-supplement-per-payout (0)     owner only: the most lovelace the fee wallet adds to one payout's min-UTxO (D11);
+ *                                   a claim needing more is left out of the co-signed batch and stays RESERVED for
+ *                                   Exit, where the relayer or the user supplements it
+ * stability-window-ms (600000)      owner only: an upper bound on the time from a Settle's inclusion to its committed
+ *                                   payout observation (the chain's l1.stability-depth in L1 time, plus finality)
+ * inclusion-timeout-ms (900000)     owner only: how long a submitted Settle may take to be confirmed by the payout
+ *                                   observer; must exceed stability-window-ms
  * </pre>
  */
 record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> pins, Map<Hash32, ScriptRefs> scriptRefs,
                                boolean owner, Duration roundTimeout, Optional<byte[]> feeWalletSeed,
                                SlotClock slots, long validityWindowSlots, int maxVaultInputs,
-                               Duration inclusionTimeout) {
+                               Duration inclusionTimeout, BigInteger maxSupplementPerPayout,
+                               Duration stabilityWindow) {
     /** The owner's validity window bound: the members accept a TTL up to 10 minutes plus clock skew past their tip. */
     static final long MAX_VALIDITY_WINDOW_MS = 600_000;
 
@@ -135,12 +143,23 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
             throw new IllegalArgumentException("validity-window-slots spans more than " + MAX_VALIDITY_WINDOW_MS
                     + " ms, past what members sign");
         }
+        Duration inclusion = Duration.ofMillis(bounded(optional(config, "inclusion-timeout-ms", "900000"), 1_000,
+                86_400_000L, "inclusion-timeout-ms"));
+        Duration stability = Duration.ofMillis(bounded(optional(config, "stability-window-ms", "600000"), 0,
+                86_400_000L, "stability-window-ms"));
+        if (inclusion.compareTo(stability) <= 0) {
+            // A Settle is confirmed only by its committed payout observation, which comes a stability depth after
+            // inclusion; a shorter timeout would re-batch claims a stable payout already paid.
+            throw new IllegalArgumentException("inclusion-timeout-ms must exceed stability-window-ms");
+        }
         return new AssetSettlementSettings(vaults, pins, refs, owner,
                 Duration.ofMillis(bounded(optional(config, "round-timeout-ms", "30000"), 100, 600_000,
                         "round-timeout-ms")), seed, slots, window,
                 (int) bounded(optional(config, "max-vault-inputs", "8"), 1, 32, "max-vault-inputs"),
-                Duration.ofMillis(bounded(optional(config, "inclusion-timeout-ms", "900000"), 1_000, 86_400_000L,
-                        "inclusion-timeout-ms")));
+                inclusion,
+                BigInteger.valueOf(bounded(optional(config, "max-supplement-per-payout", "0"), 0, 100_000_000L,
+                        "max-supplement-per-payout")),
+                stability);
     }
 
     Optional<VaultPins> vault(Hash32 vaultId) {
