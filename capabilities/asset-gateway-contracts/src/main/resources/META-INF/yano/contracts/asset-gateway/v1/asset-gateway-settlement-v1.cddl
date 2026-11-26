@@ -82,3 +82,17 @@ payout_record_v1 = [1,
   height: uint]
 escape_redemption_v1 = [1, escape_nullifier: hash32, vault_id: hash32, holder_id: holder_id,
   tx_id: hash32, recipient: raw_addr, quantity: u64, lovelace: u64, height: uint]
+
+; ---------------------------------------------------------------------------
+; Settlement batches (D7 step 4, D9). The consumer emits one asset.settlement.batch effect
+; (APP_FINAL, ResultPolicy.CHAIN, scope "asset-settlement/<sequence>") per batch of one shard.
+; The payload names claims only; the executor reads every claim field from committed state.
+; ---------------------------------------------------------------------------
+settlement_batch_v1 = [1, vault_id: hash32, shard_index: 0 .. 15,
+  claim_ids: [1*64 hash32]]            ; distinct, each routing to shard_index by its last nibble
+
+; Committed queries the consumer serves to the executor and relayer (SettlementQueries):
+;   asset-gateway/claim             claim_id          -> [leaf: bytes, status: bytes]  (empty = absent)
+;   asset-gateway/domain-status     empty             -> domain_status_v1 bytes, or empty
+;   asset-gateway/claim-count       empty             -> [count: uint]
+;   asset-gateway/claim-by-sequence [sequence: uint]  -> claim_id, or empty
