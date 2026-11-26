@@ -294,7 +294,7 @@ class AssetPaymentsWithdrawalTest {
     @Test
     void reservedClaimsAreBatchedPerShardAndResultsNeverChangeClaimStatus() {
         PaymentsHarness ledger = new PaymentsHarness(settings("settlement.batch-size", "2",
-                "settlement.batch-wait-ms", "10000"), true);
+                "settlement.batch-wait-ms", "10000", "settlement.min-queued-vault-lovelace", "0"), true);
         fund(ledger);
         assertThat(ledger.emitted).isEmpty();
         // Reserve claims until one shard holds two of them: that shard's batch is due by size.
@@ -357,7 +357,8 @@ class AssetPaymentsWithdrawalTest {
     /** Review P1 (rolled-back Settle): any result re-queues exactly the batch's claims still RESERVED. */
     @Test
     void anyResultRequeuesOnlyTheClaimsStillReserved() {
-        PaymentsHarness ledger = new PaymentsHarness(settings("settlement.batch-wait-ms", "60000"), true);
+        PaymentsHarness ledger = new PaymentsHarness(settings("settlement.batch-wait-ms", "60000",
+                "settlement.min-queued-vault-lovelace", "0"), true);
         fund(ledger);
         Map<Integer, List<Hash32>> byShard = reserveUntilAShardHolds(ledger, 2, T0 + 2_000);
         int shard = byShard.entrySet().stream().filter(e -> e.getValue().size() == 2).findFirst().orElseThrow()
@@ -383,18 +384,40 @@ class AssetPaymentsWithdrawalTest {
     void byDefaultAClaimIsBatchedInItsReservingBlock() {
         PaymentsHarness ledger = new PaymentsHarness(settings(), true);
         fund(ledger);
-        ledger.block(T0 + 2_000, intent(owner(alice, withdrawal(alice, USDM_VAULT, alice.address(), 1, 0))));
-        Hash32 claimId = expectedClaimId(USDM_VAULT, USDM, alice, alice.address(), 1, 0, 0);
+        ledger.block(T0 + 2_000, intent(owner(alice, withdrawal(alice, USDM_VAULT, alice.address(), 1, 1_300_000))));
+        Hash32 claimId = expectedClaimId(USDM_VAULT, USDM, alice, alice.address(), 1, 1_300_000, 0);
         assertThat(ledger.emitted).singleElement().satisfies(entry -> {
             assertThat(entry.getKey().height()).isEqualTo(ledger.height);
             assertThat(SettlementBatchV1.decode(entry.getValue().payload()).claimIds()).containsExactly(claimId);
         });
     }
 
+    /**
+     * Re-review (Fable P3-1): a token claim whose vaultLovelace cannot carry its payout without a supplement is never
+     * batched, so it stays payable by Exit and churns no effects; one that can is batched.
+     */
+    @Test
+    void aTokenClaimTooPoorForItsMinUtxoIsNeverBatched() {
+        PaymentsHarness ledger = new PaymentsHarness(settings(), true);
+        fund(ledger);
+        IntentEnvelopeV1 poor = withdrawal(alice, USDM_VAULT, alice.address(), 1, 0);
+        ledger.block(T0 + 2_000, intent(owner(alice, poor)));
+        Hash32 poorId = expectedClaimId(USDM_VAULT, USDM, alice, alice.address(), 1, 0, 0);
+        assertThat(status(ledger, poorId).orElseThrow().status()).isEqualTo(SettlementRecords.ClaimStatus.RESERVED);
+        assertThat(ledger.emitted).isEmpty();
+        assertThat(snapshot(ledger, "ap/settle")).isEmpty();
+        // A token claim whose vaultLovelace covers the payout queues.
+        ledger.block(T0 + 3_000, intent(owner(alice, withdrawal(alice, USDM_VAULT, alice.address(), 2, 1_300_000))));
+        assertThat(ledger.emitted).singleElement().satisfies(entry ->
+                assertThat(SettlementBatchV1.decode(entry.getValue().payload()).claimIds()).containsExactly(
+                        expectedClaimId(USDM_VAULT, USDM, alice, alice.address(), 2, 1_300_000, 1)));
+    }
+
     /** Review P2-6: one shard's refused emission does not stop the other shards' batches. */
     @Test
     void aRefusedEmissionHoldsOnlyItsOwnShard() {
-        PaymentsHarness ledger = new PaymentsHarness(settings("settlement.batch-wait-ms", "60000"), true);
+        PaymentsHarness ledger = new PaymentsHarness(settings("settlement.batch-wait-ms", "60000",
+                "settlement.min-queued-vault-lovelace", "0"), true);
         fund(ledger);
         Map<Integer, List<Hash32>> byShard = reserveUntil(ledger, T0 + 2_000, shards -> shards.size() >= 3);
         int refused = byShard.keySet().iterator().next();
@@ -412,7 +435,8 @@ class AssetPaymentsWithdrawalTest {
     /** Review P2-6: the batch cap is what the chain's effect payload limit carries, and the expiry fits the window. */
     @Test
     void theBatchCapFollowsTheEffectPayloadLimitAndTheExpiryIsChecked() {
-        PaymentsHarness ledger = new PaymentsHarness(settings("settlement.batch-wait-ms", "3600000"),
+        PaymentsHarness ledger = new PaymentsHarness(settings("settlement.batch-wait-ms", "3600000",
+                "settlement.min-queued-vault-lovelace", "0"),
                 PaymentsHarness.effectsProfile(SettlementBatchV1.encodedSize(2), 1_000));
         fund(ledger);
         Map<Integer, List<Hash32>> byShard = reserveUntilAShardHolds(ledger, 2, T0 + 2_000);

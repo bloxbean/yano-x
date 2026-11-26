@@ -156,7 +156,7 @@ class AssetPaymentsSettlementEndToEndTest {
 
         // 1. Reservation (D7) and its batch effect.
         IntentEnvelopeV1 request = env(AssetPaymentsContract.REQUEST_WITHDRAWAL, new PaymentsBodies.RequestWithdrawal(
-                USDM_VAULT, alice.address(), BigInteger.valueOf(40), BigInteger.valueOf(1_200_000)).encode());
+                USDM_VAULT, alice.address(), BigInteger.valueOf(40), BigInteger.valueOf(1_500_000)).encode());
         ledger.block(T0 + 2_000, intent(owner(alice, request)));
         assertThat(ledger.receipt(request).orElseThrow().outcome()).isEqualTo(PaymentsRecords.Outcome.ACCEPTED);
         assertThat(ledger.emitted).hasSize(1);
@@ -229,7 +229,7 @@ class AssetPaymentsSettlementEndToEndTest {
         ledger.block(T0 + 4_000, observations.stream().map(PaymentsHarness::deposit).toArray(Message[]::new));
         assertThat(status(ledger, claimId)).isEqualTo(SettlementRecords.ClaimStatus.PAID);
         assertThat(ledger.counters(USDM_VAULT).paid()).isEqualTo(BigInteger.valueOf(40));
-        assertThat(ledger.counters(USDM_VAULT).lovelacePaid()).isEqualTo(BigInteger.valueOf(1_200_000));
+        assertThat(ledger.counters(USDM_VAULT).lovelacePaid()).isEqualTo(BigInteger.valueOf(1_500_000));
         assertThat(ledger.counters(USDM_VAULT).reserved()).isZero();
         assertThat(SettlementQueries.decodeDomainStatus(ledger.query(SettlementQueries.DOMAIN_STATUS, new byte[0]))
                 .orElseThrow().status()).isEqualTo(DomainStatusV1.Status.ACTIVE);

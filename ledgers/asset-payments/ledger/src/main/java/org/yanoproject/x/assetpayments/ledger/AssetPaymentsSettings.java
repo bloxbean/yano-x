@@ -52,6 +52,14 @@ import java.util.Set;
  * settlement.expiry-blocks (0 = the chain default)                       the batch effect's CHAIN expiry, within
  *                                                                         effects.max-expiry-blocks and the result
  *                                                                         window
+ * settlement.min-queued-vault-lovelace (1300000)                         D11: a token claim whose vaultLovelace is
+ *                                                                         below this is never batched and stays
+ *                                                                         payable by Exit only; the default covers
+ *                                                                         the min-UTxO of any single-asset payout
+ *                                                                         (base address, 32-byte asset name, u64
+ *                                                                         quantity) at 4310 lovelace per byte, the
+ *                                                                         payout an executor with the default
+ *                                                                         max-supplement-per-payout of 0 can pay
  * vaults.N.asset, vaults.N.script-hash, vaults.N.address                  the fixed vault set (I29), N = 0, 1, ...
  *                                                                         contiguous; distinct addresses, no other keys
  * vaults.N.status (ACTIVE), vaults.N.ticker (""), vaults.N.decimals (0), vaults.N.active-from-slot (0)
@@ -69,9 +77,10 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                              int minStabilityDepth, long exitDelayMs, List<PaymentsRecords.RegistryEntryV1> vaults,
                              long minAdaPayout, long payoutLovelaceCap, Settlement settlement) {
     /** D7 step 4: how reserved claims are batched into {@code asset.settlement.batch} effects. */
-    record Settlement(int batchSize, long batchWaitMs, long expiryBlocks) {
+    record Settlement(int batchSize, long batchWaitMs, long expiryBlocks, long minQueuedVaultLovelace) {
         Settlement {
-            if (batchSize < 1 || batchSize > MAX_SETTLE_BATCH || batchWaitMs < 0 || expiryBlocks < 0) {
+            if (batchSize < 1 || batchSize > MAX_SETTLE_BATCH || batchWaitMs < 0 || expiryBlocks < 0
+                    || minQueuedVaultLovelace < 0) {
                 throw new IllegalArgumentException("settlement batching is out of range");
             }
         }
@@ -129,7 +138,9 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                         "settlement.batch-size"),
                 bounded(optional(settings, "settlement.batch-wait-ms", "0"), 0, 7L * 24 * 3_600_000,
                         "settlement.batch-wait-ms"),
-                bounded(optional(settings, "settlement.expiry-blocks", "0"), 0, 1_000_000, "settlement.expiry-blocks"));
+                bounded(optional(settings, "settlement.expiry-blocks", "0"), 0, 1_000_000, "settlement.expiry-blocks"),
+                bounded(optional(settings, "settlement.min-queued-vault-lovelace", "1300000"), 0, 1_000_000_000_000L,
+                        "settlement.min-queued-vault-lovelace"));
 
         List<PaymentsRecords.RegistryEntryV1> vaults = new ArrayList<>();
         Set<AssetId> assets = new HashSet<>();
@@ -214,7 +225,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                 "min-ada-payout=" + minAdaPayout, "payout-lovelace-cap=" + payoutLovelaceCap,
                 "settlement.batch-size=" + settlement.batchSize(),
                 "settlement.batch-wait-ms=" + settlement.batchWaitMs(),
-                "settlement.expiry-blocks=" + settlement.expiryBlocks()));
+                "settlement.expiry-blocks=" + settlement.expiryBlocks(),
+                "settlement.min-queued-vault-lovelace=" + settlement.minQueuedVaultLovelace()));
         for (PaymentsRecords.RegistryEntryV1 vault : vaults) fields.add("vault=" + HexFormat.of().formatHex(vault.encode()));
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();

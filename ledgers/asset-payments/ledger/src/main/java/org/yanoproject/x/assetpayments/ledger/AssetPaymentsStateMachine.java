@@ -77,7 +77,9 @@ import java.util.Optional;
  * payout-lovelace-cap)}, the balances cover it), moves the amount from available to reserved, and writes the
  * immutable {@link ClaimLeafV1} at {@code claim/<ClaimId>} with a {@code RESERVED} status, all in the intent's staged
  * transition. Its {@code ClaimId} binds the account (the withdrawal key) and a dense claim sequence. On a chain with
- * effects, the claim joins its shard's queue; a queue emits one {@code asset.settlement.batch} effect
+ * effects, the claim joins its shard's queue (a token claim only when its {@code vaultLovelace} reaches
+ * {@code settlement.min-queued-vault-lovelace}; below it the claim is paid by {@code Exit} only, D11); a queue emits
+ * one {@code asset.settlement.batch} effect
  * ({@code APP_FINAL}, {@code CHAIN}) of at most {@code settlement.batch-size} claims (and at most what fits the
  * chain's effect payload limit) when it reaches that size or its oldest claim has waited
  * {@code settlement.batch-wait-ms}. With the default wait of 0 a claim is batched in the block that reserves it; a
@@ -624,7 +626,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         payouts(state).writeReserved(state, leaf);
         state.put(AssetPaymentsContract.claimIndexKey(sequence), claimId.bytes());
         state.put(AssetPaymentsContract.claimSequenceKey(), PaymentsRecords.encodeU64s(sequence + 1));
-        if (batching) enqueue(state, body.vaultId(), claimId, block.timestamp());
+        if (batching && queued(asset, amount, lovelace)) enqueue(state, body.vaultId(), claimId, block.timestamp());
         return Result.accepted().about(asset, amount);
     }
 
@@ -636,6 +638,18 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     }
 
     // ------------------------------------------------------------------ settlement batches (D7 step 4)
+
+    /**
+     * Whether a reserved claim joins a settlement queue. A token claim whose {@code vaultLovelace} is below
+     * {@code settlement.min-queued-vault-lovelace} could be paid by a co-signed batch only with a supplement from the
+     * operator's fee wallet (D11), which the executor refuses by default; batching it would only cycle effects, so it
+     * stays {@code RESERVED} and payable by {@code Exit}, where the relayer or the user supplements it. ADA and
+     * credit-only claims pay at least {@code min-ada-payout} of lovelace and always queue.
+     */
+    private boolean queued(AssetId asset, BigInteger amount, BigInteger vaultLovelace) {
+        return asset.isAda() || amount.signum() == 0
+                || vaultLovelace.compareTo(BigInteger.valueOf(settings.settlement().minQueuedVaultLovelace())) >= 0;
+    }
 
     private void enqueue(AssetAccounts.Store state, Hash32 vaultId, Hash32 claimId, long queuedAtMs) {
         int shard = SettlementBatchV1.shardOf(claimId);
