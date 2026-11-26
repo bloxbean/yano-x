@@ -12,6 +12,7 @@ import org.yanoproject.x.assets.contracts.BalanceExitObservationV1;
 import org.yanoproject.x.assets.contracts.ClaimKind;
 import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
+import org.yanoproject.x.assets.contracts.CardanoAddresses;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.assets.contracts.PayoutClaimV1;
@@ -353,6 +354,26 @@ class AssetVaultPayoutObserverTest {
         int shard = leaf.claimId().bytes()[31] & 0x0f;
 
         List<L1Observation> observations = observeBytes(payoutTx(1, leaf, padded,
+                List.of(settleRedeemer(shard, leaf.claimId()), shardRedeemer(leaf.claimId()))));
+
+        assertThat(observations).singleElement().satisfies(observation -> assertThat(
+                ((PayoutObservationV1) claim(observation)).payouts().getFirst().recipient()).isEqualTo(canonical));
+        assertPaidWithoutHalt(consumer, observations, leaf);
+    }
+
+    @Test
+    void aPointerPaddedPastTheAddressBoundStillConfirmsItsCanonicalClaim() {
+        // M4S1-F1: 100 leading 0x80 digits make the raw output address 132 bytes, over the 128-byte recipient bound,
+        // but it rebuilds to the canonical 32-byte pointer the claim names. The bound applies to the rebuild.
+        byte[] canonical = pointer(ALICE_KEY, "050102");
+        byte[] padded = pointer(ALICE_KEY, "80".repeat(100) + "05" + "01" + "02");
+        assertThat(padded.length).isGreaterThan(GatewayIds.MAX_ADDRESS_BYTES);
+        assertThat(CardanoAddresses.scriptRebuiltForm(padded)).isEqualTo(canonical);
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, canonical, 2);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+
+        List<L1Observation> observations = observeBytes(payoutTx(2, leaf, padded,
                 List.of(settleRedeemer(shard, leaf.claimId()), shardRedeemer(leaf.claimId()))));
 
         assertThat(observations).singleElement().satisfies(observation -> assertThat(

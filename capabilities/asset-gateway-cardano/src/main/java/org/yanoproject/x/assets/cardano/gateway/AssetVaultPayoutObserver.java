@@ -207,10 +207,13 @@ final class AssetVaultPayoutObserver implements L1Observer {
 
     private static PayoutClaimV1.Payout payout(AssetVaultShardSettings.Vault vault, TransactionOutput output) {
         byte[] raw = L1Tx.addressBytes(output.getAddress());
-        if (raw == null || raw.length > 128) return null;
+        if (raw == null) return null;
         // The bytes the vault script compared with the claim, not the output's own encoding: a pointer output with
-        // padded naturals pays a canonical claim.
+        // padded naturals pays a canonical claim. The bound applies to the rebuild, never to the raw bytes: a pointer
+        // padded past 128 raw bytes still rebuilds to a canonical recipient, and dropping it would leave its batch
+        // RESERVED (M4S1-F1).
         byte[] recipient = CardanoAddresses.scriptRebuiltForm(raw);
+        if (recipient == null || recipient.length == 0 || recipient.length > GatewayIds.MAX_ADDRESS_BYTES) return null;
         OutputValues.Summary summary = OutputValues.summary(OutputValues.of(output.getAmounts()), vault.asset());
         return new PayoutClaimV1.Payout(recipient, summary.registeredQuantity(), summary.lovelace());
     }

@@ -309,8 +309,20 @@ public final class PayoutConfirmation {
         }
         if (plan.isEmpty()) return Result.of(Disposition.DUPLICATE, "already confirmed");
 
-        // The reserved counters must cover every user withdrawal this observation pays; anything else means the
-        // ledger is inconsistent, which halts rather than throwing midway.
+        // A user withdrawal whose leaf pays nothing of this vault's asset and no lovelace cannot be settled against
+        // the reserved counters (consumeReserved refuses it): the ledger is inconsistent, which halts.
+        List<Planned> checked = new ArrayList<>();
+        for (Planned planned : plan) {
+            boolean empty = planned.outcome() == Outcome.PAID && !planned.leaf().orElseThrow().kind().governed()
+                    && claimAmount(planned.leaf().get(), vault).signum() == 0
+                    && planned.leaf().get().vaultLovelace().signum() == 0;
+            checked.add(empty ? new Planned(planned.claimId(), Outcome.PAID_MISMATCH, Reason.LEDGER_INCONSISTENT,
+                    planned.leaf(), planned.status()) : planned);
+        }
+        plan = checked;
+
+        // The reserved counters must cover every user withdrawal this observation pays, and the paid counters must
+        // stay within u128; anything else means the ledger is inconsistent, which halts rather than throwing midway.
         AssetAccounts accounts = new AssetAccounts(prefix, store);
         BigInteger amount = BigInteger.ZERO;
         BigInteger lovelace = BigInteger.ZERO;
@@ -324,7 +336,9 @@ public final class PayoutConfirmation {
         try {
             AssetAccounts.VaultCounters counters = accounts.counters(vault.vaultId());
             covered = counters.reserved().compareTo(amount) >= 0
-                    && counters.lovelaceReserved().compareTo(lovelace) >= 0;
+                    && counters.lovelaceReserved().compareTo(lovelace) >= 0
+                    && counters.paid().add(amount).compareTo(Quantities.MAX_U128) <= 0
+                    && counters.lovelacePaid().add(lovelace).compareTo(Quantities.MAX_U128) <= 0;
         } catch (IllegalArgumentException undecodable) {
             covered = false;
         }
