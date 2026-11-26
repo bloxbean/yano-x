@@ -277,6 +277,43 @@ class PayoutConfirmationTest {
     }
 
     @Test
+    void paidCountersThatWouldOverflowU128HaltInsteadOfThrowing() {
+        ClaimLeafV1 leaf = reserve(USDM_VAULT, ClaimKind.USER_WITHDRAWAL, 10, 0);
+        AssetAccounts.VaultCounters counters = accounts.counters(USDM_VAULT);
+        BigInteger nearMax = Quantities.MAX_U128.subtract(BigInteger.valueOf(5));
+        store.put(accounts.countersKey(USDM_VAULT), new AssetAccounts.VaultCounters(nearMax, nearMax,
+                counters.available(), counters.reserved(), counters.lovelaceCredited(), counters.lovelacePaid(),
+                counters.lovelaceAvailable(), counters.lovelaceReserved()).encode());
+
+        PayoutConfirmation.Result result = apply(payout(USDM_VAULT, 0x5d, List.of(leaf.claimId()),
+                List.of(pays(RECIPIENT, 10, 1_000_000))));
+
+        assertThat(result.claims().getFirst().reason()).isEqualTo(Reason.LEDGER_INCONSISTENT);
+        assertThat(result.halted()).isTrue();
+        assertThat(status(leaf.claimId())).isEqualTo(ClaimStatus.PAID_MISMATCH);
+    }
+
+    @Test
+    void aUserLeafPayingNothingOfTheVaultHaltsInsteadOfThrowing() {
+        // A leaf of the USDM vault whose value names another asset: nothing of USDM and no lovelace to settle.
+        AssetId other = AssetId.of(filled(28, 0x3c), new byte[] {1});
+        AssetValue value = AssetValue.single(other, BigInteger.TEN);
+        Hash32 claimId = GatewayIds.claimId(DOMAIN, USDM_VAULT, ClaimKind.USER_WITHDRAWAL, new byte[] {8}, RECIPIENT,
+                value, BigInteger.ZERO, 8);
+        accounts.credit(USDM_VAULT, ALICE, ALICE_KEY, BigInteger.TEN, BigInteger.ZERO);
+        accounts.reserve(USDM_VAULT, ALICE, BigInteger.TEN, BigInteger.ZERO);
+        confirmation.writeReserved(store, new ClaimLeafV1(claimId, USDM_VAULT, ClaimKind.USER_WITHDRAWAL, value,
+                BigInteger.ZERO, RECIPIENT, 1, 1));
+
+        PayoutConfirmation.Result result = apply(payout(USDM_VAULT, 0x5e, List.of(claimId),
+                List.of(pays(RECIPIENT, 0, 1_000_000))));
+
+        assertThat(result.claims().getFirst().reason()).isEqualTo(Reason.LEDGER_INCONSISTENT);
+        assertThat(result.halted()).isTrue();
+        assertThat(accounts.counters(USDM_VAULT).paid()).isZero();
+    }
+
+    @Test
     void aSweepIsConfirmedFromItsSweepPaidClaimAndHandsTheGovernedClaimToTheConsumer() {
         ClaimLeafV1 leaf = reserve(USDM_VAULT, ClaimKind.SWEEP_UNATTRIBUTED, 7, 1_200_000);
         PayoutObservationV1 sweep = new PayoutObservationV1(DOMAIN, USDM_VAULT, Hash32.of(filled(32, 0x60)), 900,

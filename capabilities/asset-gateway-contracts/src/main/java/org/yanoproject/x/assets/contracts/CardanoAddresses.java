@@ -68,7 +68,7 @@ public final class CardanoAddresses {
         if (raw == null || raw.length == 0) return raw;
         int type = (raw[0] & 0xff) >> 4;
         if ((type != 4 && type != 5) || raw.length <= 1 + HASH_BYTES) return raw.clone();
-        ByteArrayOutputStream out = new ByteArrayOutputStream(raw.length);
+        ByteArrayOutputStream out = new ByteArrayOutputStream(Math.min(raw.length, 64));
         out.write(raw, 0, 1 + HASH_BYTES);
         int position = 1 + HASH_BYTES;
         for (int natural = 0; natural < 3; natural++) {
