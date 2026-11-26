@@ -117,7 +117,7 @@ class AssetSettlementExecutorTest {
     /** One L1 seen identically by both nodes. */
     final Map<String, Utxo> l1 = new LinkedHashMap<>();
     final List<AppMessage> bus = new ArrayList<>();
-    final List<byte[]> submitted = new ArrayList<>();
+    final List<byte[]> submitted = java.util.Collections.synchronizedList(new ArrayList<>());
     /** This node's wall clock, which the tests move. */
     long now = NOW;
     int maxTxSize = 16_384;
@@ -412,7 +412,12 @@ class AssetSettlementExecutorTest {
     }
 
     static PendingEffect effect(SettlementBatchV1 batch) {
-        return PendingEffect.of(new EffectRecord(EffectRecord.RECORD_VERSION, CHAIN, 5, 0,
+        return effect(batch, 0);
+    }
+
+    /** The effect at {@code ordinal} of block 5: effects of one executor need distinct ordinals. */
+    static PendingEffect effect(SettlementBatchV1 batch, int ordinal) {
+        return PendingEffect.of(new EffectRecord(EffectRecord.RECORD_VERSION, CHAIN, 5, ordinal,
                 SettlementBatchV1.EFFECT_TYPE, batch.encode(), SettlementBatchV1.scope(0), FinalityGate.APP_FINAL,
                 ResultPolicy.CHAIN, 100, null));
     }
@@ -435,8 +440,12 @@ class AssetSettlementExecutorTest {
 
     /** Delivers diffused messages to every other node until the bus is quiet, on a helper thread. */
     void pump(Node... nodes) {
+        pump(2_000, nodes);
+    }
+
+    void pump(long millis, Node... nodes) {
         Thread pump = new Thread(() -> {
-            long until = System.currentTimeMillis() + 2_000;
+            long until = System.currentTimeMillis() + millis;
             int delivered = 0;
             while (System.currentTimeMillis() < until) {
                 List<AppMessage> pending;
@@ -738,7 +747,7 @@ class AssetSettlementExecutorTest {
         for (int seed = 0; seed < 64; seed++) ids.add(claim(5, 1_000 + seed, 400).claimId());
         SettlementBatchV1 batch = new SettlementBatchV1(VAULT, 5, ids);
         AssetSettlementExecutor.Journal journal = AssetSettlementExecutor.Journal.of(Hash32.of(filled(32, 0x3c)),
-                batch, List.of(ids.getLast()), NOW + 1);
+                batch, List.of(ids.getLast()), NOW + 1, Set.of());
         assertThat(AssetSettlementExecutor.Journal.recover(journal.ref(), batch)).hasValueSatisfying(recovered -> {
             assertThat(recovered.claimIds()).containsExactly(ids.getLast());
             assertThat(recovered.deadlineMs()).isEqualTo(NOW + 1);
@@ -970,5 +979,213 @@ class AssetSettlementExecutorTest {
         owner.ledger.domain = new DomainStatusV1(DomainStatusV1.Status.PAUSED, 1, 1, 86_400_000L);
         assertThat(executor.execute(attempt(2, new byte[0]), effect)).isInstanceOf(EffectExecution.Retry.class);
         assertThat(submitted).isEmpty();
+    }
+
+    // ------------------------------------------------------------------ reviewer3 M4S2-F1: concurrent attempts
+
+    String feeAddress() {
+        return AddressProvider.getEntAddress(Credential.fromKey(Blake2bUtil.blake2bHash224(publicKey(FEE_SEED))),
+                Networks.testnet()).getAddress();
+    }
+
+    /** Applies a submitted transaction to the shared L1: its inputs are spent and its outputs are live. */
+    void land(byte[] signedTx) throws Exception {
+        Transaction tx = Transaction.deserialize(signedTx);
+        String id = TransactionUtil.getTxHash(signedTx);
+        for (var input : tx.getBody().getInputs()) l1.remove(input.getTransactionId() + "#" + input.getIndex());
+        var outputs = tx.getBody().getOutputs();
+        for (int i = 0; i < outputs.size(); i++) {
+            var out = outputs.get(i);
+            List<AssetAmount> assets = new ArrayList<>();
+            if (out.getValue().getMultiAssets() != null) {
+                for (var multi : out.getValue().getMultiAssets()) {
+                    for (var a : multi.getAssets()) {
+                        assets.add(new AssetAmount(multi.getPolicyId(),
+                                HexFormat.of().formatHex(a.getNameAsBytes()), a.getValue()));
+                    }
+                }
+            }
+            byte[] datum = out.getInlineDatum() == null ? null : out.getInlineDatum().serializeToBytes();
+            put(new Utxo(new Outpoint(id, i), out.getAddress(), out.getValue().getCoin(), assets, null, datum, null,
+                    null, false, 100, 10, "bb".repeat(32)));
+        }
+    }
+
+    static Set<String> inputsOf(byte[] signedTx) throws Exception {
+        Set<String> inputs = new java.util.HashSet<>();
+        for (var input : Transaction.deserialize(signedTx).getBody().getInputs()) {
+            inputs.add(input.getTransactionId() + "#" + input.getIndex());
+        }
+        return inputs;
+    }
+
+    /** No two submitted transactions spend one outpoint. */
+    void assertNoDoubleSpend() throws Exception {
+        Set<String> seen = new java.util.HashSet<>();
+        for (byte[] tx : List.copyOf(submitted)) {
+            for (String input : inputsOf(tx)) assertThat(seen.add(input)).as("spent twice: " + input).isTrue();
+        }
+    }
+
+    /**
+     * Four batches at once on four workers (max-parallel 4): three shards and a second batch on one of them. The
+     * attempts are serialized, no two Settles spend one outpoint, the same-shard batch waits while the first is not
+     * included, and once it is, the waiting batch chains on its shard output, as does a third one, without a mirror
+     * mismatch.
+     */
+    @Test
+    void concurrentBatchesNeverSpendOneOutpointTwiceAndASameShardBatchWaits() throws Exception {
+        seed(500);
+        // Custody and fee funds for four Settles at once.
+        for (int i = 1; i < 4; i++) {
+            put(utxo("61".repeat(32), i, enterprise(VAULT_HASH), 50_000_000,
+                    asset("f0".repeat(28), "5553444d", 100_000), HexFormat.of().parseHex("d87a8180"), null));
+        }
+        for (int i = 1; i < 12; i++) put(utxo("60".repeat(32), i, feeAddress(), 80_000_000, List.of(), null, null));
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) executor(owner, true);
+        executor(member, false);
+        ClaimLeafV1 first = claim(1, 101, 400);
+        ClaimLeafV1 second = claim(1, 102, 400);
+        ClaimLeafV1 third = claim(1, 105, 400);
+        List<ClaimLeafV1> all = List.of(first, second, third, claim(2, 103, 400), claim(3, 104, 400));
+        for (ClaimLeafV1 leaf : all) {
+            owner.ledger.reserve(leaf);
+            member.ledger.reserve(leaf);
+        }
+        pump(30_000, owner, member);
+        List<PendingEffect> effects = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            ClaimLeafV1 leaf = List.of(first, second, all.get(3), all.get(4)).get(i);
+            effects.add(effect(new SettlementBatchV1(VAULT, SettlementBatchV1.shardOf(leaf.claimId()),
+                    List.of(leaf.claimId())), i));
+        }
+
+        java.util.concurrent.ExecutorService workers = java.util.concurrent.Executors.newFixedThreadPool(4);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<EffectExecution>> futures = new ArrayList<>();
+        for (PendingEffect effect : effects) {
+            futures.add(workers.submit(() -> {
+                start.await();
+                return executor.execute(attempt(1, new byte[0]), effect);
+            }));
+        }
+        start.countDown();
+        List<EffectExecution> results = new ArrayList<>();
+        for (var future : futures) results.add(future.get(60, java.util.concurrent.TimeUnit.SECONDS));
+        workers.shutdown();
+
+        assertNoDoubleSpend();
+        assertThat(submitted).hasSize(3);
+        assertThat(results.subList(2, 4)).allMatch(EffectExecution.Submitted.class::isInstance);
+        // One shard-1 batch went first; the other waits for it, and builds nothing that would conflict.
+        int ahead = results.get(0) instanceof EffectExecution.Submitted ? 0 : 1;
+        int behind = 1 - ahead;
+        assertThat(results.get(ahead)).isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(results.get(behind)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.execute(attempt(2, new byte[0]), effects.get(behind)))
+                .isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.lastOutcome()).isEqualTo("awaiting the pending Settle on this shard");
+        assertThat(submitted).hasSize(3);
+
+        // The first shard-1 Settle is included, not yet confirmed: the waiting batch chains on its shard output.
+        byte[] aheadRef = ((EffectExecution.Submitted) results.get(ahead)).externalRef();
+        byte[] aheadTx = submitted.stream().filter(tx -> {
+            try {
+                return TransactionUtil.getTxHash(tx).equals(HexFormat.of().formatHex(txIdOf(aheadRef)));
+            } catch (Exception failure) {
+                throw new IllegalStateException(failure);
+            }
+        }).findFirst().orElseThrow();
+        land(aheadTx);
+        EffectExecution chained = executor.execute(attempt(3, new byte[0]), effects.get(behind));
+        assertThat(chained).as(executor.lastOutcome()).isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(inputsOf(submitted.getLast())).contains(TransactionUtil.getTxHash(aheadTx) + "#"
+                + (Transaction.deserialize(aheadTx).getBody().getOutputs().size() - 2));
+        assertNoDoubleSpend();
+
+        // The first one confirms and the second lands: a third batch on the shard still finds its mirror.
+        ClaimLeafV1 aheadClaim = ahead == 0 ? first : second;
+        owner.ledger.resolve(aheadClaim.claimId(), SettlementRecords.ClaimStatus.PAID, Hash32.of(txIdOf(aheadRef)));
+        member.ledger.resolve(aheadClaim.claimId(), SettlementRecords.ClaimStatus.PAID, Hash32.of(txIdOf(aheadRef)));
+        assertThat(executor.execute(attempt(2, aheadRef), effects.get(ahead)))
+                .isInstanceOf(EffectExecution.Confirmed.class);
+        land(submitted.getLast());
+        PendingEffect next = effect(new SettlementBatchV1(VAULT, 1, List.of(third.claimId())), 4);
+        EffectExecution last = executor.execute(attempt(1, new byte[0]), next);
+        assertThat(last).as(executor.lastOutcome()).isInstanceOf(EffectExecution.Submitted.class);
+        assertNoDoubleSpend();
+    }
+
+    /** M4S2-F1: the fee wallet's only output is held by a pending Settle, so another batch waits until it closes. */
+    @Test
+    void aBatchWaitsForFeeFundsHeldByAPendingSettleUntilItCloses() throws Exception {
+        seed(500); // one lovelace-only fee output
+        put(utxo("61".repeat(32), 1, enterprise(VAULT_HASH), 50_000_000, asset("f0".repeat(28), "5553444d", 100_000),
+                HexFormat.of().parseHex("d87a8180"), null));
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) executor(owner, true);
+        executor(member, false);
+        ClaimLeafV1 x = claim(1, 111, 400);
+        ClaimLeafV1 y = claim(2, 112, 400);
+        for (ClaimLeafV1 leaf : List.of(x, y)) {
+            owner.ledger.reserve(leaf);
+            member.ledger.reserve(leaf);
+        }
+        pump(owner, member);
+        PendingEffect firstEffect = effect(new SettlementBatchV1(VAULT, 1, List.of(x.claimId())), 0);
+        PendingEffect secondEffect = effect(new SettlementBatchV1(VAULT, 2, List.of(y.claimId())), 1);
+        byte[] ref = ((EffectExecution.Submitted) executor.execute(attempt(1, new byte[0]), firstEffect))
+                .externalRef();
+
+        assertThat(executor.execute(attempt(1, new byte[0]), secondEffect)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.lastOutcome()).isEqualTo("no fee wallet funds");
+        assertThat(submitted).hasSize(1);
+
+        // The first closes unconfirmed past its deadline (never included): its outputs are released.
+        now = NOW + 900_001;
+        pump(owner, member);
+        assertThat(executor.execute(attempt(2, ref), firstEffect)).isInstanceOf(EffectExecution.Failed.class);
+        EffectExecution second = executor.execute(attempt(2, new byte[0]), secondEffect);
+        assertThat(second).as(executor.lastOutcome()).isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(submitted).hasSize(2);
+    }
+
+    /** M4S2-F1 non-blocking: with two vaults configured, the refusal reported is the spent vault's own. */
+    @Test
+    void aMemberWithTwoVaultsReportsTheSpentVaultsRefusal() throws Exception {
+        seed(500);
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        AppEffectExecutor executor = executor(owner, true);
+        Map<String, String> twoVaults = config(false);
+        twoVaults.put("vaults.1.asset", "lovelace");
+        twoVaults.put("vaults.1.script-hash", HexFormat.of().formatHex(filled(28, 0x03)));
+        twoVaults.put("vaults.1.address", enterprise(filled(28, 0x03)));
+        twoVaults.put("vaults.1.shard-policy-id", "a3".repeat(28));
+        twoVaults.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(filled(28, 0x13)));
+        twoVaults.put("vaults.1.shard-address", enterprise(filled(28, 0x13)));
+        twoVaults.put("vaults.1.script-ref", "65".repeat(32) + "#0");
+        twoVaults.put("vaults.1.shard-script-ref", "65".repeat(32) + "#1");
+        executor(member, twoVaults);
+        ClaimLeafV1 leaf = claim(5, 113, 400);
+        owner.ledger.reserve(leaf); // the member's committed state does not have it
+        pump(owner, member);
+        assertThat(executor.execute(attempt(1, new byte[0]),
+                effect(new SettlementBatchV1(VAULT, 5, List.of(leaf.claimId()))))).isInstanceOf(
+                EffectExecution.Failed.class);
+        assertThat(((AssetCosignService) member.handler).lastRefusal()).hasValueSatisfying(refusal ->
+                assertThat(refusal.detail()).contains("unknown claim"));
+    }
+
+    /** M4S2-F1 non-blocking: a fee wallet holding the member key would witness twice; startup refuses it. */
+    @Test
+    void theFeeWalletMustNotHoldTheMemberKey() throws Exception {
+        Node owner = new Node(OWNER_SEED);
+        Map<String, String> config = config(true);
+        Files.writeString(temp.resolve("fee.skey"), HexFormat.of().formatHex(OWNER_SEED));
+        assertThatThrownBy(() -> executor(owner, config)).hasMessageContaining("member key");
     }
 }

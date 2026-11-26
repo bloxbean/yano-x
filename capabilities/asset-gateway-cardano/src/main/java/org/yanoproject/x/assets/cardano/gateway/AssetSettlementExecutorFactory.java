@@ -6,11 +6,15 @@ import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import org.yanoproject.api.TxEvaluationGateway;
 import org.yanoproject.api.model.TxEvaluationResult;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
+import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
+import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.assets.contracts.SettlementBatchV1;
 import org.yanoproject.x.framework.api.appchain.AppQueryResult;
 import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
@@ -26,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -84,8 +89,9 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
     }
 
     /**
-     * The members' body check: the vault the request spends, against this node's own state, with the validity
-     * interval bounded by this node's own L1 time (its clock on the pinned slot clock).
+     * The members' body check: the vault the request spends (the first configured vault with a resolved input at its
+     * address), against this node's own state, with the validity interval bounded by this node's own L1 time (its
+     * clock on the pinned slot clock). Only that vault is checked, so its refusal is the one reported.
      */
     static java.util.function.Function<byte[], SettleBodyCheck.Outcome> bodyCheck(
             AssetSettlementSettings settings, NodeL1View l1, CommittedClaims committed, byte[] memberKeyHash,
@@ -96,17 +102,28 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
                 return new SettleBodyCheck.Refused(new SettleBodyCheck.Refusal(
                         SettleBodyCheck.Refusal.Kind.UNRESOLVED_INPUT, "no protocol parameters yet"));
             }
-            SettleBodyCheck.Outcome last = new SettleBodyCheck.Refused(new SettleBodyCheck.Refusal(
-                    SettleBodyCheck.Refusal.Kind.HAZARD, "no configured vault"));
+            // No input at any vault (or none resolved): the first vault's check reports why.
+            VaultPins pins = spentVault(tx, settings.pins(), l1).orElse(settings.pins().getFirst());
             SettleBodyCheck.Tip tip = new SettleBodyCheck.Tip(settings.slots().slotAt(clock.getAsLong()),
                     settings.slots().slotLengthMs());
-            for (VaultPins pins : settings.pins()) {
-                last = SettleBodyCheck.check(tx, pins, memberKeyHash, l1::resolve, committed,
-                        PayoutTxBuilder.costModels(params), tip);
-                if (last instanceof SettleBodyCheck.Signable) return last;
-            }
-            return last;
+            return SettleBodyCheck.check(tx, pins, memberKeyHash, l1::resolve, committed,
+                    PayoutTxBuilder.costModels(params), tip);
         };
+    }
+
+    /** The first configured vault with an input of {@code tx} at its address, resolved in this node's own view. */
+    static Optional<VaultPins> spentVault(byte[] tx, List<VaultPins> vaults, NodeL1View l1) {
+        List<ResolvedOutput> inputs = new ArrayList<>();
+        try {
+            for (TransactionInput input : Transaction.deserialize(tx).getBody().getInputs()) {
+                l1.resolve(new ResolvedOutput.Outpoint(Hash32.ofHex(input.getTransactionId()), input.getIndex()))
+                        .ifPresent(inputs::add);
+            }
+        } catch (Exception malformed) {
+            return Optional.empty();
+        }
+        return vaults.stream().filter(pins -> inputs.stream().anyMatch(in -> in.sameAddress(pins.vaultAddress())))
+                .findFirst();
     }
 
     /** The node's phase-2 evaluator as a cardano-client-lib evaluator. */
