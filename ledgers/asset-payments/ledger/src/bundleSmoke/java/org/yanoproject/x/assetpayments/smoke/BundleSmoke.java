@@ -47,7 +47,8 @@ import java.util.*;
  * the observer observes a deposit, the machine registers an owner-signed account (COSE + Ed25519)
  * and credits that deposit; the payout observer reads a thread-authenticated Settle, which the
  * machine (holding no such reservation) records as a mismatch and halts on; the anchor and
- * shard-bootstrap observers load; and the membership handoff gate finalizes on an observed anchor.
+ * shard-bootstrap observers load; the membership handoff gate finalizes on an observed anchor; and a relaying member's
+ * settlement product starts and stops its timer.
  */
 public final class BundleSmoke {
     private BundleSmoke() {
@@ -323,6 +324,39 @@ public final class BundleSmoke {
         }
         byte[] request = cat(hex("8201"), head(3), new byte[] {1, 2, 3});
         registered[0].onBridgeMessage(message("~bridge/asset-settlement/sign", request, 9));
+
+        // A relaying member (ADR-059 D9): its product still owns no effect type, its timer starts with the host's
+        // SLF4J and stops on close; the relayer's proof normalizer resolves the host's proof contracts.
+        try {
+            java.nio.file.Path key = java.nio.file.Files.createTempFile("relayer", ".skey");
+            java.nio.file.Files.writeString(key, "47".repeat(32));
+            Map<String, String> relaying = new TreeMap<>(config);
+            relaying.put("exit-relayer.enabled", "true");
+            relaying.put("exit-relayer.fee-wallet.key-file", key.toString());
+            relaying.put("exit-relayer.interval-ms", "1000");
+            var relayer = factory.create(CHAIN, relaying, context);
+            if (relayer.size() != 1 || !relayer.getFirst().effectTypes().isEmpty()) {
+                throw new AssertionError("a relaying member gets a product that owns no effect type");
+            }
+            relayer.getFirst().close();
+            java.nio.file.Files.delete(key);
+            Class<?> proofs = Class.forName(
+                    "org.yanoproject.x.assets.cardano.support.settlement.NodeStateProofs", true, gateway);
+            Class<?> nativeProof = Class.forName(
+                    "org.yanoproject.x.assets.cardano.support.settlement.NodeStateProofs$NativeProof", true, gateway);
+            Object garbage = nativeProof.getConstructors()[0].newInstance(1L, new byte[32], new byte[] {1},
+                    new byte[] {2}, new byte[] {(byte) 0x80});
+            try {
+                proofs.getMethod("normalize", nativeProof).invoke(null, garbage);
+                throw new AssertionError("an empty proof must not normalize");
+            } catch (java.lang.reflect.InvocationTargetException refused) {
+                if (!(refused.getCause() instanceof IllegalArgumentException)) {
+                    throw new AssertionError("the proof normalizer failed to load", refused.getCause());
+                }
+            }
+        } catch (ReflectiveOperationException | java.io.IOException failure) {
+            throw new AssertionError("relayer smoke", failure);
+        }
     }
 
     static Amount lovelace(long quantity) {
