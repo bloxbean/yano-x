@@ -223,6 +223,13 @@ final class PayoutWorld {
                 base.protocolParams(), base.maxVaultInputs());
     }
 
+    /** A context on {@code shard} with its own validity interval and protocol parameters. */
+    PayoutTxBuilder.Context context(int shard, long validFromSlot, long ttlSlot, ProtocolParams pp) {
+        return new PayoutTxBuilder.Context(pins, vaultUtxos, shards[shard], anchor, exitMode,
+                List.of(vaultRef, shardRef), new PayoutTxBuilder.Funding(List.of(fee), FEE_ADDRESS), validFromSlot,
+                ttlSlot, pp, 8);
+    }
+
     /** The required signers of a Settle: the first {@code count} members' key hashes. */
     static List<byte[]> signers(int count) {
         return MEMBERS.subList(0, count).stream().map(Blake2bUtil::blake2bHash224).toList();

@@ -112,12 +112,156 @@ class SettleTxBuilderTest {
                 PayoutWorld.signers(2), world.evaluator());
         long vaultInputs = built.resolvedInputs().stream().filter(in -> in.sameAddress(world.pins.vaultAddress()))
                 .count();
-        assertThat(vaultInputs).as("canonical-order selection stops once the debit and floor are covered")
+        assertThat(vaultInputs).as("selection stops once the debit and the continuation's requirement are covered")
                 .isEqualTo(3);
         assertThat(world.evaluate(built)).hasSize(4);
         long follows = built.transaction().getWitnessSet().getRedeemers().stream()
                 .filter(redeemer -> GatewayPlutus.isFollow(redeemer.getData())).count();
         assertThat(follows).isEqualTo(2);
+    }
+
+    static final byte[] FLOOR_TOP_UP = {(byte) 0xd8, 0x7b, (byte) 0x80};
+
+    /** Review P1 (dust starves selection): eight dust top-ups at the lowest outpoints never block a Settle. */
+    @Test
+    void dustTopUpsAtLowOutpointsDoNotStarveTheSelection() throws Exception {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        for (int i = 0; i < 8; i++) {
+            world.vaultUtxos.add(world.add(new ResolvedOutput(PayoutWorld.outpoint(0x10, i), world.pins.vaultAddress(),
+                    BigInteger.valueOf(1_000_000), new java.util.TreeMap<>(), Optional.of(FLOOR_TOP_UP),
+                    Optional.empty())));
+        }
+        List<ClaimLeafV1> claims = world.claims(2, 4);
+        world.anchor(claims, 80_000);
+        PayoutTxBuilder.Built built = PayoutTxBuilder.settle(world.context(2), claims, world.mirrors[2],
+                PayoutWorld.signers(2), world.evaluator());
+        List<ResolvedOutput> vaultInputs = built.resolvedInputs().stream()
+                .filter(in -> in.sameAddress(world.pins.vaultAddress())).toList();
+        assertThat(vaultInputs).as("the custody that pays, not the dust").singleElement()
+                .satisfies(in -> assertThat(in.outpoint()).isEqualTo(PayoutWorld.outpoint(0x61, 0)));
+        world.evaluate(built);
+    }
+
+    /** Review P2-c: the selection covers the serialized continuation's min-UTxO, not just the floor. */
+    @Test
+    void theSelectionCoversTheContinuationMinUtxoAboveTheFloor() throws Exception {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        world.vaultUtxos.forEach(utxo -> world.utxos.remove(utxo.outpoint()));
+        world.vaultUtxos.clear();
+        List<ClaimLeafV1> claims = world.claims(6, 16);
+        long vaultLovelace = claims.stream().mapToLong(leaf -> leaf.vaultLovelace().longValueExact()).sum();
+        // Exactly the debit plus the floor: a 16-id continuation needs more than the 2 ADA floor.
+        world.vaultUtxos.add(world.add(new ResolvedOutput(PayoutWorld.outpoint(0x61, 0), world.pins.vaultAddress(),
+                BigInteger.valueOf(vaultLovelace + PayoutWorld.FLOOR), PayoutWorld.assets(PayoutWorld.TOKEN, 1_000_000),
+                Optional.of(new byte[] {(byte) 0xd8, 0x7a, (byte) 0x81, (byte) 0x80}), Optional.empty())));
+        world.vaultUtxos.add(world.add(new ResolvedOutput(PayoutWorld.outpoint(0x61, 1), world.pins.vaultAddress(),
+                BigInteger.valueOf(3_000_000), new java.util.TreeMap<>(), Optional.of(FLOOR_TOP_UP),
+                Optional.empty())));
+        world.anchor(claims, 81_000);
+        PayoutTxBuilder.Built built = PayoutTxBuilder.settle(world.context(6), claims, world.mirrors[6],
+                PayoutWorld.signers(2), world.evaluator());
+        assertThat(built.resolvedInputs().stream().filter(in -> in.sameAddress(world.pins.vaultAddress())).count())
+                .isEqualTo(2);
+        world.evaluate(built);
+    }
+
+    /** Review P1 (foreign asset in a shard): a shard input holding another token is never spent. */
+    @Test
+    void aShardInputHoldingAForeignTokenIsRefused() {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        ResolvedOutput honest = world.shards[3];
+        java.util.TreeMap<AssetId, BigInteger> assets = new java.util.TreeMap<>(honest.assets());
+        assets.put(PayoutWorld.TOKEN, BigInteger.ONE);
+        ResolvedOutput dusted = new ResolvedOutput(honest.outpoint(), honest.address(), honest.lovelace(), assets,
+                honest.inlineDatum(), honest.referenceScript());
+        PayoutTxBuilder.Context base = world.context(3);
+        PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(base.pins(), base.vaultUtxos(), dusted,
+                base.anchor(), base.exitMode(), base.scriptRefs(), base.funding(), base.validFromSlot(), base.ttlSlot(),
+                base.protocolParams(), base.maxVaultInputs());
+        assertThatThrownBy(() -> PayoutTxBuilder.settle(context, List.of(world.claim(3, 1)), world.mirrors[3],
+                PayoutWorld.signers(2), world.evaluator())).hasMessageContaining("only its thread token");
+    }
+
+    /** Review P2-d: margins never take the declared units past the per-transaction limits. */
+    @Test
+    void declaredUnitsStayWithinTheProtocolLimits() {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        List<ClaimLeafV1> claims = world.claims(7, 1);
+        world.anchor(claims, 82_000);
+        long maxMem = Long.parseLong(PayoutWorld.PARAMS.getMaxTxExMem());
+        long maxSteps = Long.parseLong(PayoutWorld.PARAMS.getMaxTxExSteps());
+        // Two redeemers (one vault input, the shard) at 49.5% of each limit: 99% measured, 104% with the margin.
+        PayoutTxBuilder.Built built = PayoutTxBuilder.settle(world.context(7), claims, world.mirrors[7],
+                PayoutWorld.signers(2), units(maxMem * 495 / 1000, maxSteps * 495 / 1000));
+        var redeemers = built.transaction().getWitnessSet().getRedeemers();
+        assertThat(redeemers).hasSize(2);
+        assertThat(redeemers.stream().mapToLong(r -> r.getExUnits().getMem().longValueExact()).sum())
+                .isLessThanOrEqualTo(maxMem).isGreaterThanOrEqualTo(maxMem * 99 / 100);
+        assertThat(redeemers.stream().mapToLong(r -> r.getExUnits().getSteps().longValueExact()).sum())
+                .isLessThanOrEqualTo(maxSteps);
+        // Measured units alone over a limit: refused for a split.
+        assertThatThrownBy(() -> PayoutTxBuilder.settle(world.context(7), claims, world.mirrors[7],
+                PayoutWorld.signers(2), units(maxMem / 2 + 1, maxSteps / 4)))
+                .isInstanceOf(PayoutTxBuilder.LimitExceeded.class);
+    }
+
+    /** Review P2-e: maxTxSize is judged on the signed size, with the final witness count. */
+    @Test
+    void theSizeLimitIsJudgedOnTheSignedTransaction() throws Exception {
+        PayoutWorld world = new PayoutWorld(PayoutWorld.TOKEN);
+        List<ClaimLeafV1> claims = world.claims(8, 4);
+        world.anchor(claims, 83_000);
+        PayoutTxBuilder.Built built = PayoutTxBuilder.settle(world.context(8), claims, world.mirrors[8],
+                PayoutWorld.signers(2), world.evaluator());
+        // Two members and the fee wallet sign, as the executor does.
+        Transaction signed = Transaction.deserialize(built.cbor());
+        List<com.bloxbean.cardano.client.transaction.spec.VkeyWitness> witnesses = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            witnesses.add(new com.bloxbean.cardano.client.transaction.spec.VkeyWitness(PayoutWorld.filled(32, i + 1),
+                    PayoutWorld.filled(64, i + 7)));
+        }
+        signed.getWitnessSet().setVkeyWitnesses(witnesses);
+        int size = signed.serialize().length;
+        var exact = PayoutWorld.protocolParams();
+        exact.setMaxTxSize(size);
+        PayoutTxBuilder.settle(world.context(8, PayoutWorld.NOW_SLOT, PayoutWorld.NOW_SLOT + 600, exact), claims,
+                world.mirrors[8], PayoutWorld.signers(2), world.evaluator());
+        var tight = PayoutWorld.protocolParams();
+        tight.setMaxTxSize(size - 1);
+        assertThatThrownBy(() -> PayoutTxBuilder.settle(world.context(8, PayoutWorld.NOW_SLOT,
+                PayoutWorld.NOW_SLOT + 600, tight), claims, world.mirrors[8], PayoutWorld.signers(2),
+                world.evaluator())).isInstanceOf(PayoutTxBuilder.LimitExceeded.class);
+    }
+
+    /** A supplement is the payout's min-UTxO above what the vault pays (D11). */
+    @Test
+    void theSupplementIsTheMinUtxoAboveTheVaultLovelace() {
+        PayoutWorld world = token;
+        ClaimLeafV1 funded = world.claim(4, 40);
+        assertThat(PayoutTxBuilder.payoutSupplement(world.pins, funded, PayoutWorld.PARAMS)).isZero();
+        ClaimLeafV1 unfunded = new ClaimLeafV1(funded.claimId(), funded.vaultId(), funded.kind(), funded.value(),
+                BigInteger.ZERO, funded.recipient(), funded.reservedHeight(), funded.reservedAtMs());
+        assertThat(PayoutTxBuilder.payoutSupplement(world.pins, unfunded, PayoutWorld.PARAMS))
+                .isGreaterThan(BigInteger.valueOf(900_000));
+    }
+
+    static com.bloxbean.cardano.client.api.TransactionEvaluator units(long mem, long steps) {
+        return (cbor, inputs) -> {
+            try {
+                List<EvaluationResult> results = new java.util.ArrayList<>();
+                for (var redeemer : Transaction.deserialize(cbor).getWitnessSet().getRedeemers()) {
+                    EvaluationResult result = new EvaluationResult();
+                    result.setRedeemerTag(redeemer.getTag());
+                    result.setIndex(redeemer.getIndex().intValue());
+                    result.setExUnits(com.bloxbean.cardano.client.plutus.spec.ExUnits.builder()
+                            .mem(BigInteger.valueOf(mem)).steps(BigInteger.valueOf(steps)).build());
+                    results.add(result);
+                }
+                return com.bloxbean.cardano.client.api.model.Result.success("ok").withValue(results);
+            } catch (Exception failure) {
+                throw new IllegalStateException(failure);
+            }
+        };
     }
 
     @Test

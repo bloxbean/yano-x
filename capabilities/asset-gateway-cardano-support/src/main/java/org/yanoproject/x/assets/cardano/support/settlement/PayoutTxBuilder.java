@@ -25,6 +25,7 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
+import com.bloxbean.cardano.client.transaction.spec.VkeyWitness;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.ClaimKind;
@@ -39,6 +40,7 @@ import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -62,34 +64,45 @@ import java.util.TreeMap;
  * <p><b>Layout</b>, the one the vault and shard scripts check: outputs {@code 0..k-1} pay {@code claim[i]} (V5),
  * output {@code k} is the exact vault continuation with {@code VaultContinuationV1(ids)} (V6, V7), then the shard
  * continuation with the new root and the shard's lovelace and thread token, then the change. Vault inputs are
- * accepted custody only (V10), selected in canonical outpoint order; the first in ledger order (the lead) carries the
- * action and every other vault input the {@code Follow} marker (V13). The anchor and the exit-mode thread are reference
- * inputs (V1, V11); scripts are always referenced, never inlined. Fees, collateral and any payout supplement (D11:
- * min-ADA above a claim's {@code vaultLovelace}) come from the caller's key-locked funding inputs (I15).
+ * accepted custody only (V10), selected most useful first ({@link #selectVaultInputs}) and spent in canonical outpoint
+ * order; the first in ledger order (the lead) carries the action and every other vault input the {@code Follow} marker
+ * (V13). The anchor and the exit-mode thread are reference inputs (V1, V11); scripts are always referenced, never
+ * inlined. Fees, collateral and any payout supplement (D11: min-ADA above a claim's {@code vaultLovelace},
+ * {@link #payoutSupplement}) come from the caller's key-locked funding inputs (I15); a caller bounds what it will
+ * supplement by leaving such claims out.
  *
  * <p><b>Execution units</b> come from the injected {@link TransactionEvaluator} (the node's phase-2 evaluator at
- * runtime), with a margin; the fee covers the transaction size including the vkey witnesses still to come, the script
- * units and the Conway reference-script fee. A batch whose transaction exceeds {@code maxTxSize} is refused, so the
- * caller splits it.
+ * runtime), with a margin that never takes the declared total past the protocol's per-transaction limits; the fee
+ * covers the final size, measured by serializing the transaction with placeholder vkey witnesses of the final count,
+ * the script units and the Conway reference-script fee. A batch whose measured units or final size exceed the limits
+ * is refused with {@link LimitExceeded}, so the caller splits it.
  *
  * <p>Nothing here submits, signs or changes a claim's status (I12).
  */
 public final class PayoutTxBuilder {
     /** Bytes of one vkey witness ({@code [vkey 32, signature 64]}) in the witness set. */
     static final int VKEY_WITNESS_BYTES = 101;
-    private static final int SIZE_SLACK_BYTES = 64;
     private static final BigDecimal UNIT_MARGIN = new BigDecimal("1.05");
     private static final BigDecimal REF_SCRIPT_MULTIPLIER = new BigDecimal("1.2");
     private static final long REF_SCRIPT_SIZE_INCREMENT = 25_600;
+    /** The largest coin, priced at its widest (9-byte) encoding by min-UTxO estimates. */
+    private static final BigInteger WIDEST_COIN = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
 
     /** Why a payout cannot be built; the caller retries later, splits or re-selects. */
-    public static final class BuildException extends RuntimeException {
+    public static class BuildException extends RuntimeException {
         public BuildException(String message) {
             super(message);
         }
 
         public BuildException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    /** The batch's transaction exceeds a per-transaction protocol limit (size or units): the caller splits it. */
+    public static final class LimitExceeded extends BuildException {
+        public LimitExceeded(String message) {
+            super(message);
         }
     }
 
@@ -200,11 +213,18 @@ public final class PayoutTxBuilder {
             if (SettlementBatchV1.shardOf(leaf.claimId()) != shard) throw new BuildException("claims of two shards");
             if (!seen.add(leaf.claimId())) throw new BuildException("duplicate claim");
         }
-        if (shardInput.quantityOf(pins.shardToken(shard)).compareTo(BigInteger.ONE) != 0
-                || !shardInput.sameAddress(pins.shardAddress())) {
-            throw new BuildException("the shard input is not shard " + shard + " of this vault");
+        if (!shardOnly(shardInput, pins, shard) || !shardInput.sameAddress(pins.shardAddress())) {
+            // A foreign token on the shard input would have to leave through the change output, which the stock
+            // balance never accounts for; such a shard is never spent (the bootstrap observer rejects it, too).
+            throw new BuildException("the shard input is not shard " + shard + " of this vault holding only its"
+                    + " thread token");
         }
         return shard;
+    }
+
+    /** True when {@code shard}'s native assets are exactly {@code {shardToken(index): 1}}. */
+    public static boolean shardOnly(ResolvedOutput shard, VaultPins pins, int index) {
+        return shard.assets().equals(Map.of(pins.shardToken(index), BigInteger.ONE));
     }
 
     private static Built payout(Context context, List<ClaimLeafV1> claims, ShardMirror mirror, PlutusData action,
@@ -235,7 +255,7 @@ public final class PayoutTxBuilder {
         // The vault's lovelace debit: the claims' amounts for the ADA vault, their vaultLovelace otherwise (V6).
         BigInteger lovelaceDebit = pins.adaVault() ? quantity : vaultLovelace;
         BigInteger assetDebit = pins.adaVault() ? BigInteger.ZERO : quantity;
-        List<ResolvedOutput> vaultInputs = selectVaultInputs(context, assetDebit, lovelaceDebit);
+        List<ResolvedOutput> vaultInputs = selectVaultInputs(context, assetDebit, lovelaceDebit, ids);
         BigInteger inLovelace = vaultInputs.stream().map(ResolvedOutput::lovelace).reduce(BigInteger.ZERO,
                 BigInteger::add);
         BigInteger inAsset = pins.adaVault() ? BigInteger.ZERO : vaultInputs.stream()
@@ -245,10 +265,8 @@ public final class PayoutTxBuilder {
         List<TransactionOutput> outputs = new ArrayList<>();
         BigInteger supplements = BigInteger.ZERO;
         for (ClaimLeafV1 leaf : claims) {
-            BigInteger claimQuantity = leaf.value().quantityOf(pins.asset());
-            BigInteger base = pins.adaVault() ? claimQuantity : leaf.vaultLovelace();
-            TransactionOutput out = output(leaf.recipient(), base,
-                    pins.adaVault() ? Map.of() : nonZero(pins.asset(), claimQuantity), null);
+            TransactionOutput out = payoutOutput(pins, leaf);
+            BigInteger base = out.getValue().getCoin();
             BigInteger required = minAda.calculateMinAda(out);
             if (required.compareTo(base) > 0) {
                 out.getValue().setCoin(required);
@@ -338,7 +356,7 @@ public final class PayoutTxBuilder {
             setChangeAndCollateral(body, changeIndex, fundingLovelace.subtract(fee).subtract(supplements), collateral,
                     fee, pp, context.funding().changeAddress());
             setScriptDataHash(tx, costModels);
-            if (round == 0) evaluate(tx, resolved.values(), evaluator);
+            if (round == 0) evaluate(tx, resolved.values(), evaluator, pp);
             setScriptDataHash(tx, costModels);
             BigInteger next = fee(tx, pp, vkeys, refScriptBytes);
             if (next.compareTo(fee) <= 0) break;
@@ -349,36 +367,93 @@ public final class PayoutTxBuilder {
                 pp, context.funding().changeAddress());
         setScriptDataHash(tx, costModels);
         byte[] cbor = serialize(tx);
-        if (cbor.length + vkeys * VKEY_WITNESS_BYTES > pp.getMaxTxSize()) {
-            throw new BuildException("the transaction exceeds maxTxSize; split the batch");
+        int finalSize = signedSize(tx, vkeys);
+        if (finalSize > pp.getMaxTxSize()) {
+            throw new LimitExceeded("the signed transaction (" + finalSize + " bytes) exceeds maxTxSize; split the"
+                    + " batch");
         }
         return new Built(tx, cbor, Hash32.ofHex(TransactionUtil.getTxHash(tx)), ids, shard,
                 List.copyOf(resolved.values()), plan, fee, requiredSigners);
     }
 
-    /** Accepted custody (V10) at the exact vault address, in canonical order, until the debit and floor are covered. */
-    static List<ResolvedOutput> selectVaultInputs(Context context, BigInteger assetDebit, BigInteger lovelaceDebit) {
+    /** The payout output of {@code leaf} before any supplement: its recipient, asset and lovelace (V5). */
+    static TransactionOutput payoutOutput(VaultPins pins, ClaimLeafV1 leaf) {
+        BigInteger claimQuantity = leaf.value().quantityOf(pins.asset());
+        BigInteger base = pins.adaVault() ? claimQuantity : leaf.vaultLovelace();
+        return output(leaf.recipient(), base, pins.adaVault() ? Map.of() : nonZero(pins.asset(), claimQuantity), null);
+    }
+
+    /**
+     * The lovelace the builder adds from the funding inputs to pay {@code leaf}: the payout's min-UTxO above what the
+     * vault pays ({@code vaultLovelace}, or the ADA amount), or zero (D11).
+     */
+    public static BigInteger payoutSupplement(VaultPins pins, ClaimLeafV1 leaf, ProtocolParams pp) {
+        TransactionOutput out = payoutOutput(pins, leaf);
+        return new MinAdaCalculator(pp).calculateMinAda(out).subtract(out.getValue().getCoin()).max(BigInteger.ZERO);
+    }
+
+    /**
+     * Accepted custody (V10) at the exact vault address, most useful first (vault-asset quantity descending, then
+     * lovelace descending, then outpoint), skipping a candidate that adds nothing still needed, until the inputs
+     * cover the asset debit and the lovelace debit plus the continuation's real requirement: the larger of the floor
+     * and the min-UTxO of the serialized continuation with its id list. Dust at low outpoints therefore never fills
+     * {@code maxVaultInputs} ahead of the custody that pays. The selected inputs are returned in canonical outpoint
+     * order, the ledger order that redeemer indexes refer to; the scripts do not depend on selection order.
+     */
+    static List<ResolvedOutput> selectVaultInputs(Context context, BigInteger assetDebit, BigInteger lovelaceDebit,
+                                                  List<Hash32> ids) {
         VaultPins pins = context.pins();
         List<ResolvedOutput> candidates = new ArrayList<>();
         for (ResolvedOutput utxo : context.vaultUtxos()) {
             if (accepted(utxo, pins)) candidates.add(utxo);
         }
-        candidates.sort((a, b) -> a.outpoint().compareTo(b.outpoint()));
+        candidates.sort(Comparator.comparing((ResolvedOutput out) -> vaultQuantity(out, pins)).reversed()
+                .thenComparing(Comparator.comparing(ResolvedOutput::lovelace).reversed())
+                .thenComparing(ResolvedOutput::outpoint));
+        MinAdaCalculator minAda = new MinAdaCalculator(context.protocolParams());
         List<ResolvedOutput> selected = new ArrayList<>();
         BigInteger asset = BigInteger.ZERO;
         BigInteger lovelace = BigInteger.ZERO;
-        BigInteger lovelaceNeeded = lovelaceDebit.add(pins.continuationFloor());
         for (ResolvedOutput candidate : candidates) {
-            if (asset.compareTo(assetDebit) >= 0 && lovelace.compareTo(lovelaceNeeded) >= 0) break;
+            BigInteger lovelaceNeeded = lovelaceDebit.add(continuationRequirement(pins, minAda, ids,
+                    asset.subtract(assetDebit)));
+            boolean needAsset = asset.compareTo(assetDebit) < 0;
+            boolean needLovelace = lovelace.compareTo(lovelaceNeeded) < 0;
+            if (!needAsset && !needLovelace) break;
             if (selected.size() == context.maxVaultInputs()) break;
+            boolean useful = (needAsset && vaultQuantity(candidate, pins).signum() > 0)
+                    || (needLovelace && candidate.lovelace().signum() > 0);
+            if (!useful) continue;
             selected.add(candidate);
-            asset = asset.add(pins.adaVault() ? BigInteger.ZERO : candidate.quantityOf(pins.asset()));
+            asset = asset.add(vaultQuantity(candidate, pins));
             lovelace = lovelace.add(candidate.lovelace());
         }
+        BigInteger lovelaceNeeded = lovelaceDebit.add(continuationRequirement(pins, minAda, ids,
+                asset.subtract(assetDebit)));
         if (asset.compareTo(assetDebit) < 0 || lovelace.compareTo(lovelaceNeeded) < 0) {
-            throw new BuildException("accepted vault custody does not cover the batch");
+            throw new BuildException("accepted vault custody does not cover the batch within "
+                    + context.maxVaultInputs() + " vault inputs");
         }
+        selected.sort(Comparator.comparing(ResolvedOutput::outpoint));
         return selected;
+    }
+
+    private static BigInteger vaultQuantity(ResolvedOutput out, VaultPins pins) {
+        return pins.adaVault() ? BigInteger.ZERO : out.quantityOf(pins.asset());
+    }
+
+    /**
+     * The lovelace the continuation must keep: the floor, or the min-UTxO of the continuation as it will be serialized
+     * (its id list and any remaining vault asset), whichever is larger. The coin is priced at its widest encoding, so
+     * the estimate never falls below the final output's requirement.
+     */
+    private static BigInteger continuationRequirement(VaultPins pins, MinAdaCalculator minAda, List<Hash32> ids,
+                                                      BigInteger assetLeft) {
+        Map<AssetId, BigInteger> assets = pins.adaVault() || assetLeft.signum() <= 0 ? Map.of()
+                : Map.of(pins.asset(), assetLeft);
+        TransactionOutput continuation = output(pins.vaultAddress(), WIDEST_COIN, assets,
+                GatewayPlutus.continuation(ids));
+        return pins.continuationFloor().max(minAda.calculateMinAda(continuation));
     }
 
     /**
@@ -398,7 +473,8 @@ public final class PayoutTxBuilder {
 
     // ------------------------------------------------------------------ fees and units
 
-    private static void evaluate(Transaction tx, Collection<ResolvedOutput> resolved, TransactionEvaluator evaluator) {
+    private static void evaluate(Transaction tx, Collection<ResolvedOutput> resolved, TransactionEvaluator evaluator,
+                                 ProtocolParams pp) {
         Result<List<EvaluationResult>> result;
         try {
             result = evaluator.evaluateTx(serialize(tx), utxos(resolved));
@@ -408,14 +484,51 @@ public final class PayoutTxBuilder {
         if (result == null || !result.isSuccessful() || result.getValue() == null) {
             throw new BuildException("script evaluation failed: " + (result == null ? "no result" : result.getResponse()));
         }
-        for (Redeemer redeemer : tx.getWitnessSet().getRedeemers()) {
+        List<Redeemer> redeemers = tx.getWitnessSet().getRedeemers();
+        List<BigInteger> mem = new ArrayList<>();
+        List<BigInteger> steps = new ArrayList<>();
+        for (Redeemer redeemer : redeemers) {
             EvaluationResult units = result.getValue().stream()
                     .filter(r -> r.getRedeemerTag() == redeemer.getTag() && r.getIndex() == redeemer.getIndex().intValue())
                     .findFirst().orElseThrow(() -> new BuildException("no units for redeemer " + redeemer.getIndex()));
-            redeemer.setExUnits(ExUnits.builder()
-                    .mem(margin(units.getExUnits().getMem()))
-                    .steps(margin(units.getExUnits().getSteps())).build());
+            mem.add(units.getExUnits().getMem());
+            steps.add(units.getExUnits().getSteps());
         }
+        List<BigInteger> declaredMem = declared(mem, maxTxMem(pp), "memory");
+        List<BigInteger> declaredSteps = declared(steps, maxTxSteps(pp), "steps");
+        for (int i = 0; i < redeemers.size(); i++) {
+            redeemers.get(i).setExUnits(ExUnits.builder().mem(declaredMem.get(i)).steps(declaredSteps.get(i)).build());
+        }
+    }
+
+    /**
+     * The declared units of each redeemer: the measured units with the margin, scaled down so the total, margins
+     * included, never exceeds the per-transaction {@code limit}. Measured units alone over the limit cannot be
+     * declared at all: the batch is split.
+     */
+    static List<BigInteger> declared(List<BigInteger> measured, BigInteger limit, String unit) {
+        BigInteger total = measured.stream().reduce(BigInteger.ZERO, BigInteger::add);
+        if (total.compareTo(limit) > 0) {
+            throw new LimitExceeded("the measured execution " + unit + " (" + total + ") exceed the per-transaction"
+                    + " limit (" + limit + "); split the batch");
+        }
+        List<BigInteger> withMargin = measured.stream().map(PayoutTxBuilder::margin).toList();
+        if (withMargin.stream().reduce(BigInteger.ZERO, BigInteger::add).compareTo(limit) <= 0) return withMargin;
+        // Share the remaining headroom in proportion to each redeemer's measured units (rounded down).
+        BigInteger headroom = limit.subtract(total);
+        List<BigInteger> capped = new ArrayList<>();
+        for (BigInteger units : measured) {
+            capped.add(total.signum() == 0 ? units : units.add(headroom.multiply(units).divide(total)));
+        }
+        return capped;
+    }
+
+    private static BigInteger maxTxMem(ProtocolParams pp) {
+        return new BigInteger(pp.getMaxTxExMem());
+    }
+
+    private static BigInteger maxTxSteps(ProtocolParams pp) {
+        return new BigInteger(pp.getMaxTxExSteps());
     }
 
     private static BigInteger margin(BigInteger units) {
@@ -423,8 +536,26 @@ public final class PayoutTxBuilder {
                 .add(BigInteger.valueOf(1_000));
     }
 
+    /**
+     * The final size of {@code tx} once signed: serialized with {@code vkeys} placeholder vkey witnesses, each the
+     * size of a real one, added to its witness set.
+     */
+    static int signedSize(Transaction tx, int vkeys) {
+        try {
+            Transaction copy = Transaction.deserialize(serialize(tx));
+            List<VkeyWitness> placeholders = new ArrayList<>();
+            for (int i = 0; i < vkeys; i++) placeholders.add(new VkeyWitness(new byte[32], new byte[64]));
+            copy.getWitnessSet().setVkeyWitnesses(placeholders);
+            return copy.serialize().length;
+        } catch (BuildException failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new BuildException("transaction serialization", failure);
+        }
+    }
+
     static BigInteger fee(Transaction tx, ProtocolParams pp, int vkeys, long refScriptBytes) {
-        long size = serialize(tx).length + (long) vkeys * VKEY_WITNESS_BYTES + SIZE_SLACK_BYTES;
+        long size = signedSize(tx, vkeys);
         BigInteger sizeFee = BigInteger.valueOf(pp.getMinFeeA()).multiply(BigInteger.valueOf(size))
                 .add(BigInteger.valueOf(pp.getMinFeeB()));
         BigDecimal mem = BigDecimal.ZERO;
