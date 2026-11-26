@@ -25,7 +25,7 @@ import java.util.Optional;
  * The shard bootstrap observer {@code asset-shard-bootstrap-v1} (ADR-059 D8c, D8h §3). For every phase-2-valid
  * transaction that mints a configured vault's one-shot shard thread policy it reports whether the bootstrap is
  * verified: the mint is exactly the 16 names {@code 0x00..0x0F} at +1, every output holding a token of the policy holds
- * exactly that one token at quantity 1, sits at the vault's pinned shard address and carries
+ * exactly that one token at quantity 1 and no other native asset, sits at the vault's pinned shard address and carries
  * {@code ShardDatumV1(1, i, 32 zero bytes)} for its own name {@code [i]} (judged on the decoded datum), and all 16
  * shards have their output. The policy enforces all of this except the address, which it cannot pin, so a rejected
  * bootstrap is one that sent a token elsewhere; it is reported, never silent. The policy is one-shot, so the only
@@ -99,8 +99,11 @@ final class AssetShardBootstrapObserver implements L1Observer {
                 int name = token.name().length == 1 ? token.name()[0] & 0xff : -1;
                 Optional<GatewayDatums.ShardDatum> datum = GatewayDatums.shardDatum(
                         L1Tx.inlineDatum(output.getInlineDatum()));
-                if (tokens.size() != 1 || !BigInteger.ONE.equals(token.quantity()) || name < 0 || name > 15
-                        || shards[name] != null) {
+                List<L1Tx.Token> all = L1Tx.tokens(output.getAmounts());
+                // The shard holds its thread token and nothing else: a foreign token could only ever leave the shard
+                // through a payout's change, which the settlement builders never balance (ADR-059 D8h §3).
+                if (tokens.size() != 1 || all == null || all.size() != 1 || !BigInteger.ONE.equals(token.quantity())
+                        || name < 0 || name > 15 || shards[name] != null) {
                     reason = Reason.NOT_ONE_TOKEN;
                 } else if (!vault.shardAddress().equals(output.getAddress())) {
                     reason = Reason.WRONG_ADDRESS;

@@ -86,6 +86,16 @@ class AssetShardBootstrapObserverTest {
                 UnaryOperator.identity())).status()).isEqualTo(ShardBootstrapObservationV1.Status.REJECTED);
     }
 
+    /** Review P1 (foreign asset in a shard): a shard output carrying another token besides its thread token. */
+    @Test
+    void aShardOutputHoldingAForeignTokenIsRejected() {
+        ShardBootstrapObservationV1 claim = observeOne(bootstrap(0x9d, mint(), shard -> output(USDM_SHARD,
+                shardDatum(5, new byte[32]), lovelace(1_200_000), shardToken(USDM_SHARD_POLICY, 5),
+                token("ab".repeat(28), new byte[] {1}, 1))));
+        assertThat(claim.status()).isEqualTo(ShardBootstrapObservationV1.Status.REJECTED);
+        assertThat(claim.reason()).isEqualTo(Reason.NOT_ONE_TOKEN);
+    }
+
     @Test
     void transactionsThatDoNotMintThePolicyAreNotBootstraps() {
         TransactionBody other = bootstrap(0x9a, List.of(token("ab".repeat(28), new byte[] {1}, 1)),
