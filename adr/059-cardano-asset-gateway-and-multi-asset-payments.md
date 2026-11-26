@@ -1402,6 +1402,12 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
     transaction id in the effect's submitted reference, so a restart waits on the same claims
     until the same deadline. The inclusion timeout must exceed the stability window, checked at
     startup; the validity window is checked on the owner only.
+  - **Concurrency** *(r20)*. The effect runtime runs several batches at once, so the owner
+    serializes assembly (L1 read, selection, build, co-sign, submit). The inputs a pending
+    submission spends are not selected again until it closes; a batch short of free custody or
+    fee funds waits. A batch whose shard input a pending submission spends waits for its inclusion
+    instead of building a conflicting `Settle`; chaining on the predicted shard output is a later
+    optimization. The fee wallet must not hold the member key.
 - **Shared fixes** from the EUTxO stack carry over:
   - a durable journal;
   - a node-local operator wallet for fees;
@@ -2715,3 +2721,5 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     excess-bit check applies only below 64 claims, so a full 64-claim batch recovers; the signer
     memory is bounded; the owner's passing check clears an earlier tip-bound refusal, so its status
     recovers; `max-settle-batch` is every signing member's setting, at least the owner's cap.
+  - reviewer3 M4S2-F1: the owner serializes settlement assembly, excludes outpoints spent by pending
+    submissions, and never rebuilds over a pending shard input.
