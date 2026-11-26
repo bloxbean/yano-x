@@ -18,7 +18,12 @@ import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.effects.EffectId;
+import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcome;
 import org.yanoproject.x.framework.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.x.framework.api.appchain.effects.EffectResult;
 import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
@@ -134,11 +139,16 @@ final class PaymentsHarness {
 
     /** A minimal v1 consensus profile with effects disabled and the default forward skew. */
     static AppChainConsensusProfile profile(int l1StabilityDepth) {
+        return profile(l1StabilityDepth, false);
+    }
+
+    static AppChainConsensusProfile profile(int l1StabilityDepth, boolean effects) {
         int message = 64 * 1024;
         return new AppChainConsensusProfile(AppChainConsensusProfile.SCHEMA_VERSION, message, 100,
                 message + AppChainConfig.BLOCK_ENVELOPE_HEADROOM_BYTES + AppChainConfig.MAX_FINALITY_CERT_HEADROOM_BYTES,
                 l1StabilityDepth, l1StabilityDepth, AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS,
-                false, false, 0, 0, 0, 0, FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, false, List.of());
+                false, effects, effects ? 64 : 0, effects ? 16_384 : 0, effects ? 1_000 : 0, effects ? 1_000 : 0,
+                FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, false, List.of());
     }
 
     record Message(String topic, byte[] body) { }
@@ -183,18 +193,54 @@ final class PaymentsHarness {
     // ------------------------------------------------------------------ the ledger under test
 
     final TreeMap<String, byte[]> state = new TreeMap<>();
+    /** Every effect the machine emitted, with its id, in emission order (effects mode only). */
+    final List<Map.Entry<EffectId, EffectIntent>> emitted = new ArrayList<>();
     AppStateMachine machine;
     long height;
     long senderSeq;
     private byte[] prevHash = AppBlock.GENESIS_PREV_HASH;
+    private final AppEffectEmitter effects;
+    private int ordinal;
 
     PaymentsHarness() {
         this(settings());
     }
 
     PaymentsHarness(Map<String, String> settings) {
-        machine = machine(settings);
+        this(settings, false);
+    }
+
+    /** With {@code effects}, the chain's profile enables effects and a recording emitter collects them. */
+    PaymentsHarness(Map<String, String> settings, boolean effects) {
+        machine = machine(settings, Optional.of(profile(1, effects)));
         machine.init(writer(), null);
+        this.effects = !effects ? null : new AppEffectEmitter() {
+            @Override
+            public EffectId emit(EffectIntent intent) {
+                EffectId id = new EffectId(CHAIN, height, ordinal++);
+                emitted.add(Map.entry(id, intent));
+                return id;
+            }
+
+            @Override
+            public long pendingCount() {
+                return 0;
+            }
+        };
+    }
+
+    /** Incorporates one terminal effect outcome in a new block, before that block's (empty) messages. */
+    void effectResult(long timestamp, EffectId id, EffectIntent intent, EffectOutcome outcome) {
+        height++;
+        ordinal = 0;
+        AppBlock block = new AppBlock(AppBlock.BLOCK_VERSION, CHAIN, height, prevHash, 0, new byte[0], timestamp,
+                AppBlockCodec.messagesRoot(List.of()), new byte[32], List.of(), filled(32, 0x5e),
+                FinalityCert.empty());
+        prevHash = AppBlockCodec.blockHash(block);
+        AppBlockExecutionContext context = AppBlockExecutionContext.fromValidatedBlock(block);
+        machine.onEffectResult(context, new EffectResult(id, intent.type(), intent.scope(), outcome,
+                new byte[0], null, height), writer(), effects);
+        machine.apply(context, writer(), effects);
     }
 
     AppStateWriter writer() {
@@ -210,6 +256,7 @@ final class PaymentsHarness {
 
     void block(long timestamp, Message... messages) {
         height++;
+        ordinal = 0;
         byte[] sender = filled(32, 0x5e);
         List<AppMessage> appMessages = new ArrayList<>();
         for (Message message : messages) {
@@ -224,11 +271,20 @@ final class PaymentsHarness {
         AppBlock block = new AppBlock(AppBlock.BLOCK_VERSION, CHAIN, height, prevHash, 0, new byte[0], timestamp,
                 AppBlockCodec.messagesRoot(appMessages), new byte[32], appMessages, sender, FinalityCert.empty());
         prevHash = AppBlockCodec.blockHash(block);
-        machine.apply(AppBlockExecutionContext.fromValidatedBlock(block), writer(), null);
+        machine.apply(AppBlockExecutionContext.fromValidatedBlock(block), writer(), effects);
     }
 
     Optional<byte[]> get(byte[] key) {
         return writer().get(key);
+    }
+
+    /** A committed query against the current state, as the effect context's {@code query} would run it. */
+    byte[] query(String path, byte[] params) {
+        return machine.query(path, params, new org.yanoproject.x.framework.api.appchain.AppQueryContext() {
+            @Override public Optional<byte[]> get(byte[] key) { return PaymentsHarness.this.get(key); }
+            @Override public byte[] stateRoot() { return new byte[32]; }
+            @Override public long committedHeight() { return height; }
+        });
     }
 
     BigInteger balance(Hash32 vault, TestWallet wallet) {

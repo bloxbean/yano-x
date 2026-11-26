@@ -27,6 +27,7 @@ import java.util.Set;
  * authorize_session_body = [session_key: bytes .size 32, [+ action: tstr], [* [vault_id, per_payment, cumulative]],
  *                           [* recipient_account: bytes .size 28], not_after_ms: uint]
  * revoke_session_body    = [grant_id: hash32]
+ * request_withdrawal_body = [vault_id: hash32, recipient: bytes .size (1..128), amount: u64, vault_lovelace: u64]
  * rotate_owner_body      = [credential_kind: 0 / 1, key_hash: bytes .size 28]   ; WalletAuthorizer.rotationBody
  * </pre>
  */
@@ -180,6 +181,66 @@ public final class PaymentsBodies {
                 return new AuthorizeSession(AssetCbor.bytes(items.get(0), 32, 32), actions, limits, recipients,
                         AssetCbor.uintLong(items.get(4)));
             } catch (ArithmeticException invalid) {
+                throw AssetCbor.malformed(invalid.getMessage());
+            }
+        }
+    }
+
+    /**
+     * A withdrawal of the signing account from one vault to one exact recipient (D7, D11, D14). The envelope binds
+     * every field the claim records (I10): the vault (named explicitly, R3-F9), the raw Shelley recipient address,
+     * the amount of the vault's asset (lovelace for the ADA vault) and the min-ADA credit spent as the payout's
+     * {@code vaultLovelace} (always 0 for the ADA vault; with a zero amount, a token vault claim withdraws the credit
+     * alone).
+     */
+    public record RequestWithdrawal(Hash32 vaultId, byte[] recipient, BigInteger amount, BigInteger vaultLovelace) {
+        public static final int MAX_RECIPIENT_BYTES = 128;
+
+        public RequestWithdrawal {
+            Objects.requireNonNull(vaultId, "vault id");
+            if (recipient == null || recipient.length == 0 || recipient.length > MAX_RECIPIENT_BYTES) {
+                throw new IllegalArgumentException("recipient must be 1-128 bytes");
+            }
+            Quantities.requireU64(amount, "amount");
+            Quantities.requireU64(vaultLovelace, "vault lovelace");
+            if (amount.signum() == 0 && vaultLovelace.signum() == 0) {
+                throw new IllegalArgumentException("a withdrawal pays something");
+            }
+            recipient = recipient.clone();
+        }
+
+        @Override
+        public byte[] recipient() {
+            return recipient.clone();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof RequestWithdrawal that && Arrays.equals(encode(), that.encode());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(encode());
+        }
+
+        public byte[] encode() {
+            Array array = new Array();
+            array.add(AssetCbor.bstr(vaultId.bytes()));
+            array.add(AssetCbor.bstr(recipient));
+            array.add(AssetCbor.uint(amount));
+            array.add(AssetCbor.uint(vaultLovelace));
+            return AssetCbor.encode(array);
+        }
+
+        public static RequestWithdrawal decode(byte[] body) {
+            List<DataItem> items = AssetCbor.decodeArray(body, 4).getDataItems();
+            try {
+                return new RequestWithdrawal(Hash32.of(AssetCbor.bytes(items.get(0), 32, 32)),
+                        AssetCbor.bytes(items.get(1), 1, MAX_RECIPIENT_BYTES),
+                        AssetCbor.uint(items.get(2), Quantities.MAX_U64),
+                        AssetCbor.uint(items.get(3), Quantities.MAX_U64));
+            } catch (IllegalArgumentException | ArithmeticException invalid) {
                 throw AssetCbor.malformed(invalid.getMessage());
             }
         }

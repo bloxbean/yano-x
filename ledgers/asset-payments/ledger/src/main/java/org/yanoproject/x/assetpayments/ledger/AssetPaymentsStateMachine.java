@@ -8,8 +8,14 @@ import org.yanoproject.x.assetpayments.contracts.PaymentsRecords;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.AccountRecordV1;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.ReceiptV1;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.RegistryEntryV1;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
 import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.AssetId;
+import org.yanoproject.x.assets.contracts.AssetValue;
+import org.yanoproject.x.assets.contracts.CardanoAddresses;
+import org.yanoproject.x.assets.contracts.ClaimKind;
+import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.DepositAdmission;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.ExitLeafV1;
@@ -17,14 +23,24 @@ import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.assets.contracts.PayoutConfirmation;
 import org.yanoproject.x.assets.contracts.Quantities;
+import org.yanoproject.x.assets.contracts.SettlementBatchV1;
+import org.yanoproject.x.assets.contracts.SettlementQueries;
+import org.yanoproject.x.assets.contracts.SettlementRecords;
+import org.yanoproject.x.assets.contracts.internal.AssetCbor;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.x.framework.api.appchain.AppChainInfo;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 import org.yanoproject.x.framework.api.appchain.AppStateReader;
 import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 import org.yanoproject.x.framework.api.appchain.SequencedL1Observation;
 import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
+import org.yanoproject.x.framework.api.appchain.effects.EffectResult;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.effects.ResultPolicy;
 import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.walletauth.CardanoCredential;
 import org.yanoproject.x.walletauth.CoseSign1Verifier;
@@ -42,8 +58,8 @@ import java.util.Optional;
 /**
  * The #109 multi-asset payment ledger (ADR-059 D14): a genesis asset registry, accounts owned by
  * Cardano wallet credentials, session grants, transfers, owner rotation, deposit credit from
- * finalized L1 observations and, from M4, payout confirmation. Withdrawal reservation, settlement
- * and governed registry changes come in later stages.
+ * finalized L1 observations, withdrawal reservation (D7) and payout confirmation (D10). Governed
+ * registry changes and the escape hatch come in later stages.
  *
  * <p><b>Inputs.</b> User intents are the bodies of ordinary messages on
  * {@link AssetPaymentsContract#INTENT_TOPIC} ({@link PaymentsMessageV1}). Deposits are credited
@@ -54,6 +70,17 @@ import java.util.Optional;
  * thread-authenticated payout that matches, a recorded no-op for an already-paid claim, and
  * {@code PAID_MISMATCH} with the domain status leaf moved to {@code HALTED} otherwise. Genesis
  * writes that status leaf {@code ACTIVE} with the configured exit delay (D8a).
+ *
+ * <p><b>Withdrawals</b> (D7, D11). An owner-signed {@code REQUEST_WITHDRAWAL} checks feasibility (the recipient is
+ * {@link CardanoAddresses#payableRecipient payable} on the domain's network, an ADA claim or a credit-only claim is at
+ * least {@code min-ada-payout}, a token claim's {@code vaultLovelace} is at most {@code min(credit,
+ * payout-lovelace-cap)}, the balances cover it), moves the amount from available to reserved, and writes the
+ * immutable {@link ClaimLeafV1} at {@code claim/<ClaimId>} with a {@code RESERVED} status, all in the intent's staged
+ * transition. Its {@code ClaimId} binds the account (the withdrawal key) and a dense claim sequence. On a chain with
+ * effects, the claim joins its shard's queue; a queue emits one {@code asset.settlement.batch} effect
+ * ({@code APP_FINAL}, {@code CHAIN}) when it reaches {@code settlement.batch-size} or its oldest claim has waited
+ * {@code settlement.batch-wait-ms}. A failed or expired batch re-queues its claims that are still {@code RESERVED};
+ * a confirmed one only closes the batch record. Effect results never change claim status (I12).
  *
  * <p><b>Determinism.</b> The only clock is the block timestamp. Every message runs against a
  * {@link StagedStore} that is committed only on success, so a rejection leaves no partial writes,
@@ -66,8 +93,13 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     private final WalletAuthorizer authorizer;
     private final long maxForwardSkewMs;
     private final byte[] domainRecord;
+    private final boolean batching;
 
     AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs) {
+        this(settings, maxForwardSkewMs, false);
+    }
+
+    AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs, boolean batching) {
         if (settings.maxIntentTtlMs() <= maxForwardSkewMs) {
             throw new IllegalArgumentException("max-intent-ttl-ms must exceed the chain's maximum forward clock skew");
         }
@@ -75,6 +107,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         this.maxForwardSkewMs = maxForwardSkewMs;
         this.authorizer = new WalletAuthorizer(settings.intentDomain(), settings.maxIntentTtlMs());
         this.domainRecord = settings.domainRecord().encode();
+        this.batching = batching;
     }
 
     @Override
@@ -111,7 +144,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                         CoseSign1Verifier.verify(rotation.currentSign1(), rotation.currentKey()).payload());
             };
             if (!envelope.domain().equals(settings.intentDomain())) return AdmissionResult.reject("WRONG_DOMAIN");
-            if (!AssetPaymentsContract.M3_ACTIONS.contains(envelope.action())) {
+            if (!AssetPaymentsContract.ACTIONS.contains(envelope.action())) {
                 return AdmissionResult.reject("UNSUPPORTED_ACTION");
             }
             return AdmissionResult.accept();
@@ -168,6 +201,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             }
             // Every other topic (framework '~' topics included) is not this ledger's.
         }
+        flushSettlementBatches(state, block, effects);
     }
 
     private void ensureGenesis(AssetAccounts.Store state) {
@@ -350,7 +384,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             case PaymentsMessageV1.Rotation rotation -> auth.authorizeRotation(rotation.currentSign1(),
                     rotation.currentKey(), rotation.newSign1(), rotation.newKey(), owners, time);
         };
-        if (!AssetPaymentsContract.M3_ACTIONS.contains(authorized.envelope().action())) {
+        if (!AssetPaymentsContract.ACTIONS.contains(authorized.envelope().action())) {
             throw new WalletAuthException("action is not supported by this ledger");
         }
         return authorized;
@@ -365,6 +399,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             case WalletAuthorizer.REVOKE_SESSION -> revokeSession(state, accountId, envelope.body());
             case WalletAuthorizer.ROTATE_OWNER -> rotateOwner(state, authorized);
             case AssetPaymentsContract.TRANSFER -> transfer(state, authorized, block.timestamp());
+            case AssetPaymentsContract.REQUEST_WITHDRAWAL -> requestWithdrawal(state, authorized, block);
             default -> Result.rejected("UNSUPPORTED_ACTION");
         };
     }
@@ -514,6 +549,234 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         }
         accounts.transfer(vaultId, from, to, recipient.get().keyHash(), body.amount());
         return Result.accepted().about(body.asset(), body.amount());
+    }
+
+    // ------------------------------------------------------------------ withdrawals (D7, D11)
+
+    /**
+     * {@code REQUEST_WITHDRAWAL}: feasibility, reservation and the claim records, in the intent's staged transition,
+     * so a rejection writes nothing but the receipt. Every check reads finalized state or the signed body; nothing
+     * depends on local configuration beyond the genesis settings (I13).
+     */
+    private Result requestWithdrawal(StagedStore state, WalletAuthorizer.Authorized authorized, AppBlock block) {
+        PaymentsBodies.RequestWithdrawal body;
+        try {
+            body = PaymentsBodies.RequestWithdrawal.decode(authorized.envelope().body());
+        } catch (IllegalArgumentException invalid) {
+            return Result.rejected("BAD_BODY");
+        }
+        Optional<RegistryEntryV1> entry = registry(state, body.vaultId());
+        if (entry.isEmpty()) return Result.rejected("UNKNOWN_VAULT");
+        AssetId asset = entry.get().asset();
+        BigInteger amount = body.amount();
+        BigInteger lovelace = body.vaultLovelace();
+        // A session never withdraws (I11); the grant model cannot carry this action, and this keeps it explicit.
+        if (authorized.grant().isPresent()) return Result.rejected("OWNER_ONLY").about(asset, amount);
+        // Only a payout observer can confirm a claim (D10); without one a reservation could never resolve.
+        if (settings.payoutObserverId().isEmpty()) return Result.rejected("WITHDRAWALS_DISABLED").about(asset, amount);
+        if (entry.get().status() == PaymentsRecords.AssetStatus.RETIRED) {
+            return Result.rejected("ASSET_RETIRED").about(asset, amount);
+        }
+        // Feasibility (D7 step 1): a Shelley key-payment address on this network; a pointer only in canonical form
+        // within the Conway limits.
+        if (!CardanoAddresses.payableRecipient(body.recipient(), settings.addressNetworkId())) {
+            return Result.rejected("INFEASIBLE_RECIPIENT").about(asset, amount);
+        }
+        BigInteger minAda = BigInteger.valueOf(settings.minAdaPayout());
+        if (asset.isAda()) {
+            // V5: an ADA claim carries no vaultLovelace; its amount is the payout.
+            if (lovelace.signum() != 0) return Result.rejected("BAD_BODY").about(asset, amount);
+            if (amount.compareTo(minAda) < 0) return Result.rejected("BELOW_MINIMUM").about(asset, amount);
+        } else if (amount.signum() == 0) {
+            // A credit-only lovelace claim from a token vault (D11).
+            if (lovelace.compareTo(minAda) < 0) return Result.rejected("BELOW_MINIMUM").about(asset, amount);
+        } else if (lovelace.compareTo(BigInteger.valueOf(settings.payoutLovelaceCap())) > 0) {
+            return Result.rejected("VAULT_LOVELACE_CAP").about(asset, amount);
+        }
+        byte[] accountId = authorized.envelope().accountId();
+        AssetAccounts accounts = new AssetAccounts(AssetPaymentsContract.PREFIX, state);
+        Optional<ExitLeafV1> balance = accounts.balance(body.vaultId(), accountId);
+        if (balance.map(ExitLeafV1::amount).orElse(BigInteger.ZERO).compareTo(amount) < 0) {
+            return Result.rejected("INSUFFICIENT_BALANCE").about(asset, amount);
+        }
+        if (balance.map(ExitLeafV1::vaultLovelace).orElse(BigInteger.ZERO).compareTo(lovelace) < 0) {
+            return Result.rejected("INSUFFICIENT_MIN_ADA_CREDIT").about(asset, amount);
+        }
+
+        long sequence = state.get(AssetPaymentsContract.claimSequenceKey())
+                .map(bytes -> PaymentsRecords.decodeU64s(bytes, 1)[0]).orElse(0L);
+        AssetValue value = amount.signum() == 0 ? AssetValue.EMPTY : AssetValue.single(asset, amount);
+        Hash32 claimId = GatewayIds.claimId(settings.domainId(), body.vaultId(), ClaimKind.USER_WITHDRAWAL, accountId,
+                body.recipient(), value, lovelace, sequence);
+        ClaimLeafV1 leaf = new ClaimLeafV1(claimId, body.vaultId(), ClaimKind.USER_WITHDRAWAL, value, lovelace,
+                body.recipient(), block.height(), block.timestamp());
+        accounts.reserve(body.vaultId(), accountId, amount, lovelace);
+        payouts(state).writeReserved(state, leaf);
+        state.put(AssetPaymentsContract.claimIndexKey(sequence), claimId.bytes());
+        state.put(AssetPaymentsContract.claimSequenceKey(), PaymentsRecords.encodeU64s(sequence + 1));
+        if (batching) enqueue(state, body.vaultId(), claimId, block.timestamp());
+        return Result.accepted().about(asset, amount);
+    }
+
+    /** The claim records' layout ({@code claim/}, {@code claim-status/}, {@code domain-status}). */
+    private PayoutConfirmation payouts(AssetAccounts.Store state) {
+        return new PayoutConfirmation(AssetPaymentsContract.PREFIX, settings.payoutObserverId().orElse("payouts"),
+                settings.domainId(), settings.exitDelayMs(), vaultId -> registry(state, vaultId).map(entry ->
+                new PayoutConfirmation.VaultBinding(entry.vaultId(), entry.asset())));
+    }
+
+    // ------------------------------------------------------------------ settlement batches (D7 step 4)
+
+    private void enqueue(AssetAccounts.Store state, Hash32 vaultId, Hash32 claimId, long queuedAtMs) {
+        int shard = SettlementBatchV1.shardOf(claimId);
+        byte[] metaKey = AssetPaymentsContract.settleQueueMetaKey(vaultId, shard);
+        long[] meta = state.get(metaKey).map(bytes -> PaymentsRecords.decodeU64s(bytes, 2)).orElse(new long[] {0, 0});
+        state.put(AssetPaymentsContract.settleQueueKey(vaultId, shard, meta[1]), queueEntry(claimId, queuedAtMs));
+        state.put(metaKey, PaymentsRecords.encodeU64s(meta[0], meta[1] + 1));
+    }
+
+    /**
+     * Emits at most one batch per shard queue per block, for every queue that holds {@code settlement.batch-size}
+     * claims or whose oldest claim has waited {@code settlement.batch-wait-ms}. Queues are visited in registry and
+     * shard order, so every member emits the same effects in the same order. An emission the runtime refuses (a
+     * per-block limit) leaves its queue as it was, and the rest wait for a later block.
+     */
+    private void flushSettlementBatches(AssetAccounts.Store state, AppBlock block, AppEffectEmitter effects) {
+        if (!batching || effects == null) return;
+        AssetPaymentsSettings.Settlement policy = settings.settlement();
+        for (RegistryEntryV1 vault : settings.vaults()) {
+            for (int shard = 0; shard < SettlementBatchV1.SHARDS; shard++) {
+                StagedStore staged = new StagedStore(state);
+                try {
+                    if (!flushQueue(staged, vault.vaultId(), shard, block, effects, policy)) continue;
+                    staged.commit();
+                } catch (RuntimeException refused) {
+                    return; // deterministic on every member; the staged writes are dropped
+                }
+            }
+        }
+    }
+
+    private boolean flushQueue(StagedStore state, Hash32 vaultId, int shard, AppBlock block, AppEffectEmitter effects,
+                               AssetPaymentsSettings.Settlement policy) {
+        byte[] metaKey = AssetPaymentsContract.settleQueueMetaKey(vaultId, shard);
+        Optional<byte[]> stored = state.get(metaKey);
+        if (stored.isEmpty()) return false;
+        long[] meta = PaymentsRecords.decodeU64s(stored.get(), 2);
+        long pending = meta[1] - meta[0];
+        if (pending <= 0) return false;
+        long oldest = queueEntryTime(state.get(AssetPaymentsContract.settleQueueKey(vaultId, shard, meta[0]))
+                .orElseThrow(() -> new IllegalStateException("settlement queue entry missing")));
+        boolean due = pending >= policy.batchSize() || block.timestamp() - oldest >= policy.batchWaitMs();
+        if (!due) return false;
+        List<Hash32> ids = new ArrayList<>();
+        long head = meta[0];
+        PayoutConfirmation records = payouts(state);
+        while (head < meta[1] && ids.size() < policy.batchSize()) {
+            byte[] key = AssetPaymentsContract.settleQueueKey(vaultId, shard, head);
+            Hash32 claimId = queueEntryClaim(state.get(key).orElseThrow(() ->
+                    new IllegalStateException("settlement queue entry missing")));
+            state.delete(key);
+            head++;
+            // A claim paid by a proof Exit while queued needs no co-signed batch.
+            boolean reserved = records.claimStatus(state, claimId)
+                    .filter(status -> status.status() == SettlementRecords.ClaimStatus.RESERVED).isPresent();
+            if (reserved && !ids.contains(claimId)) ids.add(claimId);
+        }
+        state.put(metaKey, PaymentsRecords.encodeU64s(head, meta[1]));
+        if (ids.isEmpty()) return true;
+        long sequence = state.get(AssetPaymentsContract.settleBatchSequenceKey())
+                .map(bytes -> PaymentsRecords.decodeU64s(bytes, 1)[0]).orElse(0L);
+        SettlementBatchV1 batch = new SettlementBatchV1(vaultId, shard, ids);
+        effects.emit(EffectIntent.of(SettlementBatchV1.EFFECT_TYPE, batch.encode())
+                .scope(SettlementBatchV1.scope(sequence))
+                .gate(FinalityGate.APP_FINAL)
+                .result(ResultPolicy.CHAIN)
+                .expiryBlocks(policy.expiryBlocks())
+                .build());
+        state.put(AssetPaymentsContract.settleBatchKey(sequence), batch.encode());
+        state.put(AssetPaymentsContract.settleBatchSequenceKey(), PaymentsRecords.encodeU64s(sequence + 1));
+        return true;
+    }
+
+    /**
+     * Closes one batch. A {@code CONFIRMED} result only drops the batch record: the payout observer alone moves a
+     * claim to {@code PAID} (D10, I12). A failed or expired batch re-queues every claim that is still
+     * {@code RESERVED}, so it is batched again (D7 step 4).
+     */
+    @Override
+    public void onEffectResult(AppBlockExecutionContext context, EffectResult result, AppStateWriter writer,
+                               AppEffectEmitter effects) {
+        if (!SettlementBatchV1.EFFECT_TYPE.equals(result.type())) return;
+        long sequence = SettlementBatchV1.sequenceOf(result.scope());
+        if (sequence < 0) return;
+        AssetAccounts.Store state = StagedStore.over(writer);
+        StagedStore staged = new StagedStore(state);
+        try {
+            byte[] key = AssetPaymentsContract.settleBatchKey(sequence);
+            Optional<byte[]> record = staged.get(key);
+            if (record.isEmpty()) return;
+            staged.delete(key);
+            if (!result.confirmed() && batching) {
+                SettlementBatchV1 batch = SettlementBatchV1.decode(record.get());
+                PayoutConfirmation records = payouts(staged);
+                for (Hash32 claimId : batch.claimIds()) {
+                    boolean reserved = records.claimStatus(staged, claimId)
+                            .filter(status -> status.status() == SettlementRecords.ClaimStatus.RESERVED).isPresent();
+                    if (reserved) enqueue(staged, batch.vaultId(), claimId, context.block().timestamp());
+                }
+            }
+            staged.commit();
+        } catch (RuntimeException unexpected) {
+            // Deterministic on every member; nothing is written.
+        }
+    }
+
+    private static byte[] queueEntry(Hash32 claimId, long queuedAtMs) {
+        Array array = new Array();
+        array.add(AssetCbor.bstr(claimId.bytes()));
+        array.add(AssetCbor.uint(queuedAtMs));
+        return AssetCbor.encode(array);
+    }
+
+    private static Hash32 queueEntryClaim(byte[] entry) {
+        return Hash32.of(AssetCbor.bytes(AssetCbor.decodeArray(entry, 2).getDataItems().getFirst(), 32, 32));
+    }
+
+    private static long queueEntryTime(byte[] entry) {
+        List<DataItem> items = AssetCbor.decodeArray(entry, 2).getDataItems();
+        return AssetCbor.uintLong(items.get(1));
+    }
+
+    // ------------------------------------------------------------------ committed queries (D9)
+
+    /** The {@link SettlementQueries} the settlement executor and the exit relayer read. */
+    @Override
+    public byte[] query(String path, byte[] params, AppQueryContext state) {
+        AssetAccounts.Store store = StagedStore.readOnly(state);
+        PayoutConfirmation records = payouts(store);
+        byte[] request = params == null ? new byte[0] : params;
+        try {
+            return switch (path) {
+                case SettlementQueries.CLAIM -> {
+                    Hash32 claimId = Hash32.of(request);
+                    yield SettlementQueries.encodeClaim(store.get(records.claimLeafKey(claimId)),
+                            store.get(records.claimStatusKey(claimId)));
+                }
+                case SettlementQueries.DOMAIN_STATUS -> store.get(records.domainStatusKey()).orElse(new byte[0]);
+                case SettlementQueries.CLAIM_COUNT -> SettlementQueries.encodeCount(
+                        store.get(AssetPaymentsContract.claimSequenceKey())
+                                .map(bytes -> PaymentsRecords.decodeU64s(bytes, 1)[0]).orElse(0L));
+                case SettlementQueries.CLAIM_BY_SEQUENCE -> store.get(AssetPaymentsContract.claimIndexKey(
+                        SettlementQueries.decodeSequence(request))).orElse(new byte[0]);
+                default -> throw new AppQueryException(AppQueryException.Code.UNSUPPORTED,
+                        "unknown asset-payments query " + path);
+            };
+        } catch (AppQueryException unsupported) {
+            throw unsupported;
+        } catch (RuntimeException invalid) {
+            throw new AppQueryException(AppQueryException.Code.INVALID_REQUEST, "invalid " + path + " request");
+        }
     }
 
     // ------------------------------------------------------------------ helpers

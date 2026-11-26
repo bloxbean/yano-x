@@ -39,6 +39,14 @@ import java.util.Set;
  * exit-delay-ms (86400000)                                                the status leaf's delay, [6 h, 30 d] (D8e)
  * max-intent-ttl-ms (600000)                                              must exceed the forward clock skew
  * min-stability-depth (1, at least 1)                                    the chain's l1.stability-depth must be ≥
+ * min-ada-payout (1000000)                                               D7/D11: the smallest lovelace claim (ADA vault,
+ *                                                                         or a token vault's credit-only claim)
+ * payout-lovelace-cap (2000000)                                          D11: the most min-ADA credit a token claim
+ *                                                                         spends as its payout's vaultLovelace
+ * settlement.batch-size (16, 1..16)                                      D7: the soft cap that emits a shard's batch
+ *                                                                         (the profile's maxSettleBatch is 16)
+ * settlement.batch-wait-ms (60000)                                       D7: the age that emits a smaller batch
+ * settlement.expiry-blocks (0 = the chain default)                       the batch effect's CHAIN expiry
  * vaults.N.asset, vaults.N.script-hash, vaults.N.address                  the fixed vault set (I29), N = 0, 1, ...
  *                                                                         contiguous; distinct addresses, no other keys
  * vaults.N.status (ACTIVE), vaults.N.ticker (""), vaults.N.decimals (0), vaults.N.active-from-slot (0)
@@ -53,7 +61,19 @@ import java.util.Set;
 record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkMagic, Hash32 genesisId,
                              String applicationId, String profileId, long profileVersion, Hash32 domainId,
                              String depositObserverId, Optional<String> payoutObserverId, long maxIntentTtlMs,
-                             int minStabilityDepth, long exitDelayMs, List<PaymentsRecords.RegistryEntryV1> vaults) {
+                             int minStabilityDepth, long exitDelayMs, List<PaymentsRecords.RegistryEntryV1> vaults,
+                             long minAdaPayout, long payoutLovelaceCap, Settlement settlement) {
+    /** D7 step 4: how reserved claims are batched into {@code asset.settlement.batch} effects. */
+    record Settlement(int batchSize, long batchWaitMs, long expiryBlocks) {
+        Settlement {
+            if (batchSize < 1 || batchSize > MAX_SETTLE_BATCH || batchWaitMs < 0 || expiryBlocks < 0) {
+                throw new IllegalArgumentException("settlement batching is out of range");
+            }
+        }
+    }
+
+    /** The profile's {@code maxSettleBatch} (BUDGETS.md): a ledger batch never exceeds what one Settle can pay. */
+    static final int MAX_SETTLE_BATCH = 16;
     static final String PREFIX = "machines." + AssetPaymentsContract.STATE_MACHINE_ID + ".";
     static final String OBSERVER_TYPE = "asset-vault-deposit-v1";
     static final String PAYOUT_OBSERVER_TYPE = "asset-vault-payout-v1";
@@ -95,6 +115,16 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         // Depth 0 would credit deposits from blocks that can still roll back (ADR-059 D5).
         int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 1, 100_000,
                 "min-stability-depth");
+        long minAdaPayout = bounded(optional(settings, "min-ada-payout", "1000000"), 1, 1_000_000_000_000L,
+                "min-ada-payout");
+        long payoutLovelaceCap = bounded(optional(settings, "payout-lovelace-cap", "2000000"), 0,
+                1_000_000_000_000L, "payout-lovelace-cap");
+        Settlement settlement = new Settlement(
+                (int) bounded(optional(settings, "settlement.batch-size", "16"), 1, MAX_SETTLE_BATCH,
+                        "settlement.batch-size"),
+                bounded(optional(settings, "settlement.batch-wait-ms", "60000"), 0, 7L * 24 * 3_600_000,
+                        "settlement.batch-wait-ms"),
+                bounded(optional(settings, "settlement.expiry-blocks", "0"), 0, 1_000_000, "settlement.expiry-blocks"));
 
         List<PaymentsRecords.RegistryEntryV1> vaults = new ArrayList<>();
         Set<AssetId> assets = new HashSet<>();
@@ -145,7 +175,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         }
         AssetPaymentsSettings parsed = new AssetPaymentsSettings(chainId, networkId, magic, genesis, applicationId,
                 profileId, profileVersion, domainId, observerId,
-                payoutId.isEmpty() ? Optional.empty() : Optional.of(payoutId), ttl, minDepth, exitDelay, vaults);
+                payoutId.isEmpty() ? Optional.empty() : Optional.of(payoutId), ttl, minDepth, exitDelay, vaults,
+                minAdaPayout, payoutLovelaceCap, settlement);
         parsed.checkObserver(all, observerId, OBSERVER_TYPE);
         parsed.payoutObserverId.ifPresent(id -> parsed.checkObserver(all, id, PAYOUT_OBSERVER_TYPE));
         return parsed;
@@ -174,7 +205,11 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         List<String> fields = new ArrayList<>(List.of(
                 "chain-id=" + chainId, "domain-id=" + domainId.hex(), "deposit-observer-id=" + depositObserverId,
                 "max-intent-ttl-ms=" + maxIntentTtlMs, "min-stability-depth=" + minStabilityDepth,
-                "payout-observer-id=" + payoutObserverId.orElse(""), "exit-delay-ms=" + exitDelayMs));
+                "payout-observer-id=" + payoutObserverId.orElse(""), "exit-delay-ms=" + exitDelayMs,
+                "min-ada-payout=" + minAdaPayout, "payout-lovelace-cap=" + payoutLovelaceCap,
+                "settlement.batch-size=" + settlement.batchSize(),
+                "settlement.batch-wait-ms=" + settlement.batchWaitMs(),
+                "settlement.expiry-blocks=" + settlement.expiryBlocks()));
         for (PaymentsRecords.RegistryEntryV1 vault : vaults) fields.add("vault=" + HexFormat.of().formatHex(vault.encode()));
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();

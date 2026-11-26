@@ -11,7 +11,8 @@ import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
  * chain's {@code state-machine: asset-payments} and configured under
  * {@code machines.asset-payments.*} (see {@link AssetPaymentsSettings}). Startup fails closed without
  * the chain's consensus profile, or when its {@code l1.stability-depth} is below the profile minimum
- * (D5).
+ * (D5). Reserved claims are batched into {@code asset.settlement.batch} effects only when the
+ * profile enables effects; without them claims stay payable by the proof {@code Exit} (D8).
  */
 public final class AssetPaymentsStateMachineProvider implements AppStateMachineProvider {
     @Override
@@ -33,6 +34,8 @@ public final class AssetPaymentsStateMachineProvider implements AppStateMachineP
             throw new IllegalArgumentException("asset-payments requires l1.stability-depth >= "
                     + settings.minStabilityDepth());
         }
-        return new AssetPaymentsStateMachine(settings, profile.blockMaxForwardSkewMs());
+        // D7 step 4: settlement batches are effects, so they are emitted only on a chain with effects enabled.
+        // The profile is consensus configuration, so every member makes the same choice.
+        return new AssetPaymentsStateMachine(settings, profile.blockMaxForwardSkewMs(), profile.effectsEnabled());
     }
 }

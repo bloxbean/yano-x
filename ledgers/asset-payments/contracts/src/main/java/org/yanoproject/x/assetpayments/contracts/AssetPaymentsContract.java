@@ -25,6 +25,12 @@ import java.util.Set;
  * ap/used-queue/&lt;u64 be&gt;         [intent_id, not_after_ms]
  * ap/used-queue-meta             [head, tail]
  * ap/receipt/&lt;IntentId&gt;          ReceiptV1           write-once, kept
+ * ap/claim-seq                   [next]              the next claim sequence (M4)
+ * ap/claim-index/&lt;u64 be&gt;        claim_id            dense index of every reserved claim, from 0
+ * ap/settle-queue/&lt;VaultId&gt;&lt;shard&gt;&lt;u64 be&gt;   [claim_id, queued_at_ms]   unbatched RESERVED claims
+ * ap/settle-queue-meta/&lt;VaultId&gt;&lt;shard&gt;      [head, tail]
+ * ap/settle-batch-seq            [next]              the next settlement batch sequence
+ * ap/settle-batch/&lt;u64 be&gt;       SettlementBatchV1   an open asset.settlement.batch effect
  * </pre>
  *
  * <p>The used-intent queue is FIFO by insertion. Because every accepted intent expires within
@@ -40,10 +46,12 @@ public final class AssetPaymentsContract {
     public static final String INTENT_TOPIC = "asset-payments.intents";
 
     public static final String TRANSFER = "TRANSFER";
-    /** M3 actions; withdrawal and governed asset commands come in later milestones. */
-    public static final Set<String> M3_ACTIONS = Set.of("REGISTER_ACCOUNT", "AUTHORIZE_SESSION",
-            "REVOKE_SESSION", "ROTATE_OWNER", TRANSFER);
-    /** The only action a session grant may carry in M3. */
+    /** Owner only (D14): checks feasibility, reserves and writes the claim (D7). */
+    public static final String REQUEST_WITHDRAWAL = "REQUEST_WITHDRAWAL";
+    /** The user actions this ledger executes; governed asset commands come in a later milestone. */
+    public static final Set<String> ACTIONS = Set.of("REGISTER_ACCOUNT", "AUTHORIZE_SESSION",
+            "REVOKE_SESSION", "ROTATE_OWNER", TRANSFER, REQUEST_WITHDRAWAL);
+    /** The only action a session grant may carry: a session never withdraws (I11). */
     public static final Set<String> SESSION_ACTIONS = Set.of(TRANSFER);
 
     public static final int MAX_VAULTS = 16;
@@ -81,9 +89,7 @@ public final class AssetPaymentsContract {
     }
 
     public static byte[] usedQueueKey(long sequence) {
-        byte[] index = new byte[8];
-        for (int i = 0; i < 8; i++) index[i] = (byte) (sequence >>> (56 - 8 * i));
-        return concat(PREFIX, ascii("used-queue/"), index);
+        return concat(PREFIX, ascii("used-queue/"), u64(sequence));
     }
 
     public static byte[] usedQueueMetaKey() {
@@ -97,6 +103,36 @@ public final class AssetPaymentsContract {
 
     public static byte[] receiptKey(Hash32 intentId) {
         return concat(PREFIX, ascii("receipt/"), intentId.bytes());
+    }
+
+    public static byte[] claimSequenceKey() {
+        return concat(PREFIX, ascii("claim-seq"));
+    }
+
+    public static byte[] claimIndexKey(long sequence) {
+        return concat(PREFIX, ascii("claim-index/"), u64(sequence));
+    }
+
+    public static byte[] settleQueueKey(Hash32 vaultId, int shard, long sequence) {
+        return concat(PREFIX, ascii("settle-queue/"), vaultId.bytes(), new byte[] {(byte) shard}, u64(sequence));
+    }
+
+    public static byte[] settleQueueMetaKey(Hash32 vaultId, int shard) {
+        return concat(PREFIX, ascii("settle-queue-meta/"), vaultId.bytes(), new byte[] {(byte) shard});
+    }
+
+    public static byte[] settleBatchSequenceKey() {
+        return concat(PREFIX, ascii("settle-batch-seq"));
+    }
+
+    public static byte[] settleBatchKey(long sequence) {
+        return concat(PREFIX, ascii("settle-batch/"), u64(sequence));
+    }
+
+    static byte[] u64(long value) {
+        byte[] index = new byte[8];
+        for (int i = 0; i < 8; i++) index[i] = (byte) (value >>> (56 - 8 * i));
+        return index;
     }
 
     static byte[] requireAccount(byte[] accountId) {

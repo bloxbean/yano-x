@@ -160,7 +160,7 @@ class AssetPaymentsStateMachineTest {
                 T0 + 1_500, transferBody(USDM, bob, 1));
         IntentEnvelopeV1 tooLong = envelope(alice.accountId(), AssetPaymentsContract.TRANSFER, OWNER, ++nonce,
                 T0 + 10_000_000, transferBody(USDM, bob, 1));
-        IntentEnvelopeV1 withdrawal = env(alice, "REQUEST_WITHDRAWAL", PaymentsBodies.REGISTER_ACCOUNT);
+        IntentEnvelopeV1 withdrawal = env(alice, "PAUSE", PaymentsBodies.REGISTER_ACCOUNT);
         ledger.block(T0 + 2_000, intent(owner(bob, forged)), intent(owner(alice, expired)),
                 intent(owner(alice, tooLong)), intent(owner(alice, withdrawal)),
                 new Message(AssetPaymentsContract.INTENT_TOPIC, new byte[] {1, 2, 3}),
