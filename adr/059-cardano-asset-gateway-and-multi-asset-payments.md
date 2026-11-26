@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-26, r19). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r19 record the rules settled while implementing M4 (see the revision history).
+- **Status:** Proposed (2026-11-27, r20). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r20 record the rules settled while implementing M4 (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -578,7 +578,10 @@ When a consumer authorizes a withdrawal, the same `apply()` does the following:
      `settlement.batch-size` claims and at most what the chain's effect payload limit carries; its
      expiry must lie within the chain's effect expiry window, checked at startup. With the default
      `settlement.batch-wait-ms` of 0 a claim is batched in the block that reserves it; a non-zero
-     wait is judged only when a later block runs, so it needs regular traffic.
+     wait is judged only when a later block runs, so it needs regular traffic. *(r20)* A token claim
+     whose `vaultLovelace` is below `settlement.min-queued-vault-lovelace` (default 1,300,000, the
+     min-UTxO of any single-asset payout at 4,310 lovelace per byte) is never queued: it stays
+     `RESERVED` and payable by `Exit`, and churns no effects (D11).
    - **Effect results never change claim status** (D10).
 
 **Who authors a claim.** Every field of a claim comes from finalized state. A relayer chooses
@@ -1255,7 +1258,9 @@ it signs itself** (r7).
    re-serialize to its own bytes, so the hash it signs is the id of the transaction it received,
    and bounds the validity interval by its own L1 time: a TTL is required, at most 15 minutes past
    its tip (the owner's window of at most 10 minutes plus 5 minutes of skew), and the validity
-   start at most 5 minutes past it. Every member therefore needs the slot clock.
+   start at most 5 minutes past it. Every member therefore needs the slot clock. *(r20)* Every
+   member's clock must be within about 5 minutes of the owner's; a member whose clock lags further
+   refuses honest bodies as `l1-tip-bound`, which its co-sign status reports as degraded.
 1. Resolve every `body.inputs` entry, including collateral inputs, against its own
    `l1UtxoView()`. If any input is unknown, refuse to sign. Refuse also if any input is locked by
    the **member's own** key hash, so the member's witness authorizes nothing else.
@@ -1272,7 +1277,9 @@ it signs itself** (r7).
    that its native assets are exactly that token. Check that exactly one output pays the shard
    script: at the exact shard address, holding only lovelace (at least the input's) and the thread
    token, with no reference script, and with the datum whose root is the fold of the redeemer's
-   inserts from the input's root. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
+   inserts from the input's root. *(r20)* Each insert's proof must also pass the shard script's
+   own shape rules (`isWellFormed`, `excludedTerminalIsUnambiguous`), so the member accepts
+   exactly the proofs the script accepts. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
    claims with `USER_WITHDRAWAL` kind and exact fields, at a reservation height at or below the
    referenced anchor's height (V12). The domain must be `ACTIVE` and the exit-mode thread
    `NORMAL`.
@@ -1360,29 +1367,38 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
   This check stays small, and it gets its own review (§12). When the batch closes, on any
   result, the ledger re-batches the claims still `RESERVED` (D7 step 4).
 - **What the owner builds** *(r19)*:
-  - **Input selection.** Accepted vault custody (V10) is taken most useful first: vault-asset
-    quantity descending, then lovelace descending, then outpoint. A candidate that adds nothing
-    still needed is skipped, and selection stops once the inputs cover the debit plus the
-    continuation's real requirement, the larger of the floor and the serialized continuation's
-    min-UTxO. The selected inputs are then spent in canonical outpoint order, which redeemer
-    indexes refer to. Dust at low outpoints therefore never fills `maxVaultInputs`.
+  - **Input selection.** Accepted vault custody (V10) is taken one input at a time by what is
+    still needed: while the vault-asset debit is uncovered, the input with the most vault asset
+    (then lovelace, then outpoint); after that *(r20)*, the input with the most lovelace (then
+    outpoint). Selection stops once the inputs cover the debit plus the continuation's real
+    requirement: the larger of the floor and the min-UTxO of the continuation as serialized, with
+    its ids, remaining asset and *(r20)* actual lovelace. The selected inputs are then spent in
+    canonical outpoint order, which redeemer indexes refer to. Dust at low outpoints therefore
+    never fills `maxVaultInputs`.
   - **Supplements.** The fee wallet adds at most `max-supplement-per-payout` (default 0) to one
     payout's min-UTxO (D11). A claim that needs more is left out of the co-signed batch and stays
     `RESERVED` for `Exit`, where the relayer or the user supplements it. A batch of only such
     claims waits until its effect expires.
   - **Size.** The executor pays at most `max-settle-batch` claims of a batch and halves the batch
-    when the transaction exceeds a per-transaction limit. Declared execution units, margins
+    when the transaction exceeds a per-transaction limit: size, units, *(r20)* a script out of
+    budget, or more vault inputs than `max-vault-inputs`. Declared execution units, margins
     included, never exceed the protocol limits, and the size is measured with placeholder vkey
-    witnesses of the final count. The unpaid remainder stays `RESERVED` and is re-queued.
-  - **Signers.** The required signers are the owner, when it is an anchor member, then a
-    threshold's worth of the other members in key order from an offset that advances with each
-    attempt. A member that does not answer blocks one attempt, not every one. The round accepts
-    replies only from the members named in that attempt.
-  - **Confirmation.** The executor reports `Confirmed` only once none of the transaction's claims
-    is `RESERVED` in committed state, never on tip inclusion, and `Failed` past the inclusion
-    deadline. The deadline is persisted with the transaction id in the effect's submitted
-    reference, so a restart keeps it. The inclusion timeout must exceed the stability window,
-    checked at startup.
+    witnesses of the final count. *(r20)* A claim that alone exceeds a limit is left `RESERVED`
+    for `Exit` and the next claims are tried. The unpaid remainder stays `RESERVED` and is
+    re-queued.
+  - **Signers.** The required signers are the owner, when it is an anchor member, then *(r20)*
+    the members that answered the effect's previous round, and for the rest the next members in
+    key order not yet tried (all tried: start over). A member that does not answer is replaced
+    while those that answered stay, so any healthy quorum is reached. The round accepts replies
+    only from the members named in that attempt.
+  - **Confirmation.** The executor reports `Confirmed` only once *(r20)* every claim of the
+    transaction is `PAID` by that very transaction in committed state, never on tip inclusion. A
+    claim resolved by another transaction, or as `PAID_MISMATCH`, closes the effect as superseded
+    (`Failed`, non-retryable); past the inclusion deadline it is `Failed` too. The deadline and
+    *(r20)* a bitmap of the batch positions the transaction pays are persisted with the
+    transaction id in the effect's submitted reference, so a restart waits on the same claims
+    until the same deadline. The inclusion timeout must exceed the stability window, checked at
+    startup; the validity window is checked on the owner only.
 - **Shared fixes** from the EUTxO stack carry over:
   - a durable journal;
   - a node-local operator wallet for fees;
@@ -1523,7 +1539,9 @@ own min-ADA:
   own inputs. The user can self-relay. The claim stays payable and is never stranded. *(r19)* The
   co-signed executor adds at most `max-supplement-per-payout` (default 0) per payout, so many
   unfunded token withdrawals cannot drain the operator's fee wallet; a claim that needs more goes
-  to `Exit`.
+  to `Exit`. *(r20)* The ledger does not even queue a token claim whose `vaultLovelace` is below
+  `settlement.min-queued-vault-lovelace`, a genesis setting, because protocol parameters are not
+  consensus state; the default covers any single-asset payout at today's 4,310 lovelace per byte.
 - **Operational floor.** Each vault keeps an operator-funded `continuationFloor` so that a
   continuation output always exists. That covers withdrawing the last liability from the last
   UTxO (B-F9). The floor is operator-owned operational ADA. It is never a user liability, and it
@@ -2673,3 +2691,19 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     bytes, and bounds the validity interval by its own L1 time.
   - D8h §6: `PAID_MISMATCH` claims are part of the mirror source.
   - M4a: exit-mode relaying is recorded there; the M4 relayer refuses in exit mode.
+- **r20** (2026-11-27): the Fable and Codex re-reviews of the r19 fixes:
+  - D9: on retry the required signers keep the members that answered the previous round and
+    replace only the missing ones with the next untried members, so a 3-of-5 with two members
+    down still reaches the healthy quorum.
+  - D8h §1: the member's shard fold applies the script's proof shape rules, so it accepts exactly
+    the proofs the shard validator accepts.
+  - D9: once the asset debit is covered, inputs are chosen by lovelace; the continuation is priced
+    with its actual lovelace; a script out of budget and an exhausted vault-input cap are
+    splittable limits; a claim that alone exceeds a limit is left for `Exit`.
+  - D9: the submitted reference carries a bitmap of the claims the transaction pays; a claim
+    resolved by another transaction or as `PAID_MISMATCH` supersedes the effect instead of
+    confirming it; only the owner's validity window is checked.
+  - D7, D11: `settlement.min-queued-vault-lovelace` keeps unfundable token claims out of the
+    settlement queues.
+  - D8h §1: members' clocks must be within about 5 minutes of the owner's; a tip-bound refusal is
+    reported apart and shows as degraded co-sign status.
