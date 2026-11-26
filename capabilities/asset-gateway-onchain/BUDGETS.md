@@ -96,6 +96,10 @@ julc VM against real tries and serializes each whole transaction. Rerun it with:
   Re-measure before raising it.
 - **`AcceptProved`.** The lead carries one proof per deposit and every other deposit input carries the 4-byte
   `Follow` marker, so the cap doubled from 8 (when every input repeated the full redeemer) to 16; relayers batch 12.
+- **`AcceptCosigned`** (M4 part 2 stage 3a). It carries no proof, only the members' threshold. Measured on the built
+  transaction by `AcceptTxBuilderTest` in `asset-gateway-cardano-support` (same toolchain, 2-of-3): 16 deposits of the
+  token vault use 6,484,642 memory (39% of the limit) in about 1.4 KB. The owner batches 16 (D8f: "batches of about
+  16"); a proved fallback batches 12.
 - **`Consolidate`.** Permissionless and EXIT-only (in NORMAL anyone could use it to invalidate in-flight payouts every
   round, and `Settle` already merges its inputs). 32 inputs per transaction: 512 one-unit outputs need 16
   consolidations into 16 outputs and a 17th that merges those 16 (or a `BalanceExit` that spends the 16 directly,

@@ -74,7 +74,7 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Yano X Asset Gateway Cardano Support'
-                description = 'Protocol-neutral Cardano helpers for the asset gateway: valid-transaction filter, datum preflight, observer identity, output values, the Settle and Exit transaction builder, the shard mirror and the co-sign body check (ADR-059 D2, D8h, D9)'
+                description = 'Protocol-neutral Cardano helpers for the asset gateway: valid-transaction filter, datum preflight, observer identity, output values, the Settle, Exit and Accept transaction builders, node state proofs, the shard mirror and the co-sign body checks (ADR-059 D2, D8f, D8h, D9)'
             }
         }
     }

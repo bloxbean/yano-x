@@ -1051,7 +1051,9 @@ A credited deposit can therefore never be refunded: the proof would fail. An unc
 can never be accepted: its record is not `CREDITED`.
 
 Acceptance does not delay credit. Credit happens on the finalized observation (D6). Acceptance
-only moves value into spendable custody, and relayers batch it routinely.
+only moves value into spendable custody, and relayers batch it routinely. *(r20)* No ledger
+effect asks for it: the owner batches credited deposits on a timer, co-signed first and proved
+when no quorum answers, under the same assembly lock and pending-spend holds as `Settle` (D9).
 
 ### D8g. Escape hatch: forced withdrawal and exit mode (rewritten in r7)
 
@@ -1415,7 +1417,10 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
 
 **Exit relayer.** Any node, or any third party, works through claims in this order:
 1. Wait until the claim is `EXIT_ELIGIBLE`, as defined in D7.
-2. Fetch the claim proof and the status-leaf proof at the referenced anchor's height. Fetch the
+2. Fetch the claim proof and the status-leaf proof at the referenced anchor's height. *(r20)* A
+   node's relayer references the live anchor only once it is L1-stable, so that height lies within
+   its proof floor (D8b), and reads the domain status from the status-leaf proof, not from its
+   committed state. Fetch the
    shard exclusion witnesses from the shard mirror (D8h §6). Without operators, the SDK rebuilds
    that mirror from L1 alone (D8g §7). A mismatch with the shard's on-chain root stops the relayer
    for that shard.
@@ -2723,3 +2728,16 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     recovers; `max-settle-batch` is every signing member's setting, at least the owner's cap.
   - reviewer3 M4S2-F1: the owner serializes settlement assembly, excludes outpoints spent by pending
     submissions, and never rebuilds over a pending shard input.
+  - M4 part 2 stage 3a (`Accept` and the runtime exit relayer):
+    - D8f: the owner batches `CREDITED` deposits on a timer (no ledger effect), at most 16 per
+      co-signed and 12 per proved `Accept`; without a quorum it falls back to the proved `Accept`.
+      Proved acceptance in exit mode is M4a, as is exit-mode relaying.
+    - D8h §1 step 4: the co-signed `Accept` body check reads each deposit's record through a new
+      committed query (`asset-gateway/deposit`); it does not require the domain to be `ACTIVE`,
+      because acceptance pays nobody.
+    - D8b, D9: effect executors read state proofs at a height and the L1-stable anchor frontier
+      through the effect context. The relayer and the proved `Accept` reference the live anchor
+      only once it is L1-stable.
+    - D9: the `Accept` batcher and a relayer on the owner share the `Settle` executor's assembly
+      lock, fee wallet and pending-spend holds; an `Accept` or relayed `Exit` holds its inputs until
+      its inclusion timeout. A relaying non-owner has its own fee wallet.
