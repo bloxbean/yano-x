@@ -208,7 +208,8 @@ class AssetPaymentsSettlementEndToEndTest {
 
         // A member's body check accepts it against the ledger's own committed state (D8h §1).
         SettleBodyCheck.Outcome check = SettleBodyCheck.check(built.cbor(), pins, filled(28, 0x99),
-                outpoint -> Optional.ofNullable(l1.get(outpoint)), committed, PayoutTxBuilder.costModels(params()));
+                outpoint -> Optional.ofNullable(l1.get(outpoint)), committed, PayoutTxBuilder.costModels(params()),
+                new SettleBodyCheck.Tip(1_000, 1_000));
         assertThat(check).isInstanceOf(SettleBodyCheck.Signable.class);
 
         // 3. The included transaction, as Conway block bytes, through the real payout observer.

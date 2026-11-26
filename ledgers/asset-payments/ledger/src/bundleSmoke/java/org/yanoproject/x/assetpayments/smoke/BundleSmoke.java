@@ -288,6 +288,8 @@ public final class BundleSmoke {
                 "anchor.application-id", "asset-payments", "anchor.commitment-profile", "mpf-blake2b256-v1",
                 "anchor.format-fingerprint", "fa".repeat(32), "exit-mode.policy-id", "d1".repeat(28),
                 "exit-mode.script-hash", "31".repeat(28), "continuation-floor", "2000000"));
+        // Every member bounds the validity interval it signs by its own L1 time (ADR-059 D8h §1 step 0).
+        config.putAll(Map.of("slot.zero-time-ms", "0", "slot.zero-slot", "0", "slot.length-ms", "1000"));
         config.remove("min-stability-depth");
         org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler[] registered =
                 new org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler[1];

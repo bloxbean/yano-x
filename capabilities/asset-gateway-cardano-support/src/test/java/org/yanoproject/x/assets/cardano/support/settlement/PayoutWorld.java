@@ -230,6 +230,11 @@ final class PayoutWorld {
                 ttlSlot, pp, 8);
     }
 
+    /** The member's L1 tip at the world's now (one-second slots). */
+    static SettleBodyCheck.Tip tip() {
+        return new SettleBodyCheck.Tip(NOW_SLOT, 1_000);
+    }
+
     /** The required signers of a Settle: the first {@code count} members' key hashes. */
     static List<byte[]> signers(int count) {
         return MEMBERS.subList(0, count).stream().map(Blake2bUtil::blake2bHash224).toList();

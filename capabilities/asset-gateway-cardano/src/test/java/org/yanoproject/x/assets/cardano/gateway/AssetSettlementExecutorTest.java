@@ -344,14 +344,15 @@ class AssetSettlementExecutorTest {
         config.put("exit-mode.script-hash", HexFormat.of().formatHex(EXIT_HASH));
         config.put("continuation-floor", "2000000");
         config.put("round-timeout-ms", "200");
+        // Every member bounds the validity it signs by its own L1 time, so the slot clock is every node's setting.
+        config.put("slot.zero-time-ms", "0");
+        config.put("slot.zero-slot", "0");
+        config.put("slot.length-ms", "1000");
         if (owner) {
             Path key = temp.resolve("fee.skey");
             Files.writeString(key, HexFormat.of().formatHex(FEE_SEED));
             config.put("owner", "true");
             config.put("fee-wallet.key-file", key.toString());
-            config.put("slot.zero-time-ms", "0");
-            config.put("slot.zero-slot", "0");
-            config.put("slot.length-ms", "1000");
         }
         return config;
     }

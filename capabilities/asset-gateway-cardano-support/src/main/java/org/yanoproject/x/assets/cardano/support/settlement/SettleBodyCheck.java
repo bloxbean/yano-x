@@ -43,7 +43,11 @@ import java.util.function.Function;
  *
  * <ol start="0">
  *   <li>The request is the full unsigned transaction: no vkey witnesses; the member recomputes
- *       {@code script_data_hash} from the witnessed redeemers and datums and refuses a missing or different one.</li>
+ *       {@code script_data_hash} from the witnessed redeemers and datums and refuses a missing or different one. The
+ *       request must be in the form this library re-serializes it to, byte for byte, so the hash the member signs is
+ *       the id of exactly the transaction it received. Its validity interval is bounded by the member's own L1 time:
+ *       a TTL is required, at most {@link #MAX_TTL_AHEAD_MS} past the member's tip, and the start at most
+ *       {@link #MAX_START_SKEW_MS} after it, so a signature cannot be stockpiled for later use.</li>
  *   <li>Every input and collateral input resolves in the member's own view, and none is locked by the member's own
  *       key, so its witness authorizes nothing else.</li>
  *   <li>At least one input is at the pinned vault address; the only script inputs are this vault's own (at its exact
@@ -56,11 +60,36 @@ import java.util.function.Function;
  *       or below the referenced anchor's height (V12). The outputs satisfy V5-V7 against those committed leaves: output
  *       {@code i} pays {@code claim[i]}'s recipient its exact asset quantity and at least its {@code vaultLovelace},
  *       output {@code k} is the exact continuation with the exact value equation, and no other output pays the vault.
- *       Vault inputs are accepted custody (V10). The domain status leaf is {@code ACTIVE}.</li>
+ *       Vault inputs are accepted custody (V10). The shard input holds only its thread token, and exactly one output
+ *       pays the shard script: at the exact shard address, with only lovelace (at least the input's) and the thread
+ *       token, no reference script, and the datum {@code ShardDatumV1(1, shard, root)} whose root is the fold of the
+ *       redeemer's inserts from the input's root ({@link ShardFold}). The domain status leaf is {@code ACTIVE}.</li>
  * </ol>
  */
 public final class SettleBodyCheck {
+    /**
+     * How far past the member's own L1 tip a body's TTL may lie: the owner's validity window (at most 10 minutes) plus
+     * {@link #MAX_START_SKEW_MS} of clock skew between the owner and the member (review M4-F2's bound, reused).
+     */
+    public static final long MAX_TTL_AHEAD_MS = 900_000;
+    /** How far past the member's own L1 tip a body's validity start may lie. */
+    public static final long MAX_START_SKEW_MS = 300_000;
+
     private SettleBodyCheck() {
+    }
+
+    /**
+     * The member's own L1 time in slots, read from its own clock and pinned slot length, that bounds a body's
+     * validity interval.
+     */
+    public record Tip(long slot, long slotLengthMs) {
+        public Tip {
+            if (slot < 0 || slotLengthMs < 1) throw new IllegalArgumentException("tip slot and slot length");
+        }
+
+        long slotsWithin(long millis) {
+            return millis / slotLengthMs;
+        }
     }
 
     /** Why a body was refused; the {@code BodyRefusal} pattern of the script-anchor co-sign service. */
@@ -130,9 +159,9 @@ public final class SettleBodyCheck {
      */
     public static Outcome check(byte[] fullUnsignedTx, VaultPins pins, byte[] ownKeyHash,
                                 Function<ResolvedOutput.Outpoint, Optional<ResolvedOutput>> l1View,
-                                Committed committed, CostMdls costModels) {
+                                Committed committed, CostMdls costModels, Tip tip) {
         try {
-            return checkOrThrow(fullUnsignedTx, pins, ownKeyHash, l1View, committed, costModels);
+            return checkOrThrow(fullUnsignedTx, pins, ownKeyHash, l1View, committed, costModels, tip);
         } catch (RefusedException refused) {
             return new Refused(refused.refusal);
         } catch (RuntimeException malformed) {
@@ -155,14 +184,30 @@ public final class SettleBodyCheck {
 
     private static Outcome checkOrThrow(byte[] fullUnsignedTx, VaultPins pins, byte[] ownKeyHash,
                                         Function<ResolvedOutput.Outpoint, Optional<ResolvedOutput>> l1View,
-                                        Committed committed, CostMdls costModels) throws RefusedException {
+                                        Committed committed, CostMdls costModels, Tip tip) throws RefusedException {
         Transaction tx;
+        byte[] reserialized;
         try {
             tx = Transaction.deserialize(fullUnsignedTx);
+            reserialized = tx.serialize();
         } catch (Exception malformed) {
             throw hazard("the request is not a transaction");
         }
+        // The signed hash is of this library's re-serialization of the body; it is the requested transaction's id
+        // only when the request is exactly that serialization.
+        if (!Arrays.equals(reserialized, fullUnsignedTx)) {
+            throw hazard("the request does not re-serialize to its own bytes, so its id is not the hash I would sign");
+        }
         TransactionBody body = tx.getBody();
+
+        // §0: the validity interval, bounded by this member's own L1 time.
+        if (body.getTtl() <= 0) throw hazard("the body has no TTL");
+        if (body.getTtl() > tip.slot() + tip.slotsWithin(MAX_TTL_AHEAD_MS)) {
+            throw hazard("the TTL lies more than " + MAX_TTL_AHEAD_MS + " ms past my L1 tip");
+        }
+        if (body.getValidityStartInterval() > tip.slot() + tip.slotsWithin(MAX_START_SKEW_MS)) {
+            throw hazard("the validity start lies more than " + MAX_START_SKEW_MS + " ms past my L1 tip");
+        }
 
         // §0: the full unsigned transaction, with its script data hash recomputed here.
         var witnesses = tx.getWitnessSet();
@@ -213,6 +258,9 @@ public final class SettleBodyCheck {
                 shardIndex = shardTokenIndex(resolved, pins);
                 if (shardIndex < 0 || !resolved.sameAddress(pins.shardAddress())) {
                     throw hazard("the shard input does not carry exactly one of this vault's thread tokens");
+                }
+                if (!PayoutTxBuilder.shardOnly(resolved, pins, shardIndex)) {
+                    throw hazard("the shard input holds a native asset besides its thread token");
                 }
                 shardInput = resolved;
             } else {
@@ -292,6 +340,12 @@ public final class SettleBodyCheck {
             throw hazard("the shard redeemer does not decode");
         }
         if (!inserts.equals(ids)) throw hazard("the shard inserts differ from the paid claims");
+        byte[] shardRoot = shardInput.inlineDatum().flatMap(GatewayDatums::shardDatum)
+                .filter(datum -> datum.shardIndex() == settle.shardIndex())
+                .map(datum -> datum.nullifierRoot().bytes())
+                .orElseThrow(() -> hazard("the shard input has no shard datum of its index"));
+        byte[] postInsertRoot = ShardFold.postInsertRoot(shardRoot, shardIndex, redeemers.get(shardInput.outpoint()))
+                .orElseThrow(() -> hazard("the shard inserts do not fold from the shard input's root"));
 
         // Every claim is a committed, RESERVED user claim of this vault, with exactly these fields (V12 included).
         DomainStatusV1 status = committed.domainStatus().orElseThrow(() -> hazard("no committed domain status"));
@@ -352,14 +406,28 @@ public final class SettleBodyCheck {
                 && continuation.getInlineDatum() != null
                 && continuationIds(continuation.getInlineDatum()).equals(ids);
         if (!continuationValid) throw hazard("output " + k + " is not the exact vault continuation");
+        TransactionOutput shardContinuation = null;
         for (int i = 0; i < outputs.size(); i++) {
-            if (i == k) continue;
             Optional<ResolvedOutput.PaymentCredential> credential =
                     ResolvedOutput.paymentCredential(addressBytes(outputs.get(i)));
-            if (credential.isPresent() && Arrays.equals(credential.get().hash(), pins.vaultScriptHash())) {
+            if (credential.isEmpty() || !credential.get().script()) continue;
+            if (i != k && Arrays.equals(credential.get().hash(), pins.vaultScriptHash())) {
                 throw hazard("another output pays the vault");
             }
+            if (Arrays.equals(credential.get().hash(), pins.shardScriptHash())) {
+                if (shardContinuation != null) throw hazard("two outputs pay the shard script");
+                shardContinuation = outputs.get(i);
+            }
         }
+        if (shardContinuation == null) throw hazard("no shard continuation");
+        boolean shardValid = Arrays.equals(addressBytes(shardContinuation), pins.shardAddress())
+                && shardContinuation.getScriptRef() == null
+                && assets(shardContinuation).equals(Map.of(pins.shardToken(shardIndex), BigInteger.ONE))
+                && shardContinuation.getValue().getCoin().compareTo(shardInput.lovelace()) >= 0
+                && shardContinuation.getInlineDatum() != null
+                && GatewayDatums.shardDatum(datumBytes(shardContinuation.getInlineDatum()))
+                .equals(Optional.of(new GatewayDatums.ShardDatum(shardIndex, Hash32.of(postInsertRoot))));
+        if (!shardValid) throw hazard("the shard continuation is not the exact post-insert shard");
         byte[] bodyHash = HexFormat.of().parseHex(TransactionUtil.getTxHash(tx));
         return new Signable(new Verified(bodyHash, ids, shardIndex, anchor));
     }
@@ -416,6 +484,14 @@ public final class SettleBodyCheck {
             return GatewayPlutus.isNormalMode(PlutusData.deserialize(datum));
         } catch (Exception malformed) {
             return false;
+        }
+    }
+
+    private static byte[] datumBytes(PlutusData datum) {
+        try {
+            return datum.serializeToBytes();
+        } catch (Exception malformed) {
+            return new byte[0];
         }
     }
 

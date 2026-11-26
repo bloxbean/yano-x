@@ -41,15 +41,20 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * claim-key-prefix (ap/claim/), domain-status-key (ap/domain-status)   ASCII, the vault script's parameters
  * owner (false)                     exactly one node per chain builds and submits (single-owner pinning)
  * round-timeout-ms (30000)          the fail-closed co-sign round timeout
+ * slot.zero-time-ms, slot.zero-slot, slot.length-ms    the L1 slot clock: the owner's validity intervals, and every
+ *                                   member's bound on the intervals it signs (D8h §1 step 0)
  * fee-wallet.key-file               owner only: a file holding the 32-byte Ed25519 seed (hex) of the fee wallet
- * slot.zero-time-ms, slot.zero-slot, slot.length-ms    owner only: the L1 slot clock
- * validity-window-slots (600), max-vault-inputs (8), inclusion-timeout-ms (900000)
+ * validity-window-slots (600)       owner only: the Settle's validity window, at most 10 minutes of slots
+ * max-vault-inputs (8), inclusion-timeout-ms (900000)
  * </pre>
  */
 record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> pins, Map<Hash32, ScriptRefs> scriptRefs,
                                boolean owner, Duration roundTimeout, Optional<byte[]> feeWalletSeed,
-                               Optional<SlotClock> slots, long validityWindowSlots, int maxVaultInputs,
+                               SlotClock slots, long validityWindowSlots, int maxVaultInputs,
                                Duration inclusionTimeout) {
+    /** The owner's validity window bound: the members accept a TTL up to 10 minutes plus clock skew past their tip. */
+    static final long MAX_VALIDITY_WINDOW_MS = 600_000;
+
     private static final Set<String> VAULT_EXTRAS = Set.of("script-ref", "shard-script-ref");
 
     /** The reference-script outputs of one vault. */
@@ -118,19 +123,21 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
             if (index < 0 || index >= vaults.vaults().size()) throw new IllegalArgumentException("vaults." + index);
         }
         boolean owner = Boolean.parseBoolean(optional(config, "owner", "false"));
-        Optional<byte[]> seed = Optional.empty();
-        Optional<SlotClock> slots = Optional.empty();
-        if (owner) {
-            seed = Optional.of(readSeed(required(config, "fee-wallet.key-file")));
-            slots = Optional.of(new SlotClock(
-                    bounded(required(config, "slot.zero-time-ms"), 0, Long.MAX_VALUE / 4, "slot.zero-time-ms"),
-                    bounded(required(config, "slot.zero-slot"), 0, Long.MAX_VALUE / 4, "slot.zero-slot"),
-                    bounded(required(config, "slot.length-ms"), 1, 3_600_000, "slot.length-ms")));
+        Optional<byte[]> seed = owner ? Optional.of(readSeed(required(config, "fee-wallet.key-file")))
+                : Optional.empty();
+        // Every member bounds the validity interval it signs by its own L1 time, so every node needs the clock.
+        SlotClock slots = new SlotClock(
+                bounded(required(config, "slot.zero-time-ms"), 0, Long.MAX_VALUE / 4, "slot.zero-time-ms"),
+                bounded(required(config, "slot.zero-slot"), 0, Long.MAX_VALUE / 4, "slot.zero-slot"),
+                bounded(required(config, "slot.length-ms"), 1, 3_600_000, "slot.length-ms"));
+        long window = bounded(optional(config, "validity-window-slots", "600"), 10, 86_400, "validity-window-slots");
+        if (window * slots.slotLengthMs() > MAX_VALIDITY_WINDOW_MS) {
+            throw new IllegalArgumentException("validity-window-slots spans more than " + MAX_VALIDITY_WINDOW_MS
+                    + " ms, past what members sign");
         }
         return new AssetSettlementSettings(vaults, pins, refs, owner,
                 Duration.ofMillis(bounded(optional(config, "round-timeout-ms", "30000"), 100, 600_000,
-                        "round-timeout-ms")), seed, slots,
-                bounded(optional(config, "validity-window-slots", "600"), 10, 86_400, "validity-window-slots"),
+                        "round-timeout-ms")), seed, slots, window,
                 (int) bounded(optional(config, "max-vault-inputs", "8"), 1, 32, "max-vault-inputs"),
                 Duration.ofMillis(bounded(optional(config, "inclusion-timeout-ms", "900000"), 1_000, 86_400_000L,
                         "inclusion-timeout-ms")));

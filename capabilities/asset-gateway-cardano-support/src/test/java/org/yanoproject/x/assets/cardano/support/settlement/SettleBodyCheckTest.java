@@ -61,7 +61,7 @@ class SettleBodyCheckTest {
 
     static SettleBodyCheck.Outcome check(byte[] tx, State state) {
         return SettleBodyCheck.check(tx, world.pins, memberKey, world::resolve, state,
-                PayoutTxBuilder.costModels(PayoutWorld.PARAMS));
+                PayoutTxBuilder.costModels(PayoutWorld.PARAMS), PayoutWorld.tip());
     }
 
     static PayoutTxBuilder.Built build(int shard, List<ClaimLeafV1> claims) {
@@ -149,7 +149,7 @@ class SettleBodyCheckTest {
         PayoutTxBuilder.Built built = build(10, claims);
         SettleBodyCheck.Outcome outcome = SettleBodyCheck.check(built.cbor(), world.pins, memberKey,
                 outpoint -> outpoint.equals(world.fee.outpoint()) ? Optional.empty() : world.resolve(outpoint),
-                new State(claims), PayoutTxBuilder.costModels(PayoutWorld.PARAMS));
+                new State(claims), PayoutTxBuilder.costModels(PayoutWorld.PARAMS), PayoutWorld.tip());
         assertThat(((SettleBodyCheck.Refused) outcome).refusal().kind())
                 .isEqualTo(SettleBodyCheck.Refusal.Kind.UNRESOLVED_INPUT);
     }
@@ -174,6 +174,103 @@ class SettleBodyCheckTest {
         State paused = new State(claims);
         paused.status = new DomainStatusV1(DomainStatusV1.Status.PAUSED, 1, 1, PayoutWorld.EXIT_DELAY);
         refused(check(build(12, claims).cbor(), paused), "not ACTIVE");
+    }
+
+    /** Review P1 (foreign asset in a shard): the shard input, as this member resolves it, holds a foreign token. */
+    @Test
+    void aShardInputHoldingAForeignTokenIsRefused() {
+        List<ClaimLeafV1> claims = world.claims(13, 1);
+        world.anchor(claims, 20_007);
+        PayoutTxBuilder.Built built = build(13, claims);
+        ResolvedOutput honest = world.shards[13];
+        TreeMap<org.yanoproject.x.assets.contracts.AssetId, BigInteger> assets = new TreeMap<>(honest.assets());
+        assets.put(PayoutWorld.TOKEN, BigInteger.ONE);
+        ResolvedOutput dusted = new ResolvedOutput(honest.outpoint(), honest.address(), honest.lovelace(), assets,
+                honest.inlineDatum(), honest.referenceScript());
+        SettleBodyCheck.Outcome outcome = SettleBodyCheck.check(built.cbor(), world.pins, memberKey,
+                outpoint -> outpoint.equals(honest.outpoint()) ? Optional.of(dusted) : world.resolve(outpoint),
+                new State(claims), PayoutTxBuilder.costModels(PayoutWorld.PARAMS), PayoutWorld.tip());
+        refused(outcome, "besides its thread token");
+    }
+
+    /** Review P2-f: the shard continuation must be the exact post-insert shard. */
+    @Test
+    void aShardContinuationThatIsNotTheFoldOfTheInsertsIsRefused() throws Exception {
+        List<ClaimLeafV1> claims = world.claims(14, 2);
+        world.anchor(claims, 20_008);
+        PayoutTxBuilder.Built built = build(14, claims);
+        int shardOutput = claims.size() + 1;
+
+        Transaction wrongRoot = Transaction.deserialize(built.cbor());
+        wrongRoot.getBody().getOutputs().get(shardOutput).setInlineDatum(GatewayPlutus.shardDatum(14,
+                PayoutWorld.filled(32, 0x5c)));
+        refused(check(wrongRoot.serialize(), new State(claims)), "post-insert shard");
+
+        Transaction drained = Transaction.deserialize(built.cbor());
+        var value = drained.getBody().getOutputs().get(shardOutput).getValue();
+        value.setCoin(value.getCoin().subtract(BigInteger.ONE));
+        refused(check(drained.serialize(), new State(claims)), "post-insert shard");
+
+        Transaction withScript = Transaction.deserialize(built.cbor());
+        withScript.getBody().getOutputs().get(shardOutput).setScriptRef(world.shardScript.scriptRefBytes());
+        refused(check(withScript.serialize(), new State(claims)), "post-insert shard");
+
+        // The honest body passes, so each refusal above is the continuation's.
+        assertThat(check(built.cbor(), new State(claims))).isInstanceOf(SettleBodyCheck.Signable.class);
+    }
+
+    /** Review P2-g: a request that is not its own re-serialization is refused, so the signed hash is its id. */
+    @Test
+    void aRequestThatDoesNotReserializeToItsOwnBytesIsRefused() {
+        List<ClaimLeafV1> claims = world.claims(15, 1);
+        world.anchor(claims, 20_009);
+        PayoutTxBuilder.Built built = build(15, claims);
+        byte[] cbor = built.cbor();
+        long fee = built.fee().longValueExact();
+        assertThat(fee).isBetween(65_536L, 0xffff_ffffL);
+        // The body's fee as a non-minimal 8-byte integer: the same decoded body, but other body bytes and id.
+        byte[] minimal = {0x02, 0x1a, (byte) (fee >>> 24), (byte) (fee >>> 16), (byte) (fee >>> 8), (byte) fee};
+        int at = indexOf(cbor, minimal);
+        assertThat(at).isPositive();
+        java.io.ByteArrayOutputStream padded = new java.io.ByteArrayOutputStream();
+        padded.write(cbor, 0, at);
+        padded.writeBytes(new byte[] {0x02, 0x1b, 0, 0, 0, 0});
+        padded.write(cbor, at + 2, cbor.length - at - 2);
+        refused(check(padded.toByteArray(), new State(claims)), "re-serialize");
+    }
+
+    /** Review P3-1: the validity interval is bounded by the member's own L1 tip. */
+    @Test
+    void aBodyWithoutATtlOrValidFarPastMyTipIsRefused() throws Exception {
+        List<ClaimLeafV1> claims = world.claims(1, 1);
+        world.anchor(claims, 20_010);
+        State state = new State(claims);
+        long now = PayoutWorld.NOW_SLOT;
+        PayoutTxBuilder.Built farTtl = PayoutTxBuilder.settle(world.context(1, now, now + 901, PayoutWorld.PARAMS),
+                claims, world.mirrors[1], PayoutWorld.signers(2), fixedUnits());
+        refused(check(farTtl.cbor(), state), "TTL lies more than");
+        PayoutTxBuilder.Built lateStart = PayoutTxBuilder.settle(world.context(1, now + 301, now + 400,
+                PayoutWorld.PARAMS), claims, world.mirrors[1], PayoutWorld.signers(2), fixedUnits());
+        refused(check(lateStart.cbor(), state), "validity start lies more than");
+        Transaction noTtl = Transaction.deserialize(PayoutTxBuilder.settle(world.context(1, now, now + 100,
+                PayoutWorld.PARAMS), claims, world.mirrors[1], PayoutWorld.signers(2), fixedUnits()).cbor());
+        noTtl.getBody().setTtl(0);
+        refused(check(noTtl.serialize(), state), "no TTL");
+        // Inside both bounds, the same member signs.
+        PayoutTxBuilder.Built inside = PayoutTxBuilder.settle(world.context(1, now + 300, now + 900,
+                PayoutWorld.PARAMS), claims, world.mirrors[1], PayoutWorld.signers(2), fixedUnits());
+        assertThat(check(inside.cbor(), state)).isInstanceOf(SettleBodyCheck.Signable.class);
+    }
+
+    static int indexOf(byte[] haystack, byte[] needle) {
+        outer:
+        for (int i = 0; i + needle.length <= haystack.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) continue outer;
+            }
+            return i;
+        }
+        return -1;
     }
 
     static PayoutTxBuilder.Built withFunding(int shard, List<ClaimLeafV1> claims, ResolvedOutput extra) {

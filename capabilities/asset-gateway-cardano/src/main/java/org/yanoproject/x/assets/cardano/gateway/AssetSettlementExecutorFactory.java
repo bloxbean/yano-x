@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -58,6 +59,12 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
 
     @Override
     public List<AppEffectExecutor> create(String chainId, Map<String, String> config, AppChainEffectContext context) {
+        return create(config, context, System::currentTimeMillis);
+    }
+
+    /** The context overload with this node's wall clock, which tests replace. */
+    static List<AppEffectExecutor> create(Map<String, String> config, AppChainEffectContext context,
+                                          LongSupplier clock) {
         if (context == null) return List.of();
         AssetSettlementSettings settings = AssetSettlementSettings.parse(config);
         NodeL1View l1 = new NodeL1View(context.l1UtxoView());
@@ -68,17 +75,20 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
         byte[] memberKey = context.memberSigner().publicKey();
         byte[] memberKeyHash = Blake2bUtil.blake2bHash224(memberKey);
         AssetCosignService cosign = new AssetCosignService(context::diffuse, context.memberSigner(),
-                bodyCheck(settings, l1, committed, memberKeyHash, context), settings.roundTimeout());
+                bodyCheck(settings, l1, committed, memberKeyHash, context, clock), settings.roundTimeout());
         context.registerBridgeDiffusionHandler(cosign);
         if (!settings.owner()) return List.of(new CosignOnly());
         return List.of(new AssetSettlementExecutor(settings, l1, committed, cosign, context.protocolParams(),
-                evaluator(context::txEvaluation), context::submitTx, System::currentTimeMillis, memberKey));
+                evaluator(context::txEvaluation), context::submitTx, clock, memberKey));
     }
 
-    /** The members' body check: the vault the request spends, against this node's own state. */
+    /**
+     * The members' body check: the vault the request spends, against this node's own state, with the validity
+     * interval bounded by this node's own L1 time (its clock on the pinned slot clock).
+     */
     static java.util.function.Function<byte[], SettleBodyCheck.Outcome> bodyCheck(
             AssetSettlementSettings settings, NodeL1View l1, CommittedClaims committed, byte[] memberKeyHash,
-            AppChainEffectContext context) {
+            AppChainEffectContext context, LongSupplier clock) {
         return tx -> {
             var params = context.protocolParams().get();
             if (params == null) {
@@ -87,9 +97,11 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             }
             SettleBodyCheck.Outcome last = new SettleBodyCheck.Refused(new SettleBodyCheck.Refusal(
                     SettleBodyCheck.Refusal.Kind.HAZARD, "no configured vault"));
+            SettleBodyCheck.Tip tip = new SettleBodyCheck.Tip(settings.slots().slotAt(clock.getAsLong()),
+                    settings.slots().slotLengthMs());
             for (VaultPins pins : settings.pins()) {
                 last = SettleBodyCheck.check(tx, pins, memberKeyHash, l1::resolve, committed,
-                        PayoutTxBuilder.costModels(params));
+                        PayoutTxBuilder.costModels(params), tip);
                 if (last instanceof SettleBodyCheck.Signable) return last;
             }
             return last;

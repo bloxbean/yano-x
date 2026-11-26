@@ -183,8 +183,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         List<byte[]> signerKeys = signers(anchor.get());
         List<ResolvedOutput> funding = funding();
         if (funding.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "no fee wallet funds");
-        AssetSettlementSettings.SlotClock slots = settings.slots().orElseThrow();
-        long slot = slots.slotAt(clock.getAsLong());
+        long slot = settings.slots().slotAt(clock.getAsLong());
         PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(pins, l1.at(pins.vaultAddress()),
                 shardInput.get(), anchor.get().output(), exitMode.get(), List.of(vaultRef.get(), shardRef.get()),
                 new PayoutTxBuilder.Funding(funding, feeAddress), Math.max(0, slot - 60),
