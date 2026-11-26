@@ -18,8 +18,10 @@ import java.util.Optional;
  * {@code asset-gateway-onchain}); the value of an id is the id itself. The member body check uses it to require the
  * shard continuation's datum root to be exactly the fold of the redeemer's inserts.
  *
- * <p>Unlike the script it does not check each proof's shape; a malformed proof either fails the root comparison here
- * or fails the script on chain, and the member never signs a body whose roots it did not reproduce.
+ * <p>Before an exclusion root is accepted, each proof passes the script's own shape rules, {@code isWellFormed} and
+ * {@code excludedTerminalIsUnambiguous} of the on-chain library ({@code miss}), so this fold accepts exactly the
+ * proofs the shard validator accepts: a step whose shape the script rejects (a leaf that does not fork from the path
+ * at its branch, a neighbor on the path's own branch) is refused here too, even when its roots would fold.
  */
 final class ShardFold {
     private static final byte[] NULL_HASH = new byte[32];
@@ -48,6 +50,11 @@ final class ShardFold {
      * to another shard, or is not proved absent under the running root.
      */
     static Optional<byte[]> postInsertRoot(byte[] root, int shard, PlutusData shardRedeemer) {
+        return fold(root, shard, shardRedeemer, true);
+    }
+
+    /** The fold, with the script's shape rules or (for tests that forge a shape) without them. */
+    static Optional<byte[]> fold(byte[] root, int shard, PlutusData shardRedeemer, boolean checkShape) {
         try {
             byte[] running = root.clone();
             List<PlutusData> inserts = GatewayPlutus.listOf(
@@ -59,6 +66,9 @@ final class ShardFold {
                 if (id.length != 32 || (id[31] & 0x0f) != shard) return Optional.empty();
                 List<Step> proof = steps(fields.get(1));
                 byte[] path = Blake2bUtil.blake2bHash256(id);
+                if (checkShape && (!wellFormed(path, 0, proof) || !unambiguousTerminal(path, 0, proof))) {
+                    return Optional.empty();
+                }
                 if (!Arrays.equals(excluding(path, 0, proof), running)) return Optional.empty();
                 running = including(path, Blake2bUtil.blake2bHash256(id), 0, proof);
             }
@@ -94,6 +104,57 @@ final class ShardFold {
             }
         }
         return steps;
+    }
+
+    // ------------------------------------------------------------------ the script's shape rules (miss)
+
+    /** {@code isWellFormed}: every step's branch is below nibble 64 and each step has the shape of its kind. */
+    private static boolean wellFormed(byte[] path, int cursor, List<Step> proof) {
+        if (proof.isEmpty()) return true;
+        Step step = proof.getFirst();
+        List<Step> rest = proof.subList(1, proof.size());
+        int skip = step.skip();
+        if (skip < 0 || skip >= 64 - cursor) return false;
+        int at = cursor + skip;
+        return switch (step) {
+            case Branch b -> b.neighbors().length == 128 && wellFormed(path, at + 1, rest);
+            case Fork f -> f.nibble() >= 0 && f.nibble() <= 15 && f.nibble() != nibble(path, at)
+                    && at + 1 + f.prefix().length < 64 && allNibbles(f.prefix(), 0) && f.root().length == 32
+                    && wellFormed(path, at + 1, rest);
+            case Leaf l -> l.key().length == 32 && l.value().length == 32 && forksAt(l.key(), path, at)
+                    && wellFormed(path, at + 1, rest);
+        };
+    }
+
+    /** {@code excludedTerminalIsUnambiguous}: the terminal step cannot also read as the other node kind. */
+    private static boolean unambiguousTerminal(byte[] path, int cursor, List<Step> proof) {
+        if (proof.isEmpty()) return true;
+        Step step = proof.getFirst();
+        List<Step> rest = proof.subList(1, proof.size());
+        if (!rest.isEmpty()) return unambiguousTerminal(path, cursor + step.skip() + 1, rest);
+        return switch (step) {
+            case Branch b -> true;
+            case Fork f -> {
+                int first = f.skip() == 0 ? f.nibble() : nibble(path, cursor);
+                yield cursor % 2 == 0 || first != 0 || f.skip() + 1 + f.prefix().length != 2 + (63 - cursor) / 2;
+            }
+            case Leaf l -> cursor % 2 == 0 || !allNibbles(l.key(), (cursor + 1) / 2);
+        };
+    }
+
+    /** True when {@code key} shares nibbles {@code [0, at)} with {@code path} and differs from it at {@code at}. */
+    private static boolean forksAt(byte[] key, byte[] path, int at) {
+        int half = at / 2;
+        boolean samePrefix = Arrays.equals(Arrays.copyOf(key, half), Arrays.copyOf(path, half))
+                && (at % 2 == 0 || nibble(key, at - 1) == nibble(path, at - 1));
+        return samePrefix && nibble(key, at) != nibble(path, at);
+    }
+
+    private static boolean allNibbles(byte[] bytes, int from) {
+        for (int i = from; i < bytes.length; i++) {
+            if ((bytes[i] & 0xff) > 15) return false;
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------ the walks (MerklePatriciaForestry)
