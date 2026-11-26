@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-25, r17). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15, r16 and r17 record the rules settled while implementing the M4 on-chain code (see the revision history).
+- **Status:** Proposed (2026-11-26, r18). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r18 record the rules settled while implementing M4 (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -1417,6 +1417,19 @@ separate balance-exit observation (tx id, escape nullifier, recipient, vault-ass
 lovelace of output 0). The consumer records the escape nullifier as redeemed for that exit leaf;
 it is never looked up as a claim and causes no `RESERVED → PAID` transition. The discriminator is
 the vault redeemer: `BalanceExit` is only valid in exit mode, and its redeemer names the holder.
+*(r18)* The observer reads only the redeemer's prefix: outer constructor 7, then a first field
+`h` of 1–64 bytes. It emits a balance-exit observation only when `escapeNullifier(VaultId, h)`
+equals the continuation's single id at output 1. This is because the validator reads fields by
+position and ignores trailing ones, and because the observer cannot attribute a redeemer to its
+input, since the block lacks the spent outputs. The nullifier binding makes either
+misclassification need a blake2b collision. An authenticated transaction with no spend redeemer
+gives no observation.
+
+**Recipients are reported as the script rebuilds them (r18).** The vault script compares the
+claim's recipient with bytes it rebuilds from the Plutus address. For a pointer address it writes
+the three naturals in shortest form, and the ledger accepts padded naturals. The observer
+therefore reports a pointer recipient in that rebuilt form (`CardanoAddresses.scriptRebuiltForm`),
+so a padded-pointer payout of a canonical claim confirms instead of halting.
 
 No tracked custody is needed.
 
@@ -2581,3 +2594,12 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
   the off-chain normalized proof) rejects the same shape as a conflicting branch (§7 item 9). The
   applied token vault is 15,452 bytes, under the 15,500 guard; `BUDGETS.md` is re-measured and no
   cap changed.
+- **r18** (2026-11-26): M4 part 2 stage 1 (the observers, `PayoutConfirmation` and the handoff
+  gate), following Fable's review of the stage:
+  - D10 records two rules: the payout observer reports recipients in the script's rebuilt
+    form, and it recognises a balance exit by a redeemer-prefix read bound to the escape
+    nullifier.
+  - A halt of an already `PAUSED` domain keeps its since-point.
+  - The `asset-anchor-handoff-v1` gate requires the pinned anchor identity (D8b).
+  - The claim status lives under `claim-status/<ClaimId>`. The claim leaf stays immutable under
+    `claim/<ClaimId>`.

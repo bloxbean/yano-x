@@ -59,8 +59,8 @@ public final class CardanoAddresses {
      * ({@code GatewayCodec.addressBytes}), and for a pointer address (header type 4 or 5) it writes slot, transaction
      * index and certificate index as shortest-form naturals ({@code GatewayCodec.varNat}). This applies the same
      * rebuild: a pointer's three naturals are decoded and re-encoded by {@link #varNat}, so a padded natural
-     * ({@code 0x80 0x05} for 5) reads as its shortest form, and nothing after the third natural is kept, as the Plutus
-     * view holds nothing else. Every other address, and a pointer whose naturals cannot be read or exceed 2^63, is
+     * ({@code 0x80 0x05} for 5) reads as its shortest form. Nothing after the third natural is kept: from protocol
+     * version 9 the Conway ledger's strict pointer decoder rejects such an output outright, so no paid output has it. Every other address, and a pointer whose naturals cannot be read or exceed 2^63, is
      * returned unchanged; for those the raw bytes are the rebuild (base and enterprise) or no rebuild can equal a
      * claim.
      */
