@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-26, r18). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r18 record the rules settled while implementing M4 (see the revision history).
+- **Status:** Proposed (2026-11-26, r19). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r19 record the rules settled while implementing M4 (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -571,8 +571,14 @@ When a consumer authorizes a withdrawal, the same `apply()` does the following:
    is never deleted.
 4. **Effect** (revised in r5 and r6, R3-F9). Claims queue per shard. The ledger emits one `asset.settlement.batch`
      effect per batch, triggered by a soft cap or by elapsed time. It is `APP_FINAL` and
-     `ResultPolicy.CHAIN`, as the EUTxO `l1.settlement` effect is. A failed or expired result
-     rewinds the batch cursor so the claims are batched again.
+     `ResultPolicy.CHAIN`, as the EUTxO `l1.settlement` effect is. *(r19)* Whatever result closes
+     a batch, `CONFIRMED`, `FAILED` or `EXPIRED`, re-queues every claim of it still `RESERVED` in
+     committed state. Only a committed payout observation takes a claim out of settlement, so a
+     `Settle` that was included and then rolled back is batched again. A batch holds at most
+     `settlement.batch-size` claims and at most what the chain's effect payload limit carries; its
+     expiry must lie within the chain's effect expiry window, checked at startup. With the default
+     `settlement.batch-wait-ms` of 0 a claim is batched in the block that reserves it; a non-zero
+     wait is judged only when a later block runs, so it needs regular traffic.
    - **Effect results never change claim status** (D10).
 
 **Who authors a claim.** Every field of a claim comes from finalized state. A relayer chooses
@@ -1245,7 +1251,11 @@ it signs itself** (r7).
 0. **Signing data (r7).** The request carries the full unsigned transaction: the body plus a
    witness set that holds redeemers and datums but no vkey witnesses. The member recomputes
    `script_data_hash` and refuses to sign on a mismatch. It can therefore inspect the claim ids
-   and shard inserts in the redeemers.
+   and shard inserts in the redeemers. *(r19)* The member also refuses a request that does not
+   re-serialize to its own bytes, so the hash it signs is the id of the transaction it received,
+   and bounds the validity interval by its own L1 time: a TTL is required, at most 15 minutes past
+   its tip (the owner's window of at most 10 minutes plus 5 minutes of skew), and the validity
+   start at most 5 minutes past it. Every member therefore needs the slot clock.
 1. Resolve every `body.inputs` entry, including collateral inputs, against its own
    `l1UtxoView()`. If any input is unknown, refuse to sign. Refuse also if any input is locked by
    the **member's own** key hash, so the member's witness authorizes nothing else.
@@ -1258,7 +1268,11 @@ it signs itself** (r7).
 4. **For `Accept`:** check that the inputs are only deposit-shaped, there is no shard input and
    no claims, there is one exact continuation, and each deposit is `CREDITED` at or below the
    referenced anchor's height.
-5. **For `Settle`:** check that exactly one input carries this vault's shard thread token. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
+5. **For `Settle`:** check that exactly one input carries this vault's shard thread token, and *(r19)*
+   that its native assets are exactly that token. Check that exactly one output pays the shard
+   script: at the exact shard address, holding only lovelace (at least the input's) and the thread
+   token, with no reference script, and with the datum whose root is the fold of the redeemer's
+   inserts from the input's root. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
    claims with `USER_WITHDRAWAL` kind and exact fields, at a reservation height at or below the
    referenced anchor's height (V12). The domain must be `ACTIVE` and the exit-mode thread
    `NORMAL`.
@@ -1284,7 +1298,7 @@ identity:
 | Observer | Reports |
 |---|---|
 | `asset-anchor-v1` | Stable anchor outputs: height, `updatedAtMs`, member set, threshold, state root. It feeds the D8b deposit gate, the handoff step 3, and the proof floor. |
-| `asset-shard-bootstrap-v1` | The 16 shard outputs per vault, each with an empty root and exactly one thread token. It feeds the D8c deposit gate. |
+| `asset-shard-bootstrap-v1` | The 16 shard outputs per vault, each with an empty root and exactly one thread token and *(r19)* no other native asset. It feeds the D8c deposit gate. |
 | `asset-exit-mode-v1` | The exit-mode thread moving to `EXIT`. The ledger then freezes: no further intents, reservations or credits. Deposits that arrive later are refunded through `Refund`. |
 | `asset-forced-withdrawal-v1` | Inbox outputs carrying a token of the pinned policy (D8g R1). It reports a bounded summary, so a malformed datum yields `MALFORMED`, never silence. |
 
@@ -1304,7 +1318,9 @@ by `asset-anchor-v1`, not to the tip-confirmed height. A rolled-back anchor adva
 never leaves the restored anchor without proofs.
 
 **6. Shard mirror source (R3-F9).** The executor's mirror is built from three sources:
-- confirmed inserts, taken from `PAID` claims in committed state;
+- confirmed inserts, taken from `PAID` claims in committed state, and *(r19)* from
+  `PAID_MISMATCH` claims, whose nullifiers are on L1 too. An insert of an id the ledger never
+  reserved is recovered only by the L1-only shard rebuild (D8g §7);
 - its **own** submitted inserts that are not yet stable. The executor built them, so it can apply
   them optimistically. That lets it chain batches on one shard without waiting a stability
   window;
@@ -1341,8 +1357,32 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
 - **Before signing**, each member, and the owner itself, runs the **body check** in D8h §1
   against its own committed state.
 
-  This check stays small, and it gets its own review (§12). If the batch fails or expires, the
-  ledger re-batches the claims, as `onEffectResult` does today.
+  This check stays small, and it gets its own review (§12). When the batch closes, on any
+  result, the ledger re-batches the claims still `RESERVED` (D7 step 4).
+- **What the owner builds** *(r19)*:
+  - **Input selection.** Accepted vault custody (V10) is taken most useful first: vault-asset
+    quantity descending, then lovelace descending, then outpoint. A candidate that adds nothing
+    still needed is skipped, and selection stops once the inputs cover the debit plus the
+    continuation's real requirement, the larger of the floor and the serialized continuation's
+    min-UTxO. The selected inputs are then spent in canonical outpoint order, which redeemer
+    indexes refer to. Dust at low outpoints therefore never fills `maxVaultInputs`.
+  - **Supplements.** The fee wallet adds at most `max-supplement-per-payout` (default 0) to one
+    payout's min-UTxO (D11). A claim that needs more is left out of the co-signed batch and stays
+    `RESERVED` for `Exit`, where the relayer or the user supplements it. A batch of only such
+    claims waits until its effect expires.
+  - **Size.** The executor pays at most `max-settle-batch` claims of a batch and halves the batch
+    when the transaction exceeds a per-transaction limit. Declared execution units, margins
+    included, never exceed the protocol limits, and the size is measured with placeholder vkey
+    witnesses of the final count. The unpaid remainder stays `RESERVED` and is re-queued.
+  - **Signers.** The required signers are the owner, when it is an anchor member, then a
+    threshold's worth of the other members in key order from an offset that advances with each
+    attempt. A member that does not answer blocks one attempt, not every one. The round accepts
+    replies only from the members named in that attempt.
+  - **Confirmation.** The executor reports `Confirmed` only once none of the transaction's claims
+    is `RESERVED` in committed state, never on tip inclusion, and `Failed` past the inclusion
+    deadline. The deadline is persisted with the transaction id in the effect's submitted
+    reference, so a restart keeps it. The inclusion timeout must exceed the stability window,
+    checked at startup.
 - **Shared fixes** from the EUTxO stack carry over:
   - a durable journal;
   - a node-local operator wallet for fees;
@@ -1354,8 +1394,9 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
    shard exclusion witnesses from the shard mirror (D8h §6). Without operators, the SDK rebuilds
    that mirror from L1 alone (D8g §7). A mismatch with the shard's on-chain root stops the relayer
    for that shard.
-3. Group claims by shard. Select vault UTxOs in canonical outpoint order, and select again on
-   contention.
+3. Group claims by shard. Select vault UTxOs most useful first, as the co-signed path does, spend
+   them in canonical outpoint order, and select again on contention. *(r19)* This relayer works in
+   `NORMAL` only and refuses in exit mode; exit-mode relaying is M4a.
 4. Build and submit the transaction with the relayer's own fee wallet. Supplement payout
    lovelace when protocol parameters require it.
 5. Poll until the transaction is included.
@@ -1479,7 +1520,10 @@ own min-ADA:
   transition. V5 and V6 then bind it exactly to the payout output.
 - **When the credit is short.** If the account's credit is below the min-UTxO of the payout
   output, the claim still reserves. Whoever relays it must add the missing lovelace from their
-  own inputs. The user can self-relay. The claim stays payable and is never stranded.
+  own inputs. The user can self-relay. The claim stays payable and is never stranded. *(r19)* The
+  co-signed executor adds at most `max-supplement-per-payout` (default 0) per payout, so many
+  unfunded token withdrawals cannot drain the operator's fee wallet; a claim that needs more goes
+  to `Exit`.
 - **Operational floor.** Each vault keeps an operator-funded `continuationFloor` so that a
   continuation output always exists. That covers withdrawing the last liability from the last
   UTxO (B-F9). The floor is operator-owned operational ADA. It is never a user liability, and it
@@ -2034,7 +2078,7 @@ selected. The ZIP and Central size budget is checked when they are added.
 | M2 | `cardano-wallet-auth` | M1 (codecs) | V3 passes. The cryptographic oracles agree, or every disagreement is recorded. I10 and I11. |
 | M3 | Ingress: deposit observer, `DepositAdmission`, payment ledger without withdrawals, `asset-escrow` deposits | M1, M2 | On devnet, ADA and two native tokens are credited exactly once across restart and rescan. Every V5 fixture meets its stated expected outcome. A9 and A10 credit exactly the genuine deposits; the others never credit or halt. I1, I2, I13, I16, I29. |
 | M4 | Settlement: vault (`Settle`, `Exit`, `Accept`, governed claims), shard and policy validators; payout observer; relayer; brake; anchor v2, pinning, handoff and proof floor | M3; framework additions 1–4, 6, 8 and 9 (§7). Anchor v2 (item 5) is delivered within M4. | Co-signed `Settle` path, with each member running the body check. V6 negative suite for both redeemers. Measured `Settle` and `Exit` batch caps and costs. On devnet, an `Exit` after the owner node is stopped. A `Settle` racing an `Exit` on the same claim: exactly one succeeds. Partial and full devnet withdrawals in each asset while transfers continue. A third-party relayer pays a claim. The last liability is withdrawn from the last UTxO. A sub-minimum ADA request is rejected. A token payout supplemented by the builder succeeds. *(r16)* The claim reservation's feasibility check calls `CardanoAddresses.payableRecipient` (canonical pointer within the Conway limits, key payment credential, domain network), with a test (I19). *(r15)* The absence verifier's forgery and completeness suites pass; measured caps cover units and full transaction size, with several vault inputs (`Follow`). Sustained `Settle` throughput and p95 latency are measured under the configured anchor interval. I5-I9, I12, I15, I17-I23, I26-I29. |
-| M4a | *(r5; r7)* Escape hatch: forced-withdrawal inbox, policy and observer; exit-mode thread and triggers (a)–(c); `Refund` and `BalanceExit`; exit leaves; snapshot publication; SDK proof saving and L1-only shard rebuild; leader handover runbook | M4 | Devnet drills. (1) Stop all operators: after the heartbeat timeout anyone enters exit mode, and every account exits its frozen balance, every reserved claim is paid, every credited-but-unaccepted deposit is accepted by proof, and every uncredited deposit is refunded. Then the vault holds only the floor and unattributed value. (2) Censor one forced request: exit mode is triggered by trigger (b). (3) An honestly processed forced request cannot trigger exit mode. (4) A second `BalanceExit` fails. (5) `Settle` is rejected in exit mode. (6) Keep the domain paused: trigger (c) fires after `maxPauseMs`. Also the toggle case: `PAUSE`, then `RESUME`/`PAUSE` before `maxPauseMs`. A user `Exit` succeeds once the claim reaches its maximum age, proving the `PAUSED` status leaf, whose status is ignored. (7) Refund an `UNCREDITED` deposit, and fail to refund a credited one. (8) Two holders on the same shard redeem with **every operator API offline**, using only L1 and saved or published data. (9) Measured `BalanceExit` budget and mass-exit throughput. *(r15)* (10) Fragmented custody (hundreds of small accepted UTxOs) is consolidated in exit mode, then exited. (11) Several forced requests of one requester are burned in one transaction with one summed refund. I24, I25, I30, I32, I33. |
+| M4a | *(r5; r7)* Escape hatch: forced-withdrawal inbox, policy and observer; exit-mode thread and triggers (a)–(c); `Refund` and `BalanceExit`; exit leaves; snapshot publication; SDK proof saving and L1-only shard rebuild; leader handover runbook. *(r19)* Exit-mode relaying: claims proved against the frozen root with no exit delay and no live anchor; until then the M4 relayer refuses in exit mode ("exit-mode relaying is M4a"). | M4 | Devnet drills. (1) Stop all operators: after the heartbeat timeout anyone enters exit mode, and every account exits its frozen balance, every reserved claim is paid, every credited-but-unaccepted deposit is accepted by proof, and every uncredited deposit is refunded. Then the vault holds only the floor and unattributed value. (2) Censor one forced request: exit mode is triggered by trigger (b). (3) An honestly processed forced request cannot trigger exit mode. (4) A second `BalanceExit` fails. (5) `Settle` is rejected in exit mode. (6) Keep the domain paused: trigger (c) fires after `maxPauseMs`. Also the toggle case: `PAUSE`, then `RESUME`/`PAUSE` before `maxPauseMs`. A user `Exit` succeeds once the claim reaches its maximum age, proving the `PAUSED` status leaf, whose status is ignored. (7) Refund an `UNCREDITED` deposit, and fail to refund a credited one. (8) Two holders on the same shard redeem with **every operator API offline**, using only L1 and saved or published data. (9) Measured `BalanceExit` budget and mass-exit throughput. *(r15)* (10) Fragmented custody (hundreds of small accepted UTxOs) is consolidated in exit mode, then exited. (11) Several forced requests of one requester are burned in one transaction with one summed refund. I24, I25, I30, I32, I33. |
 | M4b | *(new in r5)* `MIGRATE` and post-genesis vault addition. Its full spending and confirmation rules are specified in an ADR revision before work starts. | Framework addition 7 | Devnet: migrate a vault, with both its liabilities and its custody, to a new vault while transfers continue. Reconciliation shows no false deficit. |
 | M5 | Second consumer end to end, conformance kit, EUTxO helper adoption | M4a | `asset-escrow` passes the kit. EUTxO golden bytes unchanged (I14). Substitution passes, and an incompatible configuration fails closed. |
 | M6 | Hardening and qualification | M5 | Drills: multi-node failure, deep rollback (both D15b cases), relayer, signer and anchor outages, handoff under an anchor outage, contention. Wallet interoperability report covering Lace, Eternl, Yoroi and hardware wallets, mobile, user rejection, and unsupported `signData`. Metrics (D15a) running. Throughput, p50/p95/p99 finality latency, resource use and L1 costs reported for single-asset and multi-asset workloads. Trust and operations documentation. |
@@ -2603,3 +2647,29 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
   - The `asset-anchor-handoff-v1` gate requires the pinned anchor identity (D8b).
   - The claim status lives under `claim-status/<ClaimId>`. The claim leaf stays immutable under
     `claim/<ClaimId>`.
+- **r19** (2026-11-26): M4 part 2 stage 2 review fixes, from the Fable and Codex reviews of the
+  settlement executor, builders and batching:
+  - D11, D9: the co-signed executor supplements a payout's min-UTxO by at most
+    `max-supplement-per-payout` (default 0); a claim needing more stays `RESERVED` for `Exit`, so
+    unfunded token withdrawals cannot drain the fee wallet.
+  - D8h §1, §3: a shard holds only its thread token. The bootstrap observer rejects a bootstrap
+    whose shard output carries another asset, and the builder and the member check refuse such a
+    shard input.
+  - D9: input selection is by usefulness (vault-asset quantity, then lovelace, then outpoint),
+    skips inputs that add nothing needed, stops on the debit plus the serialized continuation's
+    min-UTxO, and spends the selected inputs in canonical order; this replaces "canonical outpoint
+    order", which let dust block every payout.
+  - D7, D9: any batch result re-queues the claims still `RESERVED`; the executor confirms only on
+    committed status and fails past a deadline that a restart keeps; the inclusion timeout must
+    exceed the stability window.
+  - D9: the required signer subset rotates with the attempt number; the executor splits at its
+    cap and on per-transaction limits; declared units stay within the protocol limits and the
+    size is measured with the final witness count.
+  - D7: one shard's refused emission no longer stops the others; the batch cap follows the effect
+    payload limit; the batch expiry is checked against the effect window; the default batch wait
+    is 0.
+  - D8h §1: the member check verifies the shard continuation (address, token, lovelace, no
+    reference script, post-insert root), refuses a request that does not re-serialize to its own
+    bytes, and bounds the validity interval by its own L1 time.
+  - D8h §6: `PAID_MISMATCH` claims are part of the mirror source.
+  - M4a: exit-mode relaying is recorded there; the M4 relayer refuses in exit mode.
