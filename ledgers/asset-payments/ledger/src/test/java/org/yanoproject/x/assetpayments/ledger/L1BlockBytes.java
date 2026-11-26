@@ -49,6 +49,24 @@ final class L1BlockBytes {
         return encode(envelope);
     }
 
+    /** A block of already-encoded transaction bodies and witness sets (for example, a built transaction's). */
+    static byte[] blockOf(long blockNumber, long slot, List<DataItem> bodies, List<DataItem> witnessSets) {
+        Array bodyArray = new Array();
+        bodies.forEach(bodyArray::add);
+        Array witnessArray = new Array();
+        witnessSets.forEach(witnessArray::add);
+        Array block = new Array();
+        block.add(header(blockNumber, slot));
+        block.add(bodyArray);
+        block.add(witnessArray);
+        block.add(new Map());
+        block.add(new Array());
+        Array envelope = new Array();
+        envelope.add(new UnsignedInteger(7));
+        envelope.add(block);
+        return encode(envelope);
+    }
+
     static Block parse(byte[] bytes) {
         return BlockSerializer.INSTANCE.deserialize(bytes);
     }

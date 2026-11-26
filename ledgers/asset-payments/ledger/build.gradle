@@ -25,6 +25,9 @@ dependencies {
     testImplementation project(':framework:core')
     // The in-process ingress test drives real L1 block bytes through the deposit observer.
     testImplementation project(':capabilities:asset-gateway-cardano')
+    // The in-process settlement test builds a Settle with the support library's builder and body check.
+    testImplementation project(':capabilities:asset-gateway-cardano-support')
+    testImplementation libs.cardano.client.mpf
     testImplementation libs.yaci.core
     testImplementation libs.cardano.client.address
     testImplementation libs.cardano.client.common
