@@ -703,6 +703,104 @@ class AssetSettlementExecutorTest {
                 Blake2bUtil.blake2bHash224(publicKey(others.get(2))));
     }
 
+    /** Confirmation pass #1: 2-of-3, B and C both miss their first requests, then C returns: a new pass reaches it. */
+    @Test
+    void aMemberThatComesBackIsReachedInTheNextPass() throws Exception {
+        seed(500, OWNER_SEED, MEMBER_SEED, THIRD_SEED);
+        List<byte[]> others = new ArrayList<>(List.of(MEMBER_SEED, THIRD_SEED));
+        others.sort((a, b) -> HexFormat.of().formatHex(publicKey(a)).compareTo(HexFormat.of().formatHex(publicKey(b))));
+        Node owner = new Node(OWNER_SEED);
+        Node c = new Node(others.get(1));
+        AppEffectExecutor executor = executor(owner, true);
+        executor(c, false);
+        ClaimLeafV1 leaf = claim(6, 17, 400);
+        owner.ledger.reserve(leaf);
+        c.ledger.reserve(leaf);
+        pump(owner);
+        PendingEffect effect = effect(new SettlementBatchV1(VAULT, 6, List.of(leaf.claimId())));
+        // Attempt 1 asks B and attempt 2 asks C; neither answers.
+        assertThat(executor.execute(attempt(1, new byte[0]), effect)).isInstanceOf(EffectExecution.Failed.class);
+        assertThat(executor.execute(attempt(2, new byte[0]), effect)).isInstanceOf(EffectExecution.Failed.class);
+        pump(owner, c); // C is back; B stays offline
+        EffectExecution third = executor.execute(attempt(3, new byte[0]), effect);
+        EffectExecution result = third instanceof EffectExecution.Submitted ? third
+                : executor.execute(attempt(4, new byte[0]), effect);
+        assertThat(result).as("attempt 3 or 4 reaches {A, C}").isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(Transaction.deserialize(submitted.getFirst()).getBody().getRequiredSigners())
+                .containsExactlyInAnyOrder(Blake2bUtil.blake2bHash224(publicKey(OWNER_SEED)),
+                        Blake2bUtil.blake2bHash224(publicKey(others.get(1))));
+    }
+
+    /** Confirmation pass #2: a 64-claim batch's reference that pays only its last position recovers. */
+    @Test
+    void aSixtyFourClaimReferenceRecoversItsLastPosition() {
+        List<Hash32> ids = new ArrayList<>();
+        for (int seed = 0; seed < 64; seed++) ids.add(claim(5, 1_000 + seed, 400).claimId());
+        SettlementBatchV1 batch = new SettlementBatchV1(VAULT, 5, ids);
+        AssetSettlementExecutor.Journal journal = AssetSettlementExecutor.Journal.of(Hash32.of(filled(32, 0x3c)),
+                batch, List.of(ids.getLast()), NOW + 1);
+        assertThat(AssetSettlementExecutor.Journal.recover(journal.ref(), batch)).hasValueSatisfying(recovered -> {
+            assertThat(recovered.claimIds()).containsExactly(ids.getLast());
+            assertThat(recovered.deadlineMs()).isEqualTo(NOW + 1);
+        });
+        // A smaller batch still rejects a bit past its last position.
+        SettlementBatchV1 small = new SettlementBatchV1(VAULT, 5, ids.subList(0, 3));
+        assertThat(AssetSettlementExecutor.Journal.recover(journal.ref(), small)).isEmpty();
+    }
+
+    /** Confirmation pass #3: signer memory is dropped at a terminal result and capped for expired batches. */
+    @Test
+    void signerMemoryIsBounded() throws Exception {
+        seed(500);
+        Node owner = new Node(OWNER_SEED);
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) executor(owner, true);
+        List<Hash32> members = List.of(Hash32.of(publicKey(OWNER_SEED)), Hash32.of(publicKey(MEMBER_SEED)));
+        String member = HexFormat.of().formatHex(publicKey(MEMBER_SEED));
+        for (int i = 0; i < AssetSettlementExecutor.SIGNER_MEMORY_CAP + 50; i++) {
+            executor.remember("effect-" + i, Set.of(member), Set.of(), members);
+        }
+        assertThat(executor.signerMemorySize()).isEqualTo(AssetSettlementExecutor.SIGNER_MEMORY_CAP);
+
+        // An effect whose round failed is forgotten once it ends here (nothing reserved: confirmed).
+        ClaimLeafV1 leaf = claim(4, 18, 400);
+        owner.ledger.reserve(leaf);
+        PendingEffect effect = effect(new SettlementBatchV1(VAULT, 4, List.of(leaf.claimId())));
+        assertThat(executor.execute(attempt(1, new byte[0]), effect)).isInstanceOf(EffectExecution.Failed.class);
+        int before = executor.signerMemorySize();
+        owner.ledger.resolve(leaf.claimId(), SettlementRecords.ClaimStatus.PAID);
+        assertThat(executor.execute(attempt(2, new byte[0]), effect)).isInstanceOf(EffectExecution.Confirmed.class);
+        assertThat(executor.signerMemorySize()).isEqualTo(before - 1);
+    }
+
+    /** Confirmation pass #4: the owner's own passing check clears a recorded tip-bound refusal. */
+    @Test
+    void theOwnersPassingCheckClearsAnEarlierRefusal() throws Exception {
+        org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck.Outcome[] next = {
+                new org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck.Refused(
+                        new org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck.Refusal(
+                                org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck.Refusal.Kind
+                                        .L1_TIP_BOUND, "behind"))};
+        Node owner = new Node(OWNER_SEED);
+        AssetCosignService cosign = new AssetCosignService((topic, body) -> { }, owner.memberSigner(),
+                tx -> next[0], java.time.Duration.ofMillis(100));
+        String self = HexFormat.of().formatHex(publicKey(OWNER_SEED));
+        assertThat(cosign.collect(new byte[] {1}, Set.of(self))).isEmpty();
+        assertThat(AssetSettlementExecutorFactory.cosignSnapshot(cosign).readiness())
+                .isEqualTo(org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot
+                        .Readiness.DEGRADED);
+        next[0] = new org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck.Signable(
+                new org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck.Verified(filled(32, 0x2b),
+                        List.of(), 0, new org.yanoproject.x.assets.contracts.AnchorObservationV1.Anchored(1,
+                        Hash32.of(filled(32, 1)), Hash32.of(filled(32, 2)), NOW, 1,
+                        List.of(Hash32.of(publicKey(OWNER_SEED))))));
+        assertThat(cosign.collect(new byte[] {1}, Set.of(self))).hasValueSatisfying(signatures ->
+                assertThat(signatures).containsOnlyKeys(self));
+        assertThat(cosign.lastRefusal()).isEmpty();
+        assertThat(AssetSettlementExecutorFactory.cosignSnapshot(cosign).readiness())
+                .isEqualTo(org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot
+                        .Readiness.UNKNOWN);
+    }
+
     /** Re-review N5: a claim that alone exceeds a limit is left RESERVED and the next claim is paid. */
     @Test
     void aSingletonOverALimitIsLeftForExitAndTheNextClaimIsPaid() throws Exception {

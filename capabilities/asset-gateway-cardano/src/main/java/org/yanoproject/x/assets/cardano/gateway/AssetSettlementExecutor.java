@@ -96,8 +96,20 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     private final Map<String, Journal> journal = new ConcurrentHashMap<>();
     /** This node's submitted, not yet confirmed inserts, by vault and shard (D8h §6). */
     private final Map<String, List<Hash32>> optimistic = new ConcurrentHashMap<>();
-    /** Per effect: the members that answered its last incomplete round, and every member tried since a reset. */
-    private final Map<String, SignerMemory> signerMemory = new ConcurrentHashMap<>();
+    /** The most effects whose signer memory is kept; the least recently used is dropped (an expired batch's). */
+    static final int SIGNER_MEMORY_CAP = 256;
+    /**
+     * Per effect: the members that answered its last incomplete round, and every member tried in the current pass. An
+     * entry is dropped when the effect ends here (submitted, confirmed or definitively failed) and, for an effect that
+     * ends by expiry instead, by the LRU cap.
+     */
+    private final Map<String, SignerMemory> signerMemory = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, SignerMemory> eldest) {
+                    return size() > SIGNER_MEMORY_CAP;
+                }
+            });
     private volatile String lastOutcome = "idle";
 
     /** The other members that answered the last round of an effect, and the members tried since the last reset. */
@@ -139,7 +151,10 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             for (int i = 0; i < batch.claimIds().size(); i++) {
                 if ((positions >>> i & 1) == 1) paid.add(batch.claimIds().get(i));
             }
-            if (paid.isEmpty() || positions >>> batch.claimIds().size() != 0) return Optional.empty();
+            // A 64-claim batch uses every bit, and Java shifts a long by its distance mod 64,
+            // so excess bits are checked only below 64 claims.
+            boolean excess = batch.claimIds().size() < Long.SIZE && positions >>> batch.claimIds().size() != 0;
+            if (paid.isEmpty() || excess) return Optional.empty();
             return Optional.of(new Journal(Hash32.of(txId), batch.vaultId(), batch.shardIndex(), paid, deadline,
                     positions));
         }
@@ -197,6 +212,14 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     @Override
     public EffectExecution execute(EffectExecutionContext ctx, PendingEffect effect) throws Exception {
         String key = HexFormat.of().formatHex(effect.idHash());
+        EffectExecution result = attempt(ctx, effect, key);
+        boolean terminal = result instanceof EffectExecution.Confirmed
+                || (result instanceof EffectExecution.Failed failed && !failed.retryable());
+        if (terminal) signerMemory.remove(key);
+        return result;
+    }
+
+    private EffectExecution attempt(EffectExecutionContext ctx, PendingEffect effect, String key) throws Exception {
         SettlementBatchV1 batch;
         try {
             batch = SettlementBatchV1.decode(effect.payload());
@@ -287,7 +310,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             return outcome(EffectExecution.failed("the owner's own body check refused the batch", false), "refused");
         }
         if (!signatures.get().keySet().containsAll(requested)) {
-            remember(key, requested, signatures.get().keySet());
+            remember(key, requested, signatures.get().keySet(), anchor.get().datum().memberKeys());
             return outcome(EffectExecution.failed("co-sign round incomplete", true), "round incomplete");
         }
         signerMemory.remove(key);
@@ -391,11 +414,10 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         int needed = anchor.datum().threshold() - keys.size();
         List<Hash32> chosen = new ArrayList<>(others.stream().filter(memory.answered()::contains).limit(needed)
                 .toList());
-        List<Hash32> untried = others.stream().filter(m -> !chosen.contains(m) && !memory.tried().contains(m))
-                .toList();
-        if (chosen.size() + untried.size() < needed) {
-            untried = others.stream().filter(m -> !chosen.contains(m)).toList();
-        }
+        // The members not yet tried in this pass come first; past them a new pass starts in key order.
+        List<Hash32> untried = new ArrayList<>(others.stream()
+                .filter(m -> !chosen.contains(m) && !memory.tried().contains(m)).toList());
+        others.stream().filter(m -> !chosen.contains(m) && !untried.contains(m)).forEach(untried::add);
         for (Hash32 member : untried) {
             if (chosen.size() >= needed) break;
             chosen.add(member);
@@ -404,8 +426,12 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         return keys;
     }
 
-    /** After an incomplete round: who answered, and that every requested member has now been tried. */
-    private void remember(String key, Set<String> requested, Set<String> answered) {
+    /**
+     * After an incomplete round: who answered, and that every requested member has now been tried. Once every other
+     * member of {@code memberKeys} has been tried, the pass ends and the next one starts from the responders alone, so
+     * a member that missed a request in an earlier pass is asked again.
+     */
+    void remember(String key, Set<String> requested, Set<String> answered, List<Hash32> memberKeys) {
         SignerMemory before = signerMemory.getOrDefault(key, SignerMemory.NONE);
         Set<Hash32> tried = new LinkedHashSet<>(before.tried());
         Set<Hash32> replied = new LinkedHashSet<>();
@@ -414,7 +440,13 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             tried.add(id);
             if (answered.contains(member)) replied.add(id);
         }
-        signerMemory.put(key, new SignerMemory(Set.copyOf(replied), Set.copyOf(tried)));
+        Hash32 self = Hash32.of(memberPublicKey);
+        boolean passDone = memberKeys.stream().filter(m -> !m.equals(self)).allMatch(tried::contains);
+        signerMemory.put(key, new SignerMemory(Set.copyOf(replied), Set.copyOf(passDone ? replied : tried)));
+    }
+
+    int signerMemorySize() {
+        return signerMemory.size();
     }
 
     /** The fee wallet's lovelace-only UTxOs not spent by a pending submission, largest first, at most three. */

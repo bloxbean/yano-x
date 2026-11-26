@@ -80,6 +80,7 @@ final class AssetCosignService implements BridgeDiffusionHandler {
             record(((SettleBodyCheck.Refused) own).refusal());
             return Optional.empty();
         }
+        lastRefusal = null; // the owner's own check passes again: a recovered clock no longer shows as degraded
         byte[] bodyHash = signable.verified().bodyHash();
         String key = HexFormat.of().formatHex(bodyHash);
         Round round = new Round(bodyHash, Set.copyOf(requested));
