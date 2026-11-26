@@ -30,6 +30,7 @@ import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserver;
 import org.yanoproject.x.framework.api.appchain.l1view.L1EpochStateProvider;
 import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
+import org.yanoproject.x.framework.api.appchain.state.StateProofEnvelope;
 import org.yanoproject.x.framework.cardano.api.effects.AppChainEffectContext;
 import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 import org.yanoproject.x.framework.cardano.api.events.AppChainAnchoredEvent;
@@ -320,6 +321,16 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
             public void registerBridgeDiffusionHandler(
                     BridgeDiffusionHandler handler) {
                 AppChainSubsystem.this.registerBridgeDiffusionHandler(handler);
+            }
+
+            @Override
+            public Optional<StateProofEnvelope> stateProofAtHeight(long height, byte[] key) {
+                return AppChainSubsystem.this.stateProofEnvelopeAtHeight(height, key);
+            }
+
+            @Override
+            public long stableAnchoredHeight() {
+                return AppChainSubsystem.this.stableAnchoredHeight();
             }
         };
     }

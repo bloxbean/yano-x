@@ -4,7 +4,9 @@ import org.yanoproject.api.utxo.UtxoState;
 import org.yanoproject.x.framework.api.appchain.AppQueryResult;
 import org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
+import org.yanoproject.x.framework.api.appchain.state.StateProofEnvelope;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -63,4 +65,26 @@ public interface AppChainEffectContext {
      * per chain; last registration wins).
      */
     void registerBridgeDiffusionHandler(BridgeDiffusionHandler handler);
+
+    /**
+     * ADR-059 D8b, D9: the profile-tagged state proof of {@code key} against
+     * the committed root of finalized height {@code height}, while this node
+     * still retains it; empty otherwise. With the L1-stable anchor proof
+     * floor ({@code state.proof-pruning.l1-stable-anchor-floor}) every height
+     * from {@link #stableAnchoredHeight()} onward is retained, so an exit
+     * relayer that references that anchor can prove claims against its root.
+     */
+    default Optional<StateProofEnvelope> stateProofAtHeight(long height, byte[] key) {
+        return Optional.empty();
+    }
+
+    /**
+     * The highest app height covered by an L1 anchor that is at least
+     * {@code l1.stability-depth} blocks deep on this node's L1 view (the
+     * {@code L1_ANCHORED} frontier and the proof floor); 0 when none yet.
+     * Node-local execution-plane state, never consensus input.
+     */
+    default long stableAnchoredHeight() {
+        return 0L;
+    }
 }
