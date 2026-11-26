@@ -49,9 +49,10 @@ final class AnchorHandoffGate implements MembershipHandoffGate {
 
     /**
      * Creates the gate for one chain. Startup fails unless the chain configures exactly one {@code asset-anchor-v1}
-     * observer with valid settings and uses anchor profile v2, the only datum the observer accepts, and, when the
-     * chain pins its anchor identity ({@code anchor-profile.pinned.*}, D8b, framework addition 3, which the framework
-     * enforces against the anchor itself), the pin names exactly the identity that observer watches.
+     * observer with valid settings, uses anchor profile v2, the only datum the observer accepts, and pins its anchor
+     * identity ({@code anchor-profile.pinned.*}, D8b, framework addition 3, which the framework enforces against the
+     * anchor itself) to exactly the identity that observer watches. This custody profile requires the pin: without
+     * it the observed identity is bound to nothing the framework checks.
      */
     static AnchorHandoffGate create(Map<String, String> chainSettings) {
         Map<String, String> settings = chainSettings == null ? Map.of() : chainSettings;
@@ -77,9 +78,7 @@ final class AnchorHandoffGate implements MembershipHandoffGate {
             throw new IllegalArgumentException(AnchorHandoffGateProvider.ID + " requires "
                     + ANCHOR_PROFILE_VERSION + "=2 (ADR-059 framework addition 5)");
         }
-        boolean pinned = settings.keySet().stream().anyMatch(key -> key.startsWith(PINNED_PREFIX));
         anchor.pinnedIdentity().forEach((key, expected) -> {
-            if (!pinned) return;
             String value = trim(settings.get(PINNED_PREFIX + key));
             boolean hex = !key.equals("application-id") && !key.equals("commitment-profile");
             if (value == null || !(hex ? value.toLowerCase(Locale.ROOT) : value).equals(expected)) {

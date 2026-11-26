@@ -145,16 +145,16 @@ class AnchorHandoffGateTest {
         otherPin.put("anchor-profile.pinned.format-fingerprint", "fb".repeat(32));
         Map<String, String> v1 = new TreeMap<>(chainSettings());
         v1.put("anchor-profile.version", "1");
-        for (Map<String, String> settings : List.of(none, two, unpinned, otherPin, v1)) {
+        // D8b requires the pin for this custody profile: a chain with no anchor-profile.pinned.* key fails startup.
+        Map<String, String> noPin = new TreeMap<>(chainSettings());
+        noPin.keySet().removeIf(key -> key.startsWith("anchor-profile.pinned."));
+        for (Map<String, String> settings : List.of(none, two, unpinned, otherPin, v1, noPin)) {
             assertThatThrownBy(() -> new AnchorHandoffGateProvider().create(CHAIN, settings))
                     .isInstanceOf(IllegalArgumentException.class);
         }
         Map<String, String> upperCasePin = new TreeMap<>(chainSettings());
         upperCasePin.put("anchor-profile.pinned.script-hash", "21".repeat(28).toUpperCase(java.util.Locale.ROOT));
         assertThat(new AnchorHandoffGateProvider().create(CHAIN, upperCasePin)).isNotNull();
-        Map<String, String> noPin = new TreeMap<>(chainSettings());
-        noPin.keySet().removeIf(key -> key.startsWith("anchor-profile.pinned."));
-        assertThat(new AnchorHandoffGateProvider().create(CHAIN, noPin)).isNotNull();
         assertThat(new AnchorHandoffGateProvider().id()).isEqualTo("asset-anchor-handoff-v1");
         assertThat(Hash32.BYTES).isEqualTo(32);
     }

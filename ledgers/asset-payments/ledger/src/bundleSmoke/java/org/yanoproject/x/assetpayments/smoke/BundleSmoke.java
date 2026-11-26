@@ -229,6 +229,10 @@ public final class BundleSmoke {
                 "membership.anchor-handoff", "true", "membership.anchor-handoff-gate", "asset-anchor-handoff-v1",
                 "anchor-profile.version", "2"));
         anchorSettings.forEach((k, v) -> chain.put("observers.anchors." + k, v));
+        // D8b: this custody profile pins its anchor identity to the one the observer watches.
+        anchorSettings.forEach((k, v) -> {
+            if (k.startsWith("anchor.")) chain.put("anchor-profile.pinned." + k.substring("anchor.".length()), v);
+        });
         MembershipHandoffGateProvider gateProvider = only(ServiceLoader.load(MembershipHandoffGateProvider.class,
                 gateway), p -> p.id().equals("asset-anchor-handoff-v1"));
         if (gateProvider.getClass().getClassLoader() != gateway) throw new AssertionError("gate not from bundle");
