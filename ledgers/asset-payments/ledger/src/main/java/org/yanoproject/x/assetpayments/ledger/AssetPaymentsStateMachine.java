@@ -776,7 +776,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     // ------------------------------------------------------------------ committed queries (D9)
 
-    /** The {@link SettlementQueries} the settlement executor and the exit relayer read. */
+    /** The {@link SettlementQueries} the settlement executor, the deposit acceptor and the exit relayer read. */
     @Override
     public byte[] query(String path, byte[] params, AppQueryContext state) {
         AssetAccounts.Store store = StagedStore.readOnly(state);
@@ -795,6 +795,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                                 .map(bytes -> PaymentsRecords.decodeU64s(bytes, 1)[0]).orElse(0L));
                 case SettlementQueries.CLAIM_BY_SEQUENCE -> store.get(AssetPaymentsContract.claimIndexKey(
                         SettlementQueries.decodeSequence(request))).orElse(new byte[0]);
+                case SettlementQueries.DEPOSIT -> store.get(depositRecordKey(Hash32.of(request)))
+                        .orElse(new byte[0]);
                 default -> throw new AppQueryException(AppQueryException.Code.UNSUPPORTED,
                         "unknown asset-payments query " + path);
             };
@@ -806,6 +808,12 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** The deposit record's key, as {@link DepositAdmission} writes it ({@code ap/deposit/<DepositId>}). */
+    private byte[] depositRecordKey(Hash32 depositId) {
+        return new DepositAdmission(AssetPaymentsContract.PREFIX, settings.depositObserverId(),
+                vaultId -> Optional.empty()).recordKey(depositId);
+    }
 
     private void markUsed(AssetAccounts.Store state, Hash32 intentId, long notAfterMs) {
         state.put(AssetPaymentsContract.usedKey(intentId), PaymentsRecords.encodeU64s(notAfterMs));

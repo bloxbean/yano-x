@@ -72,6 +72,19 @@ class SettlementBatchAndEligibilityTest {
     }
 
     @Test
+    void depositQueryAnswersOnlyAMatchingRecord() {
+        Hash32 tx = id(0, 0x41);
+        Hash32 depositId = GatewayIds.depositId(VAULT, tx, 2);
+        DepositRecordV1 record = new DepositRecordV1(depositId, VAULT, tx, 2, 4_000, 77, VaultOutputShape.DEPOSIT,
+                DepositRecordV1.Status.CREDITED, DepositAdmission.Reason.NONE, new byte[28], BigInteger.TEN,
+                BigInteger.valueOf(1_500_000), 0, id(0, 0x42), BigInteger.TEN, BigInteger.valueOf(1_500_000));
+        assertThat(SettlementQueries.decodeDeposit(depositId, record.encode())).contains(record);
+        assertThat(SettlementQueries.decodeDeposit(GatewayIds.depositId(VAULT, tx, 3), record.encode())).isEmpty();
+        assertThat(SettlementQueries.decodeDeposit(depositId, new byte[0])).isEmpty();
+        assertThat(SettlementQueries.decodeDeposit(depositId, new byte[] {1, 2})).isEmpty();
+    }
+
+    @Test
     void exitEligibilityFollowsAnchoringDelayStatusAndMaximumAge() {
         long reservedAt = 1_000_000L;
         ClaimLeafV1 user = new ClaimLeafV1(id(1, 1), VAULT, ClaimKind.USER_WITHDRAWAL, AssetValue.EMPTY,

@@ -121,6 +121,14 @@ class AssetPaymentsStateMachineTest {
                 .map(id -> paused.depositRecord(id).orElseThrow()).toList();
         assertThat(records).extracting(DepositRecordV1::reason).containsExactly(
                 DepositAdmission.Reason.UNKNOWN_BENEFICIARY, DepositAdmission.Reason.DEPOSITS_PAUSED);
+        // The committed deposit query an Accept co-signer reads answers exactly the recorded records (D8h §1).
+        for (DepositRecordV1 record : records) {
+            assertThat(org.yanoproject.x.assets.contracts.SettlementQueries.decodeDeposit(record.depositId(),
+                    paused.query(org.yanoproject.x.assets.contracts.SettlementQueries.DEPOSIT,
+                            record.depositId().bytes()))).contains(record);
+        }
+        assertThat(paused.query(org.yanoproject.x.assets.contracts.SettlementQueries.DEPOSIT, filled(32, 9)))
+                .isEmpty();
         assertThat(paused.balance(EURC_VAULT, alice)).isZero();
         assertThat(paused.counters(USDM_VAULT).credited()).isZero();
     }

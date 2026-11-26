@@ -18,16 +18,19 @@ import java.util.Optional;
  * asset-gateway/domain-status     request empty                 response DomainStatusV1 bytes, or empty
  * asset-gateway/claim-count       request empty                 response [count: uint]
  * asset-gateway/claim-by-sequence request [sequence: uint]      response claim_id, or empty
+ * asset-gateway/deposit           request deposit_id (32 bytes) response DepositRecordV1 bytes, or empty
  * </pre>
  *
  * The claim index is dense: every reserved claim has one sequence, from 0, so a relayer can walk every claim without a
- * range scan.
+ * range scan. The deposit record is what an {@code Accept} co-signer checks (D8f, D8h §1 step 4): the deposit is
+ * {@code CREDITED}, admitted at or below the referenced anchor's height.
  */
 public final class SettlementQueries {
     public static final String CLAIM = "asset-gateway/claim";
     public static final String DOMAIN_STATUS = "asset-gateway/domain-status";
     public static final String CLAIM_COUNT = "asset-gateway/claim-count";
     public static final String CLAIM_BY_SEQUENCE = "asset-gateway/claim-by-sequence";
+    public static final String DEPOSIT = "asset-gateway/deposit";
 
     private SettlementQueries() {
     }
@@ -67,6 +70,20 @@ public final class SettlementQueries {
         try {
             return response == null || response.length == 0 ? Optional.empty()
                     : Optional.of(DomainStatusV1.decode(response));
+        } catch (RuntimeException malformed) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * The record of a {@link #DEPOSIT} response, when it decodes and names the requested id. Anything else is absent,
+     * so a co-signer that cannot show the record refuses.
+     */
+    public static Optional<DepositRecordV1> decodeDeposit(Hash32 depositId, byte[] response) {
+        try {
+            if (response == null || response.length == 0) return Optional.empty();
+            DepositRecordV1 record = DepositRecordV1.decode(response);
+            return record.depositId().equals(depositId) ? Optional.of(record) : Optional.empty();
         } catch (RuntimeException malformed) {
             return Optional.empty();
         }
