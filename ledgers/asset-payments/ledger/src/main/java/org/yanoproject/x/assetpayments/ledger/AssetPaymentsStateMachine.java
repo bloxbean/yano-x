@@ -78,9 +78,13 @@ import java.util.Optional;
  * immutable {@link ClaimLeafV1} at {@code claim/<ClaimId>} with a {@code RESERVED} status, all in the intent's staged
  * transition. Its {@code ClaimId} binds the account (the withdrawal key) and a dense claim sequence. On a chain with
  * effects, the claim joins its shard's queue; a queue emits one {@code asset.settlement.batch} effect
- * ({@code APP_FINAL}, {@code CHAIN}) when it reaches {@code settlement.batch-size} or its oldest claim has waited
- * {@code settlement.batch-wait-ms}. A failed or expired batch re-queues its claims that are still {@code RESERVED};
- * a confirmed one only closes the batch record. Effect results never change claim status (I12).
+ * ({@code APP_FINAL}, {@code CHAIN}) of at most {@code settlement.batch-size} claims (and at most what fits the
+ * chain's effect payload limit) when it reaches that size or its oldest claim has waited
+ * {@code settlement.batch-wait-ms}. With the default wait of 0 a claim is batched in the block that reserves it; a
+ * non-zero wait is judged only when a later block runs, so it needs regular traffic. Whatever result closes a batch
+ * (confirmed, failed or expired), every claim of it still {@code RESERVED} in committed state is queued again: only a
+ * committed payout observation takes a claim out of settlement, so a Settle included and then rolled back is batched
+ * again. Effect results never change claim status (I12).
  *
  * <p><b>Determinism.</b> The only clock is the block timestamp. Every message runs against a
  * {@link StagedStore} that is committed only on success, so a rejection leaves no partial writes,
@@ -94,12 +98,14 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     private final long maxForwardSkewMs;
     private final byte[] domainRecord;
     private final boolean batching;
+    /** The claims of one batch: {@code settlement.batch-size}, bounded by what the effect payload limit admits. */
+    private final int batchCap;
 
     AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs) {
-        this(settings, maxForwardSkewMs, false);
+        this(settings, maxForwardSkewMs, false, settings.settlement().batchSize());
     }
 
-    AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs, boolean batching) {
+    AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs, boolean batching, int batchCap) {
         if (settings.maxIntentTtlMs() <= maxForwardSkewMs) {
             throw new IllegalArgumentException("max-intent-ttl-ms must exceed the chain's maximum forward clock skew");
         }
@@ -108,6 +114,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         this.authorizer = new WalletAuthorizer(settings.intentDomain(), settings.maxIntentTtlMs());
         this.domainRecord = settings.domainRecord().encode();
         this.batching = batching;
+        if (batchCap < 1 || batchCap > settings.settlement().batchSize()) {
+            throw new IllegalArgumentException("the settlement batch cap is 1..settlement.batch-size");
+        }
+        this.batchCap = batchCap;
     }
 
     @Override
@@ -636,10 +646,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     }
 
     /**
-     * Emits at most one batch per shard queue per block, for every queue that holds {@code settlement.batch-size}
-     * claims or whose oldest claim has waited {@code settlement.batch-wait-ms}. Queues are visited in registry and
-     * shard order, so every member emits the same effects in the same order. An emission the runtime refuses (a
-     * per-block limit) leaves its queue as it was, and the rest wait for a later block.
+     * Emits at most one batch per shard queue per block, for every queue that holds a full batch or whose oldest claim
+     * has waited {@code settlement.batch-wait-ms}. Queues are visited in registry and shard order, so every member
+     * emits the same effects in the same order. An emission the runtime refuses (a per-block limit) leaves that queue
+     * as it was for a later block, and the other queues still emit.
      */
     private void flushSettlementBatches(AssetAccounts.Store state, AppBlock block, AppEffectEmitter effects) {
         if (!batching || effects == null) return;
@@ -651,7 +661,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     if (!flushQueue(staged, vault.vaultId(), shard, block, effects, policy)) continue;
                     staged.commit();
                 } catch (RuntimeException refused) {
-                    return; // deterministic on every member; the staged writes are dropped
+                    // Deterministic on every member; this shard's staged writes are dropped and the next shard runs.
                 }
             }
         }
@@ -667,12 +677,12 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         if (pending <= 0) return false;
         long oldest = queueEntryTime(state.get(AssetPaymentsContract.settleQueueKey(vaultId, shard, meta[0]))
                 .orElseThrow(() -> new IllegalStateException("settlement queue entry missing")));
-        boolean due = pending >= policy.batchSize() || block.timestamp() - oldest >= policy.batchWaitMs();
+        boolean due = pending >= batchCap || block.timestamp() - oldest >= policy.batchWaitMs();
         if (!due) return false;
         List<Hash32> ids = new ArrayList<>();
         long head = meta[0];
         PayoutConfirmation records = payouts(state);
-        while (head < meta[1] && ids.size() < policy.batchSize()) {
+        while (head < meta[1] && ids.size() < batchCap) {
             byte[] key = AssetPaymentsContract.settleQueueKey(vaultId, shard, head);
             Hash32 claimId = queueEntryClaim(state.get(key).orElseThrow(() ->
                     new IllegalStateException("settlement queue entry missing")));
@@ -700,9 +710,11 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     }
 
     /**
-     * Closes one batch. A {@code CONFIRMED} result only drops the batch record: the payout observer alone moves a
-     * claim to {@code PAID} (D10, I12). A failed or expired batch re-queues every claim that is still
-     * {@code RESERVED}, so it is batched again (D7 step 4).
+     * Closes one batch on any result, {@code CONFIRMED}, {@code FAILED} or {@code EXPIRED}: it drops the batch record
+     * and re-queues every claim of the batch that is still {@code RESERVED} in committed state, so it is batched again
+     * (D7 step 4). A confirmed result is one member's attestation and may come from a Settle that rolled back, or
+     * have paid only part of the batch; only the payout observer moves a claim to {@code PAID} (D10, I12), and only
+     * that takes it out of settlement.
      */
     @Override
     public void onEffectResult(AppBlockExecutionContext context, EffectResult result, AppStateWriter writer,
@@ -717,7 +729,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             Optional<byte[]> record = staged.get(key);
             if (record.isEmpty()) return;
             staged.delete(key);
-            if (!result.confirmed() && batching) {
+            if (batching) {
                 SettlementBatchV1 batch = SettlementBatchV1.decode(record.get());
                 PayoutConfirmation records = payouts(staged);
                 for (Hash32 claimId : batch.claimIds()) {

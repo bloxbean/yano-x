@@ -44,9 +44,14 @@ import java.util.Set;
  * payout-lovelace-cap (2000000)                                          D11: the most min-ADA credit a token claim
  *                                                                         spends as its payout's vaultLovelace
  * settlement.batch-size (16, 1..16)                                      D7: the soft cap that emits a shard's batch
- *                                                                         (the profile's maxSettleBatch is 16)
- * settlement.batch-wait-ms (60000)                                       D7: the age that emits a smaller batch
- * settlement.expiry-blocks (0 = the chain default)                       the batch effect's CHAIN expiry
+ *                                                                         (the profile's maxSettleBatch is 16), also
+ *                                                                         bounded by effects.max-payload-bytes
+ * settlement.batch-wait-ms (0)                                           D7: the age that emits a smaller batch; 0
+ *                                                                         batches a claim in its reserving block, and
+ *                                                                         a non-zero wait needs regular traffic
+ * settlement.expiry-blocks (0 = the chain default)                       the batch effect's CHAIN expiry, within
+ *                                                                         effects.max-expiry-blocks and the result
+ *                                                                         window
  * vaults.N.asset, vaults.N.script-hash, vaults.N.address                  the fixed vault set (I29), N = 0, 1, ...
  *                                                                         contiguous; distinct addresses, no other keys
  * vaults.N.status (ACTIVE), vaults.N.ticker (""), vaults.N.decimals (0), vaults.N.active-from-slot (0)
@@ -122,7 +127,7 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         Settlement settlement = new Settlement(
                 (int) bounded(optional(settings, "settlement.batch-size", "16"), 1, MAX_SETTLE_BATCH,
                         "settlement.batch-size"),
-                bounded(optional(settings, "settlement.batch-wait-ms", "60000"), 0, 7L * 24 * 3_600_000,
+                bounded(optional(settings, "settlement.batch-wait-ms", "0"), 0, 7L * 24 * 3_600_000,
                         "settlement.batch-wait-ms"),
                 bounded(optional(settings, "settlement.expiry-blocks", "0"), 0, 1_000_000, "settlement.expiry-blocks"));
 

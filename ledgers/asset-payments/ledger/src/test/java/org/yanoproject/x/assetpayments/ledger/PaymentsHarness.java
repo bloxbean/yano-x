@@ -143,11 +143,21 @@ final class PaymentsHarness {
     }
 
     static AppChainConsensusProfile profile(int l1StabilityDepth, boolean effects) {
+        return profile(l1StabilityDepth, effects, effects ? 16_384 : 0, effects ? 1_000 : 0);
+    }
+
+    /** A profile with effects enabled, the given payload limit, and the given expiry and result window. */
+    static AppChainConsensusProfile effectsProfile(int maxPayloadBytes, long expiryBlocks) {
+        return profile(1, true, maxPayloadBytes, expiryBlocks);
+    }
+
+    private static AppChainConsensusProfile profile(int l1StabilityDepth, boolean effects, int maxPayloadBytes,
+                                                    long expiryBlocks) {
         int message = 64 * 1024;
         return new AppChainConsensusProfile(AppChainConsensusProfile.SCHEMA_VERSION, message, 100,
                 message + AppChainConfig.BLOCK_ENVELOPE_HEADROOM_BYTES + AppChainConfig.MAX_FINALITY_CERT_HEADROOM_BYTES,
                 l1StabilityDepth, l1StabilityDepth, AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS,
-                false, effects, effects ? 64 : 0, effects ? 16_384 : 0, effects ? 1_000 : 0, effects ? 1_000 : 0,
+                false, effects, effects ? 64 : 0, maxPayloadBytes, expiryBlocks, expiryBlocks,
                 FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, false, List.of());
     }
 
@@ -201,6 +211,8 @@ final class PaymentsHarness {
     private byte[] prevHash = AppBlock.GENESIS_PREV_HASH;
     private final AppEffectEmitter effects;
     private int ordinal;
+    /** Intents the recording emitter refuses, as the runtime refuses one over a per-block limit. */
+    java.util.function.Predicate<EffectIntent> refuse = intent -> false;
 
     PaymentsHarness() {
         this(settings());
@@ -212,11 +224,17 @@ final class PaymentsHarness {
 
     /** With {@code effects}, the chain's profile enables effects and a recording emitter collects them. */
     PaymentsHarness(Map<String, String> settings, boolean effects) {
-        machine = machine(settings, Optional.of(profile(1, effects)));
+        this(settings, profile(1, effects));
+    }
+
+    PaymentsHarness(Map<String, String> settings, AppChainConsensusProfile profile) {
+        boolean effects = profile.effectsEnabled();
+        machine = machine(settings, Optional.of(profile));
         machine.init(writer(), null);
         this.effects = !effects ? null : new AppEffectEmitter() {
             @Override
             public EffectId emit(EffectIntent intent) {
+                if (refuse.test(intent)) throw new IllegalStateException("effects.max-per-block exceeded");
                 EffectId id = new EffectId(CHAIN, height, ordinal++);
                 emitted.add(Map.entry(id, intent));
                 return id;

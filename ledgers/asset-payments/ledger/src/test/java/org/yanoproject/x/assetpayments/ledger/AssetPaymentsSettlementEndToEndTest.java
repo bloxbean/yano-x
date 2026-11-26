@@ -60,7 +60,8 @@ import static org.yanoproject.x.assetpayments.ledger.PaymentsHarness.*;
  * emits its {@code asset.settlement.batch}; the settlement builder turns the batch's committed claims into a
  * {@code Settle}, which a member's body check (D8h) accepts against the ledger's own committed state; the built
  * transaction, as real Conway block bytes, goes through the real payout observer; the finalized observation moves the
- * claim to {@code PAID}. The batch effect's own result closes only the batch record (I12).
+ * claim to {@code PAID}. The batch effect's own result never changes a claim's status (I12): it closes the batch
+ * and re-queues the claims still {@code RESERVED}.
  */
 class AssetPaymentsSettlementEndToEndTest {
     static final IntentEnvelopeV1.Owner OWNER = new IntentEnvelopeV1.Owner();
