@@ -3,10 +3,6 @@ package org.yanoproject.x.assets.cardano.gateway;
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
-import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.spec.VkeyWitness;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.ShardMirror;
@@ -26,9 +22,7 @@ import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -82,7 +76,9 @@ import java.util.function.Supplier;
  * <p>The effect runtime runs several attempts at once (across shards, and on one shard across blocks), so one lock
  * serializes every attempt of this executor. A single owner's L1 assembly is serial anyway: every {@code Settle}
  * spends the one fee wallet and continues the vault's custody. Each pending submission's spent outpoints stay out of
- * later selections until it closes, and no attempt builds over a shard input a pending submission spends.
+ * later selections until it closes, and no attempt builds over a shard input a pending submission spends. The lock
+ * and the holds are the node's {@link OwnerAssembly}, which the {@code Accept} batcher and an exit relayer running on
+ * this node share, so none of them spends what another one's pending transaction spends.
  */
 final class AssetSettlementExecutor implements AppEffectExecutor {
     static final String ID = "asset-settlement";
@@ -99,16 +95,19 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     private final Function<byte[], String> submit;
     private final LongSupplier clock;
     private final byte[] memberPublicKey;
-    private final byte[] feeSeed;
-    private final byte[] feePublicKey;
-    private final byte[] feeAddress;
-    /** Serializes attempts: reading the L1 view, selecting inputs, building, co-signing, submitting and probing. */
-    private final Object assembly = new Object();
+    private final FeeWallet wallet;
     /**
-     * This node's submitted, unconfirmed Settles by effect: their spent outpoints are excluded from selection, and
-     * their inserts are the optimistic part of the shard mirror (D8h §6). Guarded by {@link #assembly}.
+     * Serializes attempts (reading the L1 view, selecting inputs, building, co-signing, submitting and probing) with
+     * this node's other assemblies, and holds what pending submissions spend.
+     */
+    private final OwnerAssembly assembly;
+    /**
+     * This node's submitted, unconfirmed Settles by effect. Each also holds its spent outpoints and inserts in
+     * {@link #assembly} under {@link #holdKey}, until it closes. Guarded by the assembly lock.
      */
     private final Map<String, Journal> journal = new HashMap<>();
+    /** The periodic tasks this executor product owns ({@code Accept}, exit relaying), stopped on close. */
+    private volatile AutoCloseable tasks;
     /** The most effects whose signer memory is kept; the least recently used is dropped (an expired batch's). */
     static final int SIGNER_MEMORY_CAP = 256;
     /**
@@ -184,7 +183,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     AssetSettlementExecutor(AssetSettlementSettings settings, NodeL1View l1, CommittedClaims committed,
                             AssetCosignService cosign, Supplier<ProtocolParams> protocolParams,
                             TransactionEvaluator evaluator, Function<byte[], String> submit, LongSupplier clock,
-                            byte[] memberPublicKey) {
+                            byte[] memberPublicKey, OwnerAssembly assembly, FeeWallet wallet) {
         this.settings = Objects.requireNonNull(settings, "settings");
         this.l1 = Objects.requireNonNull(l1, "l1");
         this.committed = Objects.requireNonNull(committed, "committed");
@@ -194,17 +193,46 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         this.submit = Objects.requireNonNull(submit, "submit");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.memberPublicKey = memberPublicKey.clone();
-        this.feeSeed = settings.feeWalletSeed().orElseThrow(() ->
-                new IllegalArgumentException("the settlement owner needs fee-wallet.key-file")).clone();
-        this.feePublicKey = KeyGenUtil.getPublicKeyFromPrivateKey(feeSeed);
-        if (Arrays.equals(feePublicKey, this.memberPublicKey)) {
-            // The transaction would carry the key's witness twice; the fee wallet is a separate, node-local key.
-            throw new IllegalArgumentException("fee-wallet.key-file holds this node's member key; the fee wallet"
-                    + " needs its own key");
+        this.assembly = Objects.requireNonNull(assembly, "assembly");
+        this.wallet = Objects.requireNonNull(wallet, "wallet");
+    }
+
+    /** The key of a Settle's hold in the shared assembly. */
+    static String holdKey(String effectKey) {
+        return "settle:" + effectKey;
+    }
+
+    private DepositAcceptor acceptor;
+    private ExitRelayTask relayer;
+
+    /** The owner's {@code Accept} batcher and exit relayer, which share this executor's assembly and fee wallet. */
+    void wire(DepositAcceptor acceptor, ExitRelayTask relayer) {
+        this.acceptor = acceptor;
+        this.relayer = relayer;
+    }
+
+    Optional<DepositAcceptor> acceptor() {
+        return Optional.ofNullable(acceptor);
+    }
+
+    Optional<ExitRelayTask> relayer() {
+        return Optional.ofNullable(relayer);
+    }
+
+    /** Gives this product the periodic tasks it stops on close. */
+    void ownTasks(AutoCloseable tasks) {
+        this.tasks = tasks;
+    }
+
+    @Override
+    public void close() {
+        AutoCloseable owned = tasks;
+        if (owned == null) return;
+        try {
+            owned.close();
+        } catch (Exception ignored) {
+            // Bounded shutdown: the scheduler is stopped whatever the close reports.
         }
-        this.feeAddress = new byte[29];
-        feeAddress[0] = (byte) (0x60 | settings.vaults().domain().addressNetworkId());
-        System.arraycopy(Blake2bUtil.blake2bHash224(feePublicKey), 0, feeAddress, 1, 28);
     }
 
     @Override
@@ -232,16 +260,13 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     }
 
     byte[] feeAddress() {
-        return feeAddress.clone();
+        return wallet.address();
     }
 
     @Override
     public EffectExecution execute(EffectExecutionContext ctx, PendingEffect effect) throws Exception {
         String key = HexFormat.of().formatHex(effect.idHash());
-        EffectExecution result;
-        synchronized (assembly) {
-            result = attempt(ctx, effect, key);
-        }
+        EffectExecution result = assembly.serialized(() -> attempt(ctx, effect, key));
         boolean terminal = result instanceof EffectExecution.Confirmed
                 || (result instanceof EffectExecution.Failed failed && !failed.retryable());
         if (terminal) signerMemory.remove(key);
@@ -289,12 +314,11 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         if (exitMode.isEmpty() || shardInput.isEmpty() || vaultRef.isEmpty() || shardRef.isEmpty()) {
             return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "L1 inputs unavailable");
         }
-        Set<ResolvedOutput.Outpoint> pendingSpends = new HashSet<>();
-        journal.values().forEach(pending -> pendingSpends.addAll(pending.spends()));
+        Set<ResolvedOutput.Outpoint> pendingSpends = assembly.held(clock.getAsLong());
         if (pendingSpends.contains(shardInput.get().outpoint())) {
-            // A pending Settle spends this shard input and is not yet included: a second one would conflict with it.
+            // A pending payout spends this shard input and is not yet included: a second one would conflict with it.
             // Chaining on its predicted shard output (D8h §6) is a later optimization; until then the batch waits.
-            return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "awaiting the pending Settle on this shard");
+            return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "awaiting the pending payout on this shard");
         }
         Optional<ShardMirror> mirror = mirror(pins, batch.shardIndex(), shardInput.get());
         if (mirror.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "shard mirror mismatch");
@@ -312,15 +336,15 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         // Outputs a pending submission spends are not selected again; their release is its close (or their
         // disappearance from the L1 view, once it is included).
         List<ResolvedOutput> vaultUtxos = l1.at(pins.vaultAddress());
-        List<ResolvedOutput> feeUtxos = l1.at(feeAddress);
+        List<ResolvedOutput> feeUtxos = l1.at(wallet.address());
         boolean held = vaultUtxos.removeIf(out -> pendingSpends.contains(out.outpoint()))
                 | feeUtxos.removeIf(out -> pendingSpends.contains(out.outpoint()));
-        List<ResolvedOutput> funding = funding(feeUtxos);
+        List<ResolvedOutput> funding = wallet.funding(feeUtxos, pendingSpends);
         if (funding.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "no fee wallet funds");
         long slot = settings.slots().slotAt(clock.getAsLong());
         PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(pins, vaultUtxos,
                 shardInput.get(), anchor.get().output(), exitMode.get(), List.of(vaultRef.get(), shardRef.get()),
-                new PayoutTxBuilder.Funding(funding, feeAddress), Math.max(0, slot - 60),
+                new PayoutTxBuilder.Funding(funding, wallet.address()), Math.max(0, slot - 60),
                 slot + settings.validityWindowSlots(), pp, settings.maxVaultInputs());
         // The executor's cap, whatever the ledger's batch size; the rest stays RESERVED and is re-queued at close.
         // A claim that alone exceeds a per-transaction limit is left RESERVED for Exit, and the next ones are tried.
@@ -360,18 +384,17 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             return outcome(EffectExecution.failed("co-sign round incomplete", true), "round incomplete");
         }
         signerMemory.remove(key);
-        byte[] signed = witness(built, signatures.get());
+        byte[] signed = wallet.witness(built.cbor(), built.txId(), signatures.get());
         String txHash = submit.apply(signed);
         if (txHash == null || !txHash.equalsIgnoreCase(built.txId().hex())) {
             return outcome(EffectExecution.failed("submission returned another transaction id", true), "submit");
         }
-        Set<ResolvedOutput.Outpoint> spends = new HashSet<>();
-        for (var input : built.transaction().getBody().getInputs()) {
-            spends.add(new ResolvedOutput.Outpoint(Hash32.ofHex(input.getTransactionId()), input.getIndex()));
-        }
+        Set<ResolvedOutput.Outpoint> spends = FeeWallet.spends(built.transaction());
         Journal submitted = Journal.of(built.txId(), batch, built.claimIds(),
                 clock.getAsLong() + settings.inclusionTimeout().toMillis(), spends);
         journal.put(key, submitted);
+        assembly.hold(holdKey(key), new OwnerAssembly.Hold(built.txId(), spends, batch.vaultId(),
+                batch.shardIndex(), built.claimIds(), Long.MAX_VALUE));
         return outcome(EffectExecution.submitted(submitted.ref()), "submitted " + built.txId());
     }
 
@@ -382,6 +405,11 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
      * as {@code PAID_MISMATCH} means this transaction is superseded: it fails at once. Past the deadline it fails, too.
      * Either way the ledger re-queues whatever is still {@code RESERVED}.
      */
+    private void closeJournal(String key) {
+        journal.remove(key);
+        assembly.release(holdKey(key));
+    }
+
     private EffectExecution probe(String key, Journal entry) {
         boolean pending = false;
         boolean superseded = false;
@@ -395,16 +423,16 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             }
         }
         if (superseded) {
-            journal.remove(key);
+            closeJournal(key);
             return outcome(EffectExecution.failed("superseded: a claim was resolved by another payout", false),
                     "superseded " + entry.txId());
         }
         if (!pending) {
-            journal.remove(key);
+            closeJournal(key);
             return outcome(EffectExecution.confirmed(entry.txId().bytes()), "confirmed " + entry.txId());
         }
         if (clock.getAsLong() > entry.deadlineMs()) {
-            journal.remove(key);
+            closeJournal(key);
             // Not confirmed: never included, or included and rolled back. The ledger re-batches the claims; a later
             // inclusion still confirms through the payout observer, and a second payment is impossible (I6).
             return outcome(EffectExecution.failed("settlement transaction not confirmed by its deadline", false),
@@ -414,9 +442,10 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     }
 
     /**
-     * The mirror: confirmed inserts plus the inserts of this node's pending submissions on the shard, falling back to
-     * confirmed only (D8h §6). The caller has already waited out a pending submission whose shard input is still live,
-     * so a fallback means a rollback or a third-party {@code Exit}; the pending entries stay until they close.
+     * The mirror: confirmed inserts plus the inserts of this node's pending payouts on the shard (its Settles and the
+     * Exits of a relayer sharing its assembly), falling back to confirmed only (D8h §6). The caller has already
+     * waited out a pending submission whose shard input is still live, so a fallback means a rollback or a
+     * third-party {@code Exit}; the pending entries stay until they close.
      */
     private Optional<ShardMirror> mirror(VaultPins pins, int shard, ResolvedOutput shardInput) {
         Optional<Hash32> liveRoot = shardInput.inlineDatum()
@@ -425,11 +454,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         Optional<List<Hash32>> paid = committed.paid(pins.vaultId(), shard);
         if (liveRoot.isEmpty() || paid.isEmpty()) return Optional.empty();
         LinkedHashSet<Hash32> withOwn = new LinkedHashSet<>(paid.get());
-        for (Journal pending : journal.values()) {
-            if (pending.vaultId().equals(pins.vaultId()) && pending.shard() == shard) {
-                withOwn.addAll(pending.claimIds());
-            }
-        }
+        withOwn.addAll(assembly.inserts(pins.vaultId(), shard));
         ShardMirror optimisticMirror = ShardMirror.of(shard, withOwn);
         if (optimisticMirror.matches(liveRoot.get())) return Optional.of(optimisticMirror);
         ShardMirror confirmed = ShardMirror.of(shard, paid.get());
@@ -444,6 +469,11 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
      * only from the members named here.
      */
     List<byte[]> signers(NodeL1View.Anchored anchor, SignerMemory memory) {
+        return signers(memberPublicKey, anchor, memory);
+    }
+
+    /** {@link #signers(NodeL1View.Anchored, SignerMemory)} for the node whose member key is {@code memberPublicKey}. */
+    static List<byte[]> signers(byte[] memberPublicKey, NodeL1View.Anchored anchor, SignerMemory memory) {
         List<byte[]> keys = new ArrayList<>();
         Hash32 self = Hash32.of(memberPublicKey);
         List<Hash32> others = new ArrayList<>();
@@ -475,7 +505,13 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
      * a member that missed a request in an earlier pass is asked again.
      */
     void remember(String key, Set<String> requested, Set<String> answered, List<Hash32> memberKeys) {
-        SignerMemory before = signerMemory.getOrDefault(key, SignerMemory.NONE);
+        signerMemory.put(key, afterRound(memberPublicKey, signerMemory.getOrDefault(key, SignerMemory.NONE), requested,
+                answered, memberKeys));
+    }
+
+    /** The memory after an incomplete round, as {@link #remember} records it. */
+    static SignerMemory afterRound(byte[] memberPublicKey, SignerMemory before, Set<String> requested,
+                                   Set<String> answered, List<Hash32> memberKeys) {
         Set<Hash32> tried = new LinkedHashSet<>(before.tried());
         Set<Hash32> replied = new LinkedHashSet<>();
         for (String member : requested) {
@@ -485,30 +521,11 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         }
         Hash32 self = Hash32.of(memberPublicKey);
         boolean passDone = memberKeys.stream().filter(m -> !m.equals(self)).allMatch(tried::contains);
-        signerMemory.put(key, new SignerMemory(Set.copyOf(replied), Set.copyOf(passDone ? replied : tried)));
+        return new SignerMemory(Set.copyOf(replied), Set.copyOf(passDone ? replied : tried));
     }
 
     int signerMemorySize() {
         return signerMemory.size();
-    }
-
-    /** The lovelace-only outputs of {@code feeUtxos} (those no pending submission spends), largest first, at most 3. */
-    private static List<ResolvedOutput> funding(List<ResolvedOutput> feeUtxos) {
-        List<ResolvedOutput> utxos = new ArrayList<>(feeUtxos.stream()
-                .filter(out -> out.assets().isEmpty() && out.referenceScript().isEmpty()).toList());
-        utxos.sort((a, b) -> b.lovelace().compareTo(a.lovelace()));
-        return utxos.subList(0, Math.min(3, utxos.size()));
-    }
-
-    private byte[] witness(PayoutTxBuilder.Built built, Map<String, byte[]> signatures) throws Exception {
-        Transaction tx = Transaction.deserialize(built.cbor());
-        List<VkeyWitness> witnesses = new ArrayList<>();
-        signatures.forEach((publicKey, signature) ->
-                witnesses.add(new VkeyWitness(HexFormat.of().parseHex(publicKey), signature)));
-        byte[] feeSignature = CryptoConfiguration.INSTANCE.getSigningProvider().sign(built.txId().bytes(), feeSeed);
-        witnesses.add(new VkeyWitness(feePublicKey, feeSignature));
-        tx.getWitnessSet().setVkeyWitnesses(witnesses);
-        return tx.serialize();
     }
 
     private EffectExecution outcome(EffectExecution execution, String note) {

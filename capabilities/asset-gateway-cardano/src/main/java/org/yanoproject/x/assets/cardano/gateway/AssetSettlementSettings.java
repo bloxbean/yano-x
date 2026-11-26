@@ -1,6 +1,7 @@
 package org.yanoproject.x.assets.cardano.gateway;
 
 import com.bloxbean.cardano.client.address.Address;
+import org.yanoproject.x.assets.cardano.support.settlement.AcceptTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
 import org.yanoproject.x.assets.contracts.Hash32;
@@ -55,18 +56,37 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * stability-window-ms (600000)      owner only: an upper bound on the time from a Settle's inclusion to its committed
  *                                   payout observation (the chain's l1.stability-depth in L1 time, plus finality)
  * inclusion-timeout-ms (900000)     owner only: how long a submitted Settle may take to be confirmed by the payout
- *                                   observer; must exceed stability-window-ms
+ *                                   observer; must exceed stability-window-ms. An Accept or a relayed Exit holds
+ *                                   its inputs for as long
+ * accept.interval-ms (60000)        owner only: how often the owner batches CREDITED-but-unaccepted deposits into an
+ *                                   Accept (D8f); 0 disables it
+ * accept.max-batch (16), accept.max-proved-batch (12)   deposits per co-signed and per proved Accept, at most the
+ *                                   builder's caps
+ * exit-relayer.enabled (false)      relay EXIT_ELIGIBLE claims as proof Exits (D9), permissionless; the owner relays
+ *                                   with its own fee wallet and assembly, any other node with its own wallet
+ * exit-relayer.interval-ms (60000)  how often the relayer looks for eligible claims
+ * exit-relayer.fee-wallet.key-file  a relaying non-owner only: the 32-byte Ed25519 seed (hex) of its fee wallet
  * </pre>
  */
 record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> pins, Map<Hash32, ScriptRefs> scriptRefs,
                                boolean owner, Duration roundTimeout, Optional<byte[]> feeWalletSeed,
                                SlotClock slots, long validityWindowSlots, int maxVaultInputs,
                                Duration inclusionTimeout, BigInteger maxSupplementPerPayout,
-                               Duration stabilityWindow) {
+                               Duration stabilityWindow, Tasks tasks) {
     /** The owner's validity window bound: the members accept a TTL up to 10 minutes plus clock skew past their tip. */
     static final long MAX_VALIDITY_WINDOW_MS = 600_000;
 
     private static final Set<String> VAULT_EXTRAS = Set.of("script-ref", "shard-script-ref");
+
+    /**
+     * The periodic tasks: the owner's {@code Accept} batching (D8f) and the permissionless exit relayer (D9).
+     *
+     * @param acceptIntervalMs  the {@code Accept} pace, 0 when disabled (owner only)
+     * @param relayerSeed       a relaying non-owner's own fee-wallet seed; the owner relays with its fee wallet
+     */
+    record Tasks(long acceptIntervalMs, int acceptBatch, int acceptProvedBatch, boolean exitRelayer,
+                 long exitRelayIntervalMs, Optional<byte[]> relayerSeed) {
+    }
 
     /** The reference-script outputs of one vault. */
     record ScriptRefs(ResolvedOutput.Outpoint vault, ResolvedOutput.Outpoint shard) {
@@ -158,6 +178,28 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
             // inclusion; a shorter timeout would re-batch claims a stable payout already paid.
             throw new IllegalArgumentException("inclusion-timeout-ms must exceed stability-window-ms");
         }
+        boolean relayer = Boolean.parseBoolean(optional(config, "exit-relayer.enabled", "false"));
+        Optional<String> relayerKey = Optional.ofNullable(config.get("exit-relayer.fee-wallet.key-file"))
+                .filter(value -> !value.isBlank());
+        if (owner && relayerKey.isPresent()) {
+            throw new IllegalArgumentException("the owner relays with fee-wallet.key-file; remove"
+                    + " exit-relayer.fee-wallet.key-file");
+        }
+        Optional<byte[]> relayerSeed = !owner && relayer
+                ? Optional.of(readSeed(relayerKey.orElseThrow(() -> new IllegalArgumentException(
+                "a relaying non-owner needs exit-relayer.fee-wallet.key-file"))))
+                : Optional.empty();
+        Tasks tasks = new Tasks(
+                owner ? bounded(optional(config, "accept.interval-ms", "60000"), 0, 86_400_000L, "accept.interval-ms")
+                        : 0,
+                (int) bounded(optional(config, "accept.max-batch", "16"), 1, AcceptTxBuilder.MAX_COSIGNED,
+                        "accept.max-batch"),
+                (int) bounded(optional(config, "accept.max-proved-batch", "12"), 1, AcceptTxBuilder.MAX_PROVED,
+                        "accept.max-proved-batch"),
+                relayer,
+                bounded(optional(config, "exit-relayer.interval-ms", "60000"), 1_000, 86_400_000L,
+                        "exit-relayer.interval-ms"),
+                relayerSeed);
         return new AssetSettlementSettings(vaults, pins, refs, owner,
                 Duration.ofMillis(bounded(optional(config, "round-timeout-ms", "30000"), 100, 600_000,
                         "round-timeout-ms")), seed, slots, window,
@@ -165,7 +207,7 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 inclusion,
                 BigInteger.valueOf(bounded(optional(config, "max-supplement-per-payout", "0"), 0, 100_000_000L,
                         "max-supplement-per-payout")),
-                stability);
+                stability, tasks);
     }
 
     Optional<VaultPins> vault(Hash32 vaultId) {

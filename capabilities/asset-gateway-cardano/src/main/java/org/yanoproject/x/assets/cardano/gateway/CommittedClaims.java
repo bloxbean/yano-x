@@ -1,6 +1,9 @@
 package org.yanoproject.x.assets.cardano.gateway;
 
+import org.yanoproject.x.assets.cardano.support.settlement.AcceptBodyCheck;
+import org.yanoproject.x.assets.cardano.support.settlement.ExitRelayer;
 import org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck;
+import org.yanoproject.x.assets.contracts.DepositRecordV1;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.assets.contracts.SettlementBatchV1;
@@ -17,7 +20,7 @@ import java.util.function.BiFunction;
  * every member read claim leaves, status and the domain status leaf from finalized state, never from a request or an
  * effect payload. A query that fails reads as absent, so callers fail closed.
  */
-final class CommittedClaims implements SettleBodyCheck.Committed {
+final class CommittedClaims implements SettleBodyCheck.Committed, AcceptBodyCheck.Deposits {
     private final BiFunction<String, byte[], byte[]> query;
 
     /** @param query a committed-state query, answering the payload or null */
@@ -34,6 +37,35 @@ final class CommittedClaims implements SettleBodyCheck.Committed {
     @Override
     public Optional<DomainStatusV1> domainStatus() {
         return payload(SettlementQueries.DOMAIN_STATUS, new byte[0]).flatMap(SettlementQueries::decodeDomainStatus);
+    }
+
+    /** A deposit's committed record, the {@code Accept} co-signer's evidence (D8f, D8h §1 step 4). */
+    @Override
+    public Optional<DepositRecordV1> deposit(Hash32 depositId) {
+        return payload(SettlementQueries.DEPOSIT, depositId.bytes())
+                .flatMap(bytes -> SettlementQueries.decodeDeposit(depositId, bytes));
+    }
+
+    /**
+     * Every {@code RESERVED} claim of the vault, the exit relayer's candidates (D9 step 1), walking the dense claim
+     * index; empty when the walk cannot complete, so the relayer relays nothing rather than a partial view.
+     */
+    Optional<List<ExitRelayer.Candidate>> reserved(Hash32 vaultId) {
+        Optional<Long> count = payload(SettlementQueries.CLAIM_COUNT, new byte[0]).map(SettlementQueries::decodeCount);
+        if (count.isEmpty()) return Optional.empty();
+        List<ExitRelayer.Candidate> reserved = new ArrayList<>();
+        for (long sequence = 0; sequence < count.get(); sequence++) {
+            Optional<byte[]> id = payload(SettlementQueries.CLAIM_BY_SEQUENCE,
+                    SettlementQueries.encodeSequence(sequence));
+            if (id.isEmpty() || id.get().length != Hash32.BYTES) return Optional.empty();
+            Optional<SettlementQueries.ClaimView> view = claim(Hash32.of(id.get()));
+            if (view.isEmpty()) return Optional.empty();
+            if (view.get().leaf().vaultId().equals(vaultId)
+                    && view.get().status().status() == ClaimStatus.RESERVED) {
+                reserved.add(new ExitRelayer.Candidate(view.get().leaf(), ClaimStatus.RESERVED));
+            }
+        }
+        return Optional.of(reserved);
     }
 
     /**

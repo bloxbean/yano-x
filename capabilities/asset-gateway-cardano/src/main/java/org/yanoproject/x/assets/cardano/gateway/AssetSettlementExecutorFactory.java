@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import org.yanoproject.api.TxEvaluationGateway;
 import org.yanoproject.api.model.TxEvaluationResult;
+import org.yanoproject.x.assets.cardano.support.settlement.AcceptBodyCheck;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck;
@@ -46,8 +47,13 @@ import java.util.function.Supplier;
  * owns no effect type, because a chain with effects enabled and no executor product fails activation, and members
  * must not race to submit the same batch.
  *
- * <p>The proof {@code Exit} relayer ({@code ExitRelayer} in the support library) needs state proofs at the referenced
- * anchor's height, which this context does not serve; it is wired with the node's proof API in a later stage.
+ * <p>The members' co-sign service checks both co-signed bodies: a {@code Settle} with {@link SettleBodyCheck} and a
+ * co-signed {@code Accept} with {@link AcceptBodyCheck} (D8h §1). The owner also batches credited deposits into
+ * {@code Accept}s ({@link DepositAcceptor}, {@code accept.interval-ms}); any node with {@code exit-relayer.enabled}
+ * relays {@code EXIT_ELIGIBLE} claims by proof {@code Exit} ({@link ExitRelayTask}), with state proofs from this
+ * node at the referenced L1-stable anchor's height. Both run on a timer owned by the executor product, which stops it
+ * on close; on the owner they share the {@code Settle} executor's assembly lock, pending-spend holds and fee wallet
+ * ({@link OwnerAssembly}), and a relaying non-owner has its own.
  */
 public final class AssetSettlementExecutorFactory implements AppEffectExecutorFactory {
     public static final String SCHEME = "asset-settlement";
@@ -65,12 +71,17 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
 
     @Override
     public List<AppEffectExecutor> create(String chainId, Map<String, String> config, AppChainEffectContext context) {
-        return create(config, context, System::currentTimeMillis);
+        return create(config, context, System::currentTimeMillis, true);
     }
 
-    /** The context overload with this node's wall clock, which tests replace. */
+    /** The context overload with this node's wall clock, which tests replace, and no timer: tests run the passes. */
     static List<AppEffectExecutor> create(Map<String, String> config, AppChainEffectContext context,
                                           LongSupplier clock) {
+        return create(config, context, clock, false);
+    }
+
+    static List<AppEffectExecutor> create(Map<String, String> config, AppChainEffectContext context,
+                                          LongSupplier clock, boolean schedule) {
         if (context == null) return List.of();
         AssetSettlementSettings settings = AssetSettlementSettings.parse(config);
         NodeL1View l1 = new NodeL1View(context.l1UtxoView());
@@ -83,15 +94,49 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
         AssetCosignService cosign = new AssetCosignService(context::diffuse, context.memberSigner(),
                 bodyCheck(settings, l1, committed, memberKeyHash, context, clock), settings.roundTimeout());
         context.registerBridgeDiffusionHandler(cosign);
-        if (!settings.owner()) return List.of(new CosignOnly(cosign));
-        return List.of(new AssetSettlementExecutor(settings, l1, committed, cosign, context.protocolParams(),
-                evaluator(context::txEvaluation), context::submitTx, clock, memberKey));
+        TransactionEvaluator evaluator = evaluator(context::txEvaluation);
+        NodeServices node = new NodeServices(settings, l1, committed, context.protocolParams(), evaluator,
+                context::submitTx, clock, NodeServices.proofsOf(context), context::stableAnchoredHeight);
+        int network = settings.vaults().domain().addressNetworkId();
+        AssetSettlementSettings.Tasks taskSettings = settings.tasks();
+        if (!settings.owner()) {
+            if (!taskSettings.exitRelayer()) return List.of(new CosignOnly(cosign, null));
+            // A relaying non-owner assembles alone, with its own fee wallet.
+            FeeWallet wallet = new FeeWallet(taskSettings.relayerSeed().orElseThrow(), network, memberKey,
+                    "exit-relayer.fee-wallet.key-file");
+            ExitRelayTask relayer = new ExitRelayTask(node, new OwnerAssembly(), wallet);
+            CosignOnly product = new CosignOnly(cosign, relayer);
+            if (schedule) {
+                SettlementTasks tasks = new SettlementTasks(context.chainId());
+                tasks.every(taskSettings.exitRelayIntervalMs(), "exit relayer", relayer::runOnce);
+                product.ownTasks(tasks);
+            }
+            return List.of(product);
+        }
+        OwnerAssembly assembly = new OwnerAssembly();
+        FeeWallet wallet = new FeeWallet(settings.feeWalletSeed().orElseThrow(() ->
+                new IllegalArgumentException("the settlement owner needs fee-wallet.key-file")), network, memberKey,
+                "fee-wallet.key-file");
+        AssetSettlementExecutor executor = new AssetSettlementExecutor(settings, l1, committed, cosign,
+                context.protocolParams(), evaluator, context::submitTx, clock, memberKey, assembly, wallet);
+        DepositAcceptor acceptor = taskSettings.acceptIntervalMs() > 0
+                ? new DepositAcceptor(node, cosign, memberKey, assembly, wallet) : null;
+        ExitRelayTask relayer = taskSettings.exitRelayer() ? new ExitRelayTask(node, assembly, wallet) : null;
+        executor.wire(acceptor, relayer);
+        if (schedule && (acceptor != null || relayer != null)) {
+            SettlementTasks tasks = new SettlementTasks(context.chainId());
+            if (acceptor != null) tasks.every(taskSettings.acceptIntervalMs(), "deposit acceptor", acceptor::runOnce);
+            if (relayer != null) tasks.every(taskSettings.exitRelayIntervalMs(), "exit relayer", relayer::runOnce);
+            executor.ownTasks(tasks);
+        }
+        return List.of(executor);
     }
 
     /**
-     * The members' body check: the vault the request spends (the first configured vault with a resolved input at its
-     * address), against this node's own state, with the validity interval bounded by this node's own L1 time (its
-     * clock on the pinned slot clock). Only that vault is checked, so its refusal is the one reported.
+     * The members' body check, for a co-signed {@code Accept} or a {@code Settle}: the vault the request spends (the
+     * first configured vault with a resolved input at its address), against this node's own state, with the validity
+     * interval bounded by this node's own L1 time (its clock on the pinned slot clock). Only that vault is checked, so
+     * its refusal is the one reported.
      */
     static java.util.function.Function<byte[], SettleBodyCheck.Outcome> bodyCheck(
             AssetSettlementSettings settings, NodeL1View l1, CommittedClaims committed, byte[] memberKeyHash,
@@ -106,6 +151,10 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             VaultPins pins = spentVault(tx, settings.pins(), l1).orElse(settings.pins().getFirst());
             SettleBodyCheck.Tip tip = new SettleBodyCheck.Tip(settings.slots().slotAt(clock.getAsLong()),
                     settings.slots().slotLengthMs());
+            if (AcceptBodyCheck.isAcceptRequest(tx)) {
+                return AcceptBodyCheck.check(tx, pins, memberKeyHash, l1::resolve, committed,
+                        PayoutTxBuilder.costModels(params), tip);
+            }
             return SettleBodyCheck.check(tx, pins, memberKeyHash, l1::resolve, committed,
                     PayoutTxBuilder.costModels(params), tip);
         };
@@ -171,12 +220,37 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
                 EffectExecutorOperationalSnapshot.FailureCode.CONFIGURATION);
     }
 
-    /** A member that co-signs but never settles: it owns no effect type. */
+    /**
+     * A member that co-signs but never settles: it owns no effect type. When it relays exits, it owns the relayer's
+     * timer and stops it on close.
+     */
     static final class CosignOnly implements AppEffectExecutor {
         private final AssetCosignService cosign;
+        private final ExitRelayTask relayer;
+        private volatile AutoCloseable tasks;
 
-        CosignOnly(AssetCosignService cosign) {
+        CosignOnly(AssetCosignService cosign, ExitRelayTask relayer) {
             this.cosign = cosign;
+            this.relayer = relayer;
+        }
+
+        Optional<ExitRelayTask> relayer() {
+            return Optional.ofNullable(relayer);
+        }
+
+        void ownTasks(AutoCloseable tasks) {
+            this.tasks = tasks;
+        }
+
+        @Override
+        public void close() {
+            AutoCloseable owned = tasks;
+            if (owned == null) return;
+            try {
+                owned.close();
+            } catch (Exception ignored) {
+                // Bounded shutdown: the scheduler is stopped whatever the close reports.
+            }
         }
 
         @Override

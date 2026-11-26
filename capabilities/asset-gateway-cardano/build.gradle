@@ -21,6 +21,8 @@ dependencies {
     compileOnly libs.cardano.client.core
     compileOnly libs.cardano.client.mpf
     compileOnly libs.cbor
+    // The settlement tasks log a failing pass; SLF4J is host-provided.
+    compileOnly libs.slf4j.api
 
     testImplementation project(':framework:api')
     testImplementation project(':framework:cardano-api')
@@ -31,6 +33,12 @@ dependencies {
     testImplementation libs.cardano.client.crypto
     testImplementation libs.cardano.client.core
     testImplementation libs.cbor
+    // The settlement tasks' transactions are evaluated against the compiled, parameterized validators (julc VM).
+    testImplementation project(':capabilities:asset-gateway-onchain')
+    testImplementation libs.julc.vm.java
+    testImplementation libs.julc.cardano.client.lib
+    testImplementation "org.julclang:julc-core:${libs.versions.julc.get()}"
+    testImplementation libs.slf4j.api
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine
     testRuntimeOnly libs.junit.platform.launcher
@@ -160,7 +168,7 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Yano X Asset Gateway Cardano'
-                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers, the anchor handoff gate and the asset-settlement executor (ADR-059 D5, D8b, D8c, D9, D10)'
+                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers, the anchor handoff gate, and the asset-settlement executor with its Accept batcher and exit relayer (ADR-059 D5, D8b, D8c, D8f, D9, D10)'
             }
         }
     }

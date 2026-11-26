@@ -1086,7 +1086,7 @@ class AssetSettlementExecutorTest {
         assertThat(results.get(behind)).isInstanceOf(EffectExecution.Retry.class);
         assertThat(executor.execute(attempt(2, new byte[0]), effects.get(behind)))
                 .isInstanceOf(EffectExecution.Retry.class);
-        assertThat(executor.lastOutcome()).isEqualTo("awaiting the pending Settle on this shard");
+        assertThat(executor.lastOutcome()).isEqualTo("awaiting the pending payout on this shard");
         assertThat(submitted).hasSize(3);
 
         // The first shard-1 Settle is included, not yet confirmed: the waiting batch chains on its shard output.
