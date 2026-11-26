@@ -96,6 +96,8 @@ class AssetSettlementExecutorTest {
     static final byte[] MEMBER_SEED = filled(32, 0x42);
     static final byte[] FEE_SEED = filled(32, 0x43);
     static final byte[] THIRD_SEED = filled(32, 0x44);
+    static final byte[] FOURTH_SEED = filled(32, 0x45);
+    static final byte[] FIFTH_SEED = filled(32, 0x46);
 
     @TempDir
     Path temp;
@@ -119,6 +121,8 @@ class AssetSettlementExecutorTest {
     /** This node's wall clock, which the tests move. */
     long now = NOW;
     int maxTxSize = 16_384;
+    /** Transactions the fake evaluator prices over the per-transaction memory limit. */
+    java.util.function.Predicate<Transaction> overBudget = tx -> false;
 
     void put(Utxo utxo) {
         l1.put(utxo.outpoint().txHash() + "#" + utxo.outpoint().index(), utxo);
@@ -179,6 +183,10 @@ class AssetSettlementExecutorTest {
 
     /** The same world with the anchor's member set the keys of {@code memberSeeds}, threshold 2. */
     void seed(long anchorHeight, byte[]... memberSeeds) {
+        seed(anchorHeight, 2, memberSeeds);
+    }
+
+    void seed(long anchorHeight, int threshold, byte[]... memberSeeds) {
         put(utxo("61".repeat(32), 0, enterprise(VAULT_HASH), 50_000_000, asset("f0".repeat(28), "5553444d", 100_000),
                 HexFormat.of().parseHex("d87a8180"), null));
         for (int shard = 0; shard < 16; shard++) {
@@ -197,7 +205,7 @@ class AssetSettlementExecutorTest {
                 BytesPlutusData.of(HexFormat.of().parseHex(GENESIS)), BytesPlutusData.of("asset-payments".getBytes()),
                 BytesPlutusData.of("mpf-blake2b256-v1".getBytes()), BytesPlutusData.of(HexFormat.of().parseHex(FINGERPRINT)),
                 BigIntPlutusData.of(anchorHeight), BytesPlutusData.of(filled(32, 0x66)), BytesPlutusData.of(filled(32, 0x55)),
-                ListPlutusData.builder().plutusDataList(members).build(), BigIntPlutusData.of(2),
+                ListPlutusData.builder().plutusDataList(members).build(), BigIntPlutusData.of(threshold),
                 BigIntPlutusData.of(NOW - 60_000));
         put(utxo("63".repeat(32), 0, enterprise(ANCHOR_HASH), 2_000_000, asset(ANCHOR_POLICY, "", 1),
                 serialize(anchor), null));
@@ -227,7 +235,12 @@ class AssetSettlementExecutorTest {
 
         /** A committed payout observation resolved the claim. */
         void resolve(Hash32 claimId, SettlementRecords.ClaimStatus to) {
-            status.put(claimId, status.get(claimId).resolve(to, Hash32.of(filled(32, 0x77)), 600));
+            resolve(claimId, to, Hash32.of(filled(32, 0x77)));
+        }
+
+        /** A committed payout observation of transaction {@code txId} resolved the claim. */
+        void resolve(Hash32 claimId, SettlementRecords.ClaimStatus to, Hash32 txId) {
+            status.put(claimId, status.get(claimId).resolve(to, txId, 600));
         }
 
         byte[] answer(String path, byte[] request) {
@@ -297,7 +310,7 @@ class AssetSettlementExecutorTest {
                 public List<TxEvaluationResult> evaluateTransaction(byte[] cbor) throws Exception {
                     // Units grow with the payouts (outputs less continuation, shard and change), as real scripts' do.
                     Transaction tx = Transaction.deserialize(cbor);
-                    long payouts = Math.max(1, tx.getBody().getOutputs().size() - 3);
+                    long payouts = overBudget.test(tx) ? 3 : Math.max(1, tx.getBody().getOutputs().size() - 3);
                     List<TxEvaluationResult> out = new ArrayList<>();
                     for (var redeemer : tx.getWitnessSet().getRedeemers()) {
                         out.add(new TxEvaluationResult("spend", redeemer.getIndex().intValue(), 3_000_000L * payouts,
@@ -452,7 +465,11 @@ class AssetSettlementExecutorTest {
     }
 
     AppEffectExecutor executor(Node node, Map<String, String> config) {
-        List<AppEffectExecutor> products = AssetSettlementExecutorFactory.create(config, node, () -> now);
+        return executor(node, config, () -> now);
+    }
+
+    AppEffectExecutor executor(Node node, Map<String, String> config, java.util.function.LongSupplier clock) {
+        List<AppEffectExecutor> products = AssetSettlementExecutorFactory.create(config, node, clock);
         assertThat(products).hasSize(1);
         return products.getFirst();
     }
@@ -516,7 +533,8 @@ class AssetSettlementExecutorTest {
                     .isEqualTo(SettlementRecords.ClaimStatus.RESERVED);
         }
         // Once committed state shows the claims paid, the effect confirms.
-        claims.forEach(leaf -> owner.ledger.resolve(leaf.claimId(), SettlementRecords.ClaimStatus.PAID));
+        claims.forEach(leaf -> owner.ledger.resolve(leaf.claimId(), SettlementRecords.ClaimStatus.PAID,
+                Hash32.of(bodyHash)));
         assertThat(executor.execute(attempt(4, ref), effect)).isInstanceOf(EffectExecution.Confirmed.class);
     }
 
@@ -642,8 +660,8 @@ class AssetSettlementExecutorTest {
         byte[] ref = ((EffectExecution.Submitted) executor.execute(attempt(1, new byte[0]), effect)).externalRef();
         assertThat(paidBy(submitted.getFirst())).containsExactly(claims.get(0).claimId(), claims.get(1).claimId());
         // The paid part confirms the effect; the third claim is still RESERVED and the ledger re-queues it at close.
-        owner.ledger.resolve(claims.get(0).claimId(), SettlementRecords.ClaimStatus.PAID);
-        owner.ledger.resolve(claims.get(1).claimId(), SettlementRecords.ClaimStatus.PAID);
+        owner.ledger.resolve(claims.get(0).claimId(), SettlementRecords.ClaimStatus.PAID, Hash32.of(txIdOf(ref)));
+        owner.ledger.resolve(claims.get(1).claimId(), SettlementRecords.ClaimStatus.PAID, Hash32.of(txIdOf(ref)));
         assertThat(executor.execute(attempt(2, ref), effect)).isInstanceOf(EffectExecution.Confirmed.class);
 
         // Three payouts exceed the per-transaction memory limit here (3M units per payout per redeemer): halved.
@@ -657,6 +675,141 @@ class AssetSettlementExecutorTest {
                 .toList()));
         assertThat(uncapped.execute(attempt(1, new byte[0]), three)).isInstanceOf(EffectExecution.Submitted.class);
         assertThat(paidBy(submitted.getLast())).containsExactly(others.getFirst().claimId());
+    }
+
+    /** Re-review #3: 3-of-5 with C and E offline: the members that answered stay, the missing one is replaced. */
+    @Test
+    void aQuorumIsReachedByKeepingTheMembersThatAnswered() throws Exception {
+        seed(500, 3, OWNER_SEED, MEMBER_SEED, THIRD_SEED, FOURTH_SEED, FIFTH_SEED);
+        List<byte[]> others = new ArrayList<>(List.of(MEMBER_SEED, THIRD_SEED, FOURTH_SEED, FIFTH_SEED));
+        others.sort((a, b) -> HexFormat.of().formatHex(publicKey(a)).compareTo(HexFormat.of().formatHex(publicKey(b))));
+        Node owner = new Node(OWNER_SEED);
+        Node b = new Node(others.get(0));
+        Node d = new Node(others.get(2));
+        AppEffectExecutor executor = executor(owner, true);
+        executor(b, false);
+        executor(d, false);
+        ClaimLeafV1 leaf = claim(8, 7, 400);
+        for (Node node : List.of(owner, b, d)) node.ledger.reserve(leaf);
+        pump(owner, b, d);
+        PendingEffect effect = effect(new SettlementBatchV1(VAULT, 8, List.of(leaf.claimId())));
+
+        // Attempt 1 asks B and C; C is offline. Attempt 2 keeps B and replaces C with D, the next untried member.
+        assertThat(executor.execute(attempt(1, new byte[0]), effect)).isInstanceOf(EffectExecution.Failed.class);
+        assertThat(executor.execute(attempt(2, new byte[0]), effect)).isInstanceOf(EffectExecution.Submitted.class);
+        Transaction tx = Transaction.deserialize(submitted.getFirst());
+        assertThat(tx.getBody().getRequiredSigners()).containsExactlyInAnyOrder(
+                Blake2bUtil.blake2bHash224(publicKey(OWNER_SEED)), Blake2bUtil.blake2bHash224(publicKey(others.get(0))),
+                Blake2bUtil.blake2bHash224(publicKey(others.get(2))));
+    }
+
+    /** Re-review N5: a claim that alone exceeds a limit is left RESERVED and the next claim is paid. */
+    @Test
+    void aSingletonOverALimitIsLeftForExitAndTheNextClaimIsPaid() throws Exception {
+        seed(500);
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        AppEffectExecutor executor = executor(owner, true);
+        executor(member, false);
+        ClaimLeafV1 big = claim(11, 71, 400);
+        ClaimLeafV1 small = claim(11, 72, 400);
+        for (ClaimLeafV1 leaf : List.of(big, small)) {
+            owner.ledger.reserve(leaf);
+            member.ledger.reserve(leaf);
+        }
+        String bigRecipient = new com.bloxbean.cardano.client.address.Address(big.recipient()).toBech32();
+        overBudget = tx -> tx.getBody().getOutputs().stream().anyMatch(out -> out.getAddress().equals(bigRecipient));
+        pump(owner, member);
+        PendingEffect effect = effect(new SettlementBatchV1(VAULT, 11, List.of(big.claimId(), small.claimId())));
+        assertThat(executor.execute(attempt(1, new byte[0]), effect)).isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(paidBy(submitted.getFirst())).containsExactly(small.claimId());
+        assertThat(owner.ledger.status.get(big.claimId()).status()).isEqualTo(SettlementRecords.ClaimStatus.RESERVED);
+    }
+
+    /** Re-review N6: the persisted reference names the claims the transaction pays, so a restart waits on those. */
+    @Test
+    void aRestartWaitsOnlyOnTheClaimsTheTransactionPays() throws Exception {
+        seed(500);
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        Map<String, String> capped = config(true);
+        capped.put("max-settle-batch", "2");
+        AppEffectExecutor executor = executor(owner, capped);
+        executor(member, false);
+        List<ClaimLeafV1> claims = List.of(claim(12, 81, 400), claim(12, 82, 400), claim(12, 83, 400));
+        for (ClaimLeafV1 leaf : claims) {
+            owner.ledger.reserve(leaf);
+            member.ledger.reserve(leaf);
+        }
+        pump(owner, member);
+        PendingEffect effect = effect(new SettlementBatchV1(VAULT, 12, claims.stream().map(ClaimLeafV1::claimId)
+                .toList()));
+        byte[] ref = ((EffectExecution.Submitted) executor.execute(attempt(1, new byte[0]), effect)).externalRef();
+        for (ClaimLeafV1 leaf : claims.subList(0, 2)) {
+            owner.ledger.resolve(leaf.claimId(), SettlementRecords.ClaimStatus.PAID, Hash32.of(txIdOf(ref)));
+        }
+        AppEffectExecutor restarted = executor(owner, capped);
+        assertThat(restarted.execute(attempt(2, ref), effect)).isInstanceOf(EffectExecution.Confirmed.class);
+    }
+
+    /** Re-review N7: a claim resolved by another payout, or as PAID_MISMATCH, never confirms this transaction. */
+    @Test
+    void aCompetingPayoutSupersedesInsteadOfConfirming() throws Exception {
+        seed(500);
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        AppEffectExecutor executor = executor(owner, true);
+        executor(member, false);
+        ClaimLeafV1 first = claim(13, 91, 400);
+        ClaimLeafV1 second = claim(15, 92, 400); // another shard: shard 13's mirror now holds the competing payout
+        for (ClaimLeafV1 leaf : List.of(first, second)) {
+            owner.ledger.reserve(leaf);
+            member.ledger.reserve(leaf);
+        }
+        pump(owner, member);
+        PendingEffect effect = effect(new SettlementBatchV1(VAULT, 13, List.of(first.claimId())));
+        byte[] ref = ((EffectExecution.Submitted) executor.execute(attempt(1, new byte[0]), effect)).externalRef();
+        owner.ledger.resolve(first.claimId(), SettlementRecords.ClaimStatus.PAID, Hash32.of(filled(32, 0xe1)));
+        EffectExecution superseded = executor.execute(attempt(2, ref), effect);
+        assertThat(superseded).isInstanceOf(EffectExecution.Failed.class);
+        assertThat(((EffectExecution.Failed) superseded).retryable()).isFalse();
+        assertThat(((EffectExecution.Failed) superseded).reason()).contains("superseded");
+
+        PendingEffect other = effect(new SettlementBatchV1(VAULT, 15, List.of(second.claimId())));
+        AppEffectExecutor next = executor(owner, true);
+        byte[] secondRef = ((EffectExecution.Submitted) next.execute(attempt(1, new byte[0]), other)).externalRef();
+        owner.ledger.resolve(second.claimId(), SettlementRecords.ClaimStatus.PAID_MISMATCH,
+                Hash32.of(txIdOf(secondRef)));
+        assertThat(next.execute(attempt(2, secondRef), other)).isInstanceOf(EffectExecution.Failed.class);
+    }
+
+    /** Re-review N9 and Fable P3-2: a member's own window setting is not checked; a lagging clock shows in status. */
+    @Test
+    void aMemberIgnoresTheOwnersWindowAndALaggingClockShowsAsDegraded() throws Exception {
+        seed(500);
+        Map<String, String> wide = config(false);
+        wide.put("validity-window-slots", "601");
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        AppEffectExecutor memberProduct = executor(member, wide, () -> now - 20 * 60_000);
+        assertThat(memberProduct.effectTypes()).isEmpty();
+        AppEffectExecutor executor = executor(owner, true);
+        ClaimLeafV1 leaf = claim(14, 95, 400);
+        owner.ledger.reserve(leaf);
+        member.ledger.reserve(leaf);
+        pump(owner, member);
+        assertThat(executor.execute(attempt(1, new byte[0]), effect(new SettlementBatchV1(VAULT, 14,
+                List.of(leaf.claimId()))))).isInstanceOf(EffectExecution.Failed.class);
+        assertThat(((AssetCosignService) member.handler).lastRefusal()).hasValueSatisfying(refusal ->
+                assertThat(refusal.kind()).isEqualTo(
+                        org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck.Refusal.Kind.L1_TIP_BOUND));
+        var snapshot = memberProduct.operationalSnapshot();
+        assertThat(snapshot.readiness())
+                .isEqualTo(org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot
+                        .Readiness.DEGRADED);
+        assertThat(snapshot.failureCode())
+                .isEqualTo(org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot
+                        .FailureCode.CONFIGURATION);
     }
 
     /** Settings consistency: the inclusion timeout outlasts the stability window, the validity window is bounded. */

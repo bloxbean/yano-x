@@ -42,7 +42,9 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * owner (false)                     exactly one node per chain builds and submits (single-owner pinning)
  * round-timeout-ms (30000)          the fail-closed co-sign round timeout
  * slot.zero-time-ms, slot.zero-slot, slot.length-ms    the L1 slot clock: the owner's validity intervals, and every
- *                                   member's bound on the intervals it signs (D8h §1 step 0)
+ *                                   member's bound on the intervals it signs (D8h §1 step 0); every member's clock
+ *                                   must be within about 5 minutes of the owner's, or it refuses honest bodies
+ *                                   (reported as an l1-tip-bound refusal)
  * fee-wallet.key-file               owner only: a file holding the 32-byte Ed25519 seed (hex) of the fee wallet
  * validity-window-slots (600)       owner only: the Settle's validity window, at most 10 minutes of slots
  * max-vault-inputs (8)              owner only: vault inputs per Settle
@@ -139,7 +141,8 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 bounded(required(config, "slot.zero-slot"), 0, Long.MAX_VALUE / 4, "slot.zero-slot"),
                 bounded(required(config, "slot.length-ms"), 1, 3_600_000, "slot.length-ms"));
         long window = bounded(optional(config, "validity-window-slots", "600"), 10, 86_400, "validity-window-slots");
-        if (window * slots.slotLengthMs() > MAX_VALIDITY_WINDOW_MS) {
+        // Only the owner builds bodies, so only the owner's window must fit what members sign.
+        if (owner && window * slots.slotLengthMs() > MAX_VALIDITY_WINDOW_MS) {
             throw new IllegalArgumentException("validity-window-slots spans more than " + MAX_VALIDITY_WINDOW_MS
                     + " ms, past what members sign");
         }

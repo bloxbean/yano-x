@@ -16,6 +16,7 @@ import org.yanoproject.x.framework.api.appchain.AppQueryResult;
 import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
 import org.yanoproject.x.framework.api.appchain.effects.EffectExecution;
 import org.yanoproject.x.framework.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot;
 import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.framework.cardano.api.effects.AppChainEffectContext;
 import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
@@ -77,7 +78,7 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
         AssetCosignService cosign = new AssetCosignService(context::diffuse, context.memberSigner(),
                 bodyCheck(settings, l1, committed, memberKeyHash, context, clock), settings.roundTimeout());
         context.registerBridgeDiffusionHandler(cosign);
-        if (!settings.owner()) return List.of(new CosignOnly());
+        if (!settings.owner()) return List.of(new CosignOnly(cosign));
         return List.of(new AssetSettlementExecutor(settings, l1, committed, cosign, context.protocolParams(),
                 evaluator(context::txEvaluation), context::submitTx, clock, memberKey));
     }
@@ -138,8 +139,34 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
         };
     }
 
+    /**
+     * The co-sign service's operational status: {@code DEGRADED} with a {@code CONFIGURATION} failure while this
+     * member's last refusal was {@code l1-tip-bound}, which an honest owner's body triggers only when this member's
+     * clock lags the owner's by more than the allowed skew (D8h §1 step 0). Unknown otherwise.
+     */
+    static EffectExecutorOperationalSnapshot cosignSnapshot(AssetCosignService cosign) {
+        boolean tipBound = cosign.lastRefusal()
+                .map(refusal -> refusal.kind() == SettleBodyCheck.Refusal.Kind.L1_TIP_BOUND).orElse(false);
+        if (!tipBound) return EffectExecutorOperationalSnapshot.unknown();
+        return new EffectExecutorOperationalSnapshot(EffectExecutorOperationalSnapshot.Readiness.DEGRADED, 0, 0, 0, 0,
+                0, EffectExecutorOperationalSnapshot.AgeBucket.NEVER,
+                EffectExecutorOperationalSnapshot.AgeBucket.UNKNOWN,
+                EffectExecutorOperationalSnapshot.FailureCode.CONFIGURATION);
+    }
+
     /** A member that co-signs but never settles: it owns no effect type. */
     static final class CosignOnly implements AppEffectExecutor {
+        private final AssetCosignService cosign;
+
+        CosignOnly(AssetCosignService cosign) {
+            this.cosign = cosign;
+        }
+
+        @Override
+        public EffectExecutorOperationalSnapshot operationalSnapshot() {
+            return cosignSnapshot(cosign);
+        }
+
         @Override
         public String id() {
             return SCHEME;

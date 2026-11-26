@@ -98,7 +98,13 @@ public final class SettleBodyCheck {
             /** An input is not in this member's UTxO view: an availability problem, not a forged body. */
             UNRESOLVED_INPUT("unresolvable-input"),
             /** The body is unsafe to sign. */
-            HAZARD("hazard");
+            HAZARD("hazard"),
+            /**
+             * The body's validity interval is not bounded by this member's own L1 time: a TTL too far past its tip, or
+             * a start after it. A member whose clock lags the owner's by more than the skew refuses honest bodies, so
+             * this kind is reported apart, as the script-anchor service's {@code l1-tip-bound}.
+             */
+            L1_TIP_BOUND("l1-tip-bound");
 
             private final String label;
 
@@ -117,6 +123,10 @@ public final class SettleBodyCheck {
 
         static Refusal hazard(String detail) {
             return new Refusal(Kind.HAZARD, detail);
+        }
+
+        static Refusal tipBound(String detail) {
+            return new Refusal(Kind.L1_TIP_BOUND, detail);
         }
     }
 
@@ -203,10 +213,12 @@ public final class SettleBodyCheck {
         // §0: the validity interval, bounded by this member's own L1 time.
         if (body.getTtl() <= 0) throw hazard("the body has no TTL");
         if (body.getTtl() > tip.slot() + tip.slotsWithin(MAX_TTL_AHEAD_MS)) {
-            throw hazard("the TTL lies more than " + MAX_TTL_AHEAD_MS + " ms past my L1 tip");
+            throw new RefusedException(Refusal.tipBound("the TTL lies more than " + MAX_TTL_AHEAD_MS
+                    + " ms past my L1 tip (is my clock behind the owner's?)"));
         }
         if (body.getValidityStartInterval() > tip.slot() + tip.slotsWithin(MAX_START_SKEW_MS)) {
-            throw hazard("the validity start lies more than " + MAX_START_SKEW_MS + " ms past my L1 tip");
+            throw new RefusedException(Refusal.tipBound("the validity start lies more than " + MAX_START_SKEW_MS
+                    + " ms past my L1 tip (is my clock behind the owner's?)"));
         }
 
         // §0: the full unsigned transaction, with its script data hash recomputed here.

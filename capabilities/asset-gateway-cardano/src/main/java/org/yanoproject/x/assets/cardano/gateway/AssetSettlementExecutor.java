@@ -54,17 +54,23 @@ import java.util.function.Supplier;
  *   <li>leave out every claim whose payout would need more than {@code max-supplement-per-payout} from the fee
  *       wallet (D11): it stays {@code RESERVED} and is paid by {@code Exit}, where the relayer or the user supplements
  *       it; a batch of only such claims waits ({@code Retry}) until the effect expires;</li>
- *   <li>take at most {@code max-settle-batch} claims, halving on a per-transaction limit (size or units); the rest
- *       stay {@code RESERVED} and the ledger re-queues them when this batch closes;</li>
- *   <li>name the required signers: this node when it is an anchor member, then the others from an offset that rotates
- *       with the attempt number, so a member that does not answer cannot block a quorum that can (V9);</li>
+ *   <li>take at most {@code max-settle-batch} claims, halving on a per-transaction limit (size, units, budget or
+ *       vault inputs); a single claim that alone exceeds a limit is left {@code RESERVED} (for {@code Exit}) and the
+ *       next claims are tried. The rest stay {@code RESERVED} and the ledger re-queues them when this batch
+ *       closes;</li>
+ *   <li>name the required signers: this node when it is an anchor member, then, on a retry, the members that
+ *       answered the previous round, and the next untried members in key order for the rest, so a member that does
+ *       not answer cannot block a quorum that can (V9);</li>
  *   <li>build the {@code Settle} with the node-local fee wallet, self-check it with the members' body check, run the
  *       co-sign round (fail closed on a missing signer), add the witnesses and submit through the node; the
- *       submission's reference is the transaction id and its deadline, which the runtime persists;</li>
- *   <li>on a later attempt, probe: once no claim of the transaction is {@code RESERVED} in committed state (the
- *       payout observer confirmed it, a stability depth after inclusion), {@code Confirmed}; past the deadline, a
- *       non-retryable {@code Failed}. Either closes the batch, and the ledger re-queues every claim of it still
- *       {@code RESERVED}, so a Settle that was included and then rolled back is batched again.</li>
+ *       submission's reference is the transaction id, its deadline and which claims of the batch it pays, which the
+ *       runtime persists;</li>
+ *   <li>on a later attempt, probe: once every claim of the transaction is {@code PAID} by this transaction in
+ *       committed state (the payout observer confirmed it, a stability depth after inclusion), {@code Confirmed};
+ *       once any of them is resolved by another transaction, or as {@code PAID_MISMATCH}, a non-retryable
+ *       {@code Failed} (superseded); past the deadline, a non-retryable {@code Failed}. Each closes the batch, and the
+ *       ledger re-queues every claim of it still {@code RESERVED}, so a Settle that was included and then rolled back
+ *       is batched again.</li>
  * </ol>
  * The journal is a cache, not a trust root: after a restart, committed status and the on-chain shard root decide what
  * is still payable, and the persisted deadline still bounds the wait.
@@ -90,28 +96,52 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     private final Map<String, Journal> journal = new ConcurrentHashMap<>();
     /** This node's submitted, not yet confirmed inserts, by vault and shard (D8h §6). */
     private final Map<String, List<Hash32>> optimistic = new ConcurrentHashMap<>();
+    /** Per effect: the members that answered its last incomplete round, and every member tried since a reset. */
+    private final Map<String, SignerMemory> signerMemory = new ConcurrentHashMap<>();
     private volatile String lastOutcome = "idle";
 
-    /** A submitted Settle: its transaction, the claims it pays, and the deadline for their confirmation. */
-    record Journal(Hash32 txId, Hash32 vaultId, int shard, List<Hash32> claimIds, long deadlineMs) {
-        static final int REF_BYTES = Hash32.BYTES + Long.BYTES;
+    /** The other members that answered the last round of an effect, and the members tried since the last reset. */
+    record SignerMemory(Set<Hash32> answered, Set<Hash32> tried) {
+        static final SignerMemory NONE = new SignerMemory(Set.of(), Set.of());
+    }
 
-        /** The runtime-persisted reference: the transaction id, then the deadline (big-endian milliseconds). */
-        byte[] ref() {
-            return ByteBuffer.allocate(REF_BYTES).put(txId.bytes()).putLong(deadlineMs).array();
+    /**
+     * A submitted Settle: its transaction, the claims it pays (also as their positions in the batch), and the deadline
+     * for their confirmation.
+     */
+    record Journal(Hash32 txId, Hash32 vaultId, int shard, List<Hash32> claimIds, long deadlineMs, long positions) {
+        static final int REF_BYTES = Hash32.BYTES + 2 * Long.BYTES;
+
+        /** The entry of {@code paid}, a subset of {@code batch}'s claims, with their positions as a bitmap. */
+        static Journal of(Hash32 txId, SettlementBatchV1 batch, List<Hash32> paid, long deadlineMs) {
+            long positions = 0;
+            for (Hash32 claimId : paid) positions |= 1L << batch.claimIds().indexOf(claimId);
+            return new Journal(txId, batch.vaultId(), batch.shardIndex(), paid, deadlineMs, positions);
         }
 
         /**
-         * The journal entry a restart recovers from the persisted reference. The claims it pays are not in the
-         * reference, so it waits on every claim of the batch; the original deadline still bounds that wait.
+         * The runtime-persisted reference: the transaction id, the deadline (big-endian milliseconds), and the bitmap
+         * of the batch positions it pays (bit {@code i} for claim {@code i}; a batch holds at most 64 claims).
          */
+        byte[] ref() {
+            return ByteBuffer.allocate(REF_BYTES).put(txId.bytes()).putLong(deadlineMs).putLong(positions).array();
+        }
+
+        /** The journal entry a restart recovers from the persisted reference: the same claims and deadline. */
         static Optional<Journal> recover(byte[] ref, SettlementBatchV1 batch) {
             if (ref == null || ref.length != REF_BYTES) return Optional.empty();
             ByteBuffer buffer = ByteBuffer.wrap(ref);
             byte[] txId = new byte[Hash32.BYTES];
             buffer.get(txId);
-            return Optional.of(new Journal(Hash32.of(txId), batch.vaultId(), batch.shardIndex(), batch.claimIds(),
-                    buffer.getLong()));
+            long deadline = buffer.getLong();
+            long positions = buffer.getLong();
+            List<Hash32> paid = new ArrayList<>();
+            for (int i = 0; i < batch.claimIds().size(); i++) {
+                if ((positions >>> i & 1) == 1) paid.add(batch.claimIds().get(i));
+            }
+            if (paid.isEmpty() || positions >>> batch.claimIds().size() != 0) return Optional.empty();
+            return Optional.of(new Journal(Hash32.of(txId), batch.vaultId(), batch.shardIndex(), paid, deadline,
+                    positions));
         }
     }
 
@@ -153,7 +183,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
 
     @Override
     public EffectExecutorOperationalSnapshot operationalSnapshot() {
-        return EffectExecutorOperationalSnapshot.unknown();
+        return AssetSettlementExecutorFactory.cosignSnapshot(cosign);
     }
 
     String lastOutcome() {
@@ -219,7 +249,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
                 .compareTo(settings.maxSupplementPerPayout()) > 0);
         if (claims.isEmpty()) return outcome(EffectExecution.retry(LEFT_FOR_EXIT), "left for Exit (D11)");
 
-        List<byte[]> signerKeys = signers(anchor.get(), ctx.attempt());
+        List<byte[]> signerKeys = signers(anchor.get(), signerMemory.getOrDefault(key, SignerMemory.NONE));
         List<ResolvedOutput> funding = funding();
         if (funding.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "no fee wallet funds");
         long slot = settings.slots().slotAt(clock.getAsLong());
@@ -228,18 +258,24 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
                 new PayoutTxBuilder.Funding(funding, feeAddress), Math.max(0, slot - 60),
                 slot + settings.validityWindowSlots(), pp, settings.maxVaultInputs());
         // The executor's cap, whatever the ledger's batch size; the rest stays RESERVED and is re-queued at close.
-        List<ClaimLeafV1> chunk = claims.subList(0, Math.min(claims.size(), pins.maxSettleBatch()));
+        // A claim that alone exceeds a per-transaction limit is left RESERVED for Exit, and the next ones are tried.
+        int size = Math.min(claims.size(), pins.maxSettleBatch());
         PayoutTxBuilder.Built built;
         while (true) {
+            if (claims.isEmpty()) {
+                return outcome(EffectExecution.retry(LEFT_FOR_EXIT), "no claim fits one transaction");
+            }
             try {
-                built = PayoutTxBuilder.settle(context, chunk, mirror.get(),
+                built = PayoutTxBuilder.settle(context, claims.subList(0, size), mirror.get(),
                         signerKeys.stream().map(Blake2bUtil::blake2bHash224).toList(), evaluator);
                 break;
             } catch (PayoutTxBuilder.LimitExceeded tooLarge) {
-                if (chunk.size() == 1) {
-                    return outcome(EffectExecution.failed("settle build: " + tooLarge.getMessage(), true), "build");
+                if (size == 1) {
+                    claims.removeFirst();
+                    size = Math.min(claims.size(), pins.maxSettleBatch());
+                } else {
+                    size = size / 2;
                 }
-                chunk = chunk.subList(0, chunk.size() / 2);
             } catch (PayoutTxBuilder.BuildException unbuildable) {
                 return outcome(EffectExecution.failed("settle build: " + unbuildable.getMessage(), true), "build");
             }
@@ -251,8 +287,10 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             return outcome(EffectExecution.failed("the owner's own body check refused the batch", false), "refused");
         }
         if (!signatures.get().keySet().containsAll(requested)) {
+            remember(key, requested, signatures.get().keySet());
             return outcome(EffectExecution.failed("co-sign round incomplete", true), "round incomplete");
         }
+        signerMemory.remove(key);
         byte[] signed = witness(built, signatures.get());
         String txHash = submit.apply(signed);
         if (txHash == null || !txHash.equalsIgnoreCase(built.txId().hex())) {
@@ -260,37 +298,55 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         }
         optimistic.computeIfAbsent(shardKey(pins.vaultId(), batch.shardIndex()), ignored -> new ArrayList<>())
                 .addAll(built.claimIds());
-        Journal submitted = new Journal(built.txId(), pins.vaultId(), batch.shardIndex(), built.claimIds(),
+        Journal submitted = Journal.of(built.txId(), batch, built.claimIds(),
                 clock.getAsLong() + settings.inclusionTimeout().toMillis());
         journal.put(key, submitted);
         return outcome(EffectExecution.submitted(submitted.ref()), "submitted " + built.txId());
     }
 
     /**
-     * A submitted Settle is confirmed by committed state only: once none of its claims is {@code RESERVED}, the
-     * payout observer has confirmed it a stability depth after inclusion. Tip inclusion proves nothing, since the
-     * block can roll back. Past the deadline it fails; the ledger re-queues whatever is still {@code RESERVED}.
+     * A submitted Settle is confirmed by committed state only: once every one of its claims is {@code PAID} by this
+     * very transaction, the payout observer has confirmed it a stability depth after inclusion. Tip inclusion proves
+     * nothing, since the block can roll back. A claim resolved by another transaction (a competing {@code Exit}) or
+     * as {@code PAID_MISMATCH} means this transaction is superseded: it fails at once. Past the deadline it fails, too.
+     * Either way the ledger re-queues whatever is still {@code RESERVED}.
      */
     private EffectExecution probe(String key, Journal entry) {
-        boolean reserved = false;
+        boolean pending = false;
+        boolean superseded = false;
         for (Hash32 claimId : entry.claimIds()) {
             Optional<SettlementQueries.ClaimView> view = committed.claim(claimId);
-            if (view.isEmpty() || view.get().status().status() == ClaimStatus.RESERVED) reserved = true;
+            if (view.isEmpty() || view.get().status().status() == ClaimStatus.RESERVED) {
+                pending = true;
+            } else if (view.get().status().status() != ClaimStatus.PAID
+                    || !view.get().status().resolvedTxId().equals(Optional.of(entry.txId()))) {
+                superseded = true;
+            }
         }
-        if (!reserved) {
+        if (superseded) {
+            close(key, entry);
+            return outcome(EffectExecution.failed("superseded: a claim was resolved by another payout", false),
+                    "superseded " + entry.txId());
+        }
+        if (!pending) {
             journal.remove(key);
             return outcome(EffectExecution.confirmed(entry.txId().bytes()), "confirmed " + entry.txId());
         }
         if (clock.getAsLong() > entry.deadlineMs()) {
-            journal.remove(key);
-            List<Hash32> pending = optimistic.get(shardKey(entry.vaultId(), entry.shard()));
-            if (pending != null) pending.removeAll(entry.claimIds());
+            close(key, entry);
             // Not confirmed: never included, or included and rolled back. The ledger re-batches the claims; a later
             // inclusion still confirms through the payout observer, and a second payment is impossible (I6).
             return outcome(EffectExecution.failed("settlement transaction not confirmed by its deadline", false),
                     "timed out");
         }
         return outcome(EffectExecution.submitted(entry.ref()), "awaiting confirmation of " + entry.txId());
+    }
+
+    /** Drops a submission that will never confirm, with its optimistic inserts. */
+    private void close(String key, Journal entry) {
+        journal.remove(key);
+        List<Hash32> inserts = optimistic.get(shardKey(entry.vaultId(), entry.shard()));
+        if (inserts != null) inserts.removeAll(entry.claimIds());
     }
 
     /** The mirror: confirmed inserts plus this node's own, falling back to confirmed only (D8h §6). */
@@ -315,12 +371,13 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     }
 
     /**
-     * The required signers of attempt {@code attempt} (V9): this node first when it is an anchor member, then a
-     * threshold's worth of the other members in key order, starting at an offset that advances with each attempt and
-     * wraps around. A member that does not answer therefore blocks one attempt, not every one, while a healthy quorum
-     * exists. The co-sign round accepts replies only from the members named here.
+     * The required signers (V9): this node first when it is an anchor member; then the other members that answered
+     * this effect's previous round; then, for the signers still missing, the next members in key order not tried
+     * since the last reset (all tried: the reset starts over). A member that does not answer is replaced on the next
+     * attempt while the ones that answered stay, so any healthy quorum is reached. The co-sign round accepts replies
+     * only from the members named here.
      */
-    List<byte[]> signers(NodeL1View.Anchored anchor, int attempt) {
+    List<byte[]> signers(NodeL1View.Anchored anchor, SignerMemory memory) {
         List<byte[]> keys = new ArrayList<>();
         Hash32 self = Hash32.of(memberPublicKey);
         List<Hash32> others = new ArrayList<>();
@@ -332,11 +389,32 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             }
         }
         int needed = anchor.datum().threshold() - keys.size();
-        int offset = others.isEmpty() ? 0 : Math.floorMod(attempt - 1, others.size());
-        for (int i = 0; i < needed && i < others.size(); i++) {
-            keys.add(others.get((offset + i) % others.size()).bytes());
+        List<Hash32> chosen = new ArrayList<>(others.stream().filter(memory.answered()::contains).limit(needed)
+                .toList());
+        List<Hash32> untried = others.stream().filter(m -> !chosen.contains(m) && !memory.tried().contains(m))
+                .toList();
+        if (chosen.size() + untried.size() < needed) {
+            untried = others.stream().filter(m -> !chosen.contains(m)).toList();
         }
+        for (Hash32 member : untried) {
+            if (chosen.size() >= needed) break;
+            chosen.add(member);
+        }
+        chosen.forEach(member -> keys.add(member.bytes()));
         return keys;
+    }
+
+    /** After an incomplete round: who answered, and that every requested member has now been tried. */
+    private void remember(String key, Set<String> requested, Set<String> answered) {
+        SignerMemory before = signerMemory.getOrDefault(key, SignerMemory.NONE);
+        Set<Hash32> tried = new LinkedHashSet<>(before.tried());
+        Set<Hash32> replied = new LinkedHashSet<>();
+        for (String member : requested) {
+            Hash32 id = Hash32.ofHex(member);
+            tried.add(id);
+            if (answered.contains(member)) replied.add(id);
+        }
+        signerMemory.put(key, new SignerMemory(Set.copyOf(replied), Set.copyOf(tried)));
     }
 
     /** The fee wallet's lovelace-only UTxOs not spent by a pending submission, largest first, at most three. */

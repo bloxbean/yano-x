@@ -248,7 +248,11 @@ class SettleBodyCheckTest {
         long now = PayoutWorld.NOW_SLOT;
         PayoutTxBuilder.Built farTtl = PayoutTxBuilder.settle(world.context(1, now, now + 901, PayoutWorld.PARAMS),
                 claims, world.mirrors[1], PayoutWorld.signers(2), fixedUnits());
-        refused(check(farTtl.cbor(), state), "TTL lies more than");
+        SettleBodyCheck.Outcome tooFar = check(farTtl.cbor(), state);
+        refused(tooFar, "TTL lies more than");
+        assertThat(((SettleBodyCheck.Refused) tooFar).refusal().kind())
+                .as("reported apart, so a lagging member clock shows in status")
+                .isEqualTo(SettleBodyCheck.Refusal.Kind.L1_TIP_BOUND);
         PayoutTxBuilder.Built lateStart = PayoutTxBuilder.settle(world.context(1, now + 301, now + 400,
                 PayoutWorld.PARAMS), claims, world.mirrors[1], PayoutWorld.signers(2), fixedUnits());
         refused(check(lateStart.cbor(), state), "validity start lies more than");
