@@ -7,6 +7,7 @@ import org.yanoproject.x.assets.cardano.support.ObserverIdentity;
 import org.yanoproject.x.assets.cardano.support.OutputValues;
 import org.yanoproject.x.assets.cardano.support.ValidTransactions;
 import org.yanoproject.x.assets.contracts.BalanceExitObservationV1;
+import org.yanoproject.x.assets.contracts.CardanoAddresses;
 import org.yanoproject.x.assets.contracts.GatewayDatums;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.assets.contracts.PayoutClaimV1;
@@ -46,8 +47,10 @@ import java.util.Optional;
  *       continuation fields (r16). A {@code SweepPaidV1} on any other transaction's output 0 is never read.</li>
  * </ul>
  * Anything else (two vault outputs, a continuation at the wrong index, an unreadable witness set) cannot come from a
- * valid vault spend and is skipped. Each payout output is reported as its raw recipient bytes, the vault asset's
- * quantity (the lovelace, for the ADA vault) and its lovelace; {@code eventOrdinal} is the shard output's index.
+ * valid vault spend and is skipped. Each payout output is reported as the recipient bytes the vault script compares
+ * ({@link CardanoAddresses#scriptRebuiltForm}: a pointer's naturals in shortest form, as the script rebuilds them),
+ * the vault asset's quantity (the lovelace, for the ADA vault) and its lovelace; {@code eventOrdinal} is the shard
+ * output's index.
  *
  * <p>Pure, deterministic, and it never throws on L1 content; it reports facts and the consumer's
  * {@code PayoutConfirmation} decides (D10).
@@ -187,8 +190,11 @@ final class AssetVaultPayoutObserver implements L1Observer {
     }
 
     private static PayoutClaimV1.Payout payout(AssetVaultShardSettings.Vault vault, TransactionOutput output) {
-        byte[] recipient = L1Tx.addressBytes(output.getAddress());
-        if (recipient == null || recipient.length > 128) return null;
+        byte[] raw = L1Tx.addressBytes(output.getAddress());
+        if (raw == null || raw.length > 128) return null;
+        // The bytes the vault script compared with the claim, not the output's own encoding: a pointer output with
+        // padded naturals pays a canonical claim.
+        byte[] recipient = CardanoAddresses.scriptRebuiltForm(raw);
         OutputValues.Summary summary = OutputValues.summary(OutputValues.of(output.getAmounts()), vault.asset());
         return new PayoutClaimV1.Payout(recipient, summary.registeredQuantity(), summary.lovelace());
     }

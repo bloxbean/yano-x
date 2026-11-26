@@ -288,6 +288,75 @@ class AssetVaultPayoutObserverTest {
                 exit -> assertThat(exit.escapeNullifier()).isEqualTo(nullifier));
     }
 
+    // ------------------------------------------------------------------ review regressions, through real bytes
+
+    List<L1Observation> observeBytes(L1BlockBytes.Tx... transactions) {
+        return observe(L1BlockBytes.parse(L1BlockBytes.block(91, SLOT, List.of(transactions), List.of())));
+    }
+
+    /** A USDM pointer address with a key payment credential on the test network, naturals written as given. */
+    static byte[] pointer(byte[] keyHash, String naturalsHex) {
+        return concat(new byte[] {0x40}, keyHash, HexFormat.of().parseHex(naturalsHex));
+    }
+
+    static byte[] concat(byte[]... parts) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (byte[] part : parts) out.writeBytes(part);
+        return out.toByteArray();
+    }
+
+    /** A reserved USDM claim of 100 (vault lovelace 1.5 ADA) to {@code recipient}, as the ledger writes it. */
+    static ClaimLeafV1 reserveTo(Consumer consumer, byte[] recipient, long sequence) {
+        AssetValue value = AssetValue.single(USDM, BigInteger.valueOf(100));
+        Hash32 claimId = GatewayIds.claimId(DOMAIN, USDM_ID, ClaimKind.USER_WITHDRAWAL, new byte[] {1}, recipient,
+                value, BigInteger.valueOf(1_500_000), sequence);
+        ClaimLeafV1 leaf = new ClaimLeafV1(claimId, USDM_ID, ClaimKind.USER_WITHDRAWAL, value,
+                BigInteger.valueOf(1_500_000), recipient, 3, 1_000);
+        consumer.accounts.credit(USDM_ID, ALICE_KEY, ALICE_KEY, BigInteger.valueOf(100), BigInteger.valueOf(1_500_000));
+        consumer.accounts.reserve(USDM_ID, ALICE_KEY, BigInteger.valueOf(100), BigInteger.valueOf(1_500_000));
+        consumer.confirmation.writeReserved(consumer.store, leaf);
+        return leaf;
+    }
+
+    /** A one-claim USDM payout of {@code leaf} to {@code recipient}: payout 0, continuation 1, shard output 2. */
+    static L1BlockBytes.Tx payoutTx(int seed, ClaimLeafV1 leaf, byte[] recipient, List<byte[]> redeemers) {
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+        return new L1BlockBytes.Tx(seed, List.of(
+                new L1BlockBytes.Output(recipient, 1_800_000, Map.of(USDM, 100L), null),
+                new L1BlockBytes.Output(raw(USDM_VAULT), 5_000_000, Map.of(USDM, 875L), continuation(leaf.claimId())),
+                new L1BlockBytes.Output(raw(USDM_SHARD), 1_200_000, Map.of(shardAsset(shard), 1L),
+                        shardDatum(shard, filled(32, 1)))),
+                Map.of(), redeemers);
+    }
+
+    static void assertPaidWithoutHalt(Consumer consumer, List<L1Observation> observations, ClaimLeafV1 leaf) {
+        assertThat(consumer.apply(observations, 10)).singleElement().satisfies(result -> {
+            assertThat(result.halted()).isFalse();
+            assertThat(result.claims()).singleElement().satisfies(claim ->
+                    assertThat(claim.outcome()).isEqualTo(PayoutConfirmation.Outcome.PAID));
+        });
+        assertThat(consumer.status(leaf.claimId())).isEqualTo(SettlementRecords.ClaimStatus.PAID);
+        assertThat(consumer.confirmation.domainStatus(consumer.store)).isEmpty();
+    }
+
+    @Test
+    void aPayoutToAPaddedPointerIsReportedAsTheScriptsRebuildAndConfirmsTheCanonicalClaim() {
+        // The claim names (5, 1, 2) canonically; the output writes the slot 80 05, which the ledger reads as 5 and
+        // the vault script rebuilds as 05, so the Exit is valid on L1.
+        byte[] canonical = pointer(ALICE_KEY, "050102");
+        byte[] padded = pointer(ALICE_KEY, "8005" + "01" + "02");
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, canonical, 1);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+
+        List<L1Observation> observations = observeBytes(payoutTx(1, leaf, padded,
+                List.of(settleRedeemer(shard, leaf.claimId()), shardRedeemer(leaf.claimId()))));
+
+        assertThat(observations).singleElement().satisfies(observation -> assertThat(
+                ((PayoutObservationV1) claim(observation)).payouts().getFirst().recipient()).isEqualTo(canonical));
+        assertPaidWithoutHalt(consumer, observations, leaf);
+    }
+
     static AssetId shardAsset(int shard) {
         return AssetId.of(HexFormat.of().parseHex(USDM_SHARD_POLICY), new byte[] {(byte) shard});
     }

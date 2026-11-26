@@ -7,7 +7,10 @@ import java.util.HexFormat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** B7: only canonical pointer addresses are payable recipients or refund addresses. */
+/**
+ * B7: only canonical pointer addresses are payable recipients or refund addresses; a payout output is read as the
+ * shortest form the vault script rebuilds (D10).
+ */
 class CardanoAddressesTest {
     private static final String KEY = "1c".repeat(28);
     private static final String ACCOUNT = "a1".repeat(28);
@@ -75,5 +78,36 @@ class CardanoAddressesTest {
         assertThatThrownBy(() -> DepositDatumV1.decode(datum)).isInstanceOf(IllegalArgumentException.class);
         byte[] canonical = hex("d87983581c" + ACCOUNT + "5820" + "40" + KEY + "000000" + "581c" + KEY);
         assertThat(DepositDatumV1.decode(canonical).refundAddress()).isEqualTo(hex("40" + KEY + "000000"));
+    }
+
+    @Test
+    void aPayoutOutputReadsAsTheShortestFormTheVaultRebuilds() {
+        // (5, 1, 2) with the slot written 80 05: the ledger reads 5, and the script rebuilds 05 01 02.
+        byte[] padded = hex("40" + KEY + "8005" + "01" + "02");
+        assertThat(CardanoAddresses.payableRecipient(padded, 0)).isFalse();
+        assertThat(CardanoAddresses.scriptRebuiltForm(padded)).isEqualTo(hex("40" + KEY + "050102"));
+        assertThat(CardanoAddresses.payableRecipient(CardanoAddresses.scriptRebuiltForm(padded), 0)).isTrue();
+        // Every natural padded, on a script-payment pointer: 16384, 0, 300.
+        assertThat(CardanoAddresses.scriptRebuiltForm(hex("51" + KEY + "80818000" + "808000" + "80822c")))
+                .isEqualTo(hex("51" + KEY + "818000" + "00" + "822c"));
+        // Nothing after the third natural is part of the Plutus view the script rebuilds from.
+        assertThat(CardanoAddresses.scriptRebuiltForm(hex("40" + KEY + "000000" + "ff")))
+                .isEqualTo(hex("40" + KEY + "000000"));
+        // Canonical pointers, base and enterprise addresses are already the rebuild; unreadable pointers stay raw.
+        for (String raw : new String[] {"41" + KEY + "81983f1b03", "00" + KEY + KEY, "60" + KEY, "40" + KEY + "0080",
+                "40" + KEY, "40" + KEY + "ff".repeat(9) + "7f" + "00" + "00"}) {
+            assertThat(CardanoAddresses.scriptRebuiltForm(hex(raw))).as(raw).isEqualTo(hex(raw));
+        }
+        assertThat(CardanoAddresses.scriptRebuiltForm(new byte[0])).isEmpty();
+    }
+
+    @Test
+    void varNatIsTheShortestCip19Natural() {
+        assertThat(CardanoAddresses.varNat(0)).isEqualTo(hex("00"));
+        assertThat(CardanoAddresses.varNat(127)).isEqualTo(hex("7f"));
+        assertThat(CardanoAddresses.varNat(128)).isEqualTo(hex("8100"));
+        assertThat(CardanoAddresses.varNat(2_498_243)).isEqualTo(hex("8198bd43"));
+        assertThat(CardanoAddresses.varNat(Long.MAX_VALUE)).isEqualTo(hex("ff".repeat(8) + "7f"));
+        assertThatThrownBy(() -> CardanoAddresses.varNat(-1)).isInstanceOf(IllegalArgumentException.class);
     }
 }

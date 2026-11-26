@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.AssetValue;
+import org.yanoproject.x.assets.contracts.CardanoAddresses;
 import org.yanoproject.x.assets.contracts.ClaimKind;
 import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.DepositAdmission;
@@ -206,6 +207,45 @@ class GatewayCodecContractTest extends ContractTest {
                                 pointer.getCertIndex())
                         .isEqualTo(address.getBytes());
                 assertThat(GatewayFixtures.ledgerAddress(address.getBytes()).toPlutusData()).isEqualTo(data);
+            }
+        }
+    }
+
+    /**
+     * The payout observer reports a recipient as the bytes the vault rebuilds (D10): {@code CardanoAddresses.varNat}
+     * is the script's {@code varNat}, and a pointer output written with padded naturals, which the ledger accepts,
+     * reads as exactly the bytes {@code addressBytes} rebuilds from its Plutus view.
+     */
+    @Test
+    void theObserversRecipientIsTheScriptsRebuildOfAPaddedPointer() {
+        for (long n : new long[] {0, 1, 127, 128, 16_383, 16_384, 2_498_243, 4_294_967_295L, 1L << 56,
+                Long.MAX_VALUE}) {
+            assertThat(codec.call("varNat", n).asByteString()).as("varNat %d", n)
+                    .isEqualTo(CardanoAddresses.varNat(n));
+        }
+        byte[] key = GatewayFixtures.filled(0x80, 28);
+        byte[] script = GatewayFixtures.filled(0x82, 28);
+        // (5, 1, 2) with the slot written 80 05, and (16384, 0, 300) with every natural padded.
+        List<long[]> pointers = List.of(new long[] {5, 1, 2}, new long[] {16_384, 0, 300});
+        List<String> padded = List.of("8005" + "01" + "02", "80818000" + "808000" + "80822c");
+        for (int i = 0; i < pointers.size(); i++) {
+            long[] p = pointers.get(i);
+            for (boolean scriptPayment : new boolean[] {false, true}) {
+                byte[] raw = GatewayFixtures.concat(GatewayFixtures.concat(
+                        new byte[] {(byte) (scriptPayment ? 0x50 : 0x40)}, scriptPayment ? script : key),
+                        java.util.HexFormat.of().parseHex(padded.get(i)));
+                org.julclang.ledger.Credential payment = scriptPayment
+                        ? new org.julclang.ledger.Credential.ScriptCredential(
+                        new org.julclang.ledger.ScriptHash(script))
+                        : new org.julclang.ledger.Credential.PubKeyCredential(new org.julclang.ledger.PubKeyHash(key));
+                PlutusData data = new org.julclang.ledger.Address(payment,
+                        java.util.Optional.of(new org.julclang.ledger.StakingCredential.StakingPtr(
+                                BigInteger.valueOf(p[0]), BigInteger.valueOf(p[1]), BigInteger.valueOf(p[2]))))
+                        .toPlutusData();
+                byte[] rebuilt = codec.call("addressBytes", data, 0L).asByteString();
+                assertThat(rebuilt).isNotEqualTo(raw);
+                assertThat(CardanoAddresses.scriptRebuiltForm(raw)).as("pointer %d/%d/%d", p[0], p[1], p[2])
+                        .isEqualTo(rebuilt);
             }
         }
     }

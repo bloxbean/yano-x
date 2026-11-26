@@ -1,5 +1,8 @@
 package org.yanoproject.x.assets.contracts;
 
+import java.io.ByteArrayOutputStream;
+import java.util.Arrays;
+
 /**
  * Raw Shelley address rules shared by admission and claim reservation (ADR-059 D7, D8d).
  *
@@ -11,6 +14,10 @@ package org.yanoproject.x.assets.contracts;
  * pay it. The ledger therefore rejects such a recipient at
  * reservation ({@link #payableRecipient}), deposit admission treats such a refund address as a malformed datum
  * ({@link DepositDatumV1}), and builders emit only the canonical form.
+ *
+ * <p>The converse holds for payout <i>outputs</i>: the ledger accepts a pointer output whose naturals are padded, and
+ * the script compares the shortest form it rebuilds, so such an output does pay a canonical claim. The payout
+ * observer therefore reports a recipient as {@link #scriptRebuiltForm}, never as its raw output bytes (D10).
  */
 public final class CardanoAddresses {
     private static final int HASH_BYTES = 28;
@@ -44,6 +51,52 @@ public final class CardanoAddresses {
             case 6 -> raw.length == 1 + HASH_BYTES;
             default -> false;
         };
+    }
+
+    /**
+     * The bytes the vault script compares with a claim's recipient for an output paying {@code raw}. The script never
+     * sees output address bytes: it rebuilds them from the ledger's Plutus view of the address
+     * ({@code GatewayCodec.addressBytes}), and for a pointer address (header type 4 or 5) it writes slot, transaction
+     * index and certificate index as shortest-form naturals ({@code GatewayCodec.varNat}). This applies the same
+     * rebuild: a pointer's three naturals are decoded and re-encoded by {@link #varNat}, so a padded natural
+     * ({@code 0x80 0x05} for 5) reads as its shortest form, and nothing after the third natural is kept, as the Plutus
+     * view holds nothing else. Every other address, and a pointer whose naturals cannot be read or exceed 2^63, is
+     * returned unchanged; for those the raw bytes are the rebuild (base and enterprise) or no rebuild can equal a
+     * claim.
+     */
+    public static byte[] scriptRebuiltForm(byte[] raw) {
+        if (raw == null || raw.length == 0) return raw;
+        int type = (raw[0] & 0xff) >> 4;
+        if ((type != 4 && type != 5) || raw.length <= 1 + HASH_BYTES) return raw.clone();
+        ByteArrayOutputStream out = new ByteArrayOutputStream(raw.length);
+        out.write(raw, 0, 1 + HASH_BYTES);
+        int position = 1 + HASH_BYTES;
+        for (int natural = 0; natural < 3; natural++) {
+            long value = 0;
+            int digit;
+            do {
+                if (position >= raw.length || value > (Long.MAX_VALUE >>> 7)) return raw.clone();
+                digit = raw[position++] & 0xff;
+                value = (value << 7) | (digit & 0x7f);
+            } while ((digit & 0x80) != 0);
+            out.writeBytes(varNat(value));
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * A CIP-19 variable-length natural in its shortest form, exactly as the vault script's {@code GatewayCodec.varNat}
+     * writes it: big-endian base-128 digits, the high bit set on every byte but the last.
+     */
+    public static byte[] varNat(long n) {
+        if (n < 0) throw new IllegalArgumentException("a variable-length natural is non-negative");
+        byte[] digits = new byte[10];
+        int start = digits.length - 1;
+        digits[start] = (byte) (n & 0x7f);
+        for (long rest = n >>> 7; rest != 0; rest >>>= 7) {
+            digits[--start] = (byte) (0x80 | (rest & 0x7f));
+        }
+        return Arrays.copyOfRange(digits, start, digits.length);
     }
 
     /**
