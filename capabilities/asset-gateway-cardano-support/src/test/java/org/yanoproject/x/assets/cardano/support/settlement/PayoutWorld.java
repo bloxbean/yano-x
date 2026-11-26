@@ -24,9 +24,13 @@ import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.AssetValue;
 import org.yanoproject.x.assets.contracts.ClaimKind;
 import org.yanoproject.x.assets.contracts.ClaimLeafV1;
+import org.yanoproject.x.assets.contracts.DepositAdmission;
+import org.yanoproject.x.assets.contracts.DepositDatumV1;
+import org.yanoproject.x.assets.contracts.DepositRecordV1;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.VaultOutputShape;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.MpfProofConverter;
 import org.yanoproject.x.client.ProofVerifier;
@@ -81,6 +85,7 @@ final class PayoutWorld {
     static final byte[] FINGERPRINT = HexFormat.of().parseHex(
             ProofVerifier.profileMetadata(ProofVerifier.MPF_BLAKE2B256_V1).orElseThrow().formatFingerprintHex());
     static final byte[] CLAIM_PREFIX = "ap/claim/".getBytes(StandardCharsets.US_ASCII);
+    static final byte[] DEPOSIT_PREFIX = "ap/deposit/".getBytes(StandardCharsets.US_ASCII);
     static final byte[] STATUS_KEY = "ap/domain-status".getBytes(StandardCharsets.US_ASCII);
     static final byte[] FEE_KEY = filled(28, 0xee);
     static final byte[] FEE_ADDRESS = cat(new byte[] {0x60}, FEE_KEY);
@@ -132,7 +137,7 @@ final class PayoutWorld {
                 PlutusData.bytes(ANCHOR_HASH), PlutusData.bytes(GENESIS.bytes()), PlutusData.bytes(APPLICATION),
                 PlutusData.bytes(PROFILE), PlutusData.bytes(FINGERPRINT), PlutusData.bytes(SHARD_POLICY),
                 PlutusData.bytes(EXIT_POLICY), PlutusData.bytes(EXIT_HASH), PlutusData.bytes(CLAIM_PREFIX),
-                PlutusData.bytes("ap/deposit/".getBytes(StandardCharsets.US_ASCII)),
+                PlutusData.bytes(DEPOSIT_PREFIX),
                 PlutusData.bytes("ap/x/".getBytes(StandardCharsets.US_ASCII)), PlutusData.bytes(STATUS_KEY),
                 PlutusData.integer(16), PlutusData.integer(8), PlutusData.integer(FLOOR),
                 PlutusData.integer(6 * HOUR), PlutusData.integer(30 * DAY), PlutusData.integer(MAX_PAUSE));
@@ -144,8 +149,8 @@ final class PayoutWorld {
         shardHash = HexFormat.of().parseHex(JulcScriptAdapter.scriptHash(shardProgram));
         pins = new VaultPins(vaultId, asset, 0, vaultHash, cat(new byte[] {0x70}, vaultHash), SHARD_POLICY, shardHash,
                 cat(new byte[] {0x70}, shardHash), new VaultPins.Anchor(ANCHOR_POLICY, ANCHOR_NAME, ANCHOR_HASH,
-                GENESIS.bytes(), APPLICATION, PROFILE, FINGERPRINT), EXIT_POLICY, EXIT_HASH, CLAIM_PREFIX, STATUS_KEY,
-                BigInteger.valueOf(FLOOR), 16, 8, MAX_PAUSE);
+                GENESIS.bytes(), APPLICATION, PROFILE, FINGERPRINT), EXIT_POLICY, EXIT_HASH, CLAIM_PREFIX,
+                DEPOSIT_PREFIX, STATUS_KEY, BigInteger.valueOf(FLOOR), 16, 8, MAX_PAUSE);
 
         // Accepted custody: one continuation with plenty of the asset and lovelace, and a floor top-up.
         long custodyAsset = asset.isAda() ? 0 : 1_000_000;
@@ -198,6 +203,73 @@ final class PayoutWorld {
         anchorHeight = height;
         utxos.remove(anchor.outpoint());
         anchor = add(anchorOutput(outpoint(0x63, (int) (height % 1000)), state.root(), height));
+    }
+
+    // ------------------------------------------------------------------ deposits (Accept, D8f)
+
+    static final byte[] REFUND_KEY = filled(28, 0xc1);
+
+    /** A deposit-shaped UTxO at the vault ({@code DepositDatumV1}, the vault asset and lovelace), on this L1. */
+    ResolvedOutput deposit(int seed) {
+        byte[] datum = new DepositDatumV1(filled(28, 0xa1), cat(new byte[] {0x60}, REFUND_KEY), REFUND_KEY).encode();
+        long lovelace = asset.isAda() ? 10_000_000L + seed : 2_000_000L + seed;
+        return add(new ResolvedOutput(outpoint(0x90 + seed / 64, seed % 64), pins.vaultAddress(),
+                BigInteger.valueOf(lovelace), assets(asset, asset.isAda() ? 0 : 500 + seed), Optional.of(datum),
+                Optional.empty()));
+    }
+
+    List<ResolvedOutput> deposits(int from, int count) {
+        List<ResolvedOutput> deposits = new ArrayList<>();
+        for (int i = 0; i < count; i++) deposits.add(deposit(from + i));
+        return deposits;
+    }
+
+    /** The record admission would write for {@code deposit} at {@code height}, CREDITED unless {@code reason}. */
+    DepositRecordV1 record(ResolvedOutput deposit, long height, DepositAdmission.Reason reason) {
+        Hash32 depositId = AcceptTxBuilder.depositId(pins, deposit.outpoint());
+        BigInteger quantity = asset.isAda() ? deposit.lovelace() : deposit.quantityOf(asset);
+        boolean credited = reason == DepositAdmission.Reason.NONE;
+        return new DepositRecordV1(depositId, vaultId, deposit.outpoint().txId(), deposit.outpoint().index(),
+                NOW_SLOT - 10_000, height, VaultOutputShape.DEPOSIT,
+                credited ? DepositRecordV1.Status.CREDITED : DepositRecordV1.Status.UNCREDITED, reason,
+                credited ? filled(28, 0xa1) : new byte[0], quantity, deposit.lovelace(), 0,
+                Hash32.of(filled(32, 0x5e)), credited ? quantity : BigInteger.ZERO,
+                credited && !asset.isAda() ? deposit.lovelace() : BigInteger.ZERO);
+    }
+
+    /** Records {@code deposits} CREDITED at {@code height} in the state, and re-anchors at {@code anchorAt}. */
+    List<DepositRecordV1> credit(List<ResolvedOutput> deposits, long height, long anchorAt) {
+        List<DepositRecordV1> records = new ArrayList<>();
+        for (ResolvedOutput deposit : deposits) {
+            DepositRecordV1 record = record(deposit, height, DepositAdmission.Reason.NONE);
+            state.put(AcceptTxBuilder.depositKey(pins, record.depositId()), record.encode());
+            records.add(record);
+        }
+        anchor(List.of(), anchorAt);
+        return records;
+    }
+
+    AcceptTxBuilder.Context acceptContext() {
+        return new AcceptTxBuilder.Context(pins, anchor, exitMode, List.of(vaultRef),
+                new PayoutTxBuilder.Funding(List.of(fee), FEE_ADDRESS), NOW_SLOT, NOW_SLOT + 600, PARAMS);
+    }
+
+    /** Evaluates every script of {@code built} and fails with the evaluator's message unless all succeed. */
+    List<EvaluationResult> evaluate(AcceptTxBuilder.Built built) throws Exception {
+        Result<List<EvaluationResult>> result = evaluator().evaluateTx(built.cbor(),
+                PayoutTxBuilder.utxos(built.resolvedInputs()));
+        if (!result.isSuccessful()) throw new AssertionError("phase-2 evaluation failed: " + result.getResponse());
+        assertBalanced(built.transaction(), built.resolvedInputs());
+        return result.getValue();
+    }
+
+    /** Applies an included {@code Accept}: its deposits leave the L1 and its continuation joins the vault. */
+    ResolvedOutput include(AcceptTxBuilder.Built built) {
+        built.deposits().forEach(deposit -> utxos.remove(deposit.outpoint()));
+        vaultUtxos.removeIf(out -> built.deposits().stream().anyMatch(d -> d.outpoint().equals(out.outpoint())));
+        ResolvedOutput continuation = add(built.continuation());
+        vaultUtxos.add(continuation);
+        return continuation;
     }
 
     /** Applies a confirmed payout of {@code built} to the shard UTxO and its mirror, as the L1 would. */
@@ -273,10 +345,15 @@ final class PayoutWorld {
 
     /** Phase 1's value conservation: the spent inputs equal the outputs plus the fee, per unit. */
     static void assertBalanced(PayoutTxBuilder.Built built) {
+        assertBalanced(built.transaction(), built.resolvedInputs());
+    }
+
+    static void assertBalanced(com.bloxbean.cardano.client.transaction.spec.Transaction tx,
+                               List<ResolvedOutput> resolvedInputs) {
         Map<String, BigInteger> balance = new TreeMap<>();
-        var body = built.transaction().getBody();
+        var body = tx.getBody();
         for (var input : body.getInputs()) {
-            ResolvedOutput spent = built.resolvedInputs().stream().filter(out -> out.outpoint().txIdHex()
+            ResolvedOutput spent = resolvedInputs.stream().filter(out -> out.outpoint().txIdHex()
                     .equals(input.getTransactionId()) && out.outpoint().index() == input.getIndex()).findFirst()
                     .orElseThrow();
             balance.merge("lovelace", spent.lovelace(), BigInteger::add);

@@ -3,9 +3,6 @@ package org.yanoproject.x.assets.cardano.support.settlement;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.plutus.spec.Redeemer;
-import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
-import com.bloxbean.cardano.client.plutus.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
@@ -170,87 +167,34 @@ public final class SettleBodyCheck {
     public static Outcome check(byte[] fullUnsignedTx, VaultPins pins, byte[] ownKeyHash,
                                 Function<ResolvedOutput.Outpoint, Optional<ResolvedOutput>> l1View,
                                 Committed committed, CostMdls costModels, Tip tip) {
+        return guarded(() -> checkOrThrow(fullUnsignedTx, pins, ownKeyHash, l1View, committed, costModels, tip));
+    }
+
+    /** Runs one check, turning a step's refusal, or any decoding failure, into a {@link Refused} outcome. */
+    static Outcome guarded(java.util.function.Supplier<Outcome> check) {
         try {
-            return checkOrThrow(fullUnsignedTx, pins, ownKeyHash, l1View, committed, costModels, tip);
-        } catch (RefusedException refused) {
-            return new Refused(refused.refusal);
+            return check.get();
+        } catch (BodyChecks.RefusedException refused) {
+            return new Refused(refused.refusal());
         } catch (RuntimeException malformed) {
             return new Refused(Refusal.hazard("the request does not decode: " + malformed.getMessage()));
         }
     }
 
-    private static final class RefusedException extends RuntimeException {
-        private final Refusal refusal;
-
-        RefusedException(Refusal refusal) {
-            super(refusal.detail(), null, false, false);
-            this.refusal = refusal;
-        }
-    }
-
-    private static RefusedException hazard(String detail) {
-        return new RefusedException(Refusal.hazard(detail));
+    private static BodyChecks.RefusedException hazard(String detail) {
+        return BodyChecks.hazard(detail);
     }
 
     private static Outcome checkOrThrow(byte[] fullUnsignedTx, VaultPins pins, byte[] ownKeyHash,
                                         Function<ResolvedOutput.Outpoint, Optional<ResolvedOutput>> l1View,
-                                        Committed committed, CostMdls costModels, Tip tip) throws RefusedException {
-        Transaction tx;
-        byte[] reserialized;
-        try {
-            tx = Transaction.deserialize(fullUnsignedTx);
-            reserialized = tx.serialize();
-        } catch (Exception malformed) {
-            throw hazard("the request is not a transaction");
-        }
-        // The signed hash is of this library's re-serialization of the body; it is the requested transaction's id
-        // only when the request is exactly that serialization.
-        if (!Arrays.equals(reserialized, fullUnsignedTx)) {
-            throw hazard("the request does not re-serialize to its own bytes, so its id is not the hash I would sign");
-        }
+                                        Committed committed, CostMdls costModels, Tip tip) {
+        // §0: the request form, its validity interval and its script data hash.
+        Transaction tx = BodyChecks.requestForm(fullUnsignedTx, costModels, tip);
         TransactionBody body = tx.getBody();
-
-        // §0: the validity interval, bounded by this member's own L1 time.
-        if (body.getTtl() <= 0) throw hazard("the body has no TTL");
-        if (body.getTtl() > tip.slot() + tip.slotsWithin(MAX_TTL_AHEAD_MS)) {
-            throw new RefusedException(Refusal.tipBound("the TTL lies more than " + MAX_TTL_AHEAD_MS
-                    + " ms past my L1 tip (is my clock behind the owner's?)"));
-        }
-        if (body.getValidityStartInterval() > tip.slot() + tip.slotsWithin(MAX_START_SKEW_MS)) {
-            throw new RefusedException(Refusal.tipBound("the validity start lies more than " + MAX_START_SKEW_MS
-                    + " ms past my L1 tip (is my clock behind the owner's?)"));
-        }
-
-        // §0: the full unsigned transaction, with its script data hash recomputed here.
         var witnesses = tx.getWitnessSet();
-        if (witnesses == null || witnesses.getRedeemers() == null || witnesses.getRedeemers().isEmpty()) {
-            throw hazard("the request carries no redeemers");
-        }
-        if (nonEmpty(witnesses.getVkeyWitnesses()) || nonEmpty(witnesses.getBootstrapWitnesses())
-                || nonEmpty(witnesses.getNativeScripts())) {
-            throw hazard("the request already carries witnesses or native scripts");
-        }
-        if (body.getScriptDataHash() == null) throw hazard("the body has no script_data_hash");
-        byte[] expectedHash;
-        try {
-            expectedHash = ScriptDataHashGenerator.generate(witnesses.getRedeemers(),
-                    witnesses.getPlutusDataList() == null ? List.of() : witnesses.getPlutusDataList(), costModels);
-        } catch (Exception failure) {
-            throw hazard("the script data hash cannot be recomputed");
-        }
-        if (!Arrays.equals(expectedHash, body.getScriptDataHash())) {
-            throw hazard("script_data_hash does not commit to the witnessed redeemers and datums");
-        }
 
         // §3: nothing but spends.
-        if (nonEmpty(body.getMint())) throw hazard("it mints or burns");
-        if (nonEmpty(body.getCerts())) throw hazard("it carries certificates");
-        if (nonEmpty(body.getWithdrawals())) throw hazard("it withdraws rewards");
-        if (body.getVotingProcedures() != null && body.getVotingProcedures().getVoting() != null
-                && !body.getVotingProcedures().getVoting().isEmpty()) {
-            throw hazard("it votes");
-        }
-        if (nonEmpty(body.getProposalProcedures())) throw hazard("it proposes");
+        BodyChecks.onlySpends(body);
 
         // §1, §2: every input resolves; only this vault's inputs and one shard input are script-locked.
         TreeMap<ResolvedOutput.Outpoint, ResolvedOutput> spent = new TreeMap<>();
@@ -258,9 +202,9 @@ public final class SettleBodyCheck {
         ResolvedOutput shardInput = null;
         int shardIndex = -1;
         for (TransactionInput input : body.getInputs()) {
-            ResolvedOutput resolved = resolve(input, l1View);
+            ResolvedOutput resolved = BodyChecks.resolve(input, l1View);
             if (spent.put(resolved.outpoint(), resolved) != null) throw hazard("duplicate input");
-            ResolvedOutput.PaymentCredential credential = credential(resolved, ownKeyHash);
+            ResolvedOutput.PaymentCredential credential = BodyChecks.credential(resolved, ownKeyHash);
             if (!credential.script()) continue;
             if (Arrays.equals(credential.hash(), pins.vaultScriptHash())) {
                 if (!resolved.sameAddress(pins.vaultAddress())) throw hazard("a vault input is off the exact address");
@@ -281,46 +225,14 @@ public final class SettleBodyCheck {
         }
         if (vaultInputs.isEmpty()) throw hazard("no input is at the pinned vault address");
         if (shardInput == null) throw hazard("no shard input");
-        if (body.getCollateral() != null) {
-            for (TransactionInput input : body.getCollateral()) {
-                if (credential(resolve(input, l1View), ownKeyHash).script()) throw hazard("script collateral");
-            }
-        }
+        BodyChecks.keyCollateral(body, l1View, ownKeyHash);
 
         // §3: the pinned live anchor and the exit-mode thread, both referenced.
-        AnchorObservationV1.Anchored anchor = null;
-        boolean normalMode = false;
-        if (body.getReferenceInputs() != null) {
-            for (TransactionInput input : body.getReferenceInputs()) {
-                ResolvedOutput ref = resolve(input, l1View);
-                Optional<ResolvedOutput.PaymentCredential> credential = ref.paymentCredential();
-                if (credential.isEmpty() || !credential.get().script()) continue;
-                if (Arrays.equals(credential.get().hash(), pins.anchor().scriptHash())
-                        && ref.quantityOf(pins.anchorToken()).equals(BigInteger.ONE)) {
-                    if (anchor != null) throw hazard("two anchors are referenced");
-                    VaultPins.Anchor pinned = pins.anchor();
-                    anchor = ref.inlineDatum().flatMap(datum -> GatewayDatums.acceptedAnchorV2(datum,
-                            pinned.genesisId(), pinned.applicationId(), pinned.commitmentProfile(),
-                            pinned.formatFingerprint())).orElseThrow(() -> hazard("the anchor datum is not accepted"));
-                } else if (Arrays.equals(credential.get().hash(), pins.exitModeScriptHash())
-                        && ref.quantityOf(pins.exitModeToken()).equals(BigInteger.ONE)) {
-                    normalMode = ref.inlineDatum().map(SettleBodyCheck::isNormal).orElse(false);
-                }
-            }
-        }
-        if (anchor == null) throw hazard("the pinned live anchor is not referenced");
-        if (!normalMode) throw hazard("the exit-mode thread is not referenced in NORMAL");
+        AnchorObservationV1.Anchored anchor = BodyChecks.pinnedAnchorInNormalMode(body, pins, l1View);
 
         // §1 step 5: the redeemers.
         List<ResolvedOutput.Outpoint> order = new ArrayList<>(spent.keySet());
-        Map<ResolvedOutput.Outpoint, PlutusData> redeemers = new TreeMap<>();
-        for (Redeemer redeemer : witnesses.getRedeemers()) {
-            if (redeemer.getTag() != RedeemerTag.Spend) throw hazard("a redeemer that is not a spend");
-            int index = redeemer.getIndex().intValueExact();
-            if (index < 0 || index >= order.size() || redeemers.put(order.get(index), redeemer.getData()) != null) {
-                throw hazard("a redeemer points at no input");
-            }
-        }
+        Map<ResolvedOutput.Outpoint, PlutusData> redeemers = BodyChecks.spendRedeemers(witnesses, order);
         Set<ResolvedOutput.Outpoint> scripted = new HashSet<>();
         vaultInputs.forEach(in -> scripted.add(in.outpoint()));
         scripted.add(shardInput.outpoint());
@@ -457,29 +369,6 @@ public final class SettleBodyCheck {
                 && leaf.reservedAtMs() == claim.reservedAtMs();
     }
 
-    private static ResolvedOutput resolve(TransactionInput input,
-                                          Function<ResolvedOutput.Outpoint, Optional<ResolvedOutput>> l1View) {
-        ResolvedOutput.Outpoint outpoint = new ResolvedOutput.Outpoint(Hash32.ofHex(input.getTransactionId()),
-                input.getIndex());
-        Optional<ResolvedOutput> resolved;
-        try {
-            resolved = l1View.apply(outpoint);
-        } catch (RuntimeException unavailable) {
-            resolved = Optional.empty();
-        }
-        return resolved.orElseThrow(() -> new RefusedException(
-                Refusal.unresolved("input " + outpoint + " is not in my UTxO view")));
-    }
-
-    private static ResolvedOutput.PaymentCredential credential(ResolvedOutput resolved, byte[] ownKeyHash) {
-        ResolvedOutput.PaymentCredential credential = resolved.paymentCredential()
-                .orElseThrow(() -> hazard("input " + resolved.outpoint() + " has no payment credential"));
-        if (!credential.script() && Arrays.equals(credential.hash(), ownKeyHash)) {
-            throw hazard("it spends an input locked by my own member key");
-        }
-        return credential;
-    }
-
     private static int shardTokenIndex(ResolvedOutput shard, VaultPins pins) {
         int found = -1;
         for (Map.Entry<AssetId, BigInteger> entry : shard.assets().entrySet()) {
@@ -489,14 +378,6 @@ public final class SettleBodyCheck {
             found = asset.assetName()[0] & 0xff;
         }
         return found < SettlementBatchV1.SHARDS ? found : -1;
-    }
-
-    private static boolean isNormal(byte[] datum) {
-        try {
-            return GatewayPlutus.isNormalMode(PlutusData.deserialize(datum));
-        } catch (Exception malformed) {
-            return false;
-        }
     }
 
     private static byte[] datumBytes(PlutusData datum) {
@@ -530,9 +411,5 @@ public final class SettleBodyCheck {
             }
         }
         return assets;
-    }
-
-    private static boolean nonEmpty(java.util.Collection<?> collection) {
-        return collection != null && !collection.isEmpty();
     }
 }

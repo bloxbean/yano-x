@@ -15,6 +15,8 @@ import java.util.Objects;
  * @param shardAddress       the exact enterprise shard address (raw bytes)
  * @param shardPolicyId      the vault's one-shot shard thread policy; token name = the shard index byte
  * @param claimKeyPrefix     the vault's {@code claimKeyPrefix} (V2)
+ * @param depositKeyPrefix   the vault's {@code depositKeyPrefix}: a deposit record's key is it followed by the
+ *                           {@code DepositId} ({@code Accept}, D8f)
  * @param domainStatusKey    the vault's pinned status key (V3)
  * @param continuationFloor  the profile's {@code continuationFloor} (V6)
  * @param maxSettleBatch     the profile's {@code maxSettleBatch} (16, BUDGETS.md)
@@ -24,8 +26,8 @@ import java.util.Objects;
 public record VaultPins(Hash32 vaultId, AssetId asset, int addressNetworkId, byte[] vaultScriptHash,
                         byte[] vaultAddress, byte[] shardPolicyId, byte[] shardScriptHash, byte[] shardAddress,
                         Anchor anchor, byte[] exitModePolicyId, byte[] exitModeScriptHash, byte[] claimKeyPrefix,
-                        byte[] domainStatusKey, BigInteger continuationFloor, int maxSettleBatch, int maxExitBatch,
-                        long maxPauseMs) {
+                        byte[] depositKeyPrefix, byte[] domainStatusKey, BigInteger continuationFloor,
+                        int maxSettleBatch, int maxExitBatch, long maxPauseMs) {
     /** The on-chain bound of a continuation's id list, whatever the profile says (r16). */
     public static final int ON_CHAIN_MAX_BATCH = 64;
 
@@ -55,6 +57,7 @@ public record VaultPins(Hash32 vaultId, AssetId asset, int addressNetworkId, byt
         vaultAddress = enterpriseScript(vaultAddress, vaultScriptHash, addressNetworkId, "vault address");
         shardAddress = enterpriseScript(shardAddress, shardScriptHash, addressNetworkId, "shard address");
         claimKeyPrefix = Objects.requireNonNull(claimKeyPrefix, "claim key prefix").clone();
+        depositKeyPrefix = Objects.requireNonNull(depositKeyPrefix, "deposit key prefix").clone();
         domainStatusKey = Objects.requireNonNull(domainStatusKey, "domain status key").clone();
         if (continuationFloor == null || continuationFloor.signum() <= 0) {
             throw new IllegalArgumentException("continuation floor is positive");

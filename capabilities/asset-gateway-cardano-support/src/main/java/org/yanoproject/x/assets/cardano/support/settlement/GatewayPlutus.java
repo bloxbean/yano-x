@@ -22,6 +22,8 @@ import java.util.Objects;
 public final class GatewayPlutus {
     public static final int SETTLE = 0;
     public static final int EXIT = 1;
+    public static final int ACCEPT_COSIGNED = 3;
+    public static final int ACCEPT_PROVED = 4;
     public static final int FOLLOW = 9;
 
     private GatewayPlutus() {
@@ -51,6 +53,27 @@ public final class GatewayPlutus {
             items.add(ConstrPlutusData.of(0, claim(claims.get(i), vaultAsset), proofs.get(i).toPlutusData()));
         }
         return ConstrPlutusData.of(EXIT, list(items), statusProof.toPlutusData(), BigIntPlutusData.of(shardIndex));
+    }
+
+    /** {@code AcceptCosigned}: constructor 3, no fields (D8f; the members' threshold signs, V9). */
+    public static PlutusData acceptCosigned() {
+        return ConstrPlutusData.of(ACCEPT_COSIGNED);
+    }
+
+    /**
+     * {@code AcceptProved(proofs)}: constructor 4 with one inclusion proof per deposit input, in the ledger order of
+     * the vault inputs; proof {@code i} shows {@code deposit/<DepositId of vault input i> = CREDITED} (D8f).
+     */
+    public static PlutusData acceptProved(List<StateProof> proofs) {
+        List<PlutusData> items = new ArrayList<>();
+        for (StateProof proof : proofs) items.add(proof.toPlutusData());
+        return ConstrPlutusData.of(ACCEPT_PROVED, list(items));
+    }
+
+    /** True for exactly {@code AcceptCosigned} ({@code Constr 3 []}). */
+    public static boolean isAcceptCosigned(PlutusData data) {
+        return data instanceof ConstrPlutusData constr && constr.getAlternative() == ACCEPT_COSIGNED
+                && constr.getData().getPlutusDataList().isEmpty();
     }
 
     /** The marker a non-lead vault input carries (V13). */

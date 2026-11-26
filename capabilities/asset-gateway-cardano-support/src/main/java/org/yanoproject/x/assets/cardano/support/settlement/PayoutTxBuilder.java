@@ -342,19 +342,40 @@ public final class PayoutTxBuilder {
         resolved.put(context.exitMode().outpoint(), context.exitMode());
         context.scriptRefs().forEach(ref -> resolved.put(ref.outpoint(), ref));
 
+        BigInteger fee = balance(tx, changeIndex, context.funding(), supplements, collateral, resolved.values(), pp,
+                evaluator, requiredSigners.size());
+        byte[] cbor = serialize(tx);
+        return new Built(tx, cbor, Hash32.ofHex(TransactionUtil.getTxHash(tx)), ids, shard,
+                List.copyOf(resolved.values()), plan, fee, requiredSigners);
+    }
+
+    /**
+     * Prices and balances {@code tx} in place, for every vault transaction this library builds: evaluates the scripts
+     * once with the injected evaluator and declares their units with the margin; sets the fee for the final size
+     * (placeholder vkey witnesses of the final count: the required signers plus the funding keys), the script units
+     * and the reference-script fee; pays the change (funding lovelace less the fee and {@code supplements}) to output
+     * {@code changeIndex}; sets the total collateral and its return from {@code collateral}; and recomputes the
+     * script data hash. A signed size over {@code maxTxSize}, or units over the limits, is {@link LimitExceeded}.
+     *
+     * @return the fee
+     */
+    static BigInteger balance(Transaction tx, int changeIndex, Funding funding, BigInteger supplements,
+                              ResolvedOutput collateral, Collection<ResolvedOutput> resolved, ProtocolParams pp,
+                              TransactionEvaluator evaluator, int requiredSigners) {
+        TransactionBody body = tx.getBody();
         CostMdls costModels = costModels(pp);
-        BigInteger fundingLovelace = context.funding().inputs().stream().map(ResolvedOutput::lovelace)
+        BigInteger fundingLovelace = funding.inputs().stream().map(ResolvedOutput::lovelace)
                 .reduce(BigInteger.ZERO, BigInteger::add);
-        long refScriptBytes = resolved.values().stream()
+        long refScriptBytes = resolved.stream()
                 .mapToLong(out -> out.referenceScript().map(ResolvedOutput.ReferenceScript::size).orElse(0)).sum();
-        int vkeys = requiredSigners.size() + fundingKeys(context.funding().inputs());
+        int vkeys = requiredSigners + fundingKeys(funding.inputs());
         BigInteger fee = BigInteger.ZERO;
         for (int round = 0; round < 3; round++) {
             body.setFee(fee);
             setChangeAndCollateral(body, changeIndex, fundingLovelace.subtract(fee).subtract(supplements), collateral,
-                    fee, pp, context.funding().changeAddress());
+                    fee, pp, funding.changeAddress());
             setScriptDataHash(tx, costModels);
-            if (round == 0) evaluate(tx, resolved.values(), evaluator, pp);
+            if (round == 0) evaluate(tx, resolved, evaluator, pp);
             setScriptDataHash(tx, costModels);
             BigInteger next = fee(tx, pp, vkeys, refScriptBytes);
             if (next.compareTo(fee) <= 0) break;
@@ -362,16 +383,14 @@ public final class PayoutTxBuilder {
         }
         body.setFee(fee);
         setChangeAndCollateral(body, changeIndex, fundingLovelace.subtract(fee).subtract(supplements), collateral, fee,
-                pp, context.funding().changeAddress());
+                pp, funding.changeAddress());
         setScriptDataHash(tx, costModels);
-        byte[] cbor = serialize(tx);
         int finalSize = signedSize(tx, vkeys);
         if (finalSize > pp.getMaxTxSize()) {
             throw new LimitExceeded("the signed transaction (" + finalSize + " bytes) exceeds maxTxSize; split the"
                     + " batch");
         }
-        return new Built(tx, cbor, Hash32.ofHex(TransactionUtil.getTxHash(tx)), ids, shard,
-                List.copyOf(resolved.values()), plan, fee, requiredSigners);
+        return fee;
     }
 
     /** The payout output of {@code leaf} before any supplement: its recipient, asset and lovelace (V5). */

@@ -38,7 +38,8 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * exit-mode.policy-id, exit-mode.script-hash
  * continuation-floor                the vault profile's continuationFloor (lovelace)
  * max-settle-batch (16), max-exit-batch (8), max-pause-ms (604800000)
- * claim-key-prefix (ap/claim/), domain-status-key (ap/domain-status)   ASCII, the vault script's parameters
+ * claim-key-prefix (ap/claim/), deposit-key-prefix (ap/deposit/), domain-status-key (ap/domain-status)
+ *                                   ASCII, the vault script's parameters
  * owner (false)                     exactly one node per chain builds and submits (single-owner pinning)
  * round-timeout-ms (30000)          the fail-closed co-sign round timeout
  * slot.zero-time-ms, slot.zero-slot, slot.length-ms    the L1 slot clock: the owner's validity intervals, and every
@@ -112,6 +113,8 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
         int maxExit = (int) bounded(optional(config, "max-exit-batch", "8"), 1, 64, "max-exit-batch");
         long maxPause = bounded(optional(config, "max-pause-ms", "604800000"), 0, Long.MAX_VALUE / 4, "max-pause-ms");
         byte[] claimPrefix = optional(config, "claim-key-prefix", "ap/claim/").getBytes(StandardCharsets.US_ASCII);
+        byte[] depositPrefix = optional(config, "deposit-key-prefix", "ap/deposit/")
+                .getBytes(StandardCharsets.US_ASCII);
         byte[] statusKey = optional(config, "domain-status-key", "ap/domain-status").getBytes(StandardCharsets.US_ASCII);
         VaultPins.Anchor pinnedAnchor = new VaultPins.Anchor(anchor.threadPolicyId(), anchor.threadAssetName(),
                 anchor.scriptHash(), anchor.genesisId(), anchor.applicationId().getBytes(StandardCharsets.UTF_8),
@@ -123,7 +126,7 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
             pins.add(new VaultPins(vault.vaultId(), vault.asset(), network, vault.scriptHash(),
                     new Address(vault.address()).getBytes(), vault.shardPolicyId(), vault.shardScriptHash(),
                     new Address(vault.shardAddress()).getBytes(), pinnedAnchor, exitPolicy, exitHash, claimPrefix,
-                    statusKey, floor, maxSettle, maxExit, maxPause));
+                    depositPrefix, statusKey, floor, maxSettle, maxExit, maxPause));
             Map<String, String> extra = extras.getOrDefault(vault.index(), Map.of());
             String prefix = "vaults." + vault.index() + ".";
             refs.put(vault.vaultId(), new ScriptRefs(outpoint(required(extra, "script-ref"), prefix + "script-ref"),
