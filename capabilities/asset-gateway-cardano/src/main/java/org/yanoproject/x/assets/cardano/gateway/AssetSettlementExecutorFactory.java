@@ -51,7 +51,7 @@ import java.util.function.Supplier;
  * co-signed {@code Accept} with {@link AcceptBodyCheck} (D8h §1). The owner also batches credited deposits into
  * {@code Accept}s ({@link DepositAcceptor}, {@code accept.interval-ms}); any node with {@code exit-relayer.enabled}
  * relays {@code EXIT_ELIGIBLE} claims by proof {@code Exit} ({@link ExitRelayTask}), with state proofs from this
- * node at the referenced live anchor's height. Both run on a timer owned by the executor product, which stops it
+ * node at the referenced live anchor's height, and a relaying non-owner also submits proved {@code Accept}s. Both run on a timer owned by the executor product, which stops it
  * on close; on the owner they share the {@code Settle} executor's assembly lock, pending-spend holds and fee wallet
  * ({@link OwnerAssembly}), and a relaying non-owner has its own.
  */
@@ -100,16 +100,22 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
         int network = settings.vaults().domain().addressNetworkId();
         AssetSettlementSettings.Tasks taskSettings = settings.tasks();
         if (!settings.owner()) {
-            if (!taskSettings.exitRelayer()) return List.of(new CosignOnly(cosign, null));
-            // A relaying non-owner assembles alone, with its own fee wallet.
+            if (!taskSettings.exitRelayer()) return List.of(new CosignOnly(cosign, null, null));
+            // A relaying non-owner assembles alone, with its own fee wallet; it also proves Accepts (Fable P2-2), so
+            // custody keeps flowing into the vault while the owner is down.
             FeeWallet wallet = new FeeWallet(taskSettings.relayerSeed().orElseThrow(), network, memberKey,
                     "exit-relayer.fee-wallet.key-file");
-            ExitRelayTask relayer = new ExitRelayTask(node,
-                    new OwnerAssembly(clock.getAsLong(), settings.validityWindowMs()), wallet);
-            CosignOnly product = new CosignOnly(cosign, relayer);
+            OwnerAssembly assembly = new OwnerAssembly(clock.getAsLong(), settings.validityWindowMs());
+            ExitRelayTask relayer = new ExitRelayTask(node, assembly, wallet);
+            DepositAcceptor acceptor = taskSettings.acceptIntervalMs() > 0
+                    ? DepositAcceptor.provedOnly(node, assembly, wallet) : null;
+            CosignOnly product = new CosignOnly(cosign, relayer, acceptor);
             if (schedule) {
                 SettlementTasks tasks = new SettlementTasks(context.chainId());
                 tasks.every(taskSettings.exitRelayIntervalMs(), "exit relayer", relayer::runOnce);
+                if (acceptor != null) {
+                    tasks.every(taskSettings.acceptIntervalMs(), "proved deposit acceptor", acceptor::runOnce);
+                }
                 product.ownTasks(tasks);
             }
             return List.of(product);
@@ -222,21 +228,27 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
     }
 
     /**
-     * A member that co-signs but never settles: it owns no effect type. When it relays exits, it owns the relayer's
-     * timer and stops it on close.
+     * A member that co-signs but never settles: it owns no effect type. When it relays exits (and proves
+     * {@code Accept}s), it owns their timer and stops it on close.
      */
     static final class CosignOnly implements AppEffectExecutor {
         private final AssetCosignService cosign;
         private final ExitRelayTask relayer;
+        private final DepositAcceptor acceptor;
         private volatile AutoCloseable tasks;
 
-        CosignOnly(AssetCosignService cosign, ExitRelayTask relayer) {
+        CosignOnly(AssetCosignService cosign, ExitRelayTask relayer, DepositAcceptor acceptor) {
             this.cosign = cosign;
             this.relayer = relayer;
+            this.acceptor = acceptor;
         }
 
         Optional<ExitRelayTask> relayer() {
             return Optional.ofNullable(relayer);
+        }
+
+        Optional<DepositAcceptor> acceptor() {
+            return Optional.ofNullable(acceptor);
         }
 
         void ownTasks(AutoCloseable tasks) {

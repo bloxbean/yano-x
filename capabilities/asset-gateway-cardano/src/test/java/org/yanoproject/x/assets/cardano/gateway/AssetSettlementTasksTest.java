@@ -917,6 +917,64 @@ class AssetSettlementTasksTest {
         }
     }
 
+    /** Includes {@code signedTx} on the L1: its inputs leave the view and its outputs join it. */
+    void land(byte[] signedTx) throws Exception {
+        Transaction tx = tx(signedTx);
+        String id = TransactionUtil.getTxHash(signedTx);
+        for (var input : tx.getBody().getInputs()) l1.remove(input.getTransactionId() + "#" + input.getIndex());
+        var outputs = tx.getBody().getOutputs();
+        for (int i = 0; i < outputs.size(); i++) {
+            var out = outputs.get(i);
+            List<AssetAmount> assets = new ArrayList<>();
+            if (out.getValue().getMultiAssets() != null) {
+                for (var multi : out.getValue().getMultiAssets()) {
+                    for (var a : multi.getAssets()) {
+                        assets.add(new AssetAmount(multi.getPolicyId(),
+                                HexFormat.of().formatHex(a.getNameAsBytes()), a.getValue()));
+                    }
+                }
+            }
+            byte[] datum = out.getInlineDatum() == null ? null : out.getInlineDatum().serializeToBytes();
+            put(new Utxo(new Outpoint(id, i), out.getAddress(), out.getValue().getCoin(), assets, null, datum, null,
+                    null, false, 100, 10, "bb".repeat(32)));
+        }
+    }
+
+    /**
+     * Fable P2-2: with the owner down, a relaying member proves an {@code Accept} with its own wallet and assembly,
+     * and then relays an {@code Exit} that spends the custody it accepted.
+     */
+    @Test
+    void withTheOwnerDownARelayerProvesAnAcceptAndRelaysAnExitFromIt() throws Exception {
+        seed();
+        custody(); // no accepted custody yet
+        Node relayerNode = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(3, 71, 900, NOW - 2 * DAY, relayerNode);
+        for (int i = 0; i < 5; i++) deposit(i, 900, DepositAdmission.Reason.NONE, relayerNode);
+        anchor();
+        AssetSettlementExecutorFactory.CosignOnly product =
+                (AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true);
+        assertThat(product.effectTypes()).isEmpty();
+        ExitRelayTask relayer = product.relayer().orElseThrow();
+        assertThat(relayer.runOnce()).as("nothing to pay from yet").contains("shard 3:");
+
+        String accepted = product.acceptor().orElseThrow().runOnce();
+
+        assertThat(accepted).as(accepted).startsWith("accepted (proved) 5 deposits");
+        byte[] accept = submitted.getLast();
+        assertPasses(accept);
+        assertThat(tx(accept).getBody().getRequiredSigners()).isNullOrEmpty();
+        assertThat(inputs(accept)).contains("6a".repeat(32) + "#0"); // the relayer's own fee wallet
+        land(accept);
+
+        String relayed = relayer.runOnce();
+        assertThat(relayed).as(relayed).startsWith("relayed 1 on shard 3");
+        byte[] exit = submitted.getLast();
+        assertPasses(exit);
+        assertThat(inputs(exit)).contains(TransactionUtil.getTxHash(accept) + "#0");
+        assertThat(paidBy(exit)).containsExactly(claim.claimId());
+    }
+
     /** The claim ids an Exit or Settle pays, from its vault continuation (output k, after the k payouts). */
     static List<Hash32> paidBy(byte[] cbor) {
         Transaction tx = tx(cbor);

@@ -59,8 +59,9 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *                                   payout observation (the chain's l1.stability-depth in L1 time, plus finality)
  * inclusion-timeout-ms (900000)     owner only: how long a submitted Settle may take to be confirmed by the payout
  *                                   observer; must exceed stability-window-ms
- * accept.interval-ms (60000)        owner only: how often the owner batches CREDITED-but-unaccepted deposits into an
- *                                   Accept (D8f); 0 disables it
+ * accept.interval-ms (60000)        owner and relayer: how often the owner batches CREDITED-but-unaccepted deposits
+ *                                   into an Accept (D8f), and a relaying non-owner into a proved Accept; 0 disables
+ *                                   it
  * accept.max-batch (16), accept.max-proved-batch (12)   deposits per co-signed and per proved Accept, at most the
  *                                   builder's caps
  * exit-relayer.enabled (false)      relay EXIT_ELIGIBLE claims as proof Exits (D9), permissionless; the owner relays
@@ -85,7 +86,8 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
     /**
      * The periodic tasks: the owner's {@code Accept} batching (D8f) and the permissionless exit relayer (D9).
      *
-     * @param acceptIntervalMs  the {@code Accept} pace, 0 when disabled (owner only)
+     * @param acceptIntervalMs  the {@code Accept} pace, 0 when disabled (the owner, or a relaying non-owner's proved
+     *                          {@code Accept})
      * @param relayerSeed       a relaying non-owner's own fee-wallet seed; the owner relays with its fee wallet
      */
     record Tasks(long acceptIntervalMs, int acceptBatch, int acceptProvedBatch, boolean exitRelayer,
@@ -195,7 +197,8 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 "a relaying non-owner needs exit-relayer.fee-wallet.key-file"))))
                 : Optional.empty();
         Tasks tasks = new Tasks(
-                owner ? bounded(optional(config, "accept.interval-ms", "60000"), 0, 86_400_000L, "accept.interval-ms")
+                owner || relayer
+                        ? bounded(optional(config, "accept.interval-ms", "60000"), 0, 86_400_000L, "accept.interval-ms")
                         : 0,
                 (int) bounded(optional(config, "accept.max-batch", "16"), 1, AcceptTxBuilder.MAX_COSIGNED,
                         "accept.max-batch"),

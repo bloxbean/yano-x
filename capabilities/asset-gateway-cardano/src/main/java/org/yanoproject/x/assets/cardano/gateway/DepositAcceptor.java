@@ -23,8 +23,10 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * The owner's {@code Accept} batcher (ADR-059 D8f: "relayers batch it routinely"). No ledger effect asks for an
- * {@code Accept}, because credit never waits for one (D6); the owner runs one pass per vault on a timer.
+ * The {@code Accept} batcher (ADR-059 D8f: "relayers batch it routinely"). No ledger effect asks for an
+ * {@code Accept}, because credit never waits for one (D6); the owner runs one pass per vault on a timer. A non-owner
+ * with {@code exit-relayer.enabled} runs the proved half only ({@link #provedOnly}), with its own fee wallet and
+ * assembly, so relayers keep custody flowing into the vault while the owner is down (Fable P2-2).
  *
  * <p>One pass, under the node's {@link OwnerAssembly} lock, for each vault whose exit-mode thread is {@code NORMAL}
  * (proved acceptance in exit mode is M4a):
@@ -63,10 +65,15 @@ final class DepositAcceptor {
     DepositAcceptor(NodeServices node, AssetCosignService cosign, byte[] memberPublicKey, OwnerAssembly assembly,
                     FeeWallet wallet) {
         this.node = Objects.requireNonNull(node, "node");
-        this.cosign = Objects.requireNonNull(cosign, "cosign");
-        this.memberPublicKey = memberPublicKey.clone();
+        this.cosign = cosign;
+        this.memberPublicKey = cosign == null ? null : memberPublicKey.clone();
         this.assembly = Objects.requireNonNull(assembly, "assembly");
         this.wallet = Objects.requireNonNull(wallet, "wallet");
+    }
+
+    /** A batcher that never runs a co-sign round: it submits proved {@code Accept}s only, as any relayer may. */
+    static DepositAcceptor provedOnly(NodeServices node, OwnerAssembly assembly, FeeWallet wallet) {
+        return new DepositAcceptor(node, null, null, assembly, wallet);
     }
 
     String lastOutcome() {
@@ -99,30 +106,33 @@ final class DepositAcceptor {
         if (pp == null) return "no protocol parameters";
         List<ResolvedOutput> funding = wallet.funding(node.l1().at(wallet.address()), held);
         if (funding.isEmpty()) return "no fee wallet funds";
-        AcceptTxBuilder.Context context = context(pins, anchor.get(), exitMode.get(), vaultRef.get(), funding, pp);
 
-        // The co-signed Accept, the everyday path.
-        AssetSettlementExecutor.SignerMemory memory = signerMemory.getOrDefault(pins.vaultId(),
-                AssetSettlementExecutor.SignerMemory.NONE);
-        List<byte[]> signerKeys = AssetSettlementExecutor.signers(memberPublicKey, anchor.get(), memory);
-        Attempt cosigned = build(deposits, node.settings().tasks().acceptBatch(),
-                batch -> AcceptTxBuilder.cosigned(context, batch,
-                        signerKeys.stream().map(Blake2bUtil::blake2bHash224).toList(), node.evaluator()));
-        String roundNote = "no co-signed Accept: " + cosigned.failure();
-        if (cosigned.built() != null) {
-            Set<String> requested = new LinkedHashSet<>();
-            signerKeys.forEach(key -> requested.add(HexFormat.of().formatHex(key)));
-            Optional<Map<String, byte[]>> signatures = cosign.collect(cosigned.built().cbor(), requested);
-            if (signatures.isPresent() && signatures.get().keySet().containsAll(requested)) {
-                signerMemory.remove(pins.vaultId());
-                return submit(cosigned.built(), signatures.get(), "accepted (co-signed) ");
-            }
-            if (signatures.isPresent()) {
-                signerMemory.put(pins.vaultId(), AssetSettlementExecutor.afterRound(memberPublicKey, memory,
-                        requested, signatures.get().keySet(), anchor.get().datum().memberKeys()));
-                roundNote = "co-sign round incomplete";
-            } else {
-                roundNote = "the owner's own Accept check refused";
+        // The co-signed Accept, the everyday path; a relayer that is not the owner only proves (Fable P2-2).
+        String roundNote = "proved only";
+        if (cosign != null) {
+            AcceptTxBuilder.Context context = context(pins, anchor.get(), exitMode.get(), vaultRef.get(), funding, pp);
+            AssetSettlementExecutor.SignerMemory memory = signerMemory.getOrDefault(pins.vaultId(),
+                    AssetSettlementExecutor.SignerMemory.NONE);
+            List<byte[]> signerKeys = AssetSettlementExecutor.signers(memberPublicKey, anchor.get(), memory);
+            Attempt cosigned = build(deposits, node.settings().tasks().acceptBatch(),
+                    batch -> AcceptTxBuilder.cosigned(context, batch,
+                            signerKeys.stream().map(Blake2bUtil::blake2bHash224).toList(), node.evaluator()));
+            roundNote = "no co-signed Accept: " + cosigned.failure();
+            if (cosigned.built() != null) {
+                Set<String> requested = new LinkedHashSet<>();
+                signerKeys.forEach(key -> requested.add(HexFormat.of().formatHex(key)));
+                Optional<Map<String, byte[]>> signatures = cosign.collect(cosigned.built().cbor(), requested);
+                if (signatures.isPresent() && signatures.get().keySet().containsAll(requested)) {
+                    signerMemory.remove(pins.vaultId());
+                    return submit(cosigned.built(), signatures.get(), "accepted (co-signed) ");
+                }
+                if (signatures.isPresent()) {
+                    signerMemory.put(pins.vaultId(), AssetSettlementExecutor.afterRound(memberPublicKey, memory,
+                            requested, signatures.get().keySet(), anchor.get().datum().memberKeys()));
+                    roundNote = "co-sign round incomplete";
+                } else {
+                    roundNote = "the owner's own Accept check refused";
+                }
             }
         }
 
