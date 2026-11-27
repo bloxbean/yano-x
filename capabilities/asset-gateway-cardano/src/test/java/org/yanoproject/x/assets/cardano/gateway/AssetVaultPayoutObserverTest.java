@@ -5,6 +5,7 @@ import com.bloxbean.cardano.yaci.core.model.TransactionBody;
 import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
 import com.bloxbean.cardano.yaci.core.model.Witnesses;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.AssetValue;
@@ -489,6 +490,9 @@ class AssetVaultPayoutObserverTest {
         assertThat(identity.claimSchema()).isEqualTo(PayoutClaimV1.CLAIM_SCHEMA);
         Map<String, String> otherPolicy = new TreeMap<>(shardSettings());
         otherPolicy.put("vaults.1.shard-policy-id", "a3".repeat(28));
+        byte[] otherShard = shardHash("a3".repeat(28), USDM_HASH);
+        otherPolicy.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(otherShard));
+        otherPolicy.put("vaults.1.shard-address", enterprise(otherShard));
         assertThat(new AssetVaultPayoutObserver(OBSERVER, otherPolicy).consensusIdentity().canonicalIdentityBytes())
                 .isNotEqualTo(identity.canonicalIdentityBytes());
 
@@ -498,6 +502,11 @@ class AssetVaultPayoutObserverTest {
                 .isInstanceOf(IllegalArgumentException.class);
         Map<String, String> sharedPolicy = new TreeMap<>(shardSettings());
         sharedPolicy.put("vaults.1.shard-policy-id", ADA_SHARD_POLICY);
+        byte[] sharedShard = shardHash(ADA_SHARD_POLICY, USDM_HASH);
+        sharedPolicy.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(sharedShard));
+        sharedPolicy.put("vaults.1.shard-address", enterprise(sharedShard));
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, sharedPolicy))
+                .hasMessageContaining("own shard thread policy");
         assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, sharedPolicy))
                 .isInstanceOf(IllegalArgumentException.class);
         Map<String, String> unknown = new TreeMap<>(shardSettings());
@@ -505,6 +514,47 @@ class AssetVaultPayoutObserverTest {
         assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, unknown))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(new AssetVaultPayoutObserverProvider().type()).isEqualTo("asset-vault-payout-v1");
+    }
+
+    /** ADR-059 r23: the backend is part of the identity, and the shard pin must be that backend's shard. */
+    @Test
+    void theShardBackendFeedsTheIdentityAndMustMatchTheShardPins() {
+        byte[] julcIdentity = observer.consensusIdentity().canonicalIdentityBytes();
+        Map<String, String> explicitJulc = new TreeMap<>(shardSettings());
+        explicitJulc.put("shard-backend", "julc");
+        assertThat(new AssetVaultPayoutObserver(OBSERVER, explicitJulc).consensusIdentity().canonicalIdentityBytes())
+                .isEqualTo(julcIdentity);
+
+        // The julc pins under shard-backend=aiken: startup fails rather than watching the wrong shard address.
+        Map<String, String> mismatched = new TreeMap<>(shardSettings());
+        mismatched.put("shard-backend", "aiken");
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, mismatched))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("shard-backend");
+        assertThatThrownBy(() -> new AssetShardBootstrapObserver(OBSERVER, mismatched))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("shard-backend");
+
+        // The Aiken pins under shard-backend=aiken: a valid configuration with its own identity.
+        Map<String, String> aiken = new TreeMap<>(shardSettings());
+        aiken.put("shard-backend", "aiken");
+        byte[] adaShard = ShardBackend.AIKEN.derive(HexFormat.of().parseHex(ADA_SHARD_POLICY), ADA_HASH, 0)
+                .scriptHash();
+        byte[] usdmShard = ShardBackend.AIKEN.derive(HexFormat.of().parseHex(USDM_SHARD_POLICY), USDM_HASH, 0)
+                .scriptHash();
+        aiken.put("vaults.0.shard-script-hash", HexFormat.of().formatHex(adaShard));
+        aiken.put("vaults.0.shard-address", enterprise(adaShard));
+        aiken.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(usdmShard));
+        aiken.put("vaults.1.shard-address", enterprise(usdmShard));
+        byte[] aikenIdentity = new AssetVaultPayoutObserver(OBSERVER, aiken).consensusIdentity()
+                .canonicalIdentityBytes();
+        assertThat(aikenIdentity).isNotEqualTo(julcIdentity);
+        assertThat(new AssetShardBootstrapObserver(OBSERVER, aiken).consensusIdentity().canonicalIdentityBytes())
+                .isNotEqualTo(new AssetShardBootstrapObserver(OBSERVER, shardSettings()).consensusIdentity()
+                        .canonicalIdentityBytes());
+
+        Map<String, String> unknown = new TreeMap<>(shardSettings());
+        unknown.put("shard-backend", "plutarch");
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, unknown))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ------------------------------------------------------------------ end to end with PayoutConfirmation

@@ -54,7 +54,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A complete L1 world for one vault: the committed julc templates applied with this vault's parameters (so the
+ * A complete L1 world for one vault: the committed templates (the shard of either backend) applied with this vault's parameters (so the
  * scripts, their hashes and the addresses are the real ones), the anchor and exit-mode threads, accepted vault
  * custody, the 16 shard UTxOs, reference-script UTxOs, a fee wallet, and the julc phase-2 evaluator over all of them.
  * Built transactions are evaluated exactly as a node would before submission.
@@ -129,6 +129,11 @@ final class PayoutWorld {
     long anchorHeight = 1_000;
 
     PayoutWorld(AssetId asset) {
+        this(asset, ShardBackend.JULC);
+    }
+
+    /** The world with the {@code backend}'s committed shard template (ADR-059 r23). */
+    PayoutWorld(AssetId asset, ShardBackend backend) {
         this.asset = asset;
         this.vaultId = GatewayIds.vaultId(DOMAIN, asset, 0);
         vaultProgram = template("AssetVaultValidator").applyParams(PlutusData.bytes(DOMAIN.bytes()),
@@ -143,14 +148,15 @@ final class PayoutWorld {
                 PlutusData.integer(6 * HOUR), PlutusData.integer(30 * DAY), PlutusData.integer(MAX_PAUSE));
         vaultScript = JulcScriptAdapter.fromProgram(vaultProgram);
         vaultHash = HexFormat.of().parseHex(JulcScriptAdapter.scriptHash(vaultProgram));
-        Program shardProgram = template("AssetShardValidator").applyParams(PlutusData.bytes(SHARD_POLICY),
+        Program shardProgram = template(backend == ShardBackend.AIKEN ? "AssetShardValidatorAiken"
+                : "AssetShardValidator").applyParams(PlutusData.bytes(SHARD_POLICY),
                 PlutusData.bytes(vaultHash));
         shardScript = JulcScriptAdapter.fromProgram(shardProgram);
         shardHash = HexFormat.of().parseHex(JulcScriptAdapter.scriptHash(shardProgram));
         pins = new VaultPins(vaultId, asset, 0, vaultHash, cat(new byte[] {0x70}, vaultHash), SHARD_POLICY, shardHash,
                 cat(new byte[] {0x70}, shardHash), new VaultPins.Anchor(ANCHOR_POLICY, ANCHOR_NAME, ANCHOR_HASH,
                 GENESIS.bytes(), APPLICATION, PROFILE, FINGERPRINT), EXIT_POLICY, EXIT_HASH, CLAIM_PREFIX,
-                DEPOSIT_PREFIX, STATUS_KEY, BigInteger.valueOf(FLOOR), 16, 8, MAX_PAUSE);
+                DEPOSIT_PREFIX, STATUS_KEY, BigInteger.valueOf(FLOOR), 16, 8, MAX_PAUSE, backend);
 
         // Accepted custody: one continuation with plenty of the asset and lovelace, and a floor top-up.
         long custodyAsset = asset.isAda() ? 0 : 1_000_000;

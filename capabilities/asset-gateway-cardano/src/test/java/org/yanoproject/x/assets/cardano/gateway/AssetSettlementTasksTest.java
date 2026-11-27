@@ -32,6 +32,7 @@ import org.julclang.core.PlutusData;
 import org.julclang.core.Program;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.api.TxEvaluationGateway;
 import org.yanoproject.api.model.TxEvaluationResult;
 import org.yanoproject.api.utxo.UtxoState;
@@ -1107,7 +1108,8 @@ class AssetSettlementTasksTest {
 
     /** A second vault, configured first, whose vault and shard addresses the L1 view cannot read. */
     static final byte[] BROKEN_VAULT_HASH = filled(28, 0x99);
-    static final byte[] BROKEN_SHARD_HASH = filled(28, 0x98);
+    static final byte[] BROKEN_SHARD_HASH = ShardBackend.JULC.derive(filled(28, 0xb3), BROKEN_VAULT_HASH, 0)
+            .scriptHash();
 
     /** The settings with the broken ADA vault as vault 0 and this test's vault as vault 1. */
     Map<String, String> withBrokenVaultFirst(Map<String, String> config) {

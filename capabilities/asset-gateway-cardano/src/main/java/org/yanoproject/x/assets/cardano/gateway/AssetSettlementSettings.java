@@ -31,8 +31,9 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * on L1 and the members' body checks refuse them.
  *
  * <pre>
- * domain.*, vaults.N.{asset, script-hash, address, shard-policy-id, shard-script-hash, shard-address}
- *                                   as for asset-vault-payout-v1 (one executor serves every vault, D8h §7)
+ * domain.*, shard-backend, vaults.N.{asset, script-hash, address, shard-policy-id, shard-script-hash, shard-address}
+ *                                   as for asset-vault-payout-v1 (one executor serves every vault, D8h §7); the
+ *                                   shard-backend must be the payout observer's
  * vaults.N.script-ref               txhash#index of the output carrying the vault reference script
  * vaults.N.shard-script-ref         txhash#index of the output carrying the shard reference script
  * anchor.*                          as for asset-anchor-v1 (the pinned anchor identity, D8b)
@@ -123,7 +124,7 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
         Map<String, String> anchorSettings = new LinkedHashMap<>();
         Map<Integer, Map<String, String>> extras = new LinkedHashMap<>();
         config.forEach((key, value) -> {
-            if (key.startsWith("domain.")) {
+            if (key.startsWith("domain.") || key.equals(AssetVaultShardSettings.SHARD_BACKEND)) {
                 shardSettings.put(key, value);
             } else if (key.startsWith("anchor.")) {
                 anchorSettings.put(key, value);
@@ -161,7 +162,7 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
             pins.add(new VaultPins(vault.vaultId(), vault.asset(), network, vault.scriptHash(),
                     new Address(vault.address()).getBytes(), vault.shardPolicyId(), vault.shardScriptHash(),
                     new Address(vault.shardAddress()).getBytes(), pinnedAnchor, exitPolicy, exitHash, claimPrefix,
-                    depositPrefix, statusKey, floor, maxSettle, maxExit, maxPause));
+                    depositPrefix, statusKey, floor, maxSettle, maxExit, maxPause, vaults.shardBackend()));
             Map<String, String> extra = extras.getOrDefault(vault.index(), Map.of());
             String prefix = "vaults." + vault.index() + ".";
             refs.put(vault.vaultId(), new ScriptRefs(outpoint(required(extra, "script-ref"), prefix + "script-ref"),

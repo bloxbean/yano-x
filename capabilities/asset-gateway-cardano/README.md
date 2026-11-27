@@ -34,6 +34,28 @@ node, `owner=true`, builds, collects signatures and submits. The settings are no
 refuses honest bodies as `l1-tip-bound`; its co-sign product then reports `DEGRADED` with a `CONFIGURATION` failure in
 its operational status, and the owner's rounds stay incomplete until enough other members answer.
 
+## The shard backend
+
+The nullifier-shard validator has two interchangeable backends (ADR-059 D8c, r23): `julc` (the default) and `aiken`
+(aiken-lang/merkle-patricia-forestry v2.1.0 behind Yano X's own proof-shape checks, the same rules as the julc
+backend). Both enforce the same rules on the same datum and redeemer; they differ only in the shard script hash and
+address. The setting is the same key in the settings of the `asset-vault-payout-v1` and `asset-shard-bootstrap-v1`
+observers and of the `asset-settlement` executor:
+
+| Setting | Nodes | Meaning |
+|---|---|---|
+| `shard-backend` (`julc`) | every node | `julc` or `aiken`: which shard validator the vaults' shard threads run. Every `vaults.N.shard-script-hash` (and `shard-address`) must be that backend's shard of the vault's `shard-policy-id` and `script-hash`, or startup fails. |
+
+**Choosing.** Pick the backend before the vaults are bootstrapped; it is fixed for the life of the vaults, as the
+shard threads have no upgrade path (D8c). Derive each vault's shard hash with the chosen backend
+(`ShardBackend.derive(shardPolicyId, vaultScriptHash, networkId)` in `asset-gateway-cardano-support`, or the matching
+template in `asset-gateway-onchain`), publish that shard's reference script, bootstrap the 16 threads at its
+address, and give every member the same `shard-backend` and pins. The value is part of each observer's consensus
+identity, so members with different backends disagree at startup. `julc` is the default and the measured baseline;
+`aiken` builds the shard on the upstream Aiken MPF library at about the same cost (`BUDGETS.md`: the `Settle` and
+`Exit` caps are unchanged). The members' body checks, the builders and the observers read only the pinned shard hash
+and address, so they serve either backend unchanged.
+
 ## `Accept` and the exit relayer
 
 Deposits become spendable custody only through `Accept` (ADR-059 D8f). The owner looks for deposit-shaped outputs at

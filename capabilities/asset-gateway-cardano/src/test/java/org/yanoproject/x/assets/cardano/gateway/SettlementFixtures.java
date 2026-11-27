@@ -12,6 +12,7 @@ import com.bloxbean.cardano.yaci.core.model.RedeemerTag;
 import com.bloxbean.cardano.yaci.core.model.TransactionBody;
 import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
 import com.bloxbean.cardano.yaci.core.model.Witnesses;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
@@ -34,10 +35,10 @@ final class SettlementFixtures {
     static final AssetId USDM = AssetId.ofHex(POLICY, "5553444d");
     static final byte[] ADA_HASH = filled(28, 0x01);
     static final byte[] USDM_HASH = filled(28, 0x02);
-    static final byte[] ADA_SHARD_HASH = filled(28, 0x11);
-    static final byte[] USDM_SHARD_HASH = filled(28, 0x12);
     static final String ADA_SHARD_POLICY = "a1".repeat(28);
     static final String USDM_SHARD_POLICY = "a2".repeat(28);
+    static final byte[] ADA_SHARD_HASH = shardHash(ADA_SHARD_POLICY, ADA_HASH);
+    static final byte[] USDM_SHARD_HASH = shardHash(USDM_SHARD_POLICY, USDM_HASH);
     static final String ADA_VAULT = enterprise(ADA_HASH);
     static final String USDM_VAULT = enterprise(USDM_HASH);
     static final String ADA_SHARD = enterprise(ADA_SHARD_HASH);
@@ -63,6 +64,11 @@ final class SettlementFixtures {
         byte[] out = new byte[length];
         Arrays.fill(out, (byte) value);
         return out;
+    }
+
+    /** The julc shard of a vault (ADR-059 D4 step 7), as the settings require the shard pin to be. */
+    static byte[] shardHash(String shardPolicyHex, byte[] vaultHash) {
+        return ShardBackend.JULC.derive(HexFormat.of().parseHex(shardPolicyHex), vaultHash, 0).scriptHash();
     }
 
     static String enterprise(byte[] scriptHash) {

@@ -19,6 +19,7 @@ import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.api.TxEvaluationGateway;
 import org.yanoproject.api.model.TxEvaluationResult;
 import org.yanoproject.api.utxo.UtxoState;
@@ -81,8 +82,11 @@ class AssetSettlementExecutorTest {
     static final String GENESIS = "6c".repeat(32);
     static final AssetId USDM = AssetId.ofHex("f0".repeat(28), "5553444d");
     static final byte[] VAULT_HASH = filled(28, 0x02);
-    static final byte[] SHARD_HASH = filled(28, 0x12);
     static final String SHARD_POLICY = "a2".repeat(28);
+    static final byte[] SHARD_HASH = ShardBackend.JULC.derive(HexFormat.of().parseHex(SHARD_POLICY), VAULT_HASH, 0)
+            .scriptHash();
+    static final byte[] ADA_SHARD_HASH = ShardBackend.JULC.derive(filled(28, 0xa3), filled(28, 0x03), 0)
+            .scriptHash();
     static final byte[] ANCHOR_HASH = filled(28, 0x21);
     static final String ANCHOR_POLICY = "c1".repeat(28);
     static final byte[] EXIT_HASH = filled(28, 0x31);
@@ -1188,8 +1192,8 @@ class AssetSettlementExecutorTest {
         twoVaults.put("vaults.1.script-hash", HexFormat.of().formatHex(filled(28, 0x03)));
         twoVaults.put("vaults.1.address", enterprise(filled(28, 0x03)));
         twoVaults.put("vaults.1.shard-policy-id", "a3".repeat(28));
-        twoVaults.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(filled(28, 0x13)));
-        twoVaults.put("vaults.1.shard-address", enterprise(filled(28, 0x13)));
+        twoVaults.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(ADA_SHARD_HASH));
+        twoVaults.put("vaults.1.shard-address", enterprise(ADA_SHARD_HASH));
         twoVaults.put("vaults.1.script-ref", "65".repeat(32) + "#0");
         twoVaults.put("vaults.1.shard-script-ref", "65".repeat(32) + "#1");
         executor(member, twoVaults);

@@ -154,11 +154,12 @@ public final class BundleSmoke {
                            Map<String, String> ledgerSettings, AppChainConsensusProfile profile, String usdmVault)
             throws Exception {
         String shardPolicy = "a2".repeat(28);
-        String shardAddress = AddressProvider.getEntAddress(Credential.fromScript(fill(28, 0x12)), Networks.testnet())
-                .getAddress();
+        String shardHash = shardHash(gateway, shardPolicy, "02".repeat(28));
+        String shardAddress = AddressProvider.getEntAddress(Credential.fromScript(HexFormat.of().parseHex(shardHash)),
+                Networks.testnet()).getAddress();
         Map<String, String> payoutSettings = new TreeMap<>(observerSettings);
         payoutSettings.put("vaults.0.shard-policy-id", shardPolicy);
-        payoutSettings.put("vaults.0.shard-script-hash", "12".repeat(28));
+        payoutSettings.put("vaults.0.shard-script-hash", shardHash);
         payoutSettings.put("vaults.0.shard-address", shardAddress);
         L1ObserverProvider payoutProvider = only(ServiceLoader.load(L1ObserverProvider.class, gateway),
                 p -> p.type().equals("asset-vault-payout-v1"));
@@ -278,10 +279,11 @@ public final class BundleSmoke {
         if (factory.getClass().getClassLoader() != gateway) throw new AssertionError("executor not from bundle");
         if (!factory.create(CHAIN, Map.of()).isEmpty()) throw new AssertionError("config-only creation must decline");
         Map<String, String> config = new TreeMap<>(observerSettings);
+        String shardHash = shardHash(gateway, "a2".repeat(28), "02".repeat(28));
         config.put("vaults.0.shard-policy-id", "a2".repeat(28));
-        config.put("vaults.0.shard-script-hash", "12".repeat(28));
-        config.put("vaults.0.shard-address", AddressProvider.getEntAddress(Credential.fromScript(fill(28, 0x12)),
-                Networks.testnet()).getAddress());
+        config.put("vaults.0.shard-script-hash", shardHash);
+        config.put("vaults.0.shard-address", AddressProvider.getEntAddress(Credential.fromScript(
+                HexFormat.of().parseHex(shardHash)), Networks.testnet()).getAddress());
         config.put("vaults.0.script-ref", "65".repeat(32) + "#0");
         config.put("vaults.0.shard-script-ref", "65".repeat(32) + "#1");
         config.putAll(Map.of("anchor.thread-policy-id", "c1".repeat(28), "anchor.thread-asset-name", "",
@@ -402,6 +404,23 @@ public final class BundleSmoke {
         if (length < 24) return new byte[] {(byte) (0x40 | length)};
         if (length < 256) return new byte[] {0x58, (byte) length};
         return new byte[] {0x59, (byte) (length >>> 8), (byte) length};
+    }
+
+    /**
+     * The julc shard hash of a vault, derived by the bundle's own {@code ShardBackend} from the shard template it
+     * carries (ADR-059 r23): the observers and the executor refuse a shard pin that is not this derivation.
+     */
+    static String shardHash(ClassLoader gateway, String shardPolicyHex, String vaultHashHex) {
+        try {
+            Class<?> backend = gateway.loadClass("org.yanoproject.x.assets.cardano.support.settlement.ShardBackend");
+            if (backend.getClassLoader() != gateway) throw new AssertionError("ShardBackend not from the bundle");
+            Object script = backend.getMethod("derive", byte[].class, byte[].class, int.class).invoke(
+                    backend.getField("JULC").get(null), HexFormat.of().parseHex(shardPolicyHex),
+                    HexFormat.of().parseHex(vaultHashHex), 0);
+            return HexFormat.of().formatHex((byte[]) script.getClass().getMethod("scriptHash").invoke(script));
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError("the bundle cannot derive the shard script", failure);
+        }
     }
 
     static byte[] fill(int n, int v) { byte[] b = new byte[n]; Arrays.fill(b, (byte) v); return b; }

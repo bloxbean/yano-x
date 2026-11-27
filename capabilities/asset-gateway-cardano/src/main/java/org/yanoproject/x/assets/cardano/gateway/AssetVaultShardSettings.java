@@ -1,6 +1,7 @@
 package org.yanoproject.x.assets.cardano.gateway;
 
 import org.yanoproject.x.assets.cardano.support.VaultAddresses;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
@@ -31,16 +32,23 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * vaults.N.script-hash         56 lowercase hex
  * vaults.N.address             canonical bech32 enterprise script address of that hash
  * vaults.N.vault-id            optional; must equal the derived VaultId
+ * shard-backend                julc | aiken, default julc: the nullifier-shard validator of every vault (r23)
  * vaults.N.shard-policy-id     56 lowercase hex: ShardThreadPolicy(seed) of this vault
- * vaults.N.shard-script-hash   56 lowercase hex: NullifierShardValidator(shardPolicyId, vaultScriptHash)
+ * vaults.N.shard-script-hash   56 lowercase hex: the shard-backend's shard validator(shardPolicyId, vaultScriptHash)
  * vaults.N.shard-address       canonical bech32 enterprise script address of the shard hash
  * min-stability-depth          1..100000, default 1
  * </pre>
  *
  * The vault set is fixed at genesis (D5). Every value is part of the observer's consensus identity; invalid settings
- * fail startup. The observer cannot derive the script hashes (that needs the on-chain templates), so they are pinned.
+ * fail startup. The vault script hash is pinned (deriving it needs the whole vault profile). The shard script hash
+ * is pinned too, and must be the selected backend's shard of the vault's shard policy and script hash
+ * ({@link ShardBackend#derive}), so a member whose shard pin and {@code shard-backend} disagree fails startup, and
+ * members with different backends have different consensus identities.
  */
-record AssetVaultShardSettings(DomainSettings domain, List<Vault> vaults, int minStabilityDepth) {
+record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend, List<Vault> vaults,
+                               int minStabilityDepth) {
+    /** The nullifier-shard backend setting (ADR-059 r23). */
+    static final String SHARD_BACKEND = "shard-backend";
     private static final Set<String> VAULT_KEYS = Set.of("asset", "ordinal", "script-hash", "address", "vault-id",
             "shard-policy-id", "shard-script-hash", "shard-address");
 
@@ -87,6 +95,7 @@ record AssetVaultShardSettings(DomainSettings domain, List<Vault> vaults, int mi
 
     static AssetVaultShardSettings parse(Map<String, String> settings) {
         DomainSettings domain = DomainSettings.parse(settings);
+        ShardBackend backend = ShardBackend.parse(settings.get(SHARD_BACKEND));
         List<Vault> vaults = new ArrayList<>();
         Set<AssetId> assets = new HashSet<>();
         Set<String> addresses = new HashSet<>();
@@ -106,6 +115,12 @@ record AssetVaultShardSettings(DomainSettings domain, List<Vault> vaults, int mi
             byte[] shardHash = hex(required(settings, prefix + "shard-script-hash"), 28, prefix + "shard-script-hash");
             String shardAddress = VaultAddresses.requireEnterpriseScript(required(settings, prefix + "shard-address"),
                     shardHash, domain.addressNetworkId());
+            byte[] derived = backend.derive(shardPolicy, scriptHash, domain.addressNetworkId()).scriptHash();
+            if (!Arrays.equals(derived, shardHash)) {
+                throw new IllegalArgumentException(prefix + "shard-script-hash is not the " + backend.id()
+                        + " shard of this vault's shard-policy-id and script-hash (expected "
+                        + HexFormat.of().formatHex(derived) + "; check shard-backend)");
+            }
             if (!addresses.add(address) || !addresses.add(shardAddress)) {
                 throw new IllegalArgumentException("vault and shard addresses must be distinct");
             }
@@ -136,13 +151,14 @@ record AssetVaultShardSettings(DomainSettings domain, List<Vault> vaults, int mi
         }
         int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 1, 100_000,
                 "min-stability-depth");
-        return new AssetVaultShardSettings(domain, vaults, minDepth);
+        return new AssetVaultShardSettings(domain, backend, vaults, minDepth);
     }
 
     /** Every consensus-relevant value in a fixed order and normalized form. */
     List<String> identityFields() {
         Map<String, String> fields = new LinkedHashMap<>();
         domain.identityFields(fields);
+        fields.put(SHARD_BACKEND, shardBackend.id());
         for (Vault vault : vaults) {
             String prefix = "vaults." + vault.index() + ".";
             fields.put(prefix + "vault-id", vault.vaultId().hex());

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.yanoproject.x.assetpayments.contracts.AssetPaymentsContract;
 import org.yanoproject.x.assets.cardano.gateway.AssetVaultDepositObserverProvider;
 import org.yanoproject.x.assets.cardano.gateway.AssetVaultPayoutObserverProvider;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.AssetValue;
 import org.yanoproject.x.assets.contracts.ClaimKind;
@@ -54,7 +55,7 @@ import static org.yanoproject.x.assetpayments.ledger.PaymentsHarness.*;
 class AssetPaymentsPayoutTest {
     static final String PAYOUTS = "payouts";
     static final String SHARD_POLICY = "a2".repeat(28);
-    static final byte[] SHARD_HASH = filled(28, 0x12);
+    static final byte[] SHARD_HASH = shardHash(SHARD_POLICY, USDM_HASH);
     static final String SHARD_ADDRESS = enterprise(SHARD_HASH);
 
     final TestWallet alice = TestWallet.of(1);
@@ -76,8 +77,9 @@ class AssetPaymentsPayoutTest {
 
     static Map<String, String> payoutSettings() {
         Map<String, String> settings = new TreeMap<>(observerSettings());
-        String[] shardHashes = {"11".repeat(28), HexFormat.of().formatHex(SHARD_HASH), "13".repeat(28)};
         String[] policies = {"a1".repeat(28), SHARD_POLICY, "a3".repeat(28)};
+        String[] shardHashes = {HexFormat.of().formatHex(shardHash(policies[0], ADA_HASH)),
+                HexFormat.of().formatHex(SHARD_HASH), HexFormat.of().formatHex(shardHash(policies[2], EURC_HASH))};
         for (int i = 0; i < 3; i++) {
             settings.put("vaults." + i + ".shard-policy-id", policies[i]);
             settings.put("vaults." + i + ".shard-script-hash", shardHashes[i]);
@@ -85,6 +87,11 @@ class AssetPaymentsPayoutTest {
         }
         settings.remove("type");
         return settings;
+    }
+
+    /** The julc shard of a vault, as the payout observer requires its shard pin to be (ADR-059 r23). */
+    static byte[] shardHash(String shardPolicyHex, byte[] vaultHash) {
+        return ShardBackend.JULC.derive(HexFormat.of().parseHex(shardPolicyHex), vaultHash, 0).scriptHash();
     }
 
     static String bech32(byte[] raw) {

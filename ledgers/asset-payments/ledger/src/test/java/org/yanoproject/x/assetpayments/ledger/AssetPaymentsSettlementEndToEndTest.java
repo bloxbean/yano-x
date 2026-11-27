@@ -24,6 +24,7 @@ import org.yanoproject.x.assets.cardano.gateway.AssetVaultPayoutObserverProvider
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.x.assets.cardano.support.settlement.ShardMirror;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
 import org.yanoproject.x.assets.contracts.AssetId;
@@ -87,7 +88,7 @@ class AssetPaymentsSettlementEndToEndTest {
                 new VaultPins.Anchor(ANCHOR_POLICY, new byte[0], ANCHOR_HASH, HexFormat.of().parseHex(GENESIS),
                         "asset-payments".getBytes(), "mpf-blake2b256-v1".getBytes(), FINGERPRINT),
                 EXIT_POLICY, EXIT_HASH, "ap/claim/".getBytes(), "ap/deposit/".getBytes(), "ap/domain-status".getBytes(),
-                BigInteger.valueOf(2_000_000), 16, 8, 7L * 86_400_000);
+                BigInteger.valueOf(2_000_000), 16, 8, 7L * 86_400_000, ShardBackend.JULC);
     }
 
     static ResolvedOutput out(int fill, int index, byte[] address, long lovelace, Map<AssetId, Long> assets,

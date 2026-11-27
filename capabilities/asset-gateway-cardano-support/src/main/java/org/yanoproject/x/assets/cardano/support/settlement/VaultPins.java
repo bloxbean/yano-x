@@ -12,6 +12,8 @@ import java.util.Objects;
  * D8c). The builder and the co-sign body check read every rule from here, never from a request.
  *
  * @param vaultAddress       the exact enterprise vault address (raw bytes): V8 exact addresses
+ * @param shardScriptHash    the shard script hash: {@code shardBackend}'s shard validator applied to
+ *                           {@code (shardPolicyId, vaultScriptHash)} (checked here, r23)
  * @param shardAddress       the exact enterprise shard address (raw bytes)
  * @param shardPolicyId      the vault's one-shot shard thread policy; token name = the shard index byte
  * @param claimKeyPrefix     the vault's {@code claimKeyPrefix} (V2)
@@ -22,12 +24,14 @@ import java.util.Objects;
  * @param maxSettleBatch     the profile's {@code maxSettleBatch} (16, BUDGETS.md)
  * @param maxExitBatch       the profile's {@code maxExitBatch} (8, BUDGETS.md)
  * @param maxPauseMs         the vault's {@code maxPauseMs} (V3 maximum claim age)
+ * @param shardBackend       the deployment's nullifier-shard backend (D8c, r23); the body checks and builders only
+ *                           read the pinned shard hash and address, so they serve either backend
  */
 public record VaultPins(Hash32 vaultId, AssetId asset, int addressNetworkId, byte[] vaultScriptHash,
                         byte[] vaultAddress, byte[] shardPolicyId, byte[] shardScriptHash, byte[] shardAddress,
                         Anchor anchor, byte[] exitModePolicyId, byte[] exitModeScriptHash, byte[] claimKeyPrefix,
                         byte[] depositKeyPrefix, byte[] domainStatusKey, BigInteger continuationFloor,
-                        int maxSettleBatch, int maxExitBatch, long maxPauseMs) {
+                        int maxSettleBatch, int maxExitBatch, long maxPauseMs, ShardBackend shardBackend) {
     /** The on-chain bound of a continuation's id list, whatever the profile says (r16). */
     public static final int ON_CHAIN_MAX_BATCH = 64;
 
@@ -49,6 +53,7 @@ public record VaultPins(Hash32 vaultId, AssetId asset, int addressNetworkId, byt
         Objects.requireNonNull(vaultId, "vault id");
         Objects.requireNonNull(asset, "asset");
         Objects.requireNonNull(anchor, "anchor");
+        Objects.requireNonNull(shardBackend, "shard backend");
         vaultScriptHash = hash(vaultScriptHash, "vault script hash");
         shardPolicyId = hash(shardPolicyId, "shard policy id");
         shardScriptHash = hash(shardScriptHash, "shard script hash");
@@ -56,6 +61,11 @@ public record VaultPins(Hash32 vaultId, AssetId asset, int addressNetworkId, byt
         exitModeScriptHash = hash(exitModeScriptHash, "exit-mode script hash");
         vaultAddress = enterpriseScript(vaultAddress, vaultScriptHash, addressNetworkId, "vault address");
         shardAddress = enterpriseScript(shardAddress, shardScriptHash, addressNetworkId, "shard address");
+        if (!Arrays.equals(shardBackend.derive(shardPolicyId, vaultScriptHash, addressNetworkId).scriptHash(),
+                shardScriptHash)) {
+            throw new IllegalArgumentException("shard script hash is not the " + shardBackend.id()
+                    + " shard of this vault's shard policy and script hash");
+        }
         claimKeyPrefix = Objects.requireNonNull(claimKeyPrefix, "claim key prefix").clone();
         depositKeyPrefix = Objects.requireNonNull(depositKeyPrefix, "deposit key prefix").clone();
         domainStatusKey = Objects.requireNonNull(domainStatusKey, "domain status key").clone();
@@ -66,6 +76,11 @@ public record VaultPins(Hash32 vaultId, AssetId asset, int addressNetworkId, byt
                 || maxExitBatch > ON_CHAIN_MAX_BATCH || maxPauseMs < 0) {
             throw new IllegalArgumentException("batch caps are 1-64");
         }
+    }
+
+    /** The shard script these pins name, derived from the backend's template (D4 step 7). */
+    public ShardBackend.ShardScript shardScript() {
+        return shardBackend.derive(shardPolicyId, vaultScriptHash, addressNetworkId);
     }
 
     public boolean adaVault() {
