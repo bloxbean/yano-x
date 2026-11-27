@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-27, r20). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r20 record the rules settled while implementing M4 (see the revision history).
+- **Status:** Proposed (2026-11-27, r21). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r21 record the rules settled while implementing M4 (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -1054,6 +1054,11 @@ Acceptance does not delay credit. Credit happens on the finalized observation (D
 only moves value into spendable custody, and relayers batch it routinely. *(r20)* No ledger
 effect asks for it: the owner batches credited deposits on a timer, co-signed first and proved
 when no quorum answers, under the same assembly lock and pending-spend holds as `Settle` (D9).
+*(r21)* The proved `Accept` takes its validity interval after the co-sign round, not before it.
+A node with `exit-relayer.enabled` that is not the owner also submits proved `Accept`s, with its
+own fee wallet and assembly, so a relayer still has custody to pay `Exit`s from while the owner
+is down. Each pass reads one window of at most 5,000 vault outputs and moves to the next window
+on the next pass, wrapping around, so every credited deposit is eventually reached.
 
 ### D8g. Escape hatch: forced withdrawal and exit mode (rewritten in r7)
 
@@ -1285,6 +1290,9 @@ it signs itself** (r7).
    claims with `USER_WITHDRAWAL` kind and exact fields, at a reservation height at or below the
    referenced anchor's height (V12). The domain must be `ACTIVE` and the exit-mode thread
    `NORMAL`.
+6. *(r21)* **For `Accept` and `Settle`:** the required signers must name at least the referenced
+   anchor's threshold of distinct members (V9), so a member never signs a body that its quorum's
+   signatures could not make pass on L1.
 
 The anchor side needs its own fix. `ScriptAnchorService.verifyAdvance` must apply the same
 "no other script input, no mint, certificates or withdrawals" rule. That is framework
@@ -1410,6 +1418,19 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
     fee funds waits. A batch whose shard input a pending submission spends waits for its inclusion
     instead of building a conflicting `Settle`; chaining on the predicted shard output is a later
     optimization. The fee wallet must not hold the member key.
+  - **Hold lifetime** *(r21)*. Every hold, for `Settle`, `Accept` and `Exit`, expires one validity
+    window plus a 2-minute slack after its successful submission: the TTL is at most one window
+    past the assembly, which precedes the submission, so by then the transaction is on L1 or never
+    will be. A hold is released earlier once its transaction is provably dead: none of its
+    outputs is in the node's L1 view and a reference input (the anchor) or a spent input no longer
+    is. A `Settle` journal entry is evicted with its hold, never waiting for a probe, because the
+    effect runtime may stop probing an expired effect; a later probe recovers it from the
+    persisted reference. The validity window is at most 10 minutes on every node that builds:
+    the owner and a relaying non-owner.
+  - **Startup grace** *(r21)*. Holds live in memory. After a start or restart, an owner or
+    relayer assembles no new transaction for one hold's lifetime (one validity window plus the
+    slack): by then any transaction it submitted before the restart has landed or expired. A
+    `Settle` submitted before the restart is still probed from its persisted reference.
 - **Shared fixes** from the EUTxO stack carry over:
   - a durable journal;
   - a node-local operator wallet for fees;
@@ -1417,16 +1438,26 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
 
 **Exit relayer.** Any node, or any third party, works through claims in this order:
 1. Wait until the claim is `EXIT_ELIGIBLE`, as defined in D7.
-2. Fetch the claim proof and the status-leaf proof at the referenced anchor's height. *(r20)* A
-   node's relayer references the live anchor only once it is L1-stable, so that height lies within
-   its proof floor (D8b), and reads the domain status from the status-leaf proof, not from its
-   committed state. Fetch the
+2. Fetch the claim proof and the status-leaf proof at the referenced anchor's height. *(r21)* A
+   node's relayer references the live anchor. Its height is at or above the latest L1-stable
+   anchor's, so it lies within the proof floor (D8b), and every proof is bound to that anchor's
+   height, root and key. *(r20)* The relayer reads the domain status from the status-leaf proof,
+   not from its committed state. A transaction whose referenced anchor rolls back fails on L1 and
+   is rebuilt (D8b); its hold ends once that anchor no longer resolves. *(r21 corrects r20, which
+   waited until the live anchor was L1-stable: on a chain that keeps anchoring, the live anchor is
+   always newer than the stability window, so the relayer and the proved `Accept` starved.)* Fetch
+   the
    shard exclusion witnesses from the shard mirror (D8h §6). Without operators, the SDK rebuilds
    that mirror from L1 alone (D8g §7). A mismatch with the shard's on-chain root stops the relayer
    for that shard.
 3. Group claims by shard. Select vault UTxOs most useful first, as the co-signed path does, spend
    them in canonical outpoint order, and select again on contention. *(r19)* This relayer works in
-   `NORMAL` only and refuses in exit mode; exit-mode relaying is M4a.
+   `NORMAL` only and refuses in exit mode; exit-mode relaying is M4a. *(r21)* Custody that no
+   pending submission spends and that does not cover a batch is split on like a per-transaction
+   limit; a claim that alone does not fit is skipped to the next. A shard's turn in a pass is spent
+   only by a successful submission, so an unpayable claim does not starve the next one. One
+   vault's failure does not stop the others, and the committed claim index is walked once per
+   pass.
 4. Build and submit the transaction with the relayer's own fee wallet. Supplement payout
    lovelace when protocol parameters require it.
 5. Poll until the transaction is included.
@@ -2741,3 +2772,29 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     - D9: the `Accept` batcher and a relayer on the owner share the `Settle` executor's assembly
       lock, fee wallet and pending-spend holds; an `Accept` or relayed `Exit` holds its inputs until
       its inclusion timeout. A relaying non-owner has its own fee wallet.
+- **r21** (2026-11-27): M4 part 2 stage 3a review fixes, from the Fable and Codex reviews of the
+  `Accept` batcher and the runtime exit relayer. Neither found a safety defect; these are
+  liveness and robustness fixes:
+  - D9 step 2, D8b (Fable P1): the relayer and the proved `Accept` reference the live anchor and
+    prove at its height; they no longer wait until it is L1-stable, which starved both on a chain
+    that keeps anchoring. The proof floor keeps every height from the L1-stable anchor's on. A
+    transaction whose anchor rolls back fails on L1 and is rebuilt; this also covers a same-height
+    heartbeat. The effect context no longer exposes the L1-stable anchor frontier.
+  - D9 (Codex P1-1, P2-6; Fable P2-1, P3-1): every hold expires one validity window plus a
+    2-minute slack after its successful submission, and is released earlier once its transaction
+    is provably dead; the `Settle` journal entry is evicted with its hold; the validity window is
+    bounded on the owner and on relaying non-owners.
+  - D9 step 3 (Codex P1-2): short free custody is a splittable outcome for the relayer, and a
+    shard's turn is spent only by a successful submission.
+  - D8f (Codex P2-4): the proved `Accept` fallback takes its validity interval after the co-sign
+    round.
+  - D9 (Codex P2-5): a startup grace of one hold's lifetime replaces the pending-spend protection
+    a restart loses; `Settle` journal recovery stays.
+  - D8f (Codex P2-7): the `Accept` batcher carries a scan cursor across passes over the vault's
+    outputs, wrapping around.
+  - D8h §1 step 6 (Codex P3-8): the `Accept` and `Settle` body checks require the required
+    signers to name at least the anchor's threshold of distinct members.
+  - D8f (Fable P2-2): a relaying non-owner also submits proved `Accept`s.
+  - D9 (Fable P3-2 to P3-5): one vault's failure no longer stops a pass for the others; the task
+    timer survives any failure but a `VirtualMachineError`; the relayer walks the claim index once
+    per pass; the two MPF proof normalizers point at each other.

@@ -51,7 +51,7 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * validity-window-slots (600)       owner and relayer: the validity window of every Settle, Accept and relayed Exit,
  *                                   at most 10 minutes of slots; a pending transaction holds its inputs for one
  *                                   window plus a slack after its submission
- * max-vault-inputs (8)              owner only: vault inputs per Settle
+ * max-vault-inputs (8)              owner and relayer: vault inputs per Settle or relayed Exit
  * max-supplement-per-payout (0)     owner only: the most lovelace the fee wallet adds to one payout's min-UTxO (D11);
  *                                   a claim needing more is left out of the co-signed batch and stays RESERVED for
  *                                   Exit, where the relayer or the user supplements it
