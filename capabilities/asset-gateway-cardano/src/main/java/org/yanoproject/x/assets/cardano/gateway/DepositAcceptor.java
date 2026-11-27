@@ -92,10 +92,7 @@ final class DepositAcceptor {
         if (pp == null) return "no protocol parameters";
         List<ResolvedOutput> funding = wallet.funding(node.l1().at(wallet.address()), held);
         if (funding.isEmpty()) return "no fee wallet funds";
-        long slot = node.settings().slots().slotAt(now);
-        AcceptTxBuilder.Context context = new AcceptTxBuilder.Context(pins, anchor.get().output(), exitMode.get(),
-                List.of(vaultRef.get()), new PayoutTxBuilder.Funding(funding, wallet.address()), Math.max(0, slot - 60),
-                slot + node.settings().validityWindowSlots(), pp);
+        AcceptTxBuilder.Context context = context(pins, anchor.get(), exitMode.get(), vaultRef.get(), funding, pp);
 
         // The co-signed Accept, the everyday path.
         AssetSettlementExecutor.SignerMemory memory = signerMemory.getOrDefault(pins.vaultId(),
@@ -122,13 +119,25 @@ final class DepositAcceptor {
             }
         }
 
-        // The proved fallback: anyone may submit it; the script checks every proof against the anchored root.
+        // The proved fallback: anyone may submit it; the script checks every proof against the anchored root. Its
+        // validity interval starts from now, after the co-sign round's wait (Codex P2-4).
         Optional<StateProof.Source> proofs = node.anchoredProofs(anchor.get());
         if (proofs.isEmpty()) return roundNote + "; the live anchor has no anchored height";
+        AcceptTxBuilder.Context provedContext = context(pins, anchor.get(), exitMode.get(), vaultRef.get(), funding,
+                pp);
         Attempt proved = build(deposits, node.settings().tasks().acceptProvedBatch(),
-                batch -> AcceptTxBuilder.proved(context, batch, proofs.get(), node.evaluator()));
+                batch -> AcceptTxBuilder.proved(provedContext, batch, proofs.get(), node.evaluator()));
         if (proved.built() == null) return roundNote + "; no proved Accept: " + proved.failure();
         return submit(proved.built(), Map.of(), "accepted (proved) ");
+    }
+
+    /** The build context, its validity interval from this node's clock now: one validity window from the tip. */
+    private AcceptTxBuilder.Context context(VaultPins pins, NodeL1View.Anchored anchor, ResolvedOutput exitMode,
+                                            ResolvedOutput vaultRef, List<ResolvedOutput> funding, ProtocolParams pp) {
+        long slot = node.settings().slots().slotAt(node.clock().getAsLong());
+        return new AcceptTxBuilder.Context(pins, anchor.output(), exitMode, List.of(vaultRef),
+                new PayoutTxBuilder.Funding(funding, wallet.address()), Math.max(0, slot - 60),
+                slot + node.settings().validityWindowSlots(), pp);
     }
 
     /**

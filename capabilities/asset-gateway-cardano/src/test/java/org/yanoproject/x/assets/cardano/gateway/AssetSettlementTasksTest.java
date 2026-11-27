@@ -386,6 +386,8 @@ class AssetSettlementTasksTest {
         BridgeDiffusionHandler handler;
         /** How far a submission moves the clock: a slow submission. */
         long submitTakesMs;
+        /** How far a diffused message moves the clock: a slow co-sign round. */
+        long diffuseTakesMs;
         final List<Long> proofHeights = Collections.synchronizedList(new ArrayList<>());
 
         Node(byte[] seed) {
@@ -396,6 +398,7 @@ class AssetSettlementTasksTest {
 
         @Override
         public void diffuse(String topic, byte[] body) {
+            now += diffuseTakesMs;
             synchronized (bus) {
                 bus.add(AppMessage.builder().chainId(CHAIN).topic(topic).sender(publicKey(seed)).body(body).build());
             }
@@ -793,6 +796,27 @@ class AssetSettlementTasksTest {
         assertThat(tx(accept).getBody().getRequiredSigners()).isEmpty();
         assertThat(((ConstrPlutusData) leadRedeemer(accept)).getAlternative()).isEqualTo(GatewayPlutus.ACCEPT_PROVED);
         assertThat(owner.proofHeights).isNotEmpty().containsOnly(ANCHORED);
+    }
+
+    /** Codex P2-4: the proved fallback's validity interval starts after the co-sign round's wait, not before it. */
+    @Test
+    void theProvedFallbackIsValidFromAfterTheCoSignRound() throws Exception {
+        seed();
+        Node owner = new Node(OWNER_SEED);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner);
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false);
+        pump(owner); // the other member is offline
+        owner.diffuseTakesMs = 11 * 60_000; // the round outlasts a whole validity window
+
+        String outcome = executor.acceptor().orElseThrow().runOnce();
+
+        assertThat(outcome).as(outcome).startsWith("accepted (proved) 1 deposits");
+        var body = tx(submitted.getFirst()).getBody();
+        long slot = now / 1_000;
+        assertThat(body.getValidityStartInterval()).isLessThanOrEqualTo(slot);
+        assertThat(body.getTtl()).isGreaterThan(slot);
+        assertPasses(submitted.getFirst());
     }
 
     // ------------------------------------------------------------------ the exit relayer
