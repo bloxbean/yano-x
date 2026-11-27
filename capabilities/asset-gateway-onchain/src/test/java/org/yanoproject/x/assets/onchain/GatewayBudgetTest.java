@@ -64,6 +64,11 @@ class GatewayBudgetTest extends GatewayTestBase {
 
     /** Runs every script input of {@code tx} (vault or shard, by address) and sizes the whole transaction. */
     private Measured measure(Tx tx, Program vault, int scriptRefs) {
+        return measure(tx, vault, shard(), scriptRefs);
+    }
+
+    /** As {@link #measure(Tx, Program, int)}, with {@code shard} as the nullifier-shard backend (r23). */
+    private Measured measure(Tx tx, Program vault, Program shard, int scriptRefs) {
         long cpu = 0;
         long mem = 0;
         Map<TxOutRef, long[]> units = new HashMap<>();
@@ -71,7 +76,7 @@ class GatewayBudgetTest extends GatewayTestBase {
             if (spent.redeemer() == null) {
                 continue;
             }
-            Program program = spent.input().resolved().address().equals(vaultAddress()) ? vault : shard();
+            Program program = spent.input().resolved().address().equals(vaultAddress()) ? vault : shard;
             EvalResult result = evaluate(program, tx.spending(spent.input().outRef()));
             assertThat(result.isSuccess()).as("budget scenario succeeds: %s", result).isTrue();
             long c = result.budgetConsumed().cpuSteps();
@@ -135,38 +140,54 @@ class GatewayBudgetTest extends GatewayTestBase {
 
     @Test
     void settleCapByUnitsAndSize() {
-        for (int followers : new int[] {0, 3, 7}) {
+        settleCaps("Settle", shard(), new int[] {0, 3, 7});
+    }
+
+    /** ADR-059 r23: the same batches with the Aiken shard backend; the profile caps (16, 8) must still fit. */
+    @Test
+    void settleAndExitCapsWithTheAikenShard() {
+        settleCaps("Settle(aiken)", aikenShard(), new int[] {0, 7});
+        exitCaps("Exit(aiken)", aikenShard(), new int[] {0, 3});
+    }
+
+    private void settleCaps(String name, Program shard, int[] followerCounts) {
+        for (int followers : followerCounts) {
             int largest = 0;
             for (int k = 1; k <= 64; k = k < 16 ? k * 2 : k + 1) {
                 Tx tx = settlePayout(k, followers).build().tx();
-                Measured m = measure(tx, uncappedVault(), 2);
-                report("Settle", k, followers + 1, m, "redeemer bytes=" + redeemerBytes(tx));
+                Measured m = measure(tx, uncappedVault(), shard, 2);
+                report(name, k, followers + 1, m, "redeemer bytes=" + redeemerBytes(tx));
                 if (!m.fits()) {
                     break;
                 }
                 largest = k;
             }
-            System.out.printf("CAP|Settle|%d|%d%n", followers + 1, largest);
-            assertThat(largest).as("Settle cap with %d vault inputs", followers + 1).isGreaterThanOrEqualTo(16);
+            System.out.printf("CAP|%s|%d|%d%n", name, followers + 1, largest);
+            assertThat(largest).as("%s cap with %d vault inputs", name, followers + 1).isGreaterThanOrEqualTo(16);
         }
     }
 
     @Test
     void exitCapByUnitsAndSize() {
-        for (int followers : new int[] {0, 3}) {
+        exitCaps("Exit", shard(), new int[] {0, 3});
+    }
+
+    private void exitCaps(String name, Program shard, int[] followerCounts) {
+        for (int followers : followerCounts) {
             int largest = 0;
             for (int k = 1; k <= 16; k++) {
                 Tx tx = exitPayout(k, followers).build().tx();
-                Measured m = measure(tx, uncappedVault(), 2);
-                report("Exit", k, followers + 1, m, "state folds=" + bigState.depth(exitClaims.get(k - 1).key())
+                Measured m = measure(tx, uncappedVault(), shard, 2);
+                report(name, k, followers + 1, m, "state folds=" + bigState.depth(exitClaims.get(k - 1).key())
                         + " redeemer bytes=" + redeemerBytes(tx));
                 if (!m.fits()) {
                     break;
                 }
                 largest = k;
             }
-            System.out.printf("CAP|Exit|%d|%d%n", followers + 1, largest);
-            assertThat(largest).isGreaterThanOrEqualTo(1);
+            System.out.printf("CAP|%s|%d|%d%n", name, followers + 1, largest);
+            // The deployed profile cap is 8 (BUDGETS.md): it must fit with either shard backend.
+            assertThat(largest).as("%s cap with %d vault inputs", name, followers + 1).isGreaterThanOrEqualTo(8);
         }
     }
 
@@ -331,6 +352,15 @@ class GatewayBudgetTest extends GatewayTestBase {
             int size = org.julclang.clientlib.JulcScriptAdapter.fromProgram(template).getCborHex().length() / 2;
             System.out.printf("SIZE|%s|%d%n", type.getSimpleName(), size);
         }
+        int aikenTemplate = org.julclang.clientlib.JulcScriptAdapter.fromProgram(aikenShardTemplate()).getCborHex()
+                .length() / 2;
+        int aikenApplied = org.julclang.clientlib.JulcScriptAdapter.fromProgram(aikenShard()).getCborHex()
+                .length() / 2;
+        int julcApplied = org.julclang.clientlib.JulcScriptAdapter.fromProgram(shard()).getCborHex().length() / 2;
+        System.out.printf("SIZE|AssetShardValidator(applied)|%d%n", julcApplied);
+        System.out.printf("SIZE|AssetShardValidatorAiken|%d%n", aikenTemplate);
+        System.out.printf("SIZE|AssetShardValidatorAiken(applied)|%d%n", aikenApplied);
+        assertThat(aikenApplied).isLessThan(15_500);
         for (AssetId asset : List.of(TOKEN, AssetId.ADA)) {
             int applied = org.julclang.clientlib.JulcScriptAdapter.fromProgram(vault(asset)).getCborHex().length() / 2;
             System.out.printf("SIZE|AssetVaultValidator(%s, applied)|%d%n", asset.isAda() ? "ADA" : "token", applied);

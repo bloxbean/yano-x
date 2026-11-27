@@ -29,7 +29,7 @@ julc VM against real tries and serializes each whole transaction. Rerun it with:
   alternating continuations and top-ups for `Consolidate`). Caps are measured with the profile's batch caps set to
   the on-chain maximum (64).
 - **Toolchain.** julc 0.1.0-pre20, default optimization level (`pv11-safe`), the same toolchain that compiles the
-  committed artifacts.
+  committed artifacts. The Aiken shard backend has its own section below.
 
 ## Execution units and transaction sizes
 
@@ -111,6 +111,43 @@ julc VM against real tries and serializes each whole transaction. Rerun it with:
   or a `FloorTopUpV1` holding lovelace alone) judges the inputs of the payouts (`Settle`, `Exit`, `BalanceExit`) and of
   `Consolidate`, and the sweep exclusion; `Accept` takes deposit-shaped inputs instead.
 
+## The Aiken shard backend (r23)
+
+A deployment may select the Aiken shard (`shard-backend: aiken`, ADR-059 D8c r23): `aiken/validators/asset_shard.ak`,
+aiken-lang/merkle-patricia-forestry v2.1.0 behind Yano X's own proof-shape checks, compiled with Aiken v1.1.21
+(stdlib v2.2.0, default build without traces). `GatewayBudgetTest.settleAndExitCapsWithTheAikenShard` measures the
+same transactions as above with the Aiken shard in place of the julc one; the vault and the transaction bytes are
+unchanged (the redeemers and the shard's datum are the same), so only the shard's units differ.
+
+| Transaction | k | Vault inputs | CPU | Memory | CPU % | Memory % | Tx bytes | julc shard, memory % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `Settle` | 1 | 1 | 559,447,392 | 1,826,370 | 5.6 | 11.1 | 1,735 | 11.5 |
+| `Settle` | 8 | 1 | 1,700,372,558 | 5,704,849 | 17.0 | 34.6 | 6,766 | 34.5 |
+| `Settle` | 16 | 1 | 2,944,560,053 | 9,945,137 | 29.4 | 60.3 | 12,381 | 59.8 |
+| `Settle` | 21 | 1 | 3,774,729,719 | 12,760,306 | 37.7 | 77.3 | 15,957 | 76.4 |
+| `Settle` | 16 | 8 | 3,676,011,004 | 12,201,447 | 36.8 | 73.9 | 12,766 | 73.4 |
+| `Settle` | 21 | 8 | 4,506,180,670 | 15,016,616 | 45.1 | 91.0 | 16,342 | 90.1 |
+| `Exit` | 1 | 1 | 863,986,514 | 2,843,869 | 8.6 | 17.2 | 3,023 | 17.6 |
+| `Exit` | 8 | 1 | 3,030,347,573 | 10,093,951 | 30.3 | 61.2 | 13,940 | 61.1 |
+| `Exit` | 9 | 1 | 3,351,957,210 | 11,172,117 | 33.5 | 67.7 | 15,572 | 67.6 |
+| `Exit` | 8 | 4 | 3,315,529,904 | 11,008,993 | 33.2 | 66.7 | 14,105 | 66.7 |
+| `Exit` | 9 | 4 | 3,637,139,541 | 12,087,159 | 36.4 | 73.3 | 15,737 | 73.2 |
+
+The shard alone, inserting into a shard of 4,000 paid ids (`AssetShardBackendDifferentialTest`):
+
+| Inserts | julc CPU | julc memory | Aiken CPU | Aiken memory |
+|---:|---:|---:|---:|---:|
+| 1 | 182,272,029 | 651,629 | 185,521,432 | 589,359 |
+| 4 | 421,579,476 | 1,593,879 | 458,883,378 | 1,549,383 |
+| 8 | 850,377,867 | 3,189,305 | 964,854,415 | 3,239,243 |
+| 16 | 1,526,101,481 | 5,809,983 | 1,742,471,289 | 5,929,752 |
+
+- The caps are unchanged: `Settle` 21 and `Exit` 9, both bound by transaction size as with the julc shard, so the
+  profile caps (16 and 8) hold for either backend. The Aiken shard uses up to about 14% more CPU and 2% more memory
+  at 16 inserts, and less memory for small batches; the largest difference in a whole transaction is 0.9 points of
+  the memory limit (`Settle` k = 21 with 8 vault inputs, 91.0% against 90.1%).
+- The Aiken shard is 502 bytes larger. Its reference script still fits easily in one output.
+
 ## Script sizes
 
 A reference script must fit in one output of a transaction of at most 16,384 bytes. Sizes are the CBOR-wrapped
@@ -119,7 +156,8 @@ script bytes, as the ledger stores them.
 | Script | Template bytes | Applied bytes |
 |---|---:|---:|
 | `AssetVaultValidator` | 14,936 | 15,452 (token vault), 15,419 (ADA vault) |
-| `AssetShardValidator` | 4,493 | |
+| `AssetShardValidator` | 4,493 | 4,562 |
+| `AssetShardValidatorAiken` (r23) | 4,995 | 5,064 |
 | `ExitModeThreadValidator` | 7,207 | |
 | `ForcedInboxValidator` | 10,347 | |
 | `AssetShardThreadPolicy` | 1,713 | |
