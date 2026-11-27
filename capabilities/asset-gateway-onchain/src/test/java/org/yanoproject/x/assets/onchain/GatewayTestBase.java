@@ -144,6 +144,31 @@ abstract class GatewayTestBase extends ContractTest {
         return program(AssetShardValidator.class, PlutusData.bytes(SHARD_POLICY), PlutusData.bytes(VAULT_HASH));
     }
 
+    /** The Aiken shard backend's committed template (ADR-059 r23), as a deployment parameterizes it. */
+    static final java.nio.file.Path AIKEN_SHARD_ARTIFACT =
+            java.nio.file.Path.of("src/main/resources/META-INF/plutus/AssetShardValidatorAiken.plutus.json");
+
+    static synchronized Program aikenShardTemplate() {
+        return PROGRAMS.computeIfAbsent("aiken:template", ignored -> {
+            try {
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
+                        "\"cborHex\"\\s*:\\s*\"([0-9a-fA-F]+)\"").matcher(
+                        java.nio.file.Files.readString(AIKEN_SHARD_ARTIFACT));
+                assertThat(matcher.find()).as("%s carries cborHex", AIKEN_SHARD_ARTIFACT).isTrue();
+                return org.julclang.clientlib.JulcScriptAdapter.toProgram(matcher.group(1));
+            } catch (java.io.IOException failure) {
+                throw new IllegalStateException(failure);
+            }
+        });
+    }
+
+    /** The Aiken shard with the same parameters as {@link #shard()}. */
+    static synchronized Program aikenShard() {
+        Program template = aikenShardTemplate();
+        return PROGRAMS.computeIfAbsent("aiken:shard", ignored -> template.applyParams(PlutusData.bytes(SHARD_POLICY),
+                PlutusData.bytes(VAULT_HASH)));
+    }
+
     static Program exitModeValidator() {
         return program(ExitModeThreadValidator.class, PlutusData.bytes(EXIT_POLICY), PlutusData.bytes(ANCHOR_POLICY),
                 PlutusData.bytes(ANCHOR_NAME), PlutusData.bytes(ANCHOR_HASH), PlutusData.bytes(GENESIS),

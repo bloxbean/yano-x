@@ -14,7 +14,8 @@ with `-Dyano.regenerate.plutus=true`). The on-chain ABI (datums and redeemers) i
 | `ExitModeThreadValidator` | `NORMAL` → `EXIT(frozenRoot, height, atMs)`, terminal | exit-mode policy id, anchor identity, inbox policy id, heartbeat / forced-deadline / max-pause timeouts, forced key prefix, status key |
 | `AssetShardThreadPolicy` | 16 shard thread tokens per vault, one-shot | seed outpoint |
 | `AssetVaultValidator` | one vault per asset | `VaultId` fields, address network id, anchor identity, shard thread policy id, exit-mode policy id and script hash, claim / deposit / exit key prefixes, status key, profile (batch caps, floor, exit-delay bounds, max pause) |
-| `AssetShardValidator` | one of a vault's 16 nullifier threads | shard thread policy id, vault script hash |
+| `AssetShardValidator` | one of a vault's 16 nullifier threads (julc shard backend, the default) | shard thread policy id, vault script hash |
+| `AssetShardValidatorAiken` | the same shard, Aiken backend (`aiken/validators/asset_shard.ak`, r23) | shard thread policy id, vault script hash |
 
 The vault's redeemers are `Settle` (co-signed by a threshold of the referenced v2 anchor's members), `Exit` (per-claim
 proof against the anchor root, or the frozen root in exit mode), `SweepExit` (`SWEEP_UNATTRIBUTED`: one unaccepted
@@ -24,6 +25,41 @@ outpoint, its native assets paid exactly and at least its lovelace, with a `Swee
 in-flight payouts every round, and `Settle` already merges its inputs). Every payout inserts exactly the paid ids, in order, into one shard of the same vault, so a claim
 or an exit leaf is paid at most once on either path. Rules V1–V11 and V13 are enforced on chain; V12 (`Settle` covers
 only anchored reservations) is the members' body check and is not visible to the script.
+
+## Shard backends (ADR-059 D8c, r23)
+
+The nullifier shard has two interchangeable backends. Both take the same parameters, datum and redeemer and
+enforce the same rules; they differ only in their compiled bytes, so the shard script hash and address depend on
+the backend.
+
+- **julc** (default): `AssetShardValidator`, with Yano X's copy of the MPF library in `mpf/`.
+- **aiken**: `aiken/validators/asset_shard.ak`. It uses aiken-lang/merkle-patricia-forestry v2.1.0 (pinned in
+  `aiken/aiken.toml`), and Yano X applies its own proof-shape checks (`aiken/lib/yano_x/mpf_guard.ak`: well-formedness
+  and terminal unambiguity) before the library's has, miss and insert, matching the julc backend's rules
+  (`isWellFormed`, `excludedTerminalIsUnambiguous`). The redeemer, values and addresses are read positionally from
+  their Plutus Data, as the julc script reads them, so both accept the same encodings.
+
+A deployment selects the backend with the gateway setting `shard-backend` (`asset-gateway-cardano` README); the
+shard thread policy and the vault are the same under either. `AssetShardBackendDifferentialTest` runs both backends
+on the same transactions (honest inserts at 26 trie sizes and 6 batch sizes covering every terminal proof shape,
+the conformance proof shapes, systematic and random proof changes, lenient encodings, and every transaction-shape
+rule) and fails on any differing verdict. Their costs are in [`BUDGETS.md`](BUDGETS.md).
+
+The checked Aiken artifacts are `aiken/plutus.json` (the blueprint) and
+`src/main/resources/META-INF/plutus/AssetShardValidatorAiken.plutus.json` (its spend validator, one more CBOR
+byte-string layer, the envelope deployments parameterize). The ordinary build never runs the Aiken compiler;
+`AikenShardArtifactTest` checks on every build that the envelope is the blueprint's validator and that the toolchain
+and library are pinned. With Aiken v1.1.21 installed, run the module's Aiken tests and check that the blueprint is
+reproducible:
+
+```bash
+./gradlew :capabilities:asset-gateway-onchain:verifyAikenShard -Paiken=/path/to/aiken   # aiken check + aiken build
+# or, in capabilities/asset-gateway-onchain/aiken: aiken check && aiken build
+```
+
+After changing the Aiken sources, run `aiken build` there, rewrite the envelope from the blueprint's
+`asset_shard.asset_shard.spend` `compiledCode` (wrapped in one more CBOR byte string), and rerun the differential and
+budget tests.
 
 Implementation notes:
 
