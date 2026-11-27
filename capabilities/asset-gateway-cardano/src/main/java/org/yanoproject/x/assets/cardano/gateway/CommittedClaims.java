@@ -47,25 +47,54 @@ final class CommittedClaims implements SettleBodyCheck.Committed, AcceptBodyChec
     }
 
     /**
-     * Every {@code RESERVED} claim of the vault, the exit relayer's candidates (D9 step 1), walking the dense claim
-     * index; empty when the walk cannot complete, so the relayer relays nothing rather than a partial view.
+     * Every committed claim, in one walk of the dense claim index: the exit relayer reads it once per pass for every
+     * vault (Fable P3-4). Empty when the walk cannot complete, so the relayer relays nothing rather than from a partial
+     * view.
      */
-    Optional<List<ExitRelayer.Candidate>> reserved(Hash32 vaultId) {
+    Optional<Index> index() {
         Optional<Long> count = payload(SettlementQueries.CLAIM_COUNT, new byte[0]).map(SettlementQueries::decodeCount);
         if (count.isEmpty()) return Optional.empty();
-        List<ExitRelayer.Candidate> reserved = new ArrayList<>();
+        List<SettlementQueries.ClaimView> claims = new ArrayList<>();
         for (long sequence = 0; sequence < count.get(); sequence++) {
             Optional<byte[]> id = payload(SettlementQueries.CLAIM_BY_SEQUENCE,
                     SettlementQueries.encodeSequence(sequence));
             if (id.isEmpty() || id.get().length != Hash32.BYTES) return Optional.empty();
             Optional<SettlementQueries.ClaimView> view = claim(Hash32.of(id.get()));
             if (view.isEmpty()) return Optional.empty();
-            if (view.get().leaf().vaultId().equals(vaultId)
-                    && view.get().status().status() == ClaimStatus.RESERVED) {
-                reserved.add(new ExitRelayer.Candidate(view.get().leaf(), ClaimStatus.RESERVED));
-            }
+            claims.add(view.get());
         }
-        return Optional.of(reserved);
+        return Optional.of(new Index(claims));
+    }
+
+    /** One complete walk of the claim index. */
+    record Index(List<SettlementQueries.ClaimView> claims) {
+        Index {
+            claims = List.copyOf(claims);
+        }
+
+        /** Every {@code RESERVED} claim of the vault, the exit relayer's candidates (D9 step 1). */
+        List<ExitRelayer.Candidate> reserved(Hash32 vaultId) {
+            List<ExitRelayer.Candidate> reserved = new ArrayList<>();
+            for (SettlementQueries.ClaimView view : claims) {
+                if (view.leaf().vaultId().equals(vaultId) && view.status().status() == ClaimStatus.RESERVED) {
+                    reserved.add(new ExitRelayer.Candidate(view.leaf(), ClaimStatus.RESERVED));
+                }
+            }
+            return reserved;
+        }
+
+        /** The confirmed nullifier inserts of one shard, as {@link CommittedClaims#paid} reads them. */
+        List<Hash32> paid(Hash32 vaultId, int shard) {
+            List<Hash32> paid = new ArrayList<>();
+            for (SettlementQueries.ClaimView view : claims) {
+                ClaimStatus status = view.status().status();
+                if (SettlementBatchV1.shardOf(view.leaf().claimId()) == shard && view.leaf().vaultId().equals(vaultId)
+                        && (status == ClaimStatus.PAID || status == ClaimStatus.PAID_MISMATCH)) {
+                    paid.add(view.leaf().claimId());
+                }
+            }
+            return paid;
+        }
     }
 
     /**

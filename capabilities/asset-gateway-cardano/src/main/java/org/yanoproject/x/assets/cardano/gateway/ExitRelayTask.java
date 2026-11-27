@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * The permissionless exit relayer of ADR-059 D9, run on a timer by any node that enables it: it pays
@@ -62,18 +64,34 @@ final class ExitRelayTask {
         return lastOutcome;
     }
 
-    /** One pass over every vault; returns what happened, per vault. */
+    /**
+     * One pass over every vault; returns what happened, per vault. One vault's failure is reported and does not stop
+     * the others (Fable P3-2); the committed claim index is walked at most once per pass, for every vault (P3-4).
+     */
     String runOnce() throws Exception {
         return assembly.serialized(() -> {
             if (assembly.warmingUp(node.clock().getAsLong())) return lastOutcome = OwnerAssembly.WARMING_UP;
             List<String> outcomes = new ArrayList<>();
-            for (VaultPins pins : node.settings().pins()) outcomes.add(relay(pins));
+            AtomicReference<Optional<CommittedClaims.Index>> index = new AtomicReference<>();
+            Supplier<Optional<CommittedClaims.Index>> claims = () -> {
+                if (index.get() == null) index.set(node.committed().index());
+                return index.get();
+            };
+            for (VaultPins pins : node.settings().pins()) {
+                try {
+                    outcomes.add(relay(pins, claims));
+                } catch (InterruptedException interrupted) {
+                    throw interrupted;
+                } catch (Exception failure) {
+                    outcomes.add("vault " + pins.vaultId() + " failed: " + failure);
+                }
+            }
             lastOutcome = String.join("; ", outcomes);
             return lastOutcome;
         });
     }
 
-    private String relay(VaultPins pins) throws Exception {
+    private String relay(VaultPins pins, Supplier<Optional<CommittedClaims.Index>> claims) throws Exception {
         Optional<ResolvedOutput> exitMode = node.l1().exitMode(pins);
         if (exitMode.isEmpty()) return "no exit-mode thread";
         if (!DepositAcceptor.normal(exitMode.get())) return ExitRelayer.EXIT_MODE_REFUSAL;
@@ -84,9 +102,10 @@ final class ExitRelayTask {
         Optional<DomainStatusV1> anchoredStatus = proofs.get().inclusion(pins.domainStatusKey())
                 .flatMap(proof -> decodeStatus(proof.value()));
         if (anchoredStatus.isEmpty()) return "no status proof at the anchored height";
-        Optional<List<ExitRelayer.Candidate>> reserved = node.committed().reserved(pins.vaultId());
-        if (reserved.isEmpty()) return "committed claims unavailable";
-        if (reserved.get().isEmpty()) return "no reserved claims";
+        Optional<CommittedClaims.Index> index = claims.get();
+        if (index.isEmpty()) return "committed claims unavailable";
+        List<ExitRelayer.Candidate> reserved = index.get().reserved(pins.vaultId());
+        if (reserved.isEmpty()) return "no reserved claims";
 
         long now = node.clock().getAsLong();
         Set<ResolvedOutput.Outpoint> held = new HashSet<>(assembly.held(now, node.l1()));
@@ -94,12 +113,12 @@ final class ExitRelayTask {
         Map<Integer, ShardMirror> mirrors = new HashMap<>();
         Set<Integer> stopped = new HashSet<>();
         List<ExitRelayer.Candidate> relayable = new ArrayList<>();
-        for (ExitRelayer.Candidate candidate : reserved.get()) {
+        for (ExitRelayer.Candidate candidate : reserved) {
             int shard = SettlementBatchV1.shardOf(candidate.leaf().claimId());
             if (stopped.contains(shard)) continue;
             if (!mirrors.containsKey(shard)) {
                 Optional<ResolvedOutput> input = node.l1().shard(pins, shard);
-                Optional<ShardMirror> mirror = input.flatMap(in -> mirror(pins, shard, in));
+                Optional<ShardMirror> mirror = input.flatMap(in -> mirror(pins, shard, in, index.get()));
                 if (mirror.isEmpty() || held.contains(input.get().outpoint())) {
                     // A mirror that misses the live root stops this shard (D9 step 2); a pending payout's shard input
                     // waits for its inclusion.
@@ -200,16 +219,17 @@ final class ExitRelayTask {
      * The shard mirror (D8h §6): confirmed inserts plus this node's pending ones on the shard, falling back to
      * confirmed only; empty when neither matches the live shard root.
      */
-    private Optional<ShardMirror> mirror(VaultPins pins, int shard, ResolvedOutput shardInput) {
+    private Optional<ShardMirror> mirror(VaultPins pins, int shard, ResolvedOutput shardInput,
+                                         CommittedClaims.Index index) {
         Optional<Hash32> liveRoot = shardInput.inlineDatum().flatMap(GatewayDatums::shardDatum)
                 .filter(datum -> datum.shardIndex() == shard).map(GatewayDatums.ShardDatum::nullifierRoot);
-        Optional<List<Hash32>> paid = node.committed().paid(pins.vaultId(), shard);
-        if (liveRoot.isEmpty() || paid.isEmpty()) return Optional.empty();
-        LinkedHashSet<Hash32> withOwn = new LinkedHashSet<>(paid.get());
+        if (liveRoot.isEmpty()) return Optional.empty();
+        List<Hash32> paid = index.paid(pins.vaultId(), shard);
+        LinkedHashSet<Hash32> withOwn = new LinkedHashSet<>(paid);
         withOwn.addAll(assembly.inserts(pins.vaultId(), shard));
         ShardMirror optimistic = ShardMirror.of(shard, withOwn);
         if (optimistic.matches(liveRoot.get())) return Optional.of(optimistic);
-        ShardMirror confirmed = ShardMirror.of(shard, paid.get());
+        ShardMirror confirmed = ShardMirror.of(shard, paid);
         return confirmed.matches(liveRoot.get()) ? Optional.of(confirmed) : Optional.empty();
     }
 

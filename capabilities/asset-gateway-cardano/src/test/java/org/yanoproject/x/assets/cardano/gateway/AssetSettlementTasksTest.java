@@ -181,6 +181,8 @@ class AssetSettlementTasksTest {
     long startedAgoMs = HOUR;
     long anchorHeight = ANCHORED;
     String exitModeDatum = "d87980";
+    /** Addresses whose lookups fail in the L1 view. */
+    final Set<String> brokenAddresses = Collections.synchronizedSet(new HashSet<>());
 
     // ------------------------------------------------------------------ the L1
 
@@ -229,6 +231,7 @@ class AssetSettlementTasksTest {
         return new UtxoState() {
             @Override
             public List<Utxo> getUtxosByAddress(String address, int page, int count) {
+                if (brokenAddresses.contains(address)) throw new IllegalStateException("unreadable " + address);
                 List<Utxo> all;
                 synchronized (l1) {
                     all = l1.values().stream().filter(u -> u.address().equals(address)).toList();
@@ -311,6 +314,8 @@ class AssetSettlementTasksTest {
         final Map<Hash32, ClaimLeafV1> leaves = new LinkedHashMap<>();
         final Map<Hash32, SettlementRecords.ClaimStatusV1> status = new HashMap<>();
         final Map<Hash32, DepositRecordV1> deposits = new HashMap<>();
+        /** How often the claim index was walked (its count read). */
+        final java.util.concurrent.atomic.AtomicInteger indexWalks = new java.util.concurrent.atomic.AtomicInteger();
         DomainStatusV1 domain = new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 50, 0, DAY);
 
         byte[] answer(String path, byte[] request) {
@@ -321,7 +326,10 @@ class AssetSettlementTasksTest {
                             Optional.ofNullable(status.get(id)).map(SettlementRecords.ClaimStatusV1::encode));
                 }
                 case SettlementQueries.DOMAIN_STATUS -> domain.encode();
-                case SettlementQueries.CLAIM_COUNT -> SettlementQueries.encodeCount(leaves.size());
+                case SettlementQueries.CLAIM_COUNT -> {
+                    indexWalks.incrementAndGet();
+                    yield SettlementQueries.encodeCount(leaves.size());
+                }
                 case SettlementQueries.CLAIM_BY_SEQUENCE -> new ArrayList<>(leaves.keySet())
                         .get((int) SettlementQueries.decodeSequence(request)).bytes();
                 case SettlementQueries.DEPOSIT -> Optional.ofNullable(deposits.get(Hash32.of(request)))
@@ -912,8 +920,8 @@ class AssetSettlementTasksTest {
             l1.keySet().removeIf(key -> key.startsWith("61".repeat(32)));
         }
         for (int i = 0; i < lovelace.length; i++) {
-            put(utxo("61".repeat(32), i, enterprise(VAULT_HASH), lovelace[i], asset("f0".repeat(28), "5553444d", 100_000),
-                    HexFormat.of().parseHex("d87a8180"), null));
+            put(utxo("61".repeat(32), i, enterprise(VAULT_HASH), lovelace[i],
+                    asset("f0".repeat(28), "5553444d", 100_000), HexFormat.of().parseHex("d87a8180"), null));
         }
     }
 
@@ -1026,6 +1034,88 @@ class AssetSettlementTasksTest {
         assertThat(submitted).hasSize(1);
         assertPasses(submitted.getFirst());
         assertThat(paidBy(submitted.getFirst())).containsExactly(older.claimId());
+    }
+
+    // ------------------------------------------------------------------ robustness
+
+    /** A second vault, configured first, whose vault and shard addresses the L1 view cannot read. */
+    static final byte[] BROKEN_VAULT_HASH = filled(28, 0x99);
+    static final byte[] BROKEN_SHARD_HASH = filled(28, 0x98);
+
+    /** The settings with the broken ADA vault as vault 0 and this test's vault as vault 1. */
+    Map<String, String> withBrokenVaultFirst(Map<String, String> config) {
+        Map<String, String> out = new LinkedHashMap<>();
+        config.forEach((key, value) -> out.put(key.startsWith("vaults.0.") ? "vaults.1." + key.substring(9) : key,
+                value));
+        out.put("vaults.0.asset", "lovelace");
+        out.put("vaults.0.script-hash", HexFormat.of().formatHex(BROKEN_VAULT_HASH));
+        out.put("vaults.0.address", enterprise(BROKEN_VAULT_HASH));
+        out.put("vaults.0.shard-policy-id", "b3".repeat(28));
+        out.put("vaults.0.shard-script-hash", HexFormat.of().formatHex(BROKEN_SHARD_HASH));
+        out.put("vaults.0.shard-address", enterprise(BROKEN_SHARD_HASH));
+        out.put("vaults.0.script-ref", "65".repeat(32) + "#0");
+        out.put("vaults.0.shard-script-ref", "65".repeat(32) + "#1");
+        return out;
+    }
+
+    /**
+     * Fable P3-2 and P3-4: a vault whose L1 reads fail is reported and does not stop the next vault's Accept or Exit,
+     * and the relayer walks the claim index once per pass for every vault.
+     */
+    @Test
+    void oneVaultsFailureDoesNotStopTheOthersAndTheClaimIndexIsWalkedOncePerPass() throws Exception {
+        seed();
+        brokenAddresses.add(enterprise(BROKEN_VAULT_HASH));
+        brokenAddresses.add(enterprise(BROKEN_SHARD_HASH));
+        Node relayerNode = new Node(MEMBER_SEED);
+        // A reserved claim of the broken vault, so its relaying reaches its unreadable shard.
+        Hash32 brokenVault = GatewayIds.vaultId(DOMAIN, AssetId.ADA, 0);
+        ClaimLeafV1 template = reserve(2, 81, 900, NOW - 2 * DAY);
+        ClaimLeafV1 broken = new ClaimLeafV1(template.claimId(), brokenVault, ClaimKind.USER_WITHDRAWAL,
+                AssetValue.single(AssetId.ADA, BigInteger.valueOf(3_000_000)), BigInteger.ZERO, template.recipient(),
+                900, NOW - 2 * DAY);
+        relayerNode.ledger.leaves.put(broken.claimId(), broken);
+        relayerNode.ledger.status.put(broken.claimId(),
+                SettlementRecords.ClaimStatusV1.reserved(broken.claimId(), broken.reservedHeight()));
+        ClaimLeafV1 claim = reserve(3, 82, 900, NOW - 2 * DAY, relayerNode);
+        deposit(0, 900, DepositAdmission.Reason.NONE, relayerNode);
+        anchor();
+        List<AppEffectExecutor> products;
+        long at = now;
+        now = at - startedAgoMs;
+        try {
+            products = AssetSettlementExecutorFactory.create(withBrokenVaultFirst(config(false, true)), relayerNode,
+                    () -> now);
+        } finally {
+            now = at;
+        }
+        var product = (AssetSettlementExecutorFactory.CosignOnly) products.getFirst();
+
+        String accepted = product.acceptor().orElseThrow().runOnce();
+        assertThat(accepted).as(accepted).startsWith("vault " + brokenVault + " failed:")
+                .contains("; accepted (proved) 1 deposits");
+
+        // The Accept spent the relayer's fee output: fund the Exit.
+        put(utxo("6a".repeat(32), 1, keyAddress(RELAYER_FEE_SEED), 80_000_000, List.of(), null, null));
+        relayerNode.ledger.indexWalks.set(0);
+        String relayed = product.relayer().orElseThrow().runOnce();
+        assertThat(relayed).as(relayed).startsWith("vault " + brokenVault + " failed:")
+                .contains("; relayed 1 on shard 3");
+        assertThat(paidBy(submitted.getLast())).containsExactly(claim.claimId());
+        assertThat(relayerNode.ledger.indexWalks).hasValue(1);
+    }
+
+    /** Fable P3-3: an Error thrown by a pass is logged; the timer keeps running the later passes. */
+    @Test
+    void aPassThatThrowsAnErrorDoesNotStopTheTimer() throws Exception {
+        java.util.concurrent.CountDownLatch passes = new java.util.concurrent.CountDownLatch(3);
+        try (SettlementTasks tasks = new SettlementTasks(CHAIN)) {
+            tasks.every(5, "failing pass", () -> {
+                passes.countDown();
+                throw new AssertionError("a pass that fails with an Error");
+            });
+            assertThat(passes.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     // ------------------------------------------------------------------ the concurrency contract

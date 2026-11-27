@@ -80,12 +80,20 @@ final class DepositAcceptor {
         return lastOutcome;
     }
 
-    /** One pass over every vault; returns what happened, per vault. */
+    /** One pass over every vault; returns what happened, per vault. One vault's failure does not stop the others. */
     String runOnce() throws Exception {
         return assembly.serialized(() -> {
             if (assembly.warmingUp(node.clock().getAsLong())) return lastOutcome = OwnerAssembly.WARMING_UP;
             List<String> outcomes = new ArrayList<>();
-            for (VaultPins pins : node.settings().pins()) outcomes.add(accept(pins));
+            for (VaultPins pins : node.settings().pins()) {
+                try {
+                    outcomes.add(accept(pins));
+                } catch (InterruptedException interrupted) {
+                    throw interrupted;
+                } catch (Exception failure) {
+                    outcomes.add("vault " + pins.vaultId() + " failed: " + failure);
+                }
+            }
             lastOutcome = String.join("; ", outcomes);
             return lastOutcome;
         });

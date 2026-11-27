@@ -51,9 +51,10 @@ import java.util.function.Supplier;
  * co-signed {@code Accept} with {@link AcceptBodyCheck} (D8h §1). The owner also batches credited deposits into
  * {@code Accept}s ({@link DepositAcceptor}, {@code accept.interval-ms}); any node with {@code exit-relayer.enabled}
  * relays {@code EXIT_ELIGIBLE} claims by proof {@code Exit} ({@link ExitRelayTask}), with state proofs from this
- * node at the referenced live anchor's height, and a relaying non-owner also submits proved {@code Accept}s. Both run on a timer owned by the executor product, which stops it
- * on close; on the owner they share the {@code Settle} executor's assembly lock, pending-spend holds and fee wallet
- * ({@link OwnerAssembly}), and a relaying non-owner has its own.
+ * node at the referenced live anchor's height, and a relaying non-owner also submits proved {@code Accept}s. They
+ * run on a timer owned by the executor product, which stops it on close; on the owner they share the {@code Settle}
+ * executor's assembly lock, pending-spend holds and fee wallet ({@link OwnerAssembly}), and a relaying non-owner has
+ * its own.
  */
 public final class AssetSettlementExecutorFactory implements AppEffectExecutorFactory {
     public static final String SCHEME = "asset-settlement";
