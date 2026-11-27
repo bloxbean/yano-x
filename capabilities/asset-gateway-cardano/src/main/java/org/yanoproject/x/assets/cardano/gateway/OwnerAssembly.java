@@ -1,10 +1,16 @@
 package org.yanoproject.x.assets.cardano.gateway;
 
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.contracts.Hash32;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -12,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
@@ -22,81 +29,121 @@ import java.util.function.Consumer;
  * <ul>
  *   <li>One lock serializes every assembly (L1 read, selection, build, co-sign, submit), so two of them never select
  *       the same fee-wallet or vault output.</li>
- *   <li>Each submission still pending holds the outpoints it spends: nothing selects them again until it closes, and
- *       a payout whose shard input a pending submission spends waits for its inclusion.</li>
+ *   <li>Each submission still pending holds the outpoints it spends: nothing selects them again, and a payout whose
+ *       shard input a pending submission spends waits for its inclusion.</li>
  *   <li>The nullifier inserts of pending payouts are the optimistic part of the shard mirror (D8h §6).</li>
  * </ul>
- * Every hold is finite. It expires one validity window plus {@link #SLACK_MS} after its successful submission: the
- * transaction's TTL is at most one validity window past its assembly, which precedes the submission, so by then it is
- * on L1 (its inputs gone from the view) or never will be. A hold is released earlier once its transaction is provably
- * dead: a reference input (the anchor) or a spent input no longer resolves while none of the transaction's own outputs
- * does. A {@code Settle} hold is also released when its effect closes.
  *
- * <p>Holds live in memory only. After a start (or restart), the node therefore assembles nothing for one hold's
- * lifetime ({@link #warmingUp}): a transaction submitted before the restart was submitted before the start, so by then
- * it has landed (its inputs gone from the view) or expired, and nothing it spends can be selected while it is still
- * pending. A {@code Settle} effect submitted before the restart is still probed from its persisted reference.
+ * <p><b>Release only on L1 evidence</b> (r22). Nothing is released by the wall clock or by a guess that a transaction
+ * is dead. An input hold is released when this node's applied L1 view shows either that the transaction can never
+ * land (its applied tip slot is past the transaction's TTL slot) or that it has landed (one of its outputs is in the
+ * view, spent or unspent). A view that cannot answer, or a stale view whose tip does not move, keeps the hold. The
+ * pending inserts of a payout stay in the mirror until committed state accounts for them (every claim
+ * {@code PAID} or {@code PAID_MISMATCH}) or the transaction can never land (the tip is past its TTL and it is not in
+ * the view); they never expire with the input hold.
+ *
+ * <p><b>Startup grace.</b> Holds live in memory. Before each submission, the transaction's TTL slot is persisted to a
+ * node-local file ({@code pending-ttl-file}); after a start, the node assembles nothing new until its applied L1 view
+ * is past the persisted slot, by when every transaction submitted before the restart has landed or can never land.
+ * Without a readable file it waits the longest permitted validity window plus {@link #SLACK_MS} instead. A
+ * {@code Settle} submitted before the restart is still probed from its persisted reference.
  */
 final class OwnerAssembly {
-    /** How long past its transaction's TTL a hold lasts: the L1 view's lag and the clock skew to the L1 slot clock. */
+    /** The no-file startup grace past the longest permitted validity window: L1 view lag and clock skew. */
     static final long SLACK_MS = 120_000;
     /** The outcome of an assembly refused during the startup grace. */
     static final String WARMING_UP = "startup grace: waiting out transactions submitted before the start";
 
-    /** One pending submission: what it spends and references, its output count, and for a payout its inserts. */
-    record Hold(Hash32 txId, Set<ResolvedOutput.Outpoint> spends, Set<ResolvedOutput.Outpoint> references,
-                int outputs, Hash32 vaultId, int shard, List<Hash32> inserts, long expiresAtMs) {
-        Hold {
+    /** One submitted transaction: what it spends, its output count and TTL slot, and for a payout its inserts. */
+    record Pending(Hash32 txId, Set<ResolvedOutput.Outpoint> spends, int outputs, long ttlSlot, Hash32 vaultId,
+                   int shard, List<Hash32> inserts) {
+        Pending {
             Objects.requireNonNull(txId, "tx id");
             spends = Set.copyOf(spends);
-            references = Set.copyOf(references);
             inserts = List.copyOf(inserts);
         }
 
-        /** The hold of a submitted payout ({@code Settle} or {@code Exit}) of {@code inserts} on one shard. */
-        static Hold payout(Transaction tx, Hash32 txId, Hash32 vaultId, int shard, List<Hash32> inserts,
-                           long expiresAtMs) {
-            return new Hold(txId, FeeWallet.spends(tx), references(tx), tx.getBody().getOutputs().size(), vaultId,
-                    shard, inserts, expiresAtMs);
+        /** A submitted payout ({@code Settle} or {@code Exit}) of {@code inserts} on one shard. */
+        static Pending payout(Transaction tx, Hash32 txId, Hash32 vaultId, int shard, List<Hash32> inserts) {
+            return new Pending(txId, FeeWallet.spends(tx), tx.getBody().getOutputs().size(), tx.getBody().getTtl(),
+                    vaultId, shard, inserts);
         }
 
-        /** The hold of a submitted transaction that inserts no nullifier ({@code Accept}). */
-        static Hold spending(Transaction tx, Hash32 txId, long expiresAtMs) {
-            return payout(tx, txId, null, -1, List.of(), expiresAtMs);
-        }
-
-        private static Set<ResolvedOutput.Outpoint> references(Transaction tx) {
-            Set<ResolvedOutput.Outpoint> references = new HashSet<>();
-            List<TransactionInput> inputs = tx.getBody().getReferenceInputs();
-            if (inputs == null) return references;
-            for (TransactionInput input : inputs) {
-                references.add(new ResolvedOutput.Outpoint(Hash32.ofHex(input.getTransactionId()), input.getIndex()));
-            }
-            return references;
+        /** A submitted transaction that inserts no nullifier ({@code Accept}). */
+        static Pending spending(Transaction tx, Hash32 txId) {
+            return payout(tx, txId, null, -1, List.of());
         }
     }
 
-    /** The end of the startup grace: no assembly starts before it. */
-    private final long readyAtMs;
     private final Object lock = new Object();
-    /** Guarded by {@link #lock}. */
-    private final Map<String, Hold> holds = new LinkedHashMap<>();
-    /** Told, under the lock, the key of every hold dropped by expiry or death (not by {@link #release}). */
-    private volatile Consumer<String> onDrop = key -> { };
+    /** Input holds by key. Guarded by {@link #lock}. */
+    private final Map<String, Pending> holds = new LinkedHashMap<>();
+    /** Payouts whose inserts are not yet accounted for, by transaction id. Guarded by {@link #lock}. */
+    private final Map<Hash32, Pending> inserting = new LinkedHashMap<>();
+    /** Told, under the lock, the key of every input hold released on L1 evidence. */
+    private volatile Consumer<String> onRelease = key -> { };
 
-    /** The assembly of a node started at {@code startedAtMs}, warming up for one hold's lifetime. */
-    OwnerAssembly(long startedAtMs, long validityWindowMs) {
-        this.readyAtMs = expiry(startedAtMs, validityWindowMs);
+    private final long startedAtMs;
+    private final Optional<Path> ttlFile;
+    /** The TTL slot persisted before the start, when the file was readable. */
+    private final OptionalLong persistedTtl;
+    /** The highest TTL slot written to the file. Guarded by {@link #lock}. */
+    private long writtenTtl;
+    private volatile boolean ready;
+
+    /** The assembly of a node started at {@code startedAtMs}, persisting TTLs to {@code ttlFile} when given. */
+    OwnerAssembly(long startedAtMs, Optional<Path> ttlFile) {
+        this.startedAtMs = startedAtMs;
+        this.ttlFile = Objects.requireNonNull(ttlFile, "ttl file");
+        this.persistedTtl = ttlFile.flatMap(OwnerAssembly::read).stream().mapToLong(Long::longValue).findFirst();
+        this.writtenTtl = persistedTtl.orElse(-1);
     }
 
-    /** True during the startup grace: no new transaction may be assembled yet. */
-    boolean warmingUp(long nowMs) {
-        return nowMs < readyAtMs;
+    private static Optional<Long> read(Path file) {
+        try {
+            return Optional.of(Long.parseLong(Files.readString(file, StandardCharsets.US_ASCII).trim()));
+        } catch (IOException | RuntimeException unreadable) {
+            return Optional.empty(); // no file yet, or unreadable: the fixed grace applies
+        }
     }
 
-    /** The expiry of a hold whose transaction was submitted at {@code submittedAtMs}, see the class comment. */
-    static long expiry(long submittedAtMs, long validityWindowMs) {
-        return submittedAtMs + validityWindowMs + SLACK_MS;
+    /**
+     * True during the startup grace: until the applied L1 view is past the TTL slot persisted before the start, or,
+     * without one, for the longest permitted validity window plus the slack.
+     */
+    boolean warmingUp(long nowMs, NodeL1View l1) {
+        if (ready) return false;
+        boolean over;
+        if (persistedTtl.isPresent()) {
+            OptionalLong tip = l1.appliedTipSlot();
+            over = tip.isPresent() && tip.getAsLong() > persistedTtl.getAsLong();
+        } else {
+            over = nowMs >= startedAtMs + AssetSettlementSettings.MAX_VALIDITY_WINDOW_MS + SLACK_MS;
+        }
+        if (over) ready = true;
+        return !over;
+    }
+
+    /**
+     * Persists {@code ttlSlot} before its transaction is submitted, so a restart waits it out. A failure to write
+     * throws: the caller must not submit.
+     */
+    void beforeSubmit(long ttlSlot) {
+        if (ttlFile.isEmpty()) return;
+        synchronized (lock) {
+            if (ttlSlot <= writtenTtl) return;
+            Path file = ttlFile.get();
+            try {
+                Path parent = file.toAbsolutePath().getParent();
+                if (parent != null) Files.createDirectories(parent);
+                Path temp = file.resolveSibling(file.getFileName() + ".tmp");
+                Files.writeString(temp, Long.toString(ttlSlot), StandardCharsets.US_ASCII);
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException failure) {
+                throw new UncheckedIOException("cannot persist the pending TTL to " + file, failure);
+            }
+            writtenTtl = ttlSlot;
+        }
     }
 
     /** Runs {@code assembly} under the one lock. */
@@ -106,35 +153,29 @@ final class OwnerAssembly {
         }
     }
 
-    /** Sets who is told of each hold dropped by expiry or death: the {@code Settle} executor evicts its journal. */
-    void onDrop(Consumer<String> listener) {
-        this.onDrop = Objects.requireNonNull(listener, "listener");
+    /** Sets who is told of each input hold released: the {@code Settle} executor evicts its journal entry. */
+    void onRelease(Consumer<String> listener) {
+        this.onRelease = Objects.requireNonNull(listener, "listener");
     }
 
-    void hold(String key, Hold hold) {
+    /** Holds what {@code pending} spends, and its inserts if it is a payout. */
+    void hold(String key, Pending pending) {
         synchronized (lock) {
-            holds.put(key, hold);
+            holds.put(key, pending);
+            if (!pending.inserts().isEmpty()) inserting.put(pending.txId(), pending);
         }
     }
 
-    void release(String key) {
+    /** Every outpoint a pending submission spends, after releasing the holds that {@code l1} shows are over. */
+    Set<ResolvedOutput.Outpoint> held(NodeL1View l1) {
         synchronized (lock) {
-            holds.remove(key);
-        }
-    }
-
-    /**
-     * Every outpoint a pending submission spends, after dropping the holds past their expiry and those whose
-     * transaction is provably dead in {@code l1}.
-     */
-    Set<ResolvedOutput.Outpoint> held(long nowMs, NodeL1View l1) {
-        synchronized (lock) {
-            var dropped = holds.entrySet().iterator();
-            while (dropped.hasNext()) {
-                Map.Entry<String, Hold> entry = dropped.next();
-                if (entry.getValue().expiresAtMs() < nowMs || dead(entry.getValue(), l1)) {
-                    dropped.remove();
-                    onDrop.accept(entry.getKey());
+            OptionalLong tip = l1.appliedTipSlot();
+            var it = holds.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Pending> entry = it.next();
+                if (pastTtl(entry.getValue(), tip) || landed(entry.getValue(), l1)) {
+                    it.remove();
+                    onRelease.accept(entry.getKey());
                 }
             }
             Set<ResolvedOutput.Outpoint> spends = new HashSet<>();
@@ -144,34 +185,38 @@ final class OwnerAssembly {
     }
 
     /**
-     * True when the held transaction can never land: none of its outputs is in the view, and a reference input or a
-     * spent input no longer is. An outpoint the view cannot answer for keeps the hold.
+     * The ids that pending payouts insert into one shard of one vault, in submission order, after dropping those
+     * that committed state accounts for ({@code paid}: the shard's {@code PAID} and {@code PAID_MISMATCH} claims) and
+     * those of transactions that can never land.
      */
-    private static boolean dead(Hold hold, NodeL1View l1) {
-        for (int index = 0; index < hold.outputs(); index++) {
-            Optional<Boolean> unspent = l1.unspent(new ResolvedOutput.Outpoint(hold.txId(), index));
-            if (unspent.isEmpty() || unspent.get()) return false; // on L1, or unknown
-        }
-        Set<ResolvedOutput.Outpoint> needed = new HashSet<>(hold.references());
-        needed.addAll(hold.spends());
-        boolean gone = false;
-        for (ResolvedOutput.Outpoint outpoint : needed) {
-            Optional<Boolean> unspent = l1.unspent(outpoint);
-            if (unspent.isEmpty()) return false;
-            if (!unspent.get()) gone = true;
-        }
-        return gone;
-    }
-
-    /** The ids that pending payouts insert into one shard of one vault, in submission order. */
-    LinkedHashSet<Hash32> inserts(Hash32 vaultId, int shard) {
+    LinkedHashSet<Hash32> inserts(Hash32 vaultId, int shard, Collection<Hash32> paid, NodeL1View l1) {
         synchronized (lock) {
+            Set<Hash32> accounted = new HashSet<>(paid);
+            OptionalLong tip = l1.appliedTipSlot();
+            inserting.values().removeIf(pending -> vaultId.equals(pending.vaultId()) && pending.shard() == shard
+                    && (accounted.containsAll(pending.inserts()) || (pastTtl(pending, tip) && !landed(pending, l1))));
             LinkedHashSet<Hash32> ids = new LinkedHashSet<>();
-            for (Hold hold : holds.values()) {
-                if (vaultId.equals(hold.vaultId()) && hold.shard() == shard) ids.addAll(hold.inserts());
+            for (Pending pending : inserting.values()) {
+                if (vaultId.equals(pending.vaultId()) && pending.shard() == shard) ids.addAll(pending.inserts());
             }
             return ids;
         }
+    }
+
+    /** The applied tip is past the TTL slot: the transaction can never land (any more). */
+    private static boolean pastTtl(Pending pending, OptionalLong tip) {
+        return tip.isPresent() && tip.getAsLong() > pending.ttlSlot();
+    }
+
+    /**
+     * The transaction is on L1: one of its outputs is known to the view, spent or unspent. That read also answers
+     * "its id is known", so a transaction whose outputs were all spent since still counts.
+     */
+    private static boolean landed(Pending pending, NodeL1View l1) {
+        for (int index = 0; index < pending.outputs(); index++) {
+            if (l1.known(new ResolvedOutput.Outpoint(pending.txId(), index)) == NodeL1View.Read.PRESENT) return true;
+        }
+        return false;
     }
 
     int size() {

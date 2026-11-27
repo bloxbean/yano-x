@@ -40,8 +40,8 @@ import java.util.Set;
  *   <li>when the round does not complete, fall back to the proved {@code Accept} of at most
  *       {@code accept.max-proved-batch} deposits, with proofs from the node at the live anchor's height (D8b);
  *       otherwise wait for the next pass;</li>
- *   <li>witness with the fee wallet, submit, and hold the spent outpoints for one validity window past the
- *       submission (its TTL plus a slack), or until the transaction is provably dead (D9 concurrency).</li>
+ *   <li>witness with the fee wallet, persist its TTL slot, submit, and hold the spent outpoints until the node's L1
+ *       view shows the transaction landed or past its TTL slot (D9 concurrency).</li>
  * </ol>
  * An {@code Accept} only moves credited value into spendable custody: it changes no ledger state, and its continuation
  * becomes custody a later {@code Settle} selects (V10).
@@ -83,7 +83,7 @@ final class DepositAcceptor {
     /** One pass over every vault; returns what happened, per vault. One vault's failure does not stop the others. */
     String runOnce() throws Exception {
         return assembly.serialized(() -> {
-            if (assembly.warmingUp(node.clock().getAsLong())) return lastOutcome = OwnerAssembly.WARMING_UP;
+            if (assembly.warmingUp(node.clock().getAsLong(), node.l1())) return lastOutcome = OwnerAssembly.WARMING_UP;
             List<String> outcomes = new ArrayList<>();
             for (VaultPins pins : node.settings().pins()) {
                 try {
@@ -107,8 +107,8 @@ final class DepositAcceptor {
         Optional<ResolvedOutput> vaultRef = node.l1().resolve(node.settings().scriptRefs().get(pins.vaultId()).vault());
         if (vaultRef.isEmpty()) return "no vault reference script";
         long now = node.clock().getAsLong();
-        Set<ResolvedOutput.Outpoint> held = assembly.held(now, node.l1());
-        List<ResolvedOutput> deposits = creditedDeposits(pins, anchor.get().datum().height(), held);
+        Set<ResolvedOutput.Outpoint> held = assembly.held(node.l1());
+        List<ResolvedOutput> deposits = creditedDeposits(pins, anchor.get().datum().height(), held, now);
         if (deposits.isEmpty()) return "nothing to accept";
         ProtocolParams pp = node.protocolParams().get();
         if (pp == null) return "no protocol parameters";
@@ -168,10 +168,12 @@ final class DepositAcceptor {
     /**
      * The deposit-shaped outputs of the vault in this pass's window, not held by a pending submission, recorded
      * {@code CREDITED} for this vault and outpoint in committed state at or below {@code anchorHeight}, in outpoint
-     * order.
+     * order. A relaying non-owner keeps only deposits whose L1 output is at least {@code accept.relayer-delay-ms} old,
+     * so it proves what a healthy owner has left (Fable P3-2).
      */
     private List<ResolvedOutput> creditedDeposits(VaultPins pins, long anchorHeight,
-                                                  Set<ResolvedOutput.Outpoint> held) {
+                                                  Set<ResolvedOutput.Outpoint> held, long now) {
+        long youngest = cosign == null ? now - node.settings().tasks().relayerAcceptDelayMs() : Long.MAX_VALUE;
         int from = scanFrom.getOrDefault(pins.vaultId(), 1);
         NodeL1View.Window window = node.l1().window(pins.vaultAddress(), from);
         scanFrom.put(pins.vaultId(), window.more() ? from + NodeL1View.MAX_PAGES : 1);
@@ -183,7 +185,8 @@ final class DepositAcceptor {
             if (record.isPresent() && record.get().status() == DepositRecordV1.Status.CREDITED
                     && record.get().vaultId().equals(pins.vaultId()) && record.get().height() <= anchorHeight
                     && record.get().txId().equals(out.outpoint().txId())
-                    && record.get().outputIndex() == out.outpoint().index()) {
+                    && record.get().outputIndex() == out.outpoint().index()
+                    && node.timeOf(record.get().slot()) <= youngest) {
                 credited.add(out);
             }
         }
@@ -216,13 +219,14 @@ final class DepositAcceptor {
     private String submit(AcceptTxBuilder.Built built, Map<String, byte[]> signatures, String note)
             throws Exception {
         byte[] signed = wallet.witness(built.cbor(), built.txId(), signatures);
+        assembly.beforeSubmit(built.transaction().getBody().getTtl());
         String txHash = node.submit().apply(signed);
         if (txHash == null || !txHash.equalsIgnoreCase(built.txId().hex())) {
             return "submission returned another transaction id";
         }
-        // Dated from this successful submission: one validity window (the TTL) plus a slack.
-        assembly.hold("accept:" + built.txId().hex(), OwnerAssembly.Hold.spending(built.transaction(), built.txId(),
-                OwnerAssembly.expiry(node.clock().getAsLong(), node.settings().validityWindowMs())));
+        // Held until the L1 view shows it landed or past its TTL slot.
+        assembly.hold("accept:" + built.txId().hex(), OwnerAssembly.Pending.spending(built.transaction(),
+                built.txId()));
         return note + built.depositIds().size() + " deposits in " + built.txId();
     }
 

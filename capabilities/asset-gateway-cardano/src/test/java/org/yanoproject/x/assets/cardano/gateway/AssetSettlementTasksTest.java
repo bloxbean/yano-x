@@ -227,39 +227,75 @@ class AssetSettlementTasksTest {
         }
     }
 
+    /** Outputs the L1 has spent: the spent half of the host's spent-or-unspent reads. */
+    final Map<String, Utxo> spent = Collections.synchronizedMap(new LinkedHashMap<>());
+    /** The applied tip slot of a stale view; null while the view follows the clock (one slot per second). */
+    Long frozenTipSlot;
+
     UtxoState view() {
-        return new UtxoState() {
-            @Override
-            public List<Utxo> getUtxosByAddress(String address, int page, int count) {
-                if (brokenAddresses.contains(address)) throw new IllegalStateException("unreadable " + address);
-                List<Utxo> all;
-                synchronized (l1) {
-                    all = l1.values().stream().filter(u -> u.address().equals(address)).toList();
-                }
-                int from = (page - 1) * count;
-                return from >= all.size() ? List.of() : all.subList(from, Math.min(all.size(), from + count));
-            }
+        return new View();
+    }
 
-            @Override
-            public List<Utxo> getUtxosByPaymentCredential(String credential, int page, int count) {
-                return List.of();
+    /** The node's UTxO view: unspent outputs by address, spent-or-unspent point reads, and its applied tip slot. */
+    final class View implements UtxoState, org.yanoproject.api.rollback.RollbackCapableStore {
+        @Override
+        public List<Utxo> getUtxosByAddress(String address, int page, int count) {
+            if (brokenAddresses.contains(address)) throw new IllegalStateException("unreadable " + address);
+            List<Utxo> all;
+            synchronized (l1) {
+                all = l1.values().stream().filter(u -> u.address().equals(address)).toList();
             }
+            int from = (page - 1) * count;
+            return from >= all.size() ? List.of() : all.subList(from, Math.min(all.size(), from + count));
+        }
 
-            @Override
-            public Optional<Utxo> getUtxo(Outpoint outpoint) {
-                return Optional.ofNullable(l1.get(outpoint.txHash() + "#" + outpoint.index()));
-            }
+        @Override
+        public List<Utxo> getUtxosByPaymentCredential(String credential, int page, int count) {
+            return List.of();
+        }
 
-            @Override
-            public List<Utxo> getOutputsByTxHash(String txHash) {
-                return List.of();
-            }
+        @Override
+        public Optional<Utxo> getUtxo(Outpoint outpoint) {
+            return Optional.ofNullable(l1.get(outpoint.txHash() + "#" + outpoint.index()));
+        }
 
-            @Override
-            public boolean isEnabled() {
-                return true;
-            }
-        };
+        @Override
+        public Optional<Utxo> getUtxoSpentOrUnspent(Outpoint outpoint) {
+            String key = outpoint.txHash() + "#" + outpoint.index();
+            return Optional.ofNullable(l1.get(key)).or(() -> Optional.ofNullable(spent.get(key)));
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return true;
+        }
+
+        @Override
+        public String storeName() {
+            return "test-utxo";
+        }
+
+        @Override
+        public long getLatestAppliedSlot() {
+            Long frozen = frozenTipSlot;
+            return frozen != null ? frozen : now / 1_000;
+        }
+
+        @Override
+        public long getRollbackFloorSlot() {
+            return 0;
+        }
+
+        @Override
+        public void rollbackToSlot(long slot) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /** Spends {@code key} on L1 (by a transaction this test does not build). */
+    void spend(String key) {
+        Utxo out = l1.remove(key);
+        if (out != null) spent.put(key, out);
     }
 
     /** Accepted custody, the 16 empty shards, the exit-mode thread, the reference scripts and the fee wallets. */
@@ -362,6 +398,12 @@ class AssetSettlementTasksTest {
 
     /** A deposit-shaped output at the vault, recorded on every node with {@code reason} at {@code height}. */
     ResolvedOutput.Outpoint deposit(int index, long height, DepositAdmission.Reason reason, Node... nodes) {
+        return deposit(index, height, 9_000, reason, nodes);
+    }
+
+    /** {@link #deposit(int, long, DepositAdmission.Reason, Node...)} of an output created at L1 {@code slot}. */
+    ResolvedOutput.Outpoint deposit(int index, long height, long slot, DepositAdmission.Reason reason,
+                                    Node... nodes) {
         String txHash = "7d".repeat(32);
         byte[] refundKey = filled(28, 0xc1);
         byte[] datum = new DepositDatumV1(filled(28, 0xa1), concat(new byte[] {0x60}, refundKey), refundKey).encode();
@@ -372,7 +414,7 @@ class AssetSettlementTasksTest {
         Hash32 tx = Hash32.ofHex(txHash);
         Hash32 depositId = GatewayIds.depositId(VAULT, tx, index);
         boolean credited = reason == DepositAdmission.Reason.NONE;
-        DepositRecordV1 record = new DepositRecordV1(depositId, VAULT, tx, index, 9_000, height,
+        DepositRecordV1 record = new DepositRecordV1(depositId, VAULT, tx, index, slot, height,
                 VaultOutputShape.DEPOSIT,
                 credited ? DepositRecordV1.Status.CREDITED : DepositRecordV1.Status.UNCREDITED,
                 reason, credited ? filled(28, 0xa1) : new byte[0], BigInteger.valueOf(quantity),
@@ -929,7 +971,7 @@ class AssetSettlementTasksTest {
     void land(byte[] signedTx) throws Exception {
         Transaction tx = tx(signedTx);
         String id = TransactionUtil.getTxHash(signedTx);
-        for (var input : tx.getBody().getInputs()) l1.remove(input.getTransactionId() + "#" + input.getIndex());
+        for (var input : tx.getBody().getInputs()) spend(input.getTransactionId() + "#" + input.getIndex());
         var outputs = tx.getBody().getOutputs();
         for (int i = 0; i < outputs.size(); i++) {
             var out = outputs.get(i);
@@ -1235,17 +1277,19 @@ class AssetSettlementTasksTest {
         assertThat(submitted).hasSize(3);
     }
 
-    // ------------------------------------------------------------------ hold lifetime
+    // ------------------------------------------------------------------ hold lifetime (r22: L1 evidence only)
 
-    /** One validity window (600 slots of 1 s) plus the slack: how long a pending transaction holds its inputs. */
-    static final long HOLD_MS = 600_000 + OwnerAssembly.SLACK_MS;
+    /** A transaction assembled at NOW has its TTL slot one validity window (600 slots of 1 s) later. */
+    static final long TTL_MS = 600_000;
+    /** The startup grace without a pending-TTL file: the longest permitted window plus the slack. */
+    static final long GRACE_MS = AssetSettlementSettings.MAX_VALIDITY_WINDOW_MS + OwnerAssembly.SLACK_MS;
 
     /**
-     * Codex P1-1: a Settle whose effect expires is never probed again; its hold still ends one validity window plus
-     * the slack after its submission, freeing its fee input and shard, and its journal entry goes with it.
+     * Codex P1-1: a Settle whose effect expires is never probed again; its hold ends once the L1 view is past its TTL
+     * slot, freeing its fee input and shard, and its journal entry goes with it.
      */
     @Test
-    void anExpiredSettleEffectFreesItsWalletAndShardAfterItsTtl() throws Exception {
+    void anExpiredSettleEffectFreesItsWalletAndShardOnceL1PassesItsTtl() throws Exception {
         seed(); // one plain fee-wallet output
         Node owner = new Node(OWNER_SEED);
         Node member = new Node(MEMBER_SEED);
@@ -1261,15 +1305,15 @@ class AssetSettlementTasksTest {
                 effect(new SettlementBatchV1(VAULT, 3, List.of(first.claimId())), 0)))
                 .as(executor.lastOutcome()).isInstanceOf(EffectExecution.Submitted.class);
 
-        // Its effect expires: the runtime never probes it again. Within its window it still holds both.
-        now = NOW + HOLD_MS - 1_000;
+        // Its effect expires: the runtime never probes it again. Until L1 is past its TTL it still holds both.
+        now = NOW + TTL_MS;
         assertThat(executor.acceptor().orElseThrow().runOnce()).isEqualTo("no fee wallet funds");
         assertThat(executor.execute(attempt(1, new byte[0]), later)).isInstanceOf(EffectExecution.Retry.class);
         assertThat(executor.lastOutcome()).isEqualTo("awaiting the pending payout on this shard");
         assertThat(executor.journalSize()).isEqualTo(1);
 
         // Past it, the fee input and the shard are free again, and the expired effect's journal entry is gone.
-        now = NOW + HOLD_MS + 1_000;
+        now = NOW + TTL_MS + 1_000;
         assertThat(executor.execute(attempt(1, new byte[0]), later)).as(executor.lastOutcome())
                 .isInstanceOf(EffectExecution.Submitted.class);
         assertThat(executor.journalSize()).isEqualTo(1);
@@ -1278,11 +1322,12 @@ class AssetSettlementTasksTest {
     }
 
     /**
-     * Fable P2-1 (its probe of an Accept that never lands): once the anchor the Accept references advances, the Accept
-     * can never land, so its fee input is free at once instead of stalling every Settle on the fee wallet.
+     * Codex (rollback revival): an Accept submitted against anchor A is not given up when the anchor moves to B,
+     * because A can be restored by a rollback and the Accept land after all. No second transaction spends its fee input
+     * until L1 is past its TTL.
      */
     @Test
-    void anAcceptThatCanNeverLandFreesTheFeeInputOnceTheAnchorAdvances() throws Exception {
+    void anAcceptWhoseAnchorMovesKeepsItsFeeInputUntilL1PassesItsTtl() throws Exception {
         seed(); // one plain fee-wallet output
         Node owner = new Node(OWNER_SEED);
         Node member = new Node(MEMBER_SEED);
@@ -1295,23 +1340,92 @@ class AssetSettlementTasksTest {
         assertThat(executor.acceptor().orElseThrow().runOnce()).startsWith("accepted (co-signed) 1 deposits");
         PendingEffect settle = effect(new SettlementBatchV1(VAULT, 3, List.of(claim.claimId())), 0);
 
-        // While its anchor is live the Accept may still land: its fee input stays held.
         now = NOW + 60_000;
+        anchorHeight = ANCHORED + 1;
+        anchor(); // A is spent by the advance to B
         assertThat(executor.execute(attempt(1, new byte[0]), settle)).isInstanceOf(EffectExecution.Retry.class);
         assertThat(executor.lastOutcome()).isEqualTo("no fee wallet funds");
+        anchorHeight = ANCHORED;
+        anchor(); // a rollback restores A
+        assertThat(executor.execute(attempt(1, new byte[0]), settle)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.lastOutcome()).isEqualTo("no fee wallet funds");
+        assertThat(submitted).hasSize(1);
 
-        // The anchor advances before the Accept is included: its reference input is spent, it can never land.
-        anchorHeight = ANCHORED + 1;
-        anchor();
+        now = NOW + TTL_MS + 1_000;
         assertThat(executor.execute(attempt(1, new byte[0]), settle)).as(executor.lastOutcome())
                 .isInstanceOf(EffectExecution.Submitted.class);
         assertThat(inputs(submitted.getLast())).contains("60".repeat(32) + "#0");
     }
 
     /**
-     * Codex P2-5: holds are in memory, so a node that (re)starts assembles nothing for one validity window plus the
-     * slack, by when any transaction it submitted before the restart has landed or expired; a Settle submitted before
-     * it is still probed from its persisted reference.
+     * Codex (stale view): the wall clock passes the Accept's TTL while the node's L1 view is stuck before it; the
+     * Accept may have landed unseen, so its consumed fee input is not reused. Once the view catches up and shows it
+     * landed, the next transaction spends its change instead.
+     */
+    @Test
+    void aStaleViewKeepsTheConsumedFeeInputHeld() throws Exception {
+        seed(); // one plain fee-wallet output
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(3, 32, 900, NOW - HOUR, owner, member);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false);
+        product(member, false, false);
+        pump(owner, member);
+        assertThat(executor.acceptor().orElseThrow().runOnce()).startsWith("accepted (co-signed) 1 deposits");
+        byte[] accept = submitted.getFirst();
+        PendingEffect settle = effect(new SettlementBatchV1(VAULT, 3, List.of(claim.claimId())), 0);
+
+        frozenTipSlot = NOW / 1_000;
+        now = NOW + 20 * 60_000;
+        assertThat(executor.execute(attempt(1, new byte[0]), settle)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.lastOutcome()).isEqualTo("no fee wallet funds");
+
+        // The view catches up: the Accept landed.
+        land(accept);
+        frozenTipSlot = null;
+        assertThat(executor.execute(attempt(1, new byte[0]), settle)).as(executor.lastOutcome())
+                .isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(inputs(submitted.getLast())).doesNotContain("60".repeat(32) + "#0")
+                .contains(TransactionUtil.getTxHash(accept) + "#1");
+        assertNoDoubleSpend();
+    }
+
+    /**
+     * Codex: a Settle whose confirmation times out closes its effect, but the transaction may still land until its
+     * TTL, so its fee input stays held until L1 is past it.
+     */
+    @Test
+    void aSettleWhoseConfirmationTimesOutKeepsItsFeeInputUntilL1PassesItsTtl() throws Exception {
+        seed(); // one plain fee-wallet output
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(3, 33, 900, NOW - HOUR, owner, member);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false,
+                Map.of("inclusion-timeout-ms", "60000", "stability-window-ms", "30000"));
+        product(member, false, false);
+        pump(owner, member);
+        PendingEffect settle = effect(new SettlementBatchV1(VAULT, 3, List.of(claim.claimId())), 0);
+        byte[] ref = ((EffectExecution.Submitted) executor.execute(attempt(1, new byte[0]), settle)).externalRef();
+
+        now = NOW + 61_000;
+        EffectExecution timedOut = executor.execute(attempt(2, ref), settle);
+        assertThat(timedOut).isInstanceOf(EffectExecution.Failed.class);
+        assertThat(((EffectExecution.Failed) timedOut).retryable()).isFalse();
+        assertThat(executor.journalSize()).isZero();
+        assertThat(executor.acceptor().orElseThrow().runOnce()).isEqualTo("no fee wallet funds");
+
+        now = NOW + TTL_MS + 1_000;
+        assertThat(executor.acceptor().orElseThrow().runOnce()).startsWith("accepted (co-signed) 1 deposits");
+    }
+
+    /**
+     * Codex P2-5: holds are in memory. Without a pending-TTL file a node that (re)starts assembles nothing for the
+     * longest permitted validity window plus the slack, whatever its own window setting (Codex: a restart with a
+     * shorter validity-window-slots); a Settle submitted before it is still probed from its persisted reference.
      */
     @Test
     void aStartedNodeAssemblesNothingUntilItsGraceHasPassed() throws Exception {
@@ -1331,9 +1445,10 @@ class AssetSettlementTasksTest {
         PendingEffect pending = effect(new SettlementBatchV1(VAULT, 4, List.of(other.claimId())), 1);
         byte[] ref = ((EffectExecution.Submitted) before.execute(attempt(1, new byte[0]), pending)).externalRef();
 
-        // The node restarts: its holds are gone.
+        // The node restarts with a shorter window: its holds are gone, and the old window still bounds what is pending.
         startedAgoMs = 0;
-        AssetSettlementExecutor restarted = (AssetSettlementExecutor) product(owner, true, true);
+        AssetSettlementExecutor restarted = (AssetSettlementExecutor) product(owner, true, true,
+                Map.of("validity-window-slots", "10"));
         PendingEffect fresh = effect(new SettlementBatchV1(VAULT, 3, List.of(claim.claimId())), 0);
         assertThat(restarted.acceptor().orElseThrow().runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
         assertThat(restarted.relayer().orElseThrow().runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
@@ -1343,11 +1458,57 @@ class AssetSettlementTasksTest {
                 .isInstanceOf(EffectExecution.Submitted.class);
         assertThat(submitted).hasSize(1);
 
-        now = NOW + HOLD_MS - 1_000;
+        now = NOW + GRACE_MS - 1_000;
         assertThat(restarted.acceptor().orElseThrow().runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
-        now = NOW + HOLD_MS + 1_000;
+        now = NOW + GRACE_MS + 1_000;
         assertThat(restarted.acceptor().orElseThrow().runOnce()).startsWith("accepted (co-signed) 1 deposits");
         assertThat(restarted.relayer().orElseThrow().runOnce()).startsWith("relayed 1 on shard 3");
+    }
+
+    /**
+     * Codex P2-5 and Fable P3-1: with a pending-TTL file, a restart waits exactly until the L1 view is past the latest
+     * TTL submitted before it, even with a shorter window setting after the restart, and not at all when that TTL is
+     * already past.
+     */
+    @Test
+    void aRestartWaitsUntilL1PassesThePersistedTtl() throws Exception {
+        seed();
+        for (int i = 1; i < 12; i++) {
+            put(utxo("60".repeat(32), i, keyAddress(FEE_SEED), 80_000_000, List.of(), null, null));
+        }
+        Path ttlFile = temp.resolve("state").resolve("asset-settlement.pending-ttl");
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(4, 63, 900, NOW - HOUR, owner, member);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        deposit(1, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        product(member, false, false);
+        pump(owner, member);
+        Map<String, String> withFile = Map.of("pending-ttl-file", ttlFile.toString());
+        AssetSettlementExecutor before = (AssetSettlementExecutor) product(owner, true, false, withFile);
+        assertThat(before.execute(attempt(1, new byte[0]),
+                effect(new SettlementBatchV1(VAULT, 4, List.of(claim.claimId())), 0)))
+                .isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(Files.readString(ttlFile).trim()).isEqualTo(Long.toString(NOW / 1_000 + 600));
+
+        startedAgoMs = 0;
+        now = NOW + 5 * 60_000;
+        Map<String, String> shorter = new LinkedHashMap<>(withFile);
+        shorter.put("validity-window-slots", "10");
+        DepositAcceptor restarted = ((AssetSettlementExecutor) product(owner, true, false, shorter)).acceptor()
+                .orElseThrow();
+        assertThat(restarted.runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
+        now = NOW + TTL_MS;
+        assertThat(restarted.runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
+        now = NOW + TTL_MS + 1_000; // before the no-file grace would end
+        assertThat(restarted.runOnce()).startsWith("accepted (co-signed)");
+
+        // Restarted again an hour later: the persisted TTL is long past, so it assembles at once.
+        now = NOW + HOUR;
+        DepositAcceptor later = ((AssetSettlementExecutor) product(owner, true, false, withFile)).acceptor()
+                .orElseThrow();
+        assertThat(later.runOnce()).isNotEqualTo(OwnerAssembly.WARMING_UP);
     }
 
     /** Fable P3-1: a relaying non-owner's validity window, and so its holds, are bounded like the owner's. */
@@ -1360,31 +1521,132 @@ class AssetSettlementTasksTest {
                 .effectTypes()).as("a member that builds nothing is not bounded").isEmpty();
     }
 
-    /** Codex P2-6: a hold is dated from the successful submission, not from the start of its assembly. */
+    /**
+     * Codex and Fable P2-1: a landed payout's inserts stay in the mirror until committed state accounts for them, even
+     * once every output of that payout is spent (its first payout by its recipient), so the shard is not stopped and
+     * a third claim is still relayed after two consecutive Exits on it.
+     */
     @Test
-    void aHoldIsDatedFromItsSubmission() throws Exception {
-        seed(); // one plain fee-wallet output
+    void aLandedPayoutsInsertsStayUntilCommittedSoTheShardKeepsRelaying() throws Exception {
+        seed();
+        custody(50_000_000); // one custody output: each Exit continues the previous one's
+        Node relayerNode = new Node(MEMBER_SEED);
+        List<ClaimLeafV1> claims = new ArrayList<>();
+        for (int i = 0; i < 3; i++) claims.add(reserve(3, 91 + i, 900, NOW - 3 * DAY + i * HOUR, relayerNode));
+        anchor();
+        ExitRelayTask relayer = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true,
+                Map.of("max-exit-batch", "1"))).relayer().orElseThrow();
+
+        for (int i = 0; i < 2; i++) {
+            String outcome = relayer.runOnce();
+            assertThat(outcome).as(outcome).startsWith("relayed 1 on shard 3");
+            assertPasses(submitted.getLast());
+            assertThat(paidBy(submitted.getLast())).containsExactly(claims.get(i).claimId());
+            land(submitted.getLast());
+        }
+        // The first claim's recipient spends its payout: every output of the first Exit is now spent.
+        spend(TransactionUtil.getTxHash(submitted.getFirst()) + "#0");
+
+        String third = relayer.runOnce();
+        assertThat(third).as(third).startsWith("relayed 1 on shard 3");
+        assertPasses(submitted.getLast());
+        assertThat(paidBy(submitted.getLast())).containsExactly(claims.get(2).claimId());
+    }
+
+    /**
+     * Codex P1 (r22): payout custody pages through the vault address. With 5,000 outputs that are not custody ahead of
+     * the accepted custody, a Settle and a relayed Exit still find it.
+     */
+    @Test
+    void payoutCustodyPastTheFirstWindowOfVaultOutputsIsSelected() throws Exception {
+        seed();
+        for (int i = 1; i < 12; i++) {
+            put(utxo("60".repeat(32), i, keyAddress(FEE_SEED), 80_000_000, List.of(), null, null));
+        }
+        for (int i = 0; i < NodeL1View.PAGE * NodeL1View.MAX_PAGES; i++) {
+            put(utxo("7e".repeat(32), i, enterprise(VAULT_HASH), 2_000_000, List.of(), null, null));
+        }
+        custody(50_000_000, 50_000_000); // now behind the 5,000 others
         Node owner = new Node(OWNER_SEED);
         Node member = new Node(MEMBER_SEED);
-        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
-        deposit(1, 900, DepositAdmission.Reason.NONE, owner, member);
+        ClaimLeafV1 settled = reserve(3, 101, 900, NOW - HOUR, owner, member);
+        ClaimLeafV1 relayed = reserve(4, 102, 900, NOW - 2 * DAY, owner, member);
         anchor();
-        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false,
-                Map.of("accept.max-batch", "1"));
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, true);
         product(member, false, false);
         pump(owner, member);
-        DepositAcceptor acceptor = executor.acceptor().orElseThrow();
 
-        owner.submitTakesMs = 5 * 60_000; // assembled at NOW, submitted five minutes later
-        assertThat(acceptor.runOnce()).startsWith("accepted (co-signed) 1 deposits");
-        owner.submitTakesMs = 0;
-        long submittedAt = NOW + 5 * 60_000;
+        assertThat(executor.execute(attempt(1, new byte[0]),
+                effect(new SettlementBatchV1(VAULT, 3, List.of(settled.claimId())), 0)))
+                .as(executor.lastOutcome()).isInstanceOf(EffectExecution.Submitted.class);
+        String outcome = executor.relayer().orElseThrow().runOnce();
+        assertThat(outcome).as(outcome).startsWith("relayed 1 on shard 4");
+        assertNoDoubleSpend();
+        synchronized (submitted) {
+            for (byte[] cbor : submitted) {
+                assertPasses(cbor);
+                assertThat(inputs(cbor)).anyMatch(input -> input.startsWith("61".repeat(32)));
+            }
+        }
+        assertThat(paidBy(submitted.getLast())).containsExactly(relayed.claimId());
+    }
 
-        // Past what a hold dated from the assembly would last, the fee input is still held.
-        now = submittedAt + HOLD_MS - 1_000;
-        assertThat(acceptor.runOnce()).isEqualTo("no fee wallet funds");
-        now = submittedAt + HOLD_MS + 1_000;
-        assertThat(acceptor.runOnce()).startsWith("accepted (co-signed) 1 deposits");
+    /**
+     * Codex P2 (r22): fee funding that does not cover a batch is split on, like short custody. With one 2 ADA fee
+     * output, the older claim that needs a min-UTxO supplement does not fit with the other one, nor alone; the payable
+     * one is relayed.
+     */
+    @Test
+    void feeFundingShortOfTheBatchRelaysThePayableClaim() throws Exception {
+        seed();
+        l1.remove("6a".repeat(32) + "#0");
+        put(utxo("6a".repeat(32), 0, keyAddress(RELAYER_FEE_SEED), 2_000_000, List.of(), null, null));
+        Node relayerNode = new Node(MEMBER_SEED);
+        reserve(3, 111, 900, NOW - 3 * DAY, 0, relayerNode); // its payout needs a supplement
+        ClaimLeafV1 payable = reserve(3, 112, 900, NOW - 2 * DAY, relayerNode);
+        anchor();
+        ExitRelayTask relayer = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true))
+                .relayer().orElseThrow();
+
+        String outcome = relayer.runOnce();
+
+        assertThat(outcome).as(outcome).startsWith("relayed 1 on shard 3");
+        assertPasses(submitted.getFirst());
+        assertThat(paidBy(submitted.getFirst())).containsExactly(payable.claimId());
+    }
+
+    /**
+     * Fable P3-2 (r22): a relaying non-owner proves an Accept only of deposits at least accept.relayer-delay-ms old
+     * (three Accept intervals by default), so it does not race a healthy owner.
+     */
+    @Test
+    void aRelayerProvesOnlyDepositsTheOwnerHasLeft() throws Exception {
+        seed();
+        Node relayerNode = new Node(MEMBER_SEED);
+        deposit(0, 900, NOW / 1_000, DepositAdmission.Reason.NONE, relayerNode); // created now
+        anchor();
+        DepositAcceptor acceptor = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true))
+                .acceptor().orElseThrow();
+
+        assertThat(acceptor.runOnce()).isEqualTo("nothing to accept");
+        now = NOW + 3 * 60_000 - 1_000;
+        assertThat(acceptor.runOnce()).isEqualTo("nothing to accept");
+        now = NOW + 3 * 60_000;
+        String outcome = acceptor.runOnce();
+        assertThat(outcome).as(outcome).startsWith("accepted (proved) 1 deposits");
+    }
+
+    /** Fable P3-3 (r22): a StackOverflowError of one pass is logged like any failure; the timer keeps running. */
+    @Test
+    void aPassThatOverflowsItsStackDoesNotStopTheTimer() throws Exception {
+        java.util.concurrent.CountDownLatch passes = new java.util.concurrent.CountDownLatch(3);
+        try (SettlementTasks tasks = new SettlementTasks(CHAIN)) {
+            tasks.every(5, "overflowing pass", () -> {
+                passes.countDown();
+                throw new StackOverflowError("a pass that overflows its stack");
+            });
+            assertThat(passes.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     static boolean paysVault(com.bloxbean.cardano.client.transaction.spec.TransactionOutput out) {

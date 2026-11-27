@@ -115,6 +115,16 @@ public final class PayoutTxBuilder {
         }
     }
 
+    /**
+     * The funding inputs do not cover the fee and supplements, or the collateral input does not cover the collateral:
+     * a smaller batch needs less of both, so the exit relayer splits on it too.
+     */
+    public static final class FundingShort extends BuildException {
+        public FundingShort(String message) {
+            super(message);
+        }
+    }
+
     /** The key-locked inputs that pay fees, collateral and supplements, and where change goes. */
     public record Funding(List<ResolvedOutput> inputs, byte[] changeAddress) {
         public Funding {
@@ -630,14 +640,14 @@ public final class PayoutTxBuilder {
                                                byte[] changeAddress) {
         TransactionOutput out = body.getOutputs().get(changeIndex);
         BigInteger min = new MinAdaCalculator(pp).calculateMinAda(out);
-        if (change.compareTo(min) < 0) throw new BuildException("funding does not cover the fee and supplements");
+        if (change.compareTo(min) < 0) throw new FundingShort("funding does not cover the fee and supplements");
         out.getValue().setCoin(change);
         BigInteger total = new BigDecimal(fee).multiply(pp.getCollateralPercent())
                 .divide(BigDecimal.valueOf(100), 0, RoundingMode.CEILING).toBigInteger();
         BigInteger returned = collateral.lovelace().subtract(total);
         TransactionOutput collateralReturn = output(changeAddress, returned.max(BigInteger.ZERO), Map.of(), null);
         if (returned.compareTo(new MinAdaCalculator(pp).calculateMinAda(collateralReturn)) < 0) {
-            throw new BuildException("the collateral input cannot cover the collateral");
+            throw new FundingShort("the collateral input cannot cover the collateral");
         }
         body.setTotalCollateral(total);
         body.setCollateralReturn(collateralReturn);

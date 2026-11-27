@@ -31,8 +31,8 @@ final class SettlementTasks implements AutoCloseable {
 
     /**
      * Runs {@code pass} every {@code intervalMs}, first after one interval. A failing pass is logged, not fatal: a
-     * throwable escaping a fixed-delay task would cancel every later pass, so only a {@link VirtualMachineError} is
-     * rethrown.
+     * throwable escaping a fixed-delay task would cancel every later pass, so only an {@link OutOfMemoryError} or an
+     * {@link InternalError} is rethrown; a {@link StackOverflowError} of one pass is logged like any other failure.
      */
     void every(long intervalMs, String name, Callable<String> pass) {
         scheduler.scheduleWithFixedDelay(() -> {
@@ -41,7 +41,7 @@ final class SettlementTasks implements AutoCloseable {
                 LOG.debug("{} on {}: {}", name, chainId, outcome);
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
-            } catch (VirtualMachineError fatal) {
+            } catch (OutOfMemoryError | InternalError fatal) {
                 throw fatal;
             } catch (Throwable failure) {
                 LOG.warn("{} on {} failed: {}", name, chainId, failure.toString());

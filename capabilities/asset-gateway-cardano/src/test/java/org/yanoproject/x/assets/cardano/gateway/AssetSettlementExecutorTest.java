@@ -134,8 +134,22 @@ class AssetSettlementExecutorTest {
                 scriptHash == null ? null : "00".repeat(5_000), scriptHash, false, 100, 10, "bb".repeat(32));
     }
 
+    /** The node's view; its applied tip follows the clock, one slot per second (ADR-059 D9 r22 holds read it). */
+    interface TippedView extends UtxoState, org.yanoproject.api.rollback.RollbackCapableStore {
+        @Override default String storeName() { return "test-utxo"; }
+
+        @Override default long getRollbackFloorSlot() { return 0; }
+
+        @Override default void rollbackToSlot(long slot) { throw new UnsupportedOperationException(); }
+    }
+
     UtxoState view() {
-        return new UtxoState() {
+        return new TippedView() {
+            @Override
+            public long getLatestAppliedSlot() {
+                return now / 1_000;
+            }
+
             @Override
             public List<Utxo> getUtxosByAddress(String address, int page, int count) {
                 if (page > 1) return List.of();
@@ -1152,7 +1166,8 @@ class AssetSettlementExecutorTest {
         assertThat(executor.lastOutcome()).isEqualTo("no fee wallet funds");
         assertThat(submitted).hasSize(1);
 
-        // The first closes unconfirmed past its deadline (never included): its outputs are released.
+        // The first closes unconfirmed past its deadline (never included), and L1 is past its TTL: its outputs are
+        // released.
         now = NOW + 900_001;
         pump(owner, member);
         assertThat(executor.execute(attempt(2, ref), firstEffect)).isInstanceOf(EffectExecution.Failed.class);

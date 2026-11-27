@@ -76,8 +76,8 @@ import java.util.function.Supplier;
  * <p>The effect runtime runs several attempts at once (across shards, and on one shard across blocks), so one lock
  * serializes every attempt of this executor. A single owner's L1 assembly is serial anyway: every {@code Settle}
  * spends the one fee wallet and continues the vault's custody. Each pending submission's spent outpoints stay out of
- * later selections until it closes or its hold expires (one validity window past its submission), and no attempt
- * builds over a shard input a pending submission spends. The lock
+ * later selections until the L1 view shows the transaction landed or past its TTL slot, and no attempt builds over a
+ * shard input a pending submission spends. The lock
  * and the holds are the node's {@link OwnerAssembly}, which the {@code Accept} batcher and an exit relayer running on
  * this node share, so none of them spends what another one's pending transaction spends.
  */
@@ -103,10 +103,10 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
      */
     private final OwnerAssembly assembly;
     /**
-     * This node's submitted, unconfirmed Settles by effect. Each also holds its spent outpoints and inserts in
-     * {@link #assembly} under {@link #holdKey}, until it closes or its hold is dropped (expired, or its transaction
-     * dead), which evicts the entry too: the effect runtime may stop probing an expired effect, so eviction never
-     * waits for a probe. A later probe recovers the entry from the persisted reference. Guarded by the assembly lock.
+     * This node's submitted, unconfirmed Settles by effect, until the effect closes. The spent outpoints and inserts
+     * are held in {@link #assembly} under {@link #holdKey}, apart from the journal: an entry is also evicted when its
+     * input hold is released on L1 evidence, never waiting for a probe, because the effect runtime may stop probing an
+     * expired effect. A later probe recovers the entry from the persisted reference. Guarded by the assembly lock.
      */
     private final Map<String, Journal> journal = new HashMap<>();
     /** The periodic tasks this executor product owns ({@code Accept}, exit relaying), stopped on close. */
@@ -198,7 +198,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         this.memberPublicKey = memberPublicKey.clone();
         this.assembly = Objects.requireNonNull(assembly, "assembly");
         this.wallet = Objects.requireNonNull(wallet, "wallet");
-        assembly.onDrop(holdKey -> {
+        assembly.onRelease(holdKey -> {
             if (holdKey.startsWith(SETTLE_HOLD)) journal.remove(holdKey.substring(SETTLE_HOLD.length()));
         });
     }
@@ -298,7 +298,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             entry = Journal.recover(ctx.submittedRef(), batch).orElse(null);
         }
         if (entry != null) return probe(key, entry);
-        if (assembly.warmingUp(clock.getAsLong())) {
+        if (assembly.warmingUp(clock.getAsLong(), l1)) {
             // Holds are in memory: until any transaction submitted before a restart has landed or expired, nothing
             // new is assembled. A pending Settle is still probed above, from its persisted reference.
             return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), OwnerAssembly.WARMING_UP);
@@ -331,7 +331,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         if (exitMode.isEmpty() || shardInput.isEmpty() || vaultRef.isEmpty() || shardRef.isEmpty()) {
             return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "L1 inputs unavailable");
         }
-        Set<ResolvedOutput.Outpoint> pendingSpends = assembly.held(clock.getAsLong(), l1);
+        Set<ResolvedOutput.Outpoint> pendingSpends = assembly.held(l1);
         if (pendingSpends.contains(shardInput.get().outpoint())) {
             // A pending payout spends this shard input and is not yet included: a second one would conflict with it.
             // Chaining on its predicted shard output (D8h §6) is a later optimization; until then the batch waits.
@@ -352,11 +352,11 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         List<byte[]> signerKeys = signers(anchor.get(), signerMemory.getOrDefault(key, SignerMemory.NONE));
         // Outputs a pending submission spends are not selected again; their release is its close (or their
         // disappearance from the L1 view, once it is included).
-        List<ResolvedOutput> vaultUtxos = l1.at(pins.vaultAddress());
-        List<ResolvedOutput> feeUtxos = l1.at(wallet.address());
-        boolean held = vaultUtxos.removeIf(out -> pendingSpends.contains(out.outpoint()))
-                | feeUtxos.removeIf(out -> pendingSpends.contains(out.outpoint()));
-        List<ResolvedOutput> funding = wallet.funding(feeUtxos, pendingSpends);
+        // Custody pages through the vault address until it covers the capped batch (Codex P1, r22).
+        List<ResolvedOutput> vaultUtxos = l1.custodyFor(pins, pendingSpends,
+                claims.subList(0, Math.min(claims.size(), pins.maxSettleBatch())));
+        boolean held = !pendingSpends.isEmpty();
+        List<ResolvedOutput> funding = wallet.funding(l1.at(wallet.address()), pendingSpends);
         if (funding.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "no fee wallet funds");
         long slot = settings.slots().slotAt(clock.getAsLong());
         PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(pins, vaultUtxos,
@@ -402,6 +402,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         }
         signerMemory.remove(key);
         byte[] signed = wallet.witness(built.cbor(), built.txId(), signatures.get());
+        assembly.beforeSubmit(built.transaction().getBody().getTtl());
         String txHash = submit.apply(signed);
         if (txHash == null || !txHash.equalsIgnoreCase(built.txId().hex())) {
             return outcome(EffectExecution.failed("submission returned another transaction id", true), "submit");
@@ -411,10 +412,9 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         Journal submitted = Journal.of(built.txId(), batch, built.claimIds(),
                 submittedAt + settings.inclusionTimeout().toMillis(), spends);
         journal.put(key, submitted);
-        // The hold lasts one validity window past the submission (the TTL plus a slack), not until confirmation.
-        assembly.hold(holdKey(key), OwnerAssembly.Hold.payout(built.transaction(), built.txId(), batch.vaultId(),
-                batch.shardIndex(), built.claimIds(),
-                OwnerAssembly.expiry(submittedAt, settings.validityWindowMs())));
+        // Held until the L1 view shows it landed or past its TTL; its inserts until committed state accounts for them.
+        assembly.hold(holdKey(key), OwnerAssembly.Pending.payout(built.transaction(), built.txId(), batch.vaultId(),
+                batch.shardIndex(), built.claimIds()));
         return outcome(EffectExecution.submitted(submitted.ref()), "submitted " + built.txId());
     }
 
@@ -426,8 +426,9 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
      * Either way the ledger re-queues whatever is still {@code RESERVED}.
      */
     private void closeJournal(String key) {
+        // The input hold is not the journal's: it stays until the L1 view shows the transaction landed or past its
+        // TTL, whatever the effect's outcome (r22).
         journal.remove(key);
-        assembly.release(holdKey(key));
     }
 
     private EffectExecution probe(String key, Journal entry) {
@@ -474,7 +475,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         Optional<List<Hash32>> paid = committed.paid(pins.vaultId(), shard);
         if (liveRoot.isEmpty() || paid.isEmpty()) return Optional.empty();
         LinkedHashSet<Hash32> withOwn = new LinkedHashSet<>(paid.get());
-        withOwn.addAll(assembly.inserts(pins.vaultId(), shard));
+        withOwn.addAll(assembly.inserts(pins.vaultId(), shard, paid.get(), l1));
         ShardMirror optimisticMirror = ShardMirror.of(shard, withOwn);
         if (optimisticMirror.matches(liveRoot.get())) return Optional.of(optimisticMirror);
         ShardMirror confirmed = ShardMirror.of(shard, paid.get());

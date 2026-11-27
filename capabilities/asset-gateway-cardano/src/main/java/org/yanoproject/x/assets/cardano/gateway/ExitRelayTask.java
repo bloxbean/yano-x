@@ -42,8 +42,8 @@ import java.util.function.Supplier;
  *       this node's pending ones) already holds, and stopping a shard whose mirror does not match its live root;</li>
  *   <li>for each shard whose live shard input no pending submission spends, build the {@code Exit} from vault custody
  *       and fee-wallet outputs no pending submission spends (halving on a per-transaction limit), submit it, and hold
- *       its inputs and inserts for one validity window past the submission (its TTL plus a slack), or until it is
- *       provably dead.</li>
+ *       its inputs until the node's L1 view shows it landed or past its TTL slot, and its inserts until committed
+ *       state accounts for them or it can never land.</li>
  * </ol>
  * Polling for inclusion is the payout observer's: a relayed claim leaves the relayer's view once it is {@code PAID}
  * in committed state, and its pending insert keeps it out of later passes until then.
@@ -70,7 +70,7 @@ final class ExitRelayTask {
      */
     String runOnce() throws Exception {
         return assembly.serialized(() -> {
-            if (assembly.warmingUp(node.clock().getAsLong())) return lastOutcome = OwnerAssembly.WARMING_UP;
+            if (assembly.warmingUp(node.clock().getAsLong(), node.l1())) return lastOutcome = OwnerAssembly.WARMING_UP;
             List<String> outcomes = new ArrayList<>();
             AtomicReference<Optional<CommittedClaims.Index>> index = new AtomicReference<>();
             Supplier<Optional<CommittedClaims.Index>> claims = () -> {
@@ -108,7 +108,7 @@ final class ExitRelayTask {
         if (reserved.isEmpty()) return "no reserved claims";
 
         long now = node.clock().getAsLong();
-        Set<ResolvedOutput.Outpoint> held = new HashSet<>(assembly.held(now, node.l1()));
+        Set<ResolvedOutput.Outpoint> held = new HashSet<>(assembly.held(node.l1()));
         Map<Integer, ResolvedOutput> shardInputs = new HashMap<>();
         Map<Integer, ShardMirror> mirrors = new HashMap<>();
         Set<Integer> stopped = new HashSet<>();
@@ -153,8 +153,8 @@ final class ExitRelayTask {
                 relayed.add("no fee wallet funds");
                 break;
             }
-            List<ResolvedOutput> custody = new ArrayList<>(node.l1().at(pins.vaultAddress()));
-            custody.removeIf(out -> held.contains(out.outpoint()));
+            // Custody pages through the vault address until it covers the batch (Codex P1, r22).
+            List<ResolvedOutput> custody = node.l1().custodyFor(pins, held, batch.claims());
             PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(pins, custody,
                     shardInputs.get(batch.shardIndex()), anchor.get().output(), exitMode.get(),
                     List.of(vaultRef.get(), shardRef.get()), new PayoutTxBuilder.Funding(funding, wallet.address()),
@@ -168,15 +168,15 @@ final class ExitRelayTask {
                 continue;
             }
             byte[] signed = wallet.witness(built.get().cbor(), built.get().txId(), Map.of());
+            assembly.beforeSubmit(built.get().transaction().getBody().getTtl());
             String txHash = node.submit().apply(signed);
             if (txHash == null || !txHash.equalsIgnoreCase(built.get().txId().hex())) {
                 relayed.add("submission returned another transaction id");
                 continue;
             }
-            // Dated from this successful submission: one validity window (the TTL) plus a slack.
-            OwnerAssembly.Hold hold = OwnerAssembly.Hold.payout(built.get().transaction(), built.get().txId(),
-                    pins.vaultId(), batch.shardIndex(), built.get().claimIds(),
-                    OwnerAssembly.expiry(node.clock().getAsLong(), node.settings().validityWindowMs()));
+            // Held until the L1 view shows it landed or past its TTL; its inserts until committed state has them.
+            OwnerAssembly.Pending hold = OwnerAssembly.Pending.payout(built.get().transaction(), built.get().txId(),
+                    pins.vaultId(), batch.shardIndex(), built.get().claimIds());
             assembly.hold("exit:" + built.get().txId().hex(), hold);
             held.addAll(hold.spends());
             used.add(batch.shardIndex());
@@ -187,8 +187,9 @@ final class ExitRelayTask {
     }
 
     /**
-     * The {@code Exit} of the batch's first claims that fit: halved on a per-transaction limit or on custody that
-     * does not cover the batch (Codex P1-2: free custody after holds may pay a smaller one); a single claim that alone
+     * The {@code Exit} of the batch's first claims that fit: halved on a per-transaction limit, on custody that does
+     * not cover the batch (Codex P1-2: free custody after holds may pay a smaller one), or on fee funding or collateral
+     * that does not cover it (a smaller batch needs less fee and supplement); a single claim that alone
      * does not fit is skipped (its user can self-relay with a larger supplement, or it waits for custody) and the next
      * ones are tried. Any other build failure is thrown to the caller, which reports it.
      */
@@ -201,7 +202,8 @@ final class ExitRelayTask {
             try {
                 return Optional.of(ExitRelayer.build(context, new ExitRelayer.Batch(batch.shardIndex(),
                         claims.subList(0, size)), proofs, mirror, node.evaluator()));
-            } catch (PayoutTxBuilder.LimitExceeded | PayoutTxBuilder.CustodyShort doesNotFit) {
+            } catch (PayoutTxBuilder.LimitExceeded | PayoutTxBuilder.CustodyShort | PayoutTxBuilder.FundingShort
+                     doesNotFit) {
                 last = doesNotFit;
                 if (size == 1) {
                     claims.removeFirst();
@@ -226,7 +228,7 @@ final class ExitRelayTask {
         if (liveRoot.isEmpty()) return Optional.empty();
         List<Hash32> paid = index.paid(pins.vaultId(), shard);
         LinkedHashSet<Hash32> withOwn = new LinkedHashSet<>(paid);
-        withOwn.addAll(assembly.inserts(pins.vaultId(), shard));
+        withOwn.addAll(assembly.inserts(pins.vaultId(), shard, paid, node.l1()));
         ShardMirror optimistic = ShardMirror.of(shard, withOwn);
         if (optimistic.matches(liveRoot.get())) return Optional.of(optimistic);
         ShardMirror confirmed = ShardMirror.of(shard, paid);

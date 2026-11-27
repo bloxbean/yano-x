@@ -49,8 +49,12 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *                                   (reported as an l1-tip-bound refusal)
  * fee-wallet.key-file               owner only: a file holding the 32-byte Ed25519 seed (hex) of the fee wallet
  * validity-window-slots (600)       owner and relayer: the validity window of every Settle, Accept and relayed Exit,
- *                                   at most 10 minutes of slots; a pending transaction holds its inputs for one
- *                                   window plus a slack after its submission
+ *                                   at most 10 minutes of slots; a pending transaction holds its inputs until the
+ *                                   node's L1 view is past its TTL or shows it landed
+ * pending-ttl-file                  owner and relayer, optional: a node-local file (put it under the node's data
+ *                                   directory) holding the latest TTL slot of this node's submitted transactions; a
+ *                                   restart builds nothing until the L1 view is past it. Without it a restart waits
+ *                                   the longest permitted window (10 minutes) plus 2 minutes
  * max-vault-inputs (8)              owner and relayer: vault inputs per Settle or relayed Exit
  * max-supplement-per-payout (0)     owner only: the most lovelace the fee wallet adds to one payout's min-UTxO (D11);
  *                                   a claim needing more is left out of the co-signed batch and stays RESERVED for
@@ -64,6 +68,8 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *                                   it
  * accept.max-batch (16), accept.max-proved-batch (12)   deposits per co-signed and per proved Accept, at most the
  *                                   builder's caps
+ * accept.relayer-delay-ms           a relaying non-owner only: it proves an Accept only of deposits whose L1 output is
+ *   (3 x accept.interval-ms)        at least this old, so it does not race a healthy owner
  * exit-relayer.enabled (false)      relay EXIT_ELIGIBLE claims as proof Exits (D9), permissionless; the owner relays
  *                                   with its own fee wallet and assembly, any other node with its own wallet
  * exit-relayer.interval-ms (60000)  how often the relayer looks for eligible claims
@@ -74,7 +80,7 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                                boolean owner, Duration roundTimeout, Optional<byte[]> feeWalletSeed,
                                SlotClock slots, long validityWindowSlots, int maxVaultInputs,
                                Duration inclusionTimeout, BigInteger maxSupplementPerPayout,
-                               Duration stabilityWindow, Tasks tasks) {
+                               Duration stabilityWindow, Tasks tasks, Optional<Path> pendingTtlFile) {
     /**
      * The validity window bound of every node that builds (the owner and a relayer): the members accept a TTL up to 10
      * minutes plus clock skew past their tip, and holds and the startup grace last one window.
@@ -89,9 +95,10 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
      * @param acceptIntervalMs  the {@code Accept} pace, 0 when disabled (the owner, or a relaying non-owner's proved
      *                          {@code Accept})
      * @param relayerSeed       a relaying non-owner's own fee-wallet seed; the owner relays with its fee wallet
+     * @param relayerAcceptDelayMs how old a deposit's L1 output must be before a relaying non-owner proves it
      */
     record Tasks(long acceptIntervalMs, int acceptBatch, int acceptProvedBatch, boolean exitRelayer,
-                 long exitRelayIntervalMs, Optional<byte[]> relayerSeed) {
+                 long exitRelayIntervalMs, Optional<byte[]> relayerSeed, long relayerAcceptDelayMs) {
     }
 
     /** The reference-script outputs of one vault. */
@@ -196,10 +203,9 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 ? Optional.of(readSeed(relayerKey.orElseThrow(() -> new IllegalArgumentException(
                 "a relaying non-owner needs exit-relayer.fee-wallet.key-file"))))
                 : Optional.empty();
-        Tasks tasks = new Tasks(
-                owner || relayer
-                        ? bounded(optional(config, "accept.interval-ms", "60000"), 0, 86_400_000L, "accept.interval-ms")
-                        : 0,
+        long acceptInterval = owner || relayer
+                ? bounded(optional(config, "accept.interval-ms", "60000"), 0, 86_400_000L, "accept.interval-ms") : 0;
+        Tasks tasks = new Tasks(acceptInterval,
                 (int) bounded(optional(config, "accept.max-batch", "16"), 1, AcceptTxBuilder.MAX_COSIGNED,
                         "accept.max-batch"),
                 (int) bounded(optional(config, "accept.max-proved-batch", "12"), 1, AcceptTxBuilder.MAX_PROVED,
@@ -207,7 +213,11 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 relayer,
                 bounded(optional(config, "exit-relayer.interval-ms", "60000"), 1_000, 86_400_000L,
                         "exit-relayer.interval-ms"),
-                relayerSeed);
+                relayerSeed,
+                bounded(optional(config, "accept.relayer-delay-ms", Long.toString(3 * acceptInterval)), 0,
+                        7 * 86_400_000L, "accept.relayer-delay-ms"));
+        Optional<Path> ttlFile = Optional.ofNullable(config.get("pending-ttl-file")).map(String::trim)
+                .filter(value -> !value.isEmpty()).map(Path::of);
         return new AssetSettlementSettings(vaults, pins, refs, owner,
                 Duration.ofMillis(bounded(optional(config, "round-timeout-ms", "30000"), 100, 600_000,
                         "round-timeout-ms")), seed, slots, window,
@@ -215,12 +225,7 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 inclusion,
                 BigInteger.valueOf(bounded(optional(config, "max-supplement-per-payout", "0"), 0, 100_000_000L,
                         "max-supplement-per-payout")),
-                stability, tasks);
-    }
-
-    /** The validity window in L1 time. */
-    long validityWindowMs() {
-        return validityWindowSlots * slots.slotLengthMs();
+                stability, tasks, ttlFile);
     }
 
     Optional<VaultPins> vault(Hash32 vaultId) {

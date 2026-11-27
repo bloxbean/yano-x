@@ -53,8 +53,8 @@ record NodeServices(AssetSettlementSettings settings, NodeL1View l1, CommittedCl
      * The state proofs under the referenced anchor's root (D8b), at its height. The live anchor is the newest on L1, so
      * its height is at or above the node's L1-stable anchor height, and the proof floor keeps every height from there
      * on: a fresh anchor's proofs exist. {@link NodeStateProofs#at} binds each proof to that height, root and key. A
-     * transaction that references an anchor which then rolls back fails on L1 and is rebuilt (D8b); its hold is
-     * released once that anchor no longer resolves ({@link OwnerAssembly}).
+     * transaction that references an anchor which then rolls back fails on L1 and is rebuilt (D8b), once the L1 view
+     * is past its TTL ({@link OwnerAssembly}).
      */
     Optional<StateProof.Source> anchoredProofs(NodeL1View.Anchored anchor) {
         long height = anchor.datum().height();
