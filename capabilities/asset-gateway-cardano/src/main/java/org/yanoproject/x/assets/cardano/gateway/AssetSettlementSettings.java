@@ -62,8 +62,9 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * max-supplement-per-payout (0)     owner only: the most lovelace the fee wallet adds to one payout's min-UTxO (D11);
  *                                   a claim needing more is left out of the co-signed batch and stays RESERVED for
  *                                   Exit, where the relayer or the user supplements it
- * stability-window-ms (600000)      owner only: an upper bound on the time from a Settle's inclusion to its committed
- *                                   payout observation (the chain's l1.stability-depth in L1 time, plus finality)
+ * stability-window-ms (600000)      owner and relayer: an upper bound on the time from an L1 inclusion to its
+ *                                   committed observation (the chain's l1.stability-depth in L1 time, plus finality):
+ *                                   a Settle's payout observation, and a deposit's credit
  * inclusion-timeout-ms (900000)     owner only: how long a submitted Settle may take to be confirmed by the payout
  *                                   observer; must exceed stability-window-ms
  * accept.interval-ms (60000)        owner and relayer: how often the owner batches CREDITED-but-unaccepted deposits
@@ -71,8 +72,9 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *                                   it
  * accept.max-batch (16), accept.max-proved-batch (12)   deposits per co-signed and per proved Accept, at most the
  *                                   builder's caps
- * accept.relayer-delay-ms           a relaying non-owner only: it proves an Accept only of deposits whose L1 output is
- *   (3 x accept.interval-ms)        at least this old, so it does not race a healthy owner
+ * accept.relayer-delay-ms           a relaying non-owner only: it proves an Accept only of deposits that could have
+ *   (3 x accept.interval-ms)        been credited at least this long ago (L1 output time plus stability-window-ms),
+ *                                   so it does not race a healthy owner
  * exit-relayer.enabled (false)      relay EXIT_ELIGIBLE claims as proof Exits (D9), permissionless; the owner relays
  *                                   with its own fee wallet and assembly, any other node with its own wallet
  * exit-relayer.interval-ms (60000)  how often the relayer looks for eligible claims

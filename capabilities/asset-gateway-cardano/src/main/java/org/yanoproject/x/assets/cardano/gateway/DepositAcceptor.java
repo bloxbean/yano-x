@@ -168,12 +168,14 @@ final class DepositAcceptor {
     /**
      * The deposit-shaped outputs of the vault in this pass's window, not held by a pending submission, recorded
      * {@code CREDITED} for this vault and outpoint in committed state at or below {@code anchorHeight}, in outpoint
-     * order. A relaying non-owner keeps only deposits whose L1 output is at least {@code accept.relayer-delay-ms} old,
-     * so it proves what a healthy owner has left (Fable P3-2).
+     * order. A relaying non-owner keeps only deposits that could have been {@code CREDITED} at least
+     * {@code accept.relayer-delay-ms} ago, counting from the L1 output's time plus the stability window, so it proves
+     * what a healthy owner has left (Fable P3-2, reviewer3 M4S3a-F2).
      */
     private List<ResolvedOutput> creditedDeposits(VaultPins pins, long anchorHeight,
                                                   Set<ResolvedOutput.Outpoint> held, long now) {
-        long youngest = cosign == null ? now - node.settings().tasks().relayerAcceptDelayMs() : Long.MAX_VALUE;
+        long youngest = cosign == null ? now - node.settings().stabilityWindow().toMillis()
+                - node.settings().tasks().relayerAcceptDelayMs() : Long.MAX_VALUE;
         int from = scanFrom.getOrDefault(pins.vaultId(), 1);
         NodeL1View.Window window = node.l1().window(pins.vaultAddress(), from);
         scanFrom.put(pins.vaultId(), window.more() ? from + NodeL1View.MAX_PAGES : 1);
@@ -198,15 +200,15 @@ final class DepositAcceptor {
     record Attempt(AcceptTxBuilder.Built built, String failure) {
     }
 
-    /** The first of {@code deposits} that fit: at most {@code cap}, halved on a per-transaction limit. */
-    private static Attempt build(List<ResolvedOutput> deposits, int cap,
+    /** The first of {@code deposits} that fit: at most {@code cap}, halved on a per-transaction limit or short funding. */
+    static Attempt build(List<ResolvedOutput> deposits, int cap,
                                  java.util.function.Function<List<ResolvedOutput>, AcceptTxBuilder.Built> builder) {
         int size = Math.min(cap, deposits.size());
         String failure = "nothing to build";
         while (size >= 1) {
             try {
                 return new Attempt(builder.apply(deposits.subList(0, size)), null);
-            } catch (PayoutTxBuilder.LimitExceeded tooLarge) {
+            } catch (PayoutTxBuilder.LimitExceeded | PayoutTxBuilder.FundingShort tooLarge) {
                 failure = tooLarge.getMessage();
                 size = size / 2;
             } catch (PayoutTxBuilder.BuildException unbuildable) {

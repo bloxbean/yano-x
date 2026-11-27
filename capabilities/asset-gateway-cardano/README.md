@@ -20,13 +20,13 @@ node, `owner=true`, builds, collects signatures and submits. The settings are no
 | `max-settle-batch` (16) | every signing member | Claims per `Settle`. The owner splits larger batches, and every member refuses a `Settle` with more claims, so members must allow at least the owner's cap. |
 | `max-vault-inputs` (8) | owner, relayer | Vault inputs per payout; a batch that needs more is split. |
 | `max-supplement-per-payout` (0) | owner | The most lovelace the fee wallet adds to one payout's min-UTxO. A claim that needs more stays `RESERVED` for `Exit`. |
-| `stability-window-ms` (600000), `inclusion-timeout-ms` (900000) | owner | How long a payout takes to be observed after inclusion, and how long a submitted `Settle` may take to be confirmed; the timeout must exceed the window. |
+| `stability-window-ms` (600000), `inclusion-timeout-ms` (900000) | owner (window: also relayer) | How long a payout or a deposit takes to be observed after inclusion, and how long a submitted `Settle` may take to be confirmed; the timeout must exceed the window. |
 | `fee-wallet.key-file` | owner | The fee wallet's 32-byte Ed25519 seed (hex). |
 | `round-timeout-ms` (30000) | every node | The fail-closed co-sign round timeout. |
 | `deposit-key-prefix` (`ap/deposit/`) | every node | The vault script's deposit-record key prefix (`Accept`). |
 | `accept.interval-ms` (60000) | owner, relayer | How often the owner batches credited deposits into an `Accept`, and a relaying non-owner into a proved `Accept`; 0 disables it. |
 | `accept.max-batch` (16), `accept.max-proved-batch` (12) | owner, relayer | Deposits per co-signed and per proved `Accept`. |
-| `accept.relayer-delay-ms` (3 × `accept.interval-ms`) | relaying non-owner | How old a deposit's L1 output must be before the relayer proves it, so it does not race a healthy owner. |
+| `accept.relayer-delay-ms` (3 × `accept.interval-ms`) | relaying non-owner | How long ago a deposit must have become creditable (its L1 output's time plus `stability-window-ms`) before the relayer proves it, so it does not race a healthy owner. |
 | `exit-relayer.enabled` (false), `exit-relayer.interval-ms` (60000) | any node | Relay `EXIT_ELIGIBLE` claims by proof `Exit`. |
 | `exit-relayer.fee-wallet.key-file` | relaying non-owner | The relayer's own fee wallet; the owner relays with `fee-wallet.key-file`. |
 
@@ -72,7 +72,7 @@ floor (`state.proof-pruning.l1-stable-anchor-floor`). A transaction whose anchor
 rebuilt. Payout custody is collected from every page of the vault address (up to 100,000 outputs), and the builder
 picks the most useful inputs from all of it. When the free
 custody or the fee funding does not cover a batch, the relayer tries smaller ones and skips a claim that does not fit
-alone. A relaying non-owner also submits proved `Accept`s of deposits at least `accept.relayer-delay-ms` old, so
+alone. A relaying non-owner also submits proved `Accept`s of deposits creditable for at least `accept.relayer-delay-ms`, so
 custody keeps flowing while the owner is down. The relayer refuses in exit mode, which is M4a.
 
 On the owner, the `Settle` executor, the `Accept` batcher and the relayer share one assembly lock, one fee wallet and

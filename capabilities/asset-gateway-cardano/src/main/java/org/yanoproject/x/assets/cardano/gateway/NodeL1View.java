@@ -58,14 +58,17 @@ final class NodeL1View {
     }
 
     /**
-     * The slot of the last L1 block applied to this node's UTxO view; empty when the view cannot tell (no view, no
-     * applied point, or a failed read). It moves only as blocks are applied, so a stale view reports a stale tip.
+     * The slot of the last L1 block applied to this node's UTxO view; empty when the view cannot tell (no view, a
+     * disabled store, no applied point yet, which the store reports as a negative slot, or a failed read). It moves
+     * only as blocks are applied, so a stale view reports a stale tip.
      */
     OptionalLong appliedTipSlot() {
         UtxoState state = view.get();
         if (!(state instanceof RollbackCapableStore store)) return OptionalLong.empty();
         try {
-            return OptionalLong.of(store.getLatestAppliedSlot());
+            if (!state.isEnabled()) return OptionalLong.empty();
+            long slot = store.getLatestAppliedSlot();
+            return slot < 0 ? OptionalLong.empty() : OptionalLong.of(slot);
         } catch (RuntimeException unavailable) {
             return OptionalLong.empty();
         }

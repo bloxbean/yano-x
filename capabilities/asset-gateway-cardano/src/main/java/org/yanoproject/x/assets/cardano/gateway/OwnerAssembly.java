@@ -156,9 +156,18 @@ final class OwnerAssembly {
         return !over;
     }
 
-    /** A stored TTL slot is valid unless negative or further past the applied tip than any TTL can be. */
-    private boolean valid(long ttlSlot, long tip) {
-        return ttlSlot >= 0 && ttlSlot - tip <= maxWindowSlots + slackSlots;
+    /**
+     * A stored TTL slot is valid unless negative or further past {@code reference} (the applied tip, or a TTL being
+     * submitted) than any TTL can be. The bound saturates, so no value overflows the comparison.
+     */
+    private boolean valid(long ttlSlot, long reference) {
+        long bound;
+        try {
+            bound = Math.addExact(reference, maxWindowSlots + slackSlots);
+        } catch (ArithmeticException overflow) {
+            bound = Long.MAX_VALUE;
+        }
+        return ttlSlot >= 0 && ttlSlot <= bound;
     }
 
     /**
@@ -170,7 +179,8 @@ final class OwnerAssembly {
         if (ttlFile.isEmpty()) return;
         synchronized (lock) {
             Path file = ttlFile.get();
-            long onDisk = read(file).filter(stored -> stored >= 0).orElse(-1L);
+            // A stored slot further past this TTL than any TTL can be is not a real pending TTL: overwrite it.
+            long onDisk = read(file).filter(stored -> valid(stored, ttlSlot)).orElse(-1L);
             if (ttlSlot <= onDisk) return;
             try {
                 Path parent = file.toAbsolutePath().getParent();

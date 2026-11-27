@@ -234,6 +234,8 @@ class AssetSettlementTasksTest {
     Long frozenTipSlot;
     /** Whether spent-or-unspent point reads fail. */
     boolean pointReadsFail;
+    /** Whether the node's UTxO store is disabled. */
+    boolean storeDisabled;
 
     /** The effective TTL file of {@code chain} and the fee wallet of {@code feeSeed} under {@code base}. */
     static Path ttlFileOf(Path base, String chain, byte[] feeSeed) {
@@ -291,7 +293,7 @@ class AssetSettlementTasksTest {
 
         @Override
         public boolean isEnabled() {
-            return true;
+            return !storeDisabled;
         }
 
         @Override
@@ -1644,24 +1646,101 @@ class AssetSettlementTasksTest {
     }
 
     /**
-     * Fable P3-2 (r22): a relaying non-owner proves an Accept only of deposits at least accept.relayer-delay-ms old
-     * (three Accept intervals by default), so it does not race a healthy owner.
+     * Fable P3-2 (r22), reviewer3 M4S3a-F2: a relaying non-owner proves an Accept only of deposits that could have been
+     * CREDITED at least accept.relayer-delay-ms ago (three Accept intervals by default). A deposit is credited only a
+     * stability window (600,000 ms by default) after its L1 inclusion, so the delay counts from then, and the relayer
+     * still waits behind a healthy owner that accepts as soon as the credit is committed.
      */
     @Test
     void aRelayerProvesOnlyDepositsTheOwnerHasLeft() throws Exception {
         seed();
         Node relayerNode = new Node(MEMBER_SEED);
-        deposit(0, 900, NOW / 1_000, DepositAdmission.Reason.NONE, relayerNode); // created now
+        long included = NOW - 600_000; // on L1 one stability window ago, so credited about now
+        deposit(0, 900, included / 1_000, DepositAdmission.Reason.NONE, relayerNode);
         anchor();
         DepositAcceptor acceptor = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true))
                 .acceptor().orElseThrow();
 
+        // Counted from inclusion, the default 3-minute delay would have passed 7 minutes ago.
         assertThat(acceptor.runOnce()).isEqualTo("nothing to accept");
         now = NOW + 3 * 60_000 - 1_000;
         assertThat(acceptor.runOnce()).isEqualTo("nothing to accept");
         now = NOW + 3 * 60_000;
         String outcome = acceptor.runOnce();
         assertThat(outcome).as(outcome).startsWith("accepted (proved) 1 deposits");
+    }
+
+    /**
+     * reviewer3 M4S3a-F1: a store with no applied point yet reports slot -1, and a disabled store answers nothing; the
+     * view then knows no tip, so an empty point read is UNKNOWN, not ABSENT, and a TTL file holding the largest slot
+     * cannot end the startup grace through an overflowing comparison.
+     */
+    @Test
+    void aViewWithoutAnAppliedPointOrWithADisabledStoreKnowsNoTip() throws Exception {
+        NodeL1View l1 = new NodeL1View(this::view);
+        ResolvedOutput.Outpoint absent = new ResolvedOutput.Outpoint(Hash32.of(filled(32, 0x3a)), 0);
+        assertThat(l1.known(absent)).isEqualTo(NodeL1View.Read.ABSENT);
+
+        frozenTipSlot = -1L;
+        assertThat(l1.appliedTipSlot()).isEmpty();
+        assertThat(l1.known(absent)).isEqualTo(NodeL1View.Read.UNKNOWN);
+        Path file = temp.resolve("overflow.ttl");
+        Files.writeString(file, Long.toString(Long.MAX_VALUE));
+        OwnerAssembly assembly = new OwnerAssembly(NOW, new AssetSettlementSettings.SlotClock(0, 0, 1_000),
+                Optional.of(file));
+        assertThat(assembly.warmingUp(NOW + DAY, l1)).isTrue();
+
+        frozenTipSlot = null;
+        storeDisabled = true;
+        assertThat(l1.appliedTipSlot()).isEmpty();
+        assertThat(l1.known(absent)).isEqualTo(NodeL1View.Read.UNKNOWN);
+        storeDisabled = false;
+        assertThat(l1.known(absent)).isEqualTo(NodeL1View.Read.ABSENT);
+        // A readable tip and the largest stored slot: invalid, so the fallback grace applies instead.
+        now = NOW + DAY;
+        assertThat(new OwnerAssembly(NOW, new AssetSettlementSettings.SlotClock(0, 0, 1_000), Optional.of(file))
+                .warmingUp(NOW + DAY, l1)).isFalse();
+    }
+
+    /** reviewer3 note: an impossibly high stored TTL is overwritten by the first valid submission. */
+    @Test
+    void anImpossiblyHighStoredTtlIsOverwrittenByTheFirstSubmission() throws Exception {
+        long ttl = NOW / 1_000 + 600;
+        for (long stored : new long[] {ttl + 5_000, Long.MAX_VALUE, -7}) {
+            Path file = temp.resolve("high-" + (stored & 0xffff) + ".ttl");
+            Files.writeString(file, Long.toString(stored));
+            new OwnerAssembly(NOW, new AssetSettlementSettings.SlotClock(0, 0, 1_000), Optional.of(file))
+                    .beforeSubmit(ttl);
+            assertThat(Files.readString(file).trim()).as("stored %d", stored).isEqualTo(Long.toString(ttl));
+        }
+        // A plausible higher stored TTL (another writer's, within one window) is kept.
+        Path file = temp.resolve("plausible.ttl");
+        Files.writeString(file, Long.toString(ttl + 400));
+        new OwnerAssembly(NOW, new AssetSettlementSettings.SlotClock(0, 0, 1_000), Optional.of(file))
+                .beforeSubmit(ttl);
+        assertThat(Files.readString(file).trim()).isEqualTo(Long.toString(ttl + 400));
+    }
+
+    /** reviewer3 note: the Accept builder halves the batch on short funding as on a per-transaction limit. */
+    @Test
+    void theAcceptBatchIsHalvedOnShortFundingAndOnALimit() {
+        List<ResolvedOutput> deposits = Collections.nCopies(8, null);
+        List<Integer> tried = new ArrayList<>();
+        DepositAcceptor.Attempt funded = DepositAcceptor.build(deposits, 8, batch -> {
+            tried.add(batch.size());
+            if (batch.size() > 2) throw new PayoutTxBuilder.FundingShort("funding does not cover the fee");
+            throw new PayoutTxBuilder.BuildException("stopped at " + batch.size());
+        });
+        assertThat(tried).containsExactly(8, 4, 2);
+        assertThat(funded.failure()).isEqualTo("stopped at 2");
+
+        tried.clear();
+        DepositAcceptor.Attempt limited = DepositAcceptor.build(deposits, 8, batch -> {
+            tried.add(batch.size());
+            throw new PayoutTxBuilder.LimitExceeded("too large");
+        });
+        assertThat(tried).containsExactly(8, 4, 2, 1);
+        assertThat(limited.failure()).isEqualTo("too large");
     }
 
     /** Fable P3-3 (r22): a StackOverflowError of one pass is logged like any failure; the timer keeps running. */
@@ -1814,9 +1893,9 @@ class AssetSettlementTasksTest {
         assertThat(Files.readString(fileB).trim()).isEqualTo(Long.toString(NOW / 1_000 + 600));
 
         // Another writer raised chain 2's file meanwhile: a lower TTL does not lower it.
-        Files.writeString(fileB, Long.toString(NOW / 1_000 + 5_000));
+        Files.writeString(fileB, Long.toString(NOW / 1_000 + 1_000));
         assertThat(b.runOnce()).startsWith("accepted");
-        assertThat(Files.readString(fileB).trim()).isEqualTo(Long.toString(NOW / 1_000 + 5_000));
+        assertThat(Files.readString(fileB).trim()).isEqualTo(Long.toString(NOW / 1_000 + 1_000));
     }
 
     /** Codex (TTL file): a negative stored slot, or one beyond any TTL, is invalid and the fallback grace applies. */
