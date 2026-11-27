@@ -52,6 +52,12 @@ final class DepositAcceptor {
     private final FeeWallet wallet;
     /** Per vault: who answered the last incomplete round and who was tried. Guarded by the assembly lock. */
     private final Map<Hash32, AssetSettlementExecutor.SignerMemory> signerMemory = new HashMap<>();
+    /**
+     * Per vault: the first page of the next pass's window of vault outputs (Codex P2-7). Each pass reads one window
+     * of {@link NodeL1View#MAX_PAGES} pages and moves on, wrapping to the first page after the last, so every output
+     * of a vault with more than one window of outputs is eventually reached. Guarded by the assembly lock.
+     */
+    private final Map<Hash32, Integer> scanFrom = new HashMap<>();
     private volatile String lastOutcome = "idle";
 
     DepositAcceptor(NodeServices node, AssetCosignService cosign, byte[] memberPublicKey, OwnerAssembly assembly,
@@ -142,13 +148,17 @@ final class DepositAcceptor {
     }
 
     /**
-     * The deposit-shaped outputs of the vault, not held by a pending submission, recorded {@code CREDITED} for this
-     * vault and outpoint in committed state at or below {@code anchorHeight}, in outpoint order.
+     * The deposit-shaped outputs of the vault in this pass's window, not held by a pending submission, recorded
+     * {@code CREDITED} for this vault and outpoint in committed state at or below {@code anchorHeight}, in outpoint
+     * order.
      */
     private List<ResolvedOutput> creditedDeposits(VaultPins pins, long anchorHeight,
                                                   Set<ResolvedOutput.Outpoint> held) {
+        int from = scanFrom.getOrDefault(pins.vaultId(), 1);
+        NodeL1View.Window window = node.l1().window(pins.vaultAddress(), from);
+        scanFrom.put(pins.vaultId(), window.more() ? from + NodeL1View.MAX_PAGES : 1);
         List<ResolvedOutput> credited = new ArrayList<>();
-        for (ResolvedOutput out : node.l1().at(pins.vaultAddress())) {
+        for (ResolvedOutput out : window.outputs()) {
             if (held.contains(out.outpoint()) || !AcceptTxBuilder.depositShaped(out, pins)) continue;
             Hash32 depositId = AcceptTxBuilder.depositId(pins, out.outpoint());
             Optional<DepositRecordV1> record = node.committed().deposit(depositId);

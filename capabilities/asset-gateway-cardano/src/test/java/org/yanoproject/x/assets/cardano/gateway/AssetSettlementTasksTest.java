@@ -229,10 +229,12 @@ class AssetSettlementTasksTest {
         return new UtxoState() {
             @Override
             public List<Utxo> getUtxosByAddress(String address, int page, int count) {
-                if (page > 1) return List.of();
+                List<Utxo> all;
                 synchronized (l1) {
-                    return l1.values().stream().filter(u -> u.address().equals(address)).toList();
+                    all = l1.values().stream().filter(u -> u.address().equals(address)).toList();
                 }
+                int from = (page - 1) * count;
+                return from >= all.size() ? List.of() : all.subList(from, Math.min(all.size(), from + count));
             }
 
             @Override
@@ -826,6 +828,31 @@ class AssetSettlementTasksTest {
         assertThat(body.getValidityStartInterval()).isLessThanOrEqualTo(slot);
         assertThat(body.getTtl()).isGreaterThan(slot);
         assertPasses(submitted.getFirst());
+    }
+
+    /**
+     * Codex P2-7: the batcher reads one window of vault outputs per pass and carries a cursor across passes, so a
+     * credited deposit past the first window (5,000 outputs) is reached.
+     */
+    @Test
+    void aCreditedDepositPastTheFirstWindowOfVaultOutputsIsAccepted() throws Exception {
+        seed(); // two custody outputs at the vault
+        for (int i = 0; i < NodeL1View.PAGE * NodeL1View.MAX_PAGES; i++) {
+            put(utxo("7e".repeat(32), i, enterprise(VAULT_HASH), 2_000_000, List.of(), null, null));
+        }
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member); // output 5,003 at the vault address
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false);
+        product(member, false, false);
+        pump(owner, member);
+        DepositAcceptor acceptor = executor.acceptor().orElseThrow();
+
+        assertThat(acceptor.runOnce()).isEqualTo("nothing to accept");
+        assertThat(acceptor.runOnce()).startsWith("accepted (co-signed) 1 deposits");
+        // The window wraps back to the first page.
+        assertThat(acceptor.runOnce()).isEqualTo("nothing to accept");
     }
 
     // ------------------------------------------------------------------ the exit relayer

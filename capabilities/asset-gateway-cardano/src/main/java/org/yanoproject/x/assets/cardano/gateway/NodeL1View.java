@@ -55,12 +55,24 @@ final class NodeL1View {
         }
     }
 
+    /** The first {@link #MAX_PAGES} pages of outputs at the address. */
     List<ResolvedOutput> at(byte[] rawAddress) {
+        return window(rawAddress, 1).outputs();
+    }
+
+    /**
+     * One window of outputs at the address: up to {@link #MAX_PAGES} pages from {@code firstPage}; {@code more} when
+     * the window ended on a full page, so later pages may hold more.
+     */
+    record Window(List<ResolvedOutput> outputs, boolean more) {
+    }
+
+    Window window(byte[] rawAddress, int firstPage) {
         UtxoState state = view.get();
         List<ResolvedOutput> out = new ArrayList<>();
-        if (state == null) return out;
+        if (state == null) return new Window(out, false);
         String bech32 = new Address(rawAddress).toBech32();
-        for (int page = 1; page <= MAX_PAGES; page++) {
+        for (int page = firstPage; page < firstPage + MAX_PAGES; page++) {
             List<Utxo> utxos = state.getUtxosByAddress(bech32, page, PAGE);
             for (Utxo utxo : utxos) {
                 try {
@@ -69,9 +81,9 @@ final class NodeL1View {
                     // An output this node cannot represent is never selected.
                 }
             }
-            if (utxos.size() < PAGE) break;
+            if (utxos.size() < PAGE) return new Window(out, false);
         }
-        return out;
+        return new Window(out, true);
     }
 
     /** The live anchor: the one output at the pinned anchor script carrying the thread token with an accepted datum. */
