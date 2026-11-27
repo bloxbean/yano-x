@@ -102,6 +102,10 @@ public final class NodeStateProofs {
      * The on-chain form of a native inclusion proof: the leaf's encoded suffix and the folds from the leaf up to the
      * root, as {@code MpfOnChainVerifier} reads them. The result must reconstruct {@code proof.stateRoot()}, or this
      * throws.
+     *
+     * <p>This is the inclusion path of the client SDK's {@code org.yanoproject.x.client.MpfProofConverter#convert}
+     * (sdk/client), kept here so the runtime needs no SDK client; a change to either must be made to both, and
+     * {@code NodeStateProofsTest.nativeProofsNormalizeToTheSdkFolds} checks that they agree.
      */
     public static StateProof normalize(NativeProof proof) {
         byte[] key = proof.key();

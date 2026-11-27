@@ -49,6 +49,13 @@ public final class MpfProofConverter {
                 0L, AppChainClient.ProofPresence.valueOf(proof.presence().name()), null, null));
     }
 
+    /**
+     * Convert a verified MPF inclusion proof wire to its normalized fold form. The asset gateway's runtime relayer
+     * repeats this inclusion path in
+     * {@code org.yanoproject.x.assets.cardano.support.settlement.NodeStateProofs#normalize}
+     * (capabilities/asset-gateway-cardano-support), so it needs no SDK client; a change to either must be made to
+     * both, and that module's {@code NodeStateProofsTest.nativeProofsNormalizeToTheSdkFolds} checks that they agree.
+     */
     public static MpfNormalizedProof convert(AppChainClient.Proof proof) {
         Objects.requireNonNull(proof, "proof");
         if (proof.valueHex() == null) {
