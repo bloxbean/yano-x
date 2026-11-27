@@ -174,8 +174,12 @@ class PluginTcclBoundaryTest {
             observer.observerId();
             List<L1Observation> observations = observer.observe(1, new byte[32], null);
             assertThat(observations).singleElement()
-                    .satisfies(observation -> assertThat(observation.observerId())
-                            .isEqualTo("instance"));
+                    .satisfies(observation -> {
+                        assertThat(observation.observerId()).isEqualTo("instance");
+                        // The ordinal names the event within its transaction (ADR-059 M4 devnet: a payout
+                        // observation lost its shard output index here and the ledger ignored it).
+                        assertThat(observation.eventOrdinal()).isEqualTo(7);
+                    });
             assertThatThrownBy(() -> observations.add(observations.getFirst()))
                     .isInstanceOf(UnsupportedOperationException.class);
             Map<String, Object> observerStatus = observer.status();
@@ -1501,7 +1505,7 @@ class PluginTcclBoundaryTest {
         @Override public List<L1Observation> observe(long slot, byte[] blockHash, Block block) {
             probe.check();
             return new ProbeList<>(probe,
-                    L1Observation.transaction("instance", new byte[32], slot,
+                    L1Observation.transaction("instance", new byte[32], 7, slot,
                             new byte[32], new byte[0]));
         }
         @Override public Map<String, Object> status() {

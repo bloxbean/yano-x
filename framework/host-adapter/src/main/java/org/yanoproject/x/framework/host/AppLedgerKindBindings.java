@@ -1203,7 +1203,9 @@ public final class AppLedgerKindBindings {
                                 + MAX_OBSERVATION_CLAIM_BYTES + " bytes");
             }
             return new ObservationSnapshot(
-                    new L1Observation(observerId, observation.anchor(),
+                    // The event ordinal is part of the observation's identity (a payout's shard output, a
+                    // deposit's output index); it crosses the plugin boundary unchanged.
+                    new L1Observation(observerId, observation.anchor(), observation.eventOrdinal(),
                             observation.slot(), observation.blockHash(), claim),
                     claim.length);
         }
