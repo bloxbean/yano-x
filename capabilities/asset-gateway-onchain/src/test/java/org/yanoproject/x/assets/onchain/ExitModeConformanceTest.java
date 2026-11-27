@@ -162,13 +162,13 @@ class ExitModeConformanceTest extends GatewayTestBase {
      * key's hash in one nibble above the leaf, is no absence proof, wherever the flipped nibble is.
      */
     @Test
-    void aForgedAbsenceOfAProcessedRequestCannotEnterExitMode() {
+    void anAbsenceProofOfAProcessedRequestCannotEnterExitMode() {
         byte[] key = GatewayFixtures.concat(FORCED_PREFIX, REQUEST_ID);
         StateTrie processed = new StateTrie().fill("ap/account/", 64).put(key, new byte[] {(byte) 0x82, 0, 0});
         int cursor = (int) leafCursor(processed.inclusion(key).leafSuffix());
         long posted = NOW - FORCED_DEADLINE - HOUR;
         for (int flip : new int[] {0, cursor / 2, cursor - 1}) {
-            Tx tx = enter(PlutusData.constr(1, PlutusData.bytes(REQUEST_ID), processed.forgedAbsence(key, flip)),
+            Tx tx = enter(PlutusData.constr(1, PlutusData.bytes(REQUEST_ID), processed.absenceOfPresentKey(key, flip)),
                     processed.root(), NOW - HOUR, NOW);
             tx.reference(request(posted, INBOX_HASH));
             rejected(exitModeValidator(), tx.spending(ref(0x64, 0)));

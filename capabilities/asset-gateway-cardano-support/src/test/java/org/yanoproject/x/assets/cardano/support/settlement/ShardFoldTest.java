@@ -77,7 +77,7 @@ class ShardFoldTest {
         byte[] before = world.mirrors[shard].root();
         assertThat(ShardFold.postInsertRoot(before, shard, shardRedeemer.getData())).isPresent();
 
-        // The forged shape: the terminal leaf's skip 0 becomes 1.
+        // The malformed shape: the terminal leaf's skip 0 becomes 1.
         ConstrPlutusData insert = (ConstrPlutusData) ((ListPlutusData) ((ConstrPlutusData) shardRedeemer.getData())
                 .getData().getPlutusDataList().getFirst()).getPlutusDataList().getFirst();
         ListPlutusData proof = (ListPlutusData) insert.getData().getPlutusDataList().get(1);
@@ -88,16 +88,16 @@ class ShardFoldTest {
         });
         List<PlutusData> leaf = ((ConstrPlutusData) proof.getPlutusDataList().getFirst()).getData()
                 .getPlutusDataList();
-        PlutusData forgedStep = ConstrPlutusData.of(2, BigIntPlutusData.of(1), leaf.get(1), leaf.get(2));
-        PlutusData forged = ConstrPlutusData.of(0, GatewayPlutus.list(List.of(ConstrPlutusData.of(0,
-                insert.getData().getPlutusDataList().getFirst(), GatewayPlutus.list(List.of(forgedStep))))));
-        byte[] forgedRoot = ShardFold.fold(before, shard, forged, false).orElseThrow();
-        assertThat(forgedRoot).as("the forged proof's roots fold").isNotEqualTo(honest.shardPlan().after());
-        assertThat(ShardFold.postInsertRoot(before, shard, forged)).as("ShardFold rejects the shape").isEmpty();
+        PlutusData malformedStep = ConstrPlutusData.of(2, BigIntPlutusData.of(1), leaf.get(1), leaf.get(2));
+        PlutusData malformed = ConstrPlutusData.of(0, GatewayPlutus.list(List.of(ConstrPlutusData.of(0,
+                insert.getData().getPlutusDataList().getFirst(), GatewayPlutus.list(List.of(malformedStep))))));
+        byte[] malformedRoot = ShardFold.fold(before, shard, malformed, false).orElseThrow();
+        assertThat(malformedRoot).as("the malformed proof's roots fold").isNotEqualTo(honest.shardPlan().after());
+        assertThat(ShardFold.postInsertRoot(before, shard, malformed)).as("ShardFold rejects the shape").isEmpty();
 
-        // The validator rejects the same transaction with the forged proof and its own folded root.
-        shardRedeemer.setData(forged);
-        tx.getBody().getOutputs().get(2).setInlineDatum(GatewayPlutus.shardDatum(shard, forgedRoot));
+        // The validator rejects the same transaction with the malformed proof and its own folded root.
+        shardRedeemer.setData(malformed);
+        tx.getBody().getOutputs().get(2).setInlineDatum(GatewayPlutus.shardDatum(shard, malformedRoot));
         PayoutTxBuilder.setScriptDataHash(tx, PayoutTxBuilder.costModels(PayoutWorld.PARAMS));
         var result = world.evaluator().evaluateTx(tx.serialize(), PayoutTxBuilder.utxos(honest.resolvedInputs()));
         assertThat(result.isSuccessful()).as("the shard validator rejects the shape").isFalse();

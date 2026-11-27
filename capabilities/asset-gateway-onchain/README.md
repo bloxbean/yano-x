@@ -68,7 +68,7 @@ Implementation notes:
   kind (a terminal leaf at an odd cursor with raw key bytes all below 16, read as a branch; a terminal fork whose
   reconstructed prefix starts with nibble 0 at exactly the odd-leaf length, read as the excluded id's own leaf),
   and a fork neighbor must end above the leaf level. The shard's `fold` calls `miss()` before `including()`, so a
-  forged miss can no longer re-insert a paid id. App-ledger state proofs use `sdk/proof-onchain`
+  malformed exclusion proof cannot re-insert a paid id. App-ledger state proofs use `sdk/proof-onchain`
   (`MpfOnChainVerifier`, `MpfAnchorLib`); `verifyAbsence` covers every absent key (empty slot, other leaf, or a
   branch whose prefix leaves the key's path and does not have the shape of the key's own odd leaf), so a post-freeze
   deposit is always refundable and a censored request always provable.

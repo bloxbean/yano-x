@@ -226,15 +226,15 @@ abstract class GatewayTestBase extends ContractTest {
         }
 
         /**
-         * A forged absence of the PRESENT {@code key}: its own leaf, named through a "conflicting" key hash that
+         * An absence proof of the PRESENT {@code key}: its own leaf, named through a "conflicting" key hash that
          * differs from the key's hash in nibble {@code flip} above the leaf, where nothing authenticates it.
          */
-        PlutusData forgedAbsence(byte[] key, int flip) {
+        PlutusData absenceOfPresentKey(byte[] key, int flip) {
             MpfNormalizedProof present = inclusion(key);
-            byte[] forged = Blake2bUtil.blake2bHash256(key);
-            forged[flip / 2] ^= (byte) (flip % 2 == 0 ? 0x10 : 0x01);
-            return absenceData(key, present.leafSuffix(), present.folds(), leafCursor(present.leafSuffix()), forged,
-                    Blake2bUtil.blake2bHash256(present.value()));
+            byte[] conflicting = Blake2bUtil.blake2bHash256(key);
+            conflicting[flip / 2] ^= (byte) (flip % 2 == 0 ? 0x10 : 0x01);
+            return absenceData(key, present.leafSuffix(), present.folds(), leafCursor(present.leafSuffix()),
+                    conflicting, Blake2bUtil.blake2bHash256(present.value()));
         }
 
         int depth(byte[] key) {

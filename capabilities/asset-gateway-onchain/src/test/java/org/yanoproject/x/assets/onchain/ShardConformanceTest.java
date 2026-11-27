@@ -56,9 +56,9 @@ class ShardConformanceTest extends GatewayTestBase {
     /**
      * M4-F1 (reviewer3): a real branch on a paid id's path at odd cursor {@code c}, whose {@code 2 + (63 - c) / 2}
      * nibble prefix starts with 0, has the shape of an odd leaf. A terminal {@code Leaf} step whose key carries that
-     * prefix's nibbles as raw bytes is well formed and excludes to the shard root that holds the id, so before the
-     * fix {@code miss()} passed and {@code including()} re-inserted the paid id (a double payment) and overwrote the
-     * branch, erasing the other nullifiers under it. The shard now rejects it, at every odd cursor tried.
+     * prefix's nibbles as raw bytes is well formed and excludes to the shard root that holds the id; without the
+     * terminal-leaf shape rule, {@code including()} would re-insert the paid id and overwrite the branch. The shard
+     * rejects it, at every odd cursor tried.
      */
     @Test
     void aPaidIdIsNeverReinsertedThroughABranchReadAsALeaf() {
@@ -94,19 +94,20 @@ class ShardConformanceTest extends GatewayTestBase {
             System.arraycopy(path, 0, conflicting, 0, (c - 1) / 2);
             conflicting[(c - 1) / 2] = (byte) ((MerklePatriciaForestry.nibble(path, c - 1) << 4) | prefix[1]);
             System.arraycopy(prefix, 2, conflicting, (c + 1) / 2, length - 2);
-            JulcList<ProofStep> forged = JulcList.of(upperStep, new ProofStep.Leaf(0, conflicting, branchMerkle));
-            // The forgery is well formed and excludes to the paid root; only the branch-as-leaf rule stops it.
-            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.isWellFormed(path, 0, forged)).isTrue();
-            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.doExcluding(path, 0, forged))
+            JulcList<ProofStep> malformed = JulcList.of(upperStep, new ProofStep.Leaf(0, conflicting, branchMerkle));
+            // The proof is well formed and excludes to the paid root; the terminal-leaf shape rule rejects it.
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.isWellFormed(path, 0, malformed))
+                    .isTrue();
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.doExcluding(path, 0, malformed))
                     .isEqualTo(root);
-            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.miss(root, id, forged)).isFalse();
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.miss(root, id, malformed)).isFalse();
 
             PlutusData insert = PlutusData.constr(0, PlutusData.list(PlutusData.constr(0, PlutusData.bytes(id),
                     PlutusData.list(PlutusData.constr(1, PlutusData.integer(c - 1), PlutusData.constr(0,
                                     PlutusData.integer(upper), PlutusData.bytes(new byte[0]), PlutusData.bytes(d2))),
                             PlutusData.constr(2, PlutusData.integer(0), PlutusData.bytes(conflicting),
                                     PlutusData.bytes(branchMerkle))))));
-            byte[] next = MerklePatriciaForestry.including(id, id, forged);
+            byte[] next = MerklePatriciaForestry.including(id, id, malformed);
             Tx tx = new Tx();
             tx.spend(new TxInInfo(shardRef(SHARD), new TxOut(GatewayFixtures.scriptAddress(SHARD_HASH),
                     threadValue(), new OutputDatum.OutputDatumInline(shardDatum(SHARD, root)), Optional.empty())),
@@ -120,11 +121,11 @@ class ShardConformanceTest extends GatewayTestBase {
     }
 
     /**
-     * The converse forgery (PR #113 fcd107c0): a paid id's own leaf at odd cursor {@code c}, whose raw path bytes are
+     * The converse shape (PR #113 fcd107c0): a paid id's own leaf at odd cursor {@code c}, whose raw path bytes are
      * all below 16, has the shape of a branch. A terminal {@code Fork} step at {@code c} (skip 0, neighbor nibble 0,
      * neighbor prefix the rest of the leaf suffix, neighbor root the value hash) reconstructs exactly that node, so
-     * the forged miss is well formed and excludes to the shard root that holds the id; {@code including()} would then
-     * re-insert the paid id. The shard rejects it ({@code excludedTerminalIsUnambiguous}) at every cursor tried.
+     * the exclusion proof is well formed and excludes to the shard root that holds the id; {@code including()} would
+     * then re-insert the paid id. The shard rejects it ({@code excludedTerminalIsUnambiguous}) at every cursor tried.
      */
     @Test
     void aPaidIdIsNeverReinsertedThroughItsOwnLeafReadAsABranch() {
@@ -149,11 +150,12 @@ class ShardConformanceTest extends GatewayTestBase {
                     .as("cursor %d: the id is paid", c).isTrue();
 
             byte[] neighborPrefix = java.util.Arrays.copyOfRange(suffix, 1, suffix.length);
-            JulcList<ProofStep> forged = JulcList.of(upper,
+            JulcList<ProofStep> malformed = JulcList.of(upper,
                     new ProofStep.Fork(0, new Neighbor(0, neighborPrefix, valueHash)));
-            // The forgery is well formed and excludes to the paid root; only the terminal-fork rule stops it.
-            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.isWellFormed(path, 0, forged)).isTrue();
-            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.doExcluding(path, 0, forged))
+            // The proof is well formed and excludes to the paid root; the terminal-fork shape rule rejects it.
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.isWellFormed(path, 0, malformed))
+                    .isTrue();
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.doExcluding(path, 0, malformed))
                     .isEqualTo(root);
 
             PlutusData insert = PlutusData.constr(0, PlutusData.list(PlutusData.constr(0, PlutusData.bytes(id),
@@ -161,7 +163,7 @@ class ShardConformanceTest extends GatewayTestBase {
                                     PlutusData.integer(other), PlutusData.bytes(new byte[0]), PlutusData.bytes(d))),
                             PlutusData.constr(1, PlutusData.integer(0), PlutusData.constr(0, PlutusData.integer(0),
                                     PlutusData.bytes(neighborPrefix), PlutusData.bytes(valueHash)))))));
-            byte[] next = MerklePatriciaForestry.including(id, id, forged);
+            byte[] next = MerklePatriciaForestry.including(id, id, malformed);
             Tx tx = new Tx();
             tx.spend(new TxInInfo(shardRef(SHARD), new TxOut(GatewayFixtures.scriptAddress(SHARD_HASH),
                     threadValue(), new OutputDatum.OutputDatumInline(shardDatum(SHARD, root)), Optional.empty())),
@@ -171,7 +173,7 @@ class ShardConformanceTest extends GatewayTestBase {
                     PlutusData.constr(0));
             tx.output(out(GatewayFixtures.scriptAddress(SHARD_HASH), threadValue(), shardDatum(SHARD, next)));
             rejected(shard(), tx.spending(shardRef(SHARD)));
-            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.miss(root, id, forged)).isFalse();
+            org.assertj.core.api.Assertions.assertThat(MerklePatriciaForestry.miss(root, id, malformed)).isFalse();
         }
     }
 
