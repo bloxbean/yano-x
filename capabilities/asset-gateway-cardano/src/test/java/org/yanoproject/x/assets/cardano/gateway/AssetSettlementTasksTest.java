@@ -231,6 +231,28 @@ class AssetSettlementTasksTest {
     final Map<String, Utxo> spent = Collections.synchronizedMap(new LinkedHashMap<>());
     /** The applied tip slot of a stale view; null while the view follows the clock (one slot per second). */
     Long frozenTipSlot;
+    /** Whether spent-or-unspent point reads fail. */
+    boolean pointReadsFail;
+
+    /** The effective TTL file of {@code chain} and the fee wallet of {@code feeSeed} under {@code base}. */
+    static Path ttlFileOf(Path base, String chain, byte[] feeSeed) {
+        String wallet = HexFormat.of().formatHex(Blake2bUtil.blake2bHash224(publicKey(feeSeed)), 0, 4);
+        return base.resolveSibling(base.getFileName() + "." + chain + "." + wallet);
+    }
+
+    /** Undoes {@link #land}: a rollback of the transaction's inclusion. */
+    void unland(byte[] signedTx) throws Exception {
+        Transaction tx = tx(signedTx);
+        String id = TransactionUtil.getTxHash(signedTx);
+        for (int i = 0; i < tx.getBody().getOutputs().size(); i++) {
+            l1.remove(id + "#" + i);
+            spent.remove(id + "#" + i);
+        }
+        for (var input : tx.getBody().getInputs()) {
+            Utxo back = spent.remove(input.getTransactionId() + "#" + input.getIndex());
+            if (back != null) put(back);
+        }
+    }
 
     UtxoState view() {
         return new View();
@@ -261,6 +283,7 @@ class AssetSettlementTasksTest {
 
         @Override
         public Optional<Utxo> getUtxoSpentOrUnspent(Outpoint outpoint) {
+            if (pointReadsFail) throw new IllegalStateException("point read failed");
             String key = outpoint.txHash() + "#" + outpoint.index();
             return Optional.ofNullable(l1.get(key)).or(() -> Optional.ofNullable(spent.get(key)));
         }
@@ -438,6 +461,8 @@ class AssetSettlementTasksTest {
         final byte[] seed;
         final Ledger ledger = new Ledger();
         BridgeDiffusionHandler handler;
+        /** The chain this node runs: the TTL file is per chain. */
+        String chain = CHAIN;
         /** How far a submission moves the clock: a slow submission. */
         long submitTakesMs;
         /** How far a diffused message moves the clock: a slow co-sign round. */
@@ -448,7 +473,7 @@ class AssetSettlementTasksTest {
             this.seed = seed;
         }
 
-        @Override public String chainId() { return CHAIN; }
+        @Override public String chainId() { return chain; }
 
         @Override
         public void diffuse(String topic, byte[] body) {
@@ -1490,7 +1515,8 @@ class AssetSettlementTasksTest {
         assertThat(before.execute(attempt(1, new byte[0]),
                 effect(new SettlementBatchV1(VAULT, 4, List.of(claim.claimId())), 0)))
                 .isInstanceOf(EffectExecution.Submitted.class);
-        assertThat(Files.readString(ttlFile).trim()).isEqualTo(Long.toString(NOW / 1_000 + 600));
+        assertThat(Files.readString(ttlFileOf(ttlFile, CHAIN, FEE_SEED)).trim())
+                .isEqualTo(Long.toString(NOW / 1_000 + 600));
 
         startedAgoMs = 0;
         now = NOW + 5 * 60_000;
@@ -1646,6 +1672,175 @@ class AssetSettlementTasksTest {
                 throw new StackOverflowError("a pass that overflows its stack");
             });
             assertThat(passes.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    // ------------------------------------------------------------------ r22 confirmation pass
+
+    /**
+     * Codex #2: a landed Accept keeps its input hold until L1 is past its TTL, so when its own inclusion rolls back
+     * and its fee input is unspent again, nothing else spends that input while the Accept can still land.
+     */
+    @Test
+    void aRolledBackInclusionCannotReleaseItsInputs() throws Exception {
+        seed(); // one plain fee-wallet output
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(3, 121, 900, NOW - HOUR, owner, member);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false);
+        product(member, false, false);
+        pump(owner, member);
+        DepositAcceptor acceptor = executor.acceptor().orElseThrow();
+        assertThat(acceptor.runOnce()).startsWith("accepted (co-signed) 1 deposits");
+        byte[] accept = submitted.getFirst();
+        land(accept);
+        assertThat(acceptor.runOnce()).isEqualTo("nothing to accept"); // a pass while it is landed
+        unland(accept); // a rollback: the Accept is pending again, its fee input unspent
+        PendingEffect settle = effect(new SettlementBatchV1(VAULT, 3, List.of(claim.claimId())), 0);
+        assertThat(executor.execute(attempt(1, new byte[0]), settle)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.lastOutcome()).isEqualTo("no fee wallet funds");
+
+        now = NOW + TTL_MS + 1_000;
+        assertThat(executor.execute(attempt(1, new byte[0]), settle)).as(executor.lastOutcome())
+                .isInstanceOf(EffectExecution.Submitted.class);
+    }
+
+    /** Codex #3: a read that cannot answer never retires a pending insert, even past the payout's TTL. */
+    @Test
+    void anUnanswerableReadKeepsALandedPayoutsInserts() throws Exception {
+        seed();
+        custody(50_000_000);
+        Node relayerNode = new Node(MEMBER_SEED);
+        reserve(3, 131, 900, NOW - 3 * DAY, relayerNode);
+        ClaimLeafV1 next = reserve(3, 132, 900, NOW - 2 * DAY, relayerNode);
+        anchor();
+        ExitRelayTask relayer = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true,
+                Map.of("max-exit-batch", "1"))).relayer().orElseThrow();
+        assertThat(relayer.runOnce()).startsWith("relayed 1 on shard 3");
+        land(submitted.getLast());
+
+        pointReadsFail = true;
+        now = NOW + TTL_MS + 1_000; // past the first Exit's TTL; its claim is not yet PAID in committed state
+        String outcome = relayer.runOnce();
+        assertThat(outcome).as(outcome).startsWith("relayed 1 on shard 3");
+        assertPasses(submitted.getLast());
+        assertThat(paidBy(submitted.getLast())).containsExactly(next.claimId());
+    }
+
+    /**
+     * Codex #1: custody is collected from every page, not up to the first prefix that sums to enough. Behind 5,000
+     * outputs of 2 ADA, one 30 ADA output pays an 18 ADA claim and the 2 ADA floor within max-vault-inputs.
+     */
+    @Test
+    void custodySelectionSeesPastASufficientPrefix() throws Exception {
+        seed();
+        custody();
+        for (int i = 0; i < NodeL1View.PAGE * NodeL1View.MAX_PAGES; i++) {
+            put(utxo("61".repeat(32), i, enterprise(VAULT_HASH), 2_000_000, asset("f0".repeat(28), "5553444d", 1_000),
+                    HexFormat.of().parseHex("d87a8180"), null));
+        }
+        put(utxo("6e".repeat(32), 0, enterprise(VAULT_HASH), 30_000_000, asset("f0".repeat(28), "5553444d", 100_000),
+                HexFormat.of().parseHex("d87a8180"), null));
+        Node relayerNode = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(3, 141, 900, NOW - 2 * DAY, 18_000_000, relayerNode);
+        anchor();
+        ExitRelayTask relayer = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true))
+                .relayer().orElseThrow();
+
+        String outcome = relayer.runOnce();
+
+        assertThat(outcome).as(outcome).startsWith("relayed 1 on shard 3");
+        assertPasses(submitted.getFirst());
+        assertThat(inputs(submitted.getFirst())).contains("6e".repeat(32) + "#0");
+        assertThat(paidBy(submitted.getFirst())).containsExactly(claim.claimId());
+    }
+
+    /** Codex #7: without a TTL file, the grace also waits for the applied tip to pass the start slot plus 10 minutes. */
+    @Test
+    void theFallbackGraceWaitsForABehindView() throws Exception {
+        seed();
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        product(member, false, false);
+        pump(owner, member);
+        startedAgoMs = 0;
+        DepositAcceptor acceptor = ((AssetSettlementExecutor) product(owner, true, false)).acceptor().orElseThrow();
+
+        now = NOW + GRACE_MS + 60_000;
+        frozenTipSlot = NOW / 1_000 + 600; // the view is behind: not yet past the start slot plus the window
+        assertThat(acceptor.runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
+        frozenTipSlot = NOW / 1_000 + 601;
+        assertThat(acceptor.runOnce()).startsWith("accepted (co-signed) 1 deposits");
+    }
+
+    /**
+     * Codex (TTL file): the file is per chain and fee wallet, and a write keeps the larger of the file's slot and the
+     * new one, so two chains on one node never lower each other's slot.
+     */
+    @Test
+    void twoChainsNeverLowerEachOthersTtl() throws Exception {
+        seed();
+        for (int i = 1; i < 12; i++) {
+            put(utxo("60".repeat(32), i, keyAddress(FEE_SEED), 80_000_000, List.of(), null, null));
+        }
+        Path base = temp.resolve("data").resolve("asset-settlement.pending-ttl");
+        Map<String, String> withFile = Map.of("pending-ttl-file", base.toString(), "accept.max-batch", "1",
+                "accept.max-proved-batch", "1");
+        Node member = new Node(MEMBER_SEED);
+        Node first = new Node(OWNER_SEED);
+        Node second = new Node(OWNER_SEED);
+        second.chain = "payments-2";
+        for (int i = 0; i < 3; i++) deposit(i, 900, DepositAdmission.Reason.NONE, first, second, member);
+        anchor();
+        product(member, false, false);
+        pump(first, member);
+        DepositAcceptor a = ((AssetSettlementExecutor) product(first, true, false, withFile)).acceptor().orElseThrow();
+        DepositAcceptor b = ((AssetSettlementExecutor) product(second, true, false, withFile)).acceptor()
+                .orElseThrow();
+        Path fileA = ttlFileOf(base, CHAIN, FEE_SEED);
+        Path fileB = ttlFileOf(base, "payments-2", FEE_SEED);
+
+        now = NOW + 5 * 60_000;
+        assertThat(a.runOnce()).startsWith("accepted");
+        now = NOW;
+        assertThat(b.runOnce()).startsWith("accepted"); // a lower TTL, on the other chain
+        assertThat(Files.readString(fileA).trim()).isEqualTo(Long.toString(NOW / 1_000 + 300 + 600));
+        assertThat(Files.readString(fileB).trim()).isEqualTo(Long.toString(NOW / 1_000 + 600));
+
+        // Another writer raised chain 2's file meanwhile: a lower TTL does not lower it.
+        Files.writeString(fileB, Long.toString(NOW / 1_000 + 5_000));
+        assertThat(b.runOnce()).startsWith("accepted");
+        assertThat(Files.readString(fileB).trim()).isEqualTo(Long.toString(NOW / 1_000 + 5_000));
+    }
+
+    /** Codex (TTL file): a negative stored slot, or one beyond any TTL, is invalid and the fallback grace applies. */
+    @Test
+    void anInvalidStoredTtlUsesTheFallbackGrace() throws Exception {
+        seed();
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        product(member, false, false);
+        pump(owner, member);
+        Path base = temp.resolve("bad").resolve("ttl");
+        Files.createDirectories(base.getParent());
+        startedAgoMs = 0;
+        for (long stored : new long[] {-1, Long.MAX_VALUE}) {
+            now = NOW;
+            Files.writeString(ttlFileOf(base, CHAIN, FEE_SEED), Long.toString(stored));
+            DepositAcceptor acceptor = ((AssetSettlementExecutor) product(owner, true, false,
+                    Map.of("pending-ttl-file", base.toString()))).acceptor().orElseThrow();
+            now = NOW + 5 * 60_000;
+            assertThat(acceptor.runOnce()).as("stored " + stored).isEqualTo(OwnerAssembly.WARMING_UP);
+            now = NOW + GRACE_MS + 1_000;
+            assertThat(acceptor.runOnce()).as("stored " + stored).startsWith("accepted (co-signed) 1 deposits");
+            submitted.clear();
+            Files.deleteIfExists(ttlFileOf(base, CHAIN, FEE_SEED));
         }
     }
 

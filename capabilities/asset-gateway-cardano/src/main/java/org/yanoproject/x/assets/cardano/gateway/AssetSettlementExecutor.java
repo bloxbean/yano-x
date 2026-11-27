@@ -352,9 +352,8 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         List<byte[]> signerKeys = signers(anchor.get(), signerMemory.getOrDefault(key, SignerMemory.NONE));
         // Outputs a pending submission spends are not selected again; their release is its close (or their
         // disappearance from the L1 view, once it is included).
-        // Custody pages through the vault address until it covers the capped batch (Codex P1, r22).
-        List<ResolvedOutput> vaultUtxos = l1.custodyFor(pins, pendingSpends,
-                claims.subList(0, Math.min(claims.size(), pins.maxSettleBatch())));
+        // Custody from every page of the vault address (Codex P1, r22).
+        List<ResolvedOutput> vaultUtxos = l1.custody(pins, pendingSpends);
         boolean held = !pendingSpends.isEmpty();
         List<ResolvedOutput> funding = wallet.funding(l1.at(wallet.address()), pendingSpends);
         if (funding.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "no fee wallet funds");

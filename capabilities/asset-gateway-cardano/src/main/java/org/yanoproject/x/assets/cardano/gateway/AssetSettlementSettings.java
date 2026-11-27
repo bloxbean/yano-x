@@ -50,11 +50,13 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * fee-wallet.key-file               owner only: a file holding the 32-byte Ed25519 seed (hex) of the fee wallet
  * validity-window-slots (600)       owner and relayer: the validity window of every Settle, Accept and relayed Exit,
  *                                   at most 10 minutes of slots; a pending transaction holds its inputs until the
- *                                   node's L1 view is past its TTL or shows it landed
- * pending-ttl-file                  owner and relayer, optional: a node-local file (put it under the node's data
- *                                   directory) holding the latest TTL slot of this node's submitted transactions; a
- *                                   restart builds nothing until the L1 view is past it. Without it a restart waits
- *                                   the longest permitted window (10 minutes) plus 2 minutes
+ *                                   node's applied L1 tip is past its TTL
+ * pending-ttl-file                  owner and relayer, optional: the base path of a node-local file (put it under the
+ *                                   node's data directory), suffixed .<chain id>.<fee wallet key hash, 4 bytes hex>,
+ *                                   holding the latest TTL slot this chain and wallet submitted; a restart builds
+ *                                   nothing until the L1 view is past it. Without a valid file a restart waits the
+ *                                   longest permitted window (10 minutes) plus 2 minutes, and until the applied tip is
+ *                                   past its start slot plus 10 minutes
  * max-vault-inputs (8)              owner and relayer: vault inputs per Settle or relayed Exit
  * max-supplement-per-payout (0)     owner only: the most lovelace the fee wallet adds to one payout's min-UTxO (D11);
  *                                   a claim needing more is left out of the co-signed batch and stays RESERVED for

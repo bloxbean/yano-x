@@ -106,7 +106,8 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             // custody keeps flowing into the vault while the owner is down.
             FeeWallet wallet = new FeeWallet(taskSettings.relayerSeed().orElseThrow(), network, memberKey,
                     "exit-relayer.fee-wallet.key-file");
-            OwnerAssembly assembly = new OwnerAssembly(clock.getAsLong(), settings.pendingTtlFile());
+            OwnerAssembly assembly = new OwnerAssembly(clock.getAsLong(), settings.slots(),
+                    OwnerAssembly.ttlFileFor(settings.pendingTtlFile(), context.chainId(), wallet.address()));
             ExitRelayTask relayer = new ExitRelayTask(node, assembly, wallet);
             DepositAcceptor acceptor = taskSettings.acceptIntervalMs() > 0
                     ? DepositAcceptor.provedOnly(node, assembly, wallet) : null;
@@ -121,10 +122,11 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             }
             return List.of(product);
         }
-        OwnerAssembly assembly = new OwnerAssembly(clock.getAsLong(), settings.pendingTtlFile());
         FeeWallet wallet = new FeeWallet(settings.feeWalletSeed().orElseThrow(() ->
                 new IllegalArgumentException("the settlement owner needs fee-wallet.key-file")), network, memberKey,
                 "fee-wallet.key-file");
+        OwnerAssembly assembly = new OwnerAssembly(clock.getAsLong(), settings.slots(),
+                OwnerAssembly.ttlFileFor(settings.pendingTtlFile(), context.chainId(), wallet.address()));
         AssetSettlementExecutor executor = new AssetSettlementExecutor(settings, l1, committed, cosign,
                 context.protocolParams(), evaluator, context::submitTx, clock, memberKey, assembly, wallet);
         DepositAcceptor acceptor = taskSettings.acceptIntervalMs() > 0

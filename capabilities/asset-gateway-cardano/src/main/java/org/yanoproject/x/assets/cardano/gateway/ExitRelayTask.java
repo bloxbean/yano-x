@@ -153,8 +153,8 @@ final class ExitRelayTask {
                 relayed.add("no fee wallet funds");
                 break;
             }
-            // Custody pages through the vault address until it covers the batch (Codex P1, r22).
-            List<ResolvedOutput> custody = node.l1().custodyFor(pins, held, batch.claims());
+            // Custody from every page of the vault address (Codex P1, r22).
+            List<ResolvedOutput> custody = node.l1().custody(pins, held);
             PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(pins, custody,
                     shardInputs.get(batch.shardIndex()), anchor.get().output(), exitMode.get(),
                     List.of(vaultRef.get(), shardRef.get()), new PayoutTxBuilder.Funding(funding, wallet.address()),

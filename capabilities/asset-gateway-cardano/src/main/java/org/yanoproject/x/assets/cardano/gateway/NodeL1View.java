@@ -11,7 +11,6 @@ import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
 import org.yanoproject.x.assets.contracts.AnchorObservationV1;
 import org.yanoproject.x.assets.contracts.AssetId;
-import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.GatewayDatums;
 import org.yanoproject.x.assets.contracts.Hash32;
 
@@ -90,40 +89,25 @@ final class NodeL1View {
         return appliedTipSlot().isPresent() ? Read.ABSENT : Read.UNKNOWN;
     }
 
-    /** {@link #custody} enough to pay {@code claims} and keep the continuation floor. */
-    List<ResolvedOutput> custodyFor(VaultPins pins, Set<ResolvedOutput.Outpoint> held, List<ClaimLeafV1> claims) {
-        BigInteger quantity = BigInteger.ZERO;
-        BigInteger vaultLovelace = BigInteger.ZERO;
-        for (ClaimLeafV1 leaf : claims) {
-            quantity = quantity.add(leaf.value().quantityOf(pins.asset()));
-            vaultLovelace = vaultLovelace.add(leaf.vaultLovelace());
-        }
-        return custody(pins, held, pins.adaVault() ? BigInteger.ZERO : quantity,
-                (pins.adaVault() ? quantity : vaultLovelace).add(pins.continuationFloor()));
-    }
+    /** The most outputs at a vault address that one payout's custody scan reads. */
+    static final int MAX_CUSTODY_SCAN = 100_000;
 
     /**
-     * The accepted custody (V10) at the vault address that no pending submission spends, paging through the address
-     * until it covers {@code assetNeed} of the vault asset and {@code lovelaceNeed}, or the address is exhausted.
+     * The accepted custody (V10) at the vault address that no pending submission spends, across every page of the
+     * address up to {@link #MAX_CUSTODY_SCAN} outputs. The builder's usefulness selection then chooses within
+     * {@code max-vault-inputs}: stopping at a prefix whose sum covers a batch could miss the one output that pays it in
+     * few inputs (Codex #1).
      */
-    List<ResolvedOutput> custody(VaultPins pins, Set<ResolvedOutput.Outpoint> held, BigInteger assetNeed,
-                                 BigInteger lovelaceNeed) {
+    List<ResolvedOutput> custody(VaultPins pins, Set<ResolvedOutput.Outpoint> held) {
         List<ResolvedOutput> custody = new ArrayList<>();
-        BigInteger asset = BigInteger.ZERO;
-        BigInteger lovelace = BigInteger.ZERO;
-        int firstPage = 1;
-        while (true) {
+        for (int firstPage = 1; firstPage <= MAX_CUSTODY_SCAN / PAGE; firstPage += MAX_PAGES) {
             Window window = window(pins.vaultAddress(), firstPage);
             for (ResolvedOutput out : window.outputs()) {
-                if (held.contains(out.outpoint()) || !PayoutTxBuilder.accepted(out, pins)) continue;
-                custody.add(out);
-                asset = asset.add(pins.adaVault() ? BigInteger.ZERO : out.quantityOf(pins.asset()));
-                lovelace = lovelace.add(out.lovelace());
+                if (!held.contains(out.outpoint()) && PayoutTxBuilder.accepted(out, pins)) custody.add(out);
             }
-            boolean covered = asset.compareTo(assetNeed) >= 0 && lovelace.compareTo(lovelaceNeed) >= 0;
-            if (covered || !window.more()) return custody;
-            firstPage += MAX_PAGES;
+            if (!window.more()) break;
         }
+        return custody;
     }
 
     /** The first {@link #MAX_PAGES} pages of outputs at the address. */
