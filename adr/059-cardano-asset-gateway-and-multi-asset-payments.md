@@ -1421,26 +1421,35 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
     optimization. The fee wallet must not hold the member key.
   - **Hold lifetime** *(r22, replacing r21)*. Holds are released only on L1 evidence, never by
     the wall clock or by a guess that a transaction is dead. The inputs of a `Settle`, `Accept` or
-    `Exit` stay held until the node's applied L1 view either has a tip slot strictly past the
-    transaction's TTL slot (it can never land) or shows it landed (one of its outputs is in the
-    view, spent or unspent, which is also how the view knows its id). A view that cannot answer
-    keeps the hold: the host answers a failed point read with empty, so an empty answer counts as
-    an absence only while the applied tip can be read. A stale view whose tip does not move keeps
-    it, too. A payout's nullifier inserts stay in the shard mirror until committed state accounts
-    for them (each claim `PAID` or `PAID_MISMATCH`) or the transaction can never land (the tip is
-    past its TTL and it is not in the view); they no longer end with the input hold. The input hold
+    `Exit` stay held until the node's applied L1 tip slot is strictly past the transaction's TTL
+    slot, even once it has landed: a landed transaction's inputs are spent anyway, its change
+    outputs are new outpoints, and holding to the TTL keeps a rollback of its own inclusion safe.
+    A stale view whose tip does not move keeps the hold. A payout's nullifier inserts stay in the
+    shard mirror until committed state accounts for them (each claim `PAID` or `PAID_MISMATCH`) or
+    the tip is past the TTL and a readable view definitely holds none of the transaction's outputs,
+    spent or unspent; a read that cannot answer never retires them. The host answers a failed point
+    read with empty, so an empty answer counts as an absence only while the applied tip can be
+    read. If the host has pruned a landed payout's spent outputs, its inserts retire early and the
+    mirror waits for the payout observer, which costs liveness only. Inserts no longer end with the
+    input hold. The input hold
     is not the `Settle` journal's: a confirmation timeout closes the journal entry and the effect,
     and the hold stays under this rule. A journal entry is also evicted when its input hold is
     released, never waiting for a probe; a later probe recovers it from the persisted reference.
     The validity window is at most 10 minutes on every node that builds: the owner and a relaying
     non-owner.
   - **Startup grace** *(r22, replacing r21)*. Holds live in memory. Before each submission the
-    node persists the transaction's TTL slot (the highest so far) to a node-local file,
-    `pending-ttl-file`, under its data directory, and does not submit if that write fails. After a
-    start or restart, an owner or relayer assembles nothing new until its applied L1 view is past
-    the persisted slot. Without a readable file it waits the longest permitted validity window
-    (10 minutes) plus 2 minutes, whatever its current window setting. A `Settle` submitted before
-    the restart is still probed from its persisted reference.
+    node persists the transaction's TTL slot durably (the temporary file synced, moved atomically,
+    its directory synced where the platform allows), as the larger of the stored and the new slot,
+    to a node-local file per chain and fee wallet: `<pending-ttl-file>.<chainId>.<walletHash8>`
+    under its data directory. It does not submit if that write fails. After a start or restart, an
+    owner or relayer assembles nothing new until its applied L1 tip is past the persisted slot.
+    Without a valid file (missing, unreadable, negative, or further past the applied tip than the
+    longest permitted window plus the slack) it waits the longest permitted validity window (10
+    minutes) plus 2 minutes, whatever its current window setting, and until its applied tip is
+    past its start slot plus 10 minutes. A `Settle` submitted before the restart is still probed
+    from its persisted reference. *Known limit:* pending inserts are not persisted, so after a
+    restart the next payout on a shard whose last payout is still unconfirmed waits for the payout
+    observer, about the stability window. That costs liveness only.
 - **Shared fixes** from the EUTxO stack carry over:
   - a durable journal;
   - a node-local operator wallet for fees;
@@ -1465,8 +1474,9 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
    `NORMAL` only and refuses in exit mode; exit-mode relaying is M4a. *(r21)* Custody that no
    pending submission spends and that does not cover a batch is split on like a per-transaction
    limit, and *(r22)* so is fee funding or collateral that does not cover it; a claim that alone
-   does not fit is skipped to the next. *(r22)* Payout custody, for `Settle` and `Exit`, is read
-   page by page through the vault address until it covers the batch or the address is exhausted. A shard's turn in a pass is spent
+   does not fit is skipped to the next. *(r22)* Payout custody, for `Settle` and `Exit`, is
+   collected from every page of the vault address, up to 100,000 outputs, and the builder's
+   usefulness selection chooses from all of it within `max-vault-inputs`. A shard's turn in a pass is spent
    only by a successful submission, so an unpayable claim does not starve the next one. One
    vault's failure does not stop the others, and the committed claim index is walked once per
    pass.
@@ -2834,3 +2844,17 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
     `accept.relayer-delay-ms` old.
   - D9 (Fable P3-3): the settlement timer rethrows only `OutOfMemoryError` and `InternalError`;
     a `StackOverflowError` of one pass is logged.
+  - Codex confirmation pass, the last round for stage 3a:
+    - input holds end only when the applied tip is past the TTL; landed detection is kept for
+      pending inserts only, so a rollback of a transaction's own inclusion is safe (#2);
+    - a read that cannot answer never retires a pending insert; only committed `PAID` or
+      `PAID_MISMATCH`, or a tip past the TTL with a definite absence, does (#3);
+    - payout custody is collected from every page (up to 100,000 outputs) and the builder chooses
+      within `max-vault-inputs`, instead of stopping at a sufficient prefix (#1);
+    - the no-file grace also waits for the applied tip to pass the start slot plus the longest
+      permitted window (#7);
+    - the TTL file is per chain and fee wallet, a write keeps the larger slot, the write is synced
+      and moved atomically before submission, and a negative or impossible stored slot falls back
+      to the no-file grace;
+    - deferred, as a known limit: pending inserts lost on a restart before the observer confirms
+      them make the next payout on that shard wait about one stability window.
