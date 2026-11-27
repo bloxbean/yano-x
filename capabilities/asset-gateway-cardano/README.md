@@ -34,6 +34,12 @@ node, `owner=true`, builds, collects signatures and submits. The settings are no
 refuses honest bodies as `l1-tip-bound`; its co-sign product then reports `DEGRADED` with a `CONFIGURATION` failure in
 its operational status, and the owner's rounds stay incomplete until enough other members answer.
 
+**The anchor's genesis id.** `anchor.genesis-id` (and the `chainGenesisId` the vault, exit-mode and inbox scripts are
+parameterized with) is the genesis id the anchor datum carries: the chain's effective state genesis id, which
+`GET /app-chain/state/identity` reports as `genesisId`. It is the configured `state.genesis-id` with the framework's
+application profiles mixed in, so it differs from the configured value. Pinning the configured value derives scripts
+that never find the live anchor.
+
 ## The shard backend
 
 The nullifier-shard validator has two interchangeable backends (ADR-059 D8c, r23): `julc` (the default) and `aiken`
