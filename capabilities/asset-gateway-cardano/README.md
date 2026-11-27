@@ -15,7 +15,8 @@ node, `owner=true`, builds, collects signatures and submits. The settings are no
 | Setting | Nodes | Meaning |
 |---|---|---|
 | `slot.zero-time-ms`, `slot.zero-slot`, `slot.length-ms` | every node | The L1 slot clock. The owner sets validity intervals with it; every member bounds the interval it signs by its own clock: a TTL at most 15 minutes past its tip and a start at most 5 minutes past it. |
-| `validity-window-slots` (600) | owner, relayer | The validity window of every `Settle`, `Accept` and relayed `Exit`, at most 10 minutes. A pending transaction holds its inputs for one window plus a 2-minute slack after its submission. |
+| `validity-window-slots` (600) | owner, relayer | The validity window of every `Settle`, `Accept` and relayed `Exit`, at most 10 minutes. A pending transaction holds its inputs until the node's L1 view is past its TTL or shows it landed. |
+| `pending-ttl-file` | owner, relayer | Optional. A node-local file, under the node's data directory, holding the latest TTL slot this node submitted; a restart builds nothing until the L1 view is past it. Without it, a restart waits 12 minutes. |
 | `max-settle-batch` (16) | every signing member | Claims per `Settle`. The owner splits larger batches, and every member refuses a `Settle` with more claims, so members must allow at least the owner's cap. |
 | `max-vault-inputs` (8) | owner, relayer | Vault inputs per payout; a batch that needs more is split. |
 | `max-supplement-per-payout` (0) | owner | The most lovelace the fee wallet adds to one payout's min-UTxO. A claim that needs more stays `RESERVED` for `Exit`. |
@@ -25,6 +26,7 @@ node, `owner=true`, builds, collects signatures and submits. The settings are no
 | `deposit-key-prefix` (`ap/deposit/`) | every node | The vault script's deposit-record key prefix (`Accept`). |
 | `accept.interval-ms` (60000) | owner, relayer | How often the owner batches credited deposits into an `Accept`, and a relaying non-owner into a proved `Accept`; 0 disables it. |
 | `accept.max-batch` (16), `accept.max-proved-batch` (12) | owner, relayer | Deposits per co-signed and per proved `Accept`. |
+| `accept.relayer-delay-ms` (3 × `accept.interval-ms`) | relaying non-owner | How old a deposit's L1 output must be before the relayer proves it, so it does not race a healthy owner. |
 | `exit-relayer.enabled` (false), `exit-relayer.interval-ms` (60000) | any node | Relay `EXIT_ELIGIBLE` claims by proof `Exit`. |
 | `exit-relayer.fee-wallet.key-file` | relaying non-owner | The relayer's own fee wallet; the owner relays with `fee-wallet.key-file`. |
 
@@ -45,16 +47,22 @@ next pass the next window, wrapping around, so every credited deposit is reached
 A node with `exit-relayer.enabled` pays `EXIT_ELIGIBLE` claims by proof `Exit` (D9). It references the live anchor and
 proves at its height: the live anchor is never older than the latest L1-stable one, so its height lies within the proof
 floor (`state.proof-pruning.l1-stable-anchor-floor`). A transaction whose anchor then rolls back fails on L1 and is
-rebuilt. When the free custody does not cover a batch, the relayer tries smaller ones and skips a claim that does not
-fit alone. A relaying non-owner also submits proved `Accept`s, so custody keeps flowing while the owner is down. The
-relayer refuses in exit mode, which is M4a.
+rebuilt. Payout custody is read page by page through the vault address until it covers the batch. When the free
+custody or the fee funding does not cover a batch, the relayer tries smaller ones and skips a claim that does not fit
+alone. A relaying non-owner also submits proved `Accept`s of deposits at least `accept.relayer-delay-ms` old, so
+custody keeps flowing while the owner is down. The relayer refuses in exit mode, which is M4a.
 
 On the owner, the `Settle` executor, the `Accept` batcher and the relayer share one assembly lock, one fee wallet and
 one set of pending-spend holds: none selects an output that another's pending transaction spends, and a payout never
 builds over a shard input a pending payout spends. A relaying non-owner has its own fee wallet and holds.
 
-**Hold lifetime and restarts.** A hold ends one validity window plus a 2-minute slack after its submission, or earlier
-once its transaction is provably dead (its anchor or a spent input is gone from the node's L1 view and none of its own
-outputs is there). Holds live in memory, so after a start or restart an owner or relayer builds nothing new for that
-same span: any transaction it submitted before the restart has landed or expired by then. A `Settle` submitted before
-the restart is still followed from the reference the effect runtime persisted.
+**Hold lifetime and restarts.** Holds end only on L1 evidence, never by the wall clock. A pending transaction's inputs
+stay held until the node's applied L1 view either is past the transaction's TTL slot (it can never land) or shows one
+of its outputs, spent or unspent (it landed). A view that cannot answer, or that is stuck, keeps the hold. A payout's
+nullifier inserts stay in the shard mirror until committed state has the claims `PAID` or `PAID_MISMATCH`, or until
+the transaction can never land. A `Settle` whose confirmation times out closes its effect but keeps its input hold.
+
+Holds live in memory. Before each submission the transaction's TTL slot is written to `pending-ttl-file`; after a start
+or restart, an owner or relayer builds nothing new until its L1 view is past that slot. Without the file it waits the
+longest permitted validity window plus 2 minutes. A `Settle` submitted before the restart is still followed from the
+reference the effect runtime persisted.

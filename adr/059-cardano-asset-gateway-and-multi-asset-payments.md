@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-27, r21). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r21 record the rules settled while implementing M4 (see the revision history).
+- **Status:** Proposed (2026-11-27, r22). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r22 record the rules settled while implementing M4 (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -1057,7 +1057,8 @@ when no quorum answers, under the same assembly lock and pending-spend holds as 
 *(r21)* The proved `Accept` takes its validity interval after the co-sign round, not before it.
 A node with `exit-relayer.enabled` that is not the owner also submits proved `Accept`s, with its
 own fee wallet and assembly, so a relayer still has custody to pay `Exit`s from while the owner
-is down. Each pass reads one window of at most 5,000 vault outputs and moves to the next window
+is down. *(r22)* It proves only deposits whose L1 output is at least `accept.relayer-delay-ms`
+old (by default three `Accept` intervals), so it does not race a healthy owner. Each pass reads one window of at most 5,000 vault outputs and moves to the next window
 on the next pass, wrapping around, so every credited deposit is eventually reached.
 
 ### D8g. Escape hatch: forced withdrawal and exit mode (rewritten in r7)
@@ -1418,19 +1419,28 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
     fee funds waits. A batch whose shard input a pending submission spends waits for its inclusion
     instead of building a conflicting `Settle`; chaining on the predicted shard output is a later
     optimization. The fee wallet must not hold the member key.
-  - **Hold lifetime** *(r21)*. Every hold, for `Settle`, `Accept` and `Exit`, expires one validity
-    window plus a 2-minute slack after its successful submission: the TTL is at most one window
-    past the assembly, which precedes the submission, so by then the transaction is on L1 or never
-    will be. A hold is released earlier once its transaction is provably dead: none of its
-    outputs is in the node's L1 view and a reference input (the anchor) or a spent input no longer
-    is. A `Settle` journal entry is evicted with its hold, never waiting for a probe, because the
-    effect runtime may stop probing an expired effect; a later probe recovers it from the
-    persisted reference. The validity window is at most 10 minutes on every node that builds:
-    the owner and a relaying non-owner.
-  - **Startup grace** *(r21)*. Holds live in memory. After a start or restart, an owner or
-    relayer assembles no new transaction for one hold's lifetime (one validity window plus the
-    slack): by then any transaction it submitted before the restart has landed or expired. A
-    `Settle` submitted before the restart is still probed from its persisted reference.
+  - **Hold lifetime** *(r22, replacing r21)*. Holds are released only on L1 evidence, never by
+    the wall clock or by a guess that a transaction is dead. The inputs of a `Settle`, `Accept` or
+    `Exit` stay held until the node's applied L1 view either has a tip slot strictly past the
+    transaction's TTL slot (it can never land) or shows it landed (one of its outputs is in the
+    view, spent or unspent, which is also how the view knows its id). A view that cannot answer
+    keeps the hold: the host answers a failed point read with empty, so an empty answer counts as
+    an absence only while the applied tip can be read. A stale view whose tip does not move keeps
+    it, too. A payout's nullifier inserts stay in the shard mirror until committed state accounts
+    for them (each claim `PAID` or `PAID_MISMATCH`) or the transaction can never land (the tip is
+    past its TTL and it is not in the view); they no longer end with the input hold. The input hold
+    is not the `Settle` journal's: a confirmation timeout closes the journal entry and the effect,
+    and the hold stays under this rule. A journal entry is also evicted when its input hold is
+    released, never waiting for a probe; a later probe recovers it from the persisted reference.
+    The validity window is at most 10 minutes on every node that builds: the owner and a relaying
+    non-owner.
+  - **Startup grace** *(r22, replacing r21)*. Holds live in memory. Before each submission the
+    node persists the transaction's TTL slot (the highest so far) to a node-local file,
+    `pending-ttl-file`, under its data directory, and does not submit if that write fails. After a
+    start or restart, an owner or relayer assembles nothing new until its applied L1 view is past
+    the persisted slot. Without a readable file it waits the longest permitted validity window
+    (10 minutes) plus 2 minutes, whatever its current window setting. A `Settle` submitted before
+    the restart is still probed from its persisted reference.
 - **Shared fixes** from the EUTxO stack carry over:
   - a durable journal;
   - a node-local operator wallet for fees;
@@ -1443,7 +1453,7 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
    anchor's, so it lies within the proof floor (D8b), and every proof is bound to that anchor's
    height, root and key. *(r20)* The relayer reads the domain status from the status-leaf proof,
    not from its committed state. A transaction whose referenced anchor rolls back fails on L1 and
-   is rebuilt (D8b); its hold ends once that anchor no longer resolves. *(r21 corrects r20, which
+   is rebuilt (D8b), once the L1 view is past its TTL. *(r21 corrects r20, which
    waited until the live anchor was L1-stable: on a chain that keeps anchoring, the live anchor is
    always newer than the stability window, so the relayer and the proved `Accept` starved.)* Fetch
    the
@@ -1454,7 +1464,9 @@ the member set, as `anchor.ak` and `SettlementVaultValidator` do:
    them in canonical outpoint order, and select again on contention. *(r19)* This relayer works in
    `NORMAL` only and refuses in exit mode; exit-mode relaying is M4a. *(r21)* Custody that no
    pending submission spends and that does not cover a batch is split on like a per-transaction
-   limit; a claim that alone does not fit is skipped to the next. A shard's turn in a pass is spent
+   limit, and *(r22)* so is fee funding or collateral that does not cover it; a claim that alone
+   does not fit is skipped to the next. *(r22)* Payout custody, for `Settle` and `Exit`, is read
+   page by page through the vault address until it covers the batch or the address is exhausted. A shard's turn in a pass is spent
    only by a successful submission, so an unpayable claim does not starve the next one. One
    vault's failure does not stop the others, and the committed claim index is walked once per
    pass.
@@ -2798,3 +2810,27 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
   - D9 (Fable P3-2 to P3-5): one vault's failure no longer stops a pass for the others; the task
     timer survives any failure but a `VirtualMachineError`; the relayer walks the claim index once
     per pass; the two MPF proof normalizers point at each other.
+- **r22** (2026-11-27): the Fable and Codex re-reviews of the r21 fixes. Fable approved with one
+  P2 and three P3s; Codex confirmed most fixes and found edge cases in the hold mechanism. Most
+  share one root: holds and inserts were released by the wall clock and by "provably dead"
+  guesses. One rule replaces them:
+  - D9 hold lifetime: an input hold is released only when the node's applied L1 view is past the
+    transaction's TTL slot or shows the transaction landed; a view that cannot answer, or a stale
+    one, keeps it. The wall-clock expiry and the "anchor or input gone" heuristic are removed.
+    This covers Codex's rollback revival (the anchor moves and is restored), the stale view, and
+    a `Settle` whose confirmation times out while it can still land, which now keeps its fee input.
+  - D9: pending nullifier inserts stay in the mirror until committed state accounts for them or
+    the transaction can never land (Codex: a landed payout's inserts lost once its outputs are
+    spent; Fable P2-1: a `Settle`'s inserts expiring with its spend hold, stalling the shard).
+  - D9 startup grace: the latest submitted TTL slot is persisted to `pending-ttl-file`, and a
+    restart waits until the L1 view is past it; without the file, the longest permitted window
+    plus the slack. This covers Codex's restart with a shorter `validity-window-slots`, and ends
+    Fable P3-1's fixed 12-minute outage when the file shows nothing pending.
+  - D9 (Codex P1): `Settle` and `Exit` custody is read page by page through the vault address
+    until it covers the batch.
+  - D9 step 3 (Codex P2): fee funding or collateral short of a batch is split on, like short
+    custody.
+  - D8f (Fable P3-2): a relaying non-owner proves only deposits at least
+    `accept.relayer-delay-ms` old.
+  - D9 (Fable P3-3): the settlement timer rethrows only `OutOfMemoryError` and `InternalError`;
+    a `StackOverflowError` of one pass is logged.
