@@ -12,7 +12,11 @@
 #                   Exit-only token claim whose min-ADA credit is below the batching floor)
 #   race-reserve    with the owner still stopped, reserve the claims for the Settle-vs-Exit race
 #   exit-verify     after exit-delay-ms (6 h): the claims are PAID by B's relayed proof Exits, the owner still down
+#   relayer-off     restart B without its exit relayer (before the race claims mature, or for third-party-exit)
 #   race-start      once the race claims are EXIT_ELIGIBLE: start the owner (its Settle) and B's relayer together
+#   third-party-exit  a relayer with no node and no member key pays the vault-0 EXIT_ELIGIBLE claims by proof Exit,
+#                   built from public data only (GatewayDevnet third-party-exit), with the owner stopped and B's
+#                   relayer off
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/m4-lib.sh"
 APPA=http://localhost:$HTTP_A/api/v1/app-chain/
@@ -69,10 +73,19 @@ case "${1:-}" in
     GW_APP=$APPA gw claims | jq -c '.[] | {sequence, vault, value, vaultLovelace, status, resolvedTx, reservedAtMs}'
     grep -h 'exit relayer on' "$RUN/node-b.log" | grep -v 'no claim is EXIT_ELIGIBLE\|no reserved claims' | tail -5
     ;;
+  relayer-off)
+    stop_node b; GW_B_RELAYS=false start_node b app; wait_ready $HTTP_B 90
+    ;;
   race-start)
-    # B restarts with its relayer on while the owner starts: the owner's pending Settle and B's proof Exit race for
-    # the same claims on L1.
-    stop_node b; start_node b app; start_node c app; wait_ready $HTTP_B 90; wait_ready $HTTP_C 90
+    # B restarts with its relayer on (a 3 s pass) while the owner starts: the owner's pending Settle and B's proof Exit
+    # race for the same claims.
+    stop_node b; GW_RELAY_INTERVAL_MS=3000 start_node b app; start_node c app; wait_ready $HTTP_B 90
+    wait_ready $HTTP_C 90
+    ;;
+  third-party-exit)
+    gwn b third-party-exit 0
+    for i in 1 2 3 4; do gwn b third-party-exit 0 submit; sleep 10; done
+    GW_APP=$APPA gw claims | jq -c '.[] | {sequence, shard, value, status, resolvedTx}'
     ;;
   *) sed -n '2,20p' "$0"; exit 2 ;;
 esac

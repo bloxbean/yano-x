@@ -694,7 +694,7 @@ public final class GatewayDevnet {
             case "b" -> {
                 args.add(x + "owner=false");
                 args.add(x + "exit-relayer.enabled=" + System.getenv().getOrDefault("GW_B_RELAYS", "true"));
-                args.add(x + "exit-relayer.interval-ms=20000");
+                args.add(x + "exit-relayer.interval-ms=" + System.getenv().getOrDefault("GW_RELAY_INTERVAL_MS", "20000"));
                 args.add(x + "exit-relayer.fee-wallet.key-file=" + keyFile("relayfee"));
                 args.add(x + "accept.interval-ms=15000");
             }
