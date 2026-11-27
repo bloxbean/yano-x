@@ -40,7 +40,8 @@ import java.util.Set;
  *       this node's pending ones) already holds, and stopping a shard whose mirror does not match its live root;</li>
  *   <li>for each shard whose live shard input no pending submission spends, build the {@code Exit} from vault custody
  *       and fee-wallet outputs no pending submission spends (halving on a per-transaction limit), submit it, and hold
- *       its inputs and inserts until its inclusion timeout.</li>
+ *       its inputs and inserts for one validity window past the submission (its TTL plus a slack), or until it is
+ *       provably dead.</li>
  * </ol>
  * Polling for inclusion is the payout observer's: a relayed claim leaves the relayer's view once it is {@code PAID}
  * in committed state, and its pending insert keeps it out of later passes until then.
@@ -87,7 +88,7 @@ final class ExitRelayTask {
         if (reserved.get().isEmpty()) return "no reserved claims";
 
         long now = node.clock().getAsLong();
-        Set<ResolvedOutput.Outpoint> held = new HashSet<>(assembly.held(now));
+        Set<ResolvedOutput.Outpoint> held = new HashSet<>(assembly.held(now, node.l1()));
         Map<Integer, ResolvedOutput> shardInputs = new HashMap<>();
         Map<Integer, ShardMirror> mirrors = new HashMap<>();
         Set<Integer> stopped = new HashSet<>();
@@ -150,11 +151,12 @@ final class ExitRelayTask {
                 relayed.add("submission returned another transaction id");
                 continue;
             }
-            Set<ResolvedOutput.Outpoint> spends = FeeWallet.spends(built.get().transaction());
-            assembly.hold("exit:" + built.get().txId().hex(), new OwnerAssembly.Hold(built.get().txId(), spends,
+            // Dated from this successful submission: one validity window (the TTL) plus a slack.
+            OwnerAssembly.Hold hold = OwnerAssembly.Hold.payout(built.get().transaction(), built.get().txId(),
                     pins.vaultId(), batch.shardIndex(), built.get().claimIds(),
-                    now + node.settings().inclusionTimeout().toMillis()));
-            held.addAll(spends);
+                    OwnerAssembly.expiry(node.clock().getAsLong(), node.settings().validityWindowMs()));
+            assembly.hold("exit:" + built.get().txId().hex(), hold);
+            held.addAll(hold.spends());
             relayed.add("relayed " + built.get().claimIds().size() + " on shard " + batch.shardIndex() + " in "
                     + built.get().txId());
         }

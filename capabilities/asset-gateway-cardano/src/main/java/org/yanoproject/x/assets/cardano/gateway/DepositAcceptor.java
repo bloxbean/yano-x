@@ -38,7 +38,8 @@ import java.util.Set;
  *   <li>when the round does not complete, fall back to the proved {@code Accept} of at most
  *       {@code accept.max-proved-batch} deposits, with proofs from the node at the live anchor's height (D8b);
  *       otherwise wait for the next pass;</li>
- *   <li>witness with the fee wallet, submit, and hold the spent outpoints until the inclusion timeout.</li>
+ *   <li>witness with the fee wallet, submit, and hold the spent outpoints for one validity window past the
+ *       submission (its TTL plus a slack), or until the transaction is provably dead (D9 concurrency).</li>
  * </ol>
  * An {@code Accept} only moves credited value into spendable custody: it changes no ledger state, and its continuation
  * becomes custody a later {@code Settle} selects (V10).
@@ -84,7 +85,7 @@ final class DepositAcceptor {
         Optional<ResolvedOutput> vaultRef = node.l1().resolve(node.settings().scriptRefs().get(pins.vaultId()).vault());
         if (vaultRef.isEmpty()) return "no vault reference script";
         long now = node.clock().getAsLong();
-        Set<ResolvedOutput.Outpoint> held = assembly.held(now);
+        Set<ResolvedOutput.Outpoint> held = assembly.held(now, node.l1());
         List<ResolvedOutput> deposits = creditedDeposits(pins, anchor.get().datum().height(), held);
         if (deposits.isEmpty()) return "nothing to accept";
         ProtocolParams pp = node.protocolParams().get();
@@ -110,7 +111,7 @@ final class DepositAcceptor {
             Optional<Map<String, byte[]>> signatures = cosign.collect(cosigned.built().cbor(), requested);
             if (signatures.isPresent() && signatures.get().keySet().containsAll(requested)) {
                 signerMemory.remove(pins.vaultId());
-                return submit(cosigned.built(), signatures.get(), now, "accepted (co-signed) ");
+                return submit(cosigned.built(), signatures.get(), "accepted (co-signed) ");
             }
             if (signatures.isPresent()) {
                 signerMemory.put(pins.vaultId(), AssetSettlementExecutor.afterRound(memberPublicKey, memory,
@@ -127,7 +128,7 @@ final class DepositAcceptor {
         Attempt proved = build(deposits, node.settings().tasks().acceptProvedBatch(),
                 batch -> AcceptTxBuilder.proved(context, batch, proofs.get(), node.evaluator()));
         if (proved.built() == null) return roundNote + "; no proved Accept: " + proved.failure();
-        return submit(proved.built(), Map.of(), now, "accepted (proved) ");
+        return submit(proved.built(), Map.of(), "accepted (proved) ");
     }
 
     /**
@@ -174,15 +175,16 @@ final class DepositAcceptor {
         return new Attempt(null, failure);
     }
 
-    private String submit(AcceptTxBuilder.Built built, Map<String, byte[]> signatures, long now, String note)
+    private String submit(AcceptTxBuilder.Built built, Map<String, byte[]> signatures, String note)
             throws Exception {
         byte[] signed = wallet.witness(built.cbor(), built.txId(), signatures);
         String txHash = node.submit().apply(signed);
         if (txHash == null || !txHash.equalsIgnoreCase(built.txId().hex())) {
             return "submission returned another transaction id";
         }
-        assembly.hold("accept:" + built.txId().hex(), OwnerAssembly.Hold.spending(built.txId(),
-                FeeWallet.spends(built.transaction()), now + node.settings().inclusionTimeout().toMillis()));
+        // Dated from this successful submission: one validity window (the TTL) plus a slack.
+        assembly.hold("accept:" + built.txId().hex(), OwnerAssembly.Hold.spending(built.transaction(), built.txId(),
+                OwnerAssembly.expiry(node.clock().getAsLong(), node.settings().validityWindowMs())));
         return note + built.depositIds().size() + " deposits in " + built.txId();
     }
 

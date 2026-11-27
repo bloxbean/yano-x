@@ -44,6 +44,17 @@ final class NodeL1View {
         }
     }
 
+    /** Whether {@code outpoint} is unspent in this node's view; empty when the view cannot answer. */
+    Optional<Boolean> unspent(ResolvedOutput.Outpoint outpoint) {
+        UtxoState state = view.get();
+        if (state == null) return Optional.empty();
+        try {
+            return Optional.of(state.getUtxo(outpoint.txIdHex(), outpoint.index()).isPresent());
+        } catch (RuntimeException unavailable) {
+            return Optional.empty();
+        }
+    }
+
     List<ResolvedOutput> at(byte[] rawAddress) {
         UtxoState state = view.get();
         List<ResolvedOutput> out = new ArrayList<>();

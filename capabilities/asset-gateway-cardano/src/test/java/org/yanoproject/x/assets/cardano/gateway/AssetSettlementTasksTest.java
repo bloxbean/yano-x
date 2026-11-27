@@ -379,6 +379,8 @@ class AssetSettlementTasksTest {
         final byte[] seed;
         final Ledger ledger = new Ledger();
         BridgeDiffusionHandler handler;
+        /** How far a submission moves the clock: a slow submission. */
+        long submitTakesMs;
         final List<Long> proofHeights = Collections.synchronizedList(new ArrayList<>());
 
         Node(byte[] seed) {
@@ -439,6 +441,7 @@ class AssetSettlementTasksTest {
         @Override
         public String submitTx(byte[] transactionCbor) {
             submitted.add(transactionCbor);
+            now += submitTakesMs;
             try {
                 return TransactionUtil.getTxHash(transactionCbor);
             } catch (Exception failure) {
@@ -618,8 +621,13 @@ class AssetSettlementTasksTest {
     }
 
     AppEffectExecutor product(Node node, boolean owner, boolean relayer) throws Exception {
-        List<AppEffectExecutor> products = AssetSettlementExecutorFactory.create(config(owner, relayer), node,
-                () -> now);
+        return product(node, owner, relayer, Map.of());
+    }
+
+    AppEffectExecutor product(Node node, boolean owner, boolean relayer, Map<String, String> extra) throws Exception {
+        Map<String, String> config = config(owner, relayer);
+        config.putAll(extra);
+        List<AppEffectExecutor> products = AssetSettlementExecutorFactory.create(config, node, () -> now);
         assertThat(products).hasSize(1);
         return products.getFirst();
     }
@@ -948,6 +956,116 @@ class AssetSettlementTasksTest {
         assertThat(waiting).isInstanceOf(EffectExecution.Retry.class);
         assertThat(executor.lastOutcome()).isEqualTo("awaiting the pending payout on this shard");
         assertThat(submitted).hasSize(3);
+    }
+
+    // ------------------------------------------------------------------ hold lifetime
+
+    /** One validity window (600 slots of 1 s) plus the slack: how long a pending transaction holds its inputs. */
+    static final long HOLD_MS = 600_000 + OwnerAssembly.SLACK_MS;
+
+    /**
+     * Codex P1-1: a Settle whose effect expires is never probed again; its hold still ends one validity window plus
+     * the slack after its submission, freeing its fee input and shard, and its journal entry goes with it.
+     */
+    @Test
+    void anExpiredSettleEffectFreesItsWalletAndShardAfterItsTtl() throws Exception {
+        seed(); // one plain fee-wallet output
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        ClaimLeafV1 first = reserve(3, 41, 900, NOW - HOUR, owner, member);
+        ClaimLeafV1 second = reserve(3, 42, 900, NOW - HOUR, owner, member);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false);
+        product(member, false, false);
+        pump(owner, member);
+        PendingEffect later = effect(new SettlementBatchV1(VAULT, 3, List.of(second.claimId())), 1);
+        assertThat(executor.execute(attempt(1, new byte[0]),
+                effect(new SettlementBatchV1(VAULT, 3, List.of(first.claimId())), 0)))
+                .as(executor.lastOutcome()).isInstanceOf(EffectExecution.Submitted.class);
+
+        // Its effect expires: the runtime never probes it again. Within its window it still holds both.
+        now = NOW + HOLD_MS - 1_000;
+        assertThat(executor.acceptor().orElseThrow().runOnce()).isEqualTo("no fee wallet funds");
+        assertThat(executor.execute(attempt(1, new byte[0]), later)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.lastOutcome()).isEqualTo("awaiting the pending payout on this shard");
+        assertThat(executor.journalSize()).isEqualTo(1);
+
+        // Past it, the fee input and the shard are free again, and the expired effect's journal entry is gone.
+        now = NOW + HOLD_MS + 1_000;
+        assertThat(executor.execute(attempt(1, new byte[0]), later)).as(executor.lastOutcome())
+                .isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(executor.journalSize()).isEqualTo(1);
+        assertThat(submitted).hasSize(2);
+        assertThat(inputs(submitted.get(1))).contains("60".repeat(32) + "#0", "62".repeat(32) + "#3");
+    }
+
+    /**
+     * Fable P2-1 (its probe of an Accept that never lands): once the anchor the Accept references advances, the Accept
+     * can never land, so its fee input is free at once instead of stalling every Settle on the fee wallet.
+     */
+    @Test
+    void anAcceptThatCanNeverLandFreesTheFeeInputOnceTheAnchorAdvances() throws Exception {
+        seed(); // one plain fee-wallet output
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(3, 31, 900, NOW - HOUR, owner, member);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false);
+        product(member, false, false);
+        pump(owner, member);
+        assertThat(executor.acceptor().orElseThrow().runOnce()).startsWith("accepted (co-signed) 1 deposits");
+        PendingEffect settle = effect(new SettlementBatchV1(VAULT, 3, List.of(claim.claimId())), 0);
+
+        // While its anchor is live the Accept may still land: its fee input stays held.
+        now = NOW + 60_000;
+        assertThat(executor.execute(attempt(1, new byte[0]), settle)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(executor.lastOutcome()).isEqualTo("no fee wallet funds");
+
+        // The anchor advances before the Accept is included: its reference input is spent, it can never land.
+        anchorHeight = ANCHORED + 1;
+        anchor();
+        assertThat(executor.execute(attempt(1, new byte[0]), settle)).as(executor.lastOutcome())
+                .isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(inputs(submitted.getLast())).contains("60".repeat(32) + "#0");
+    }
+
+    /** Fable P3-1: a relaying non-owner's validity window, and so its holds, are bounded like the owner's. */
+    @Test
+    void aRelayersValidityWindowIsBounded() throws Exception {
+        Node relayerNode = new Node(MEMBER_SEED);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> product(relayerNode, false, true,
+                Map.of("validity-window-slots", "601"))).hasMessageContaining("validity-window-slots");
+        assertThat(product(new Node(MEMBER_SEED), false, false, Map.of("validity-window-slots", "601"))
+                .effectTypes()).as("a member that builds nothing is not bounded").isEmpty();
+    }
+
+    /** Codex P2-6: a hold is dated from the successful submission, not from the start of its assembly. */
+    @Test
+    void aHoldIsDatedFromItsSubmission() throws Exception {
+        seed(); // one plain fee-wallet output
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        deposit(1, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        AssetSettlementExecutor executor = (AssetSettlementExecutor) product(owner, true, false,
+                Map.of("accept.max-batch", "1"));
+        product(member, false, false);
+        pump(owner, member);
+        DepositAcceptor acceptor = executor.acceptor().orElseThrow();
+
+        owner.submitTakesMs = 5 * 60_000; // assembled at NOW, submitted five minutes later
+        assertThat(acceptor.runOnce()).startsWith("accepted (co-signed) 1 deposits");
+        owner.submitTakesMs = 0;
+        long submittedAt = NOW + 5 * 60_000;
+
+        // Past what a hold dated from the assembly would last, the fee input is still held.
+        now = submittedAt + HOLD_MS - 1_000;
+        assertThat(acceptor.runOnce()).isEqualTo("no fee wallet funds");
+        now = submittedAt + HOLD_MS + 1_000;
+        assertThat(acceptor.runOnce()).startsWith("accepted (co-signed) 1 deposits");
     }
 
     static boolean paysVault(com.bloxbean.cardano.client.transaction.spec.TransactionOutput out) {

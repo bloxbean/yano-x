@@ -76,7 +76,8 @@ import java.util.function.Supplier;
  * <p>The effect runtime runs several attempts at once (across shards, and on one shard across blocks), so one lock
  * serializes every attempt of this executor. A single owner's L1 assembly is serial anyway: every {@code Settle}
  * spends the one fee wallet and continues the vault's custody. Each pending submission's spent outpoints stay out of
- * later selections until it closes, and no attempt builds over a shard input a pending submission spends. The lock
+ * later selections until it closes or its hold expires (one validity window past its submission), and no attempt
+ * builds over a shard input a pending submission spends. The lock
  * and the holds are the node's {@link OwnerAssembly}, which the {@code Accept} batcher and an exit relayer running on
  * this node share, so none of them spends what another one's pending transaction spends.
  */
@@ -103,7 +104,9 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
     private final OwnerAssembly assembly;
     /**
      * This node's submitted, unconfirmed Settles by effect. Each also holds its spent outpoints and inserts in
-     * {@link #assembly} under {@link #holdKey}, until it closes. Guarded by the assembly lock.
+     * {@link #assembly} under {@link #holdKey}, until it closes or its hold is dropped (expired, or its transaction
+     * dead), which evicts the entry too: the effect runtime may stop probing an expired effect, so eviction never
+     * waits for a probe. A later probe recovers the entry from the persisted reference. Guarded by the assembly lock.
      */
     private final Map<String, Journal> journal = new HashMap<>();
     /** The periodic tasks this executor product owns ({@code Accept}, exit relaying), stopped on close. */
@@ -195,11 +198,20 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         this.memberPublicKey = memberPublicKey.clone();
         this.assembly = Objects.requireNonNull(assembly, "assembly");
         this.wallet = Objects.requireNonNull(wallet, "wallet");
+        assembly.onDrop(holdKey -> {
+            if (holdKey.startsWith(SETTLE_HOLD)) journal.remove(holdKey.substring(SETTLE_HOLD.length()));
+        });
     }
+
+    private static final String SETTLE_HOLD = "settle:";
 
     /** The key of a Settle's hold in the shared assembly. */
     static String holdKey(String effectKey) {
-        return "settle:" + effectKey;
+        return SETTLE_HOLD + effectKey;
+    }
+
+    int journalSize() {
+        return journal.size();
     }
 
     private DepositAcceptor acceptor;
@@ -314,7 +326,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         if (exitMode.isEmpty() || shardInput.isEmpty() || vaultRef.isEmpty() || shardRef.isEmpty()) {
             return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "L1 inputs unavailable");
         }
-        Set<ResolvedOutput.Outpoint> pendingSpends = assembly.held(clock.getAsLong());
+        Set<ResolvedOutput.Outpoint> pendingSpends = assembly.held(clock.getAsLong(), l1);
         if (pendingSpends.contains(shardInput.get().outpoint())) {
             // A pending payout spends this shard input and is not yet included: a second one would conflict with it.
             // Chaining on its predicted shard output (D8h §6) is a later optimization; until then the batch waits.
@@ -389,12 +401,15 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         if (txHash == null || !txHash.equalsIgnoreCase(built.txId().hex())) {
             return outcome(EffectExecution.failed("submission returned another transaction id", true), "submit");
         }
+        long submittedAt = clock.getAsLong();
         Set<ResolvedOutput.Outpoint> spends = FeeWallet.spends(built.transaction());
         Journal submitted = Journal.of(built.txId(), batch, built.claimIds(),
-                clock.getAsLong() + settings.inclusionTimeout().toMillis(), spends);
+                submittedAt + settings.inclusionTimeout().toMillis(), spends);
         journal.put(key, submitted);
-        assembly.hold(holdKey(key), new OwnerAssembly.Hold(built.txId(), spends, batch.vaultId(),
-                batch.shardIndex(), built.claimIds(), Long.MAX_VALUE));
+        // The hold lasts one validity window past the submission (the TTL plus a slack), not until confirmation.
+        assembly.hold(holdKey(key), OwnerAssembly.Hold.payout(built.transaction(), built.txId(), batch.vaultId(),
+                batch.shardIndex(), built.claimIds(),
+                OwnerAssembly.expiry(submittedAt, settings.validityWindowMs())));
         return outcome(EffectExecution.submitted(submitted.ref()), "submitted " + built.txId());
     }
 

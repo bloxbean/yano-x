@@ -48,7 +48,9 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *                                   must be within about 5 minutes of the owner's, or it refuses honest bodies
  *                                   (reported as an l1-tip-bound refusal)
  * fee-wallet.key-file               owner only: a file holding the 32-byte Ed25519 seed (hex) of the fee wallet
- * validity-window-slots (600)       owner only: the Settle's validity window, at most 10 minutes of slots
+ * validity-window-slots (600)       owner and relayer: the validity window of every Settle, Accept and relayed Exit,
+ *                                   at most 10 minutes of slots; a pending transaction holds its inputs for one
+ *                                   window plus a slack after its submission
  * max-vault-inputs (8)              owner only: vault inputs per Settle
  * max-supplement-per-payout (0)     owner only: the most lovelace the fee wallet adds to one payout's min-UTxO (D11);
  *                                   a claim needing more is left out of the co-signed batch and stays RESERVED for
@@ -56,8 +58,7 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * stability-window-ms (600000)      owner only: an upper bound on the time from a Settle's inclusion to its committed
  *                                   payout observation (the chain's l1.stability-depth in L1 time, plus finality)
  * inclusion-timeout-ms (900000)     owner only: how long a submitted Settle may take to be confirmed by the payout
- *                                   observer; must exceed stability-window-ms. An Accept or a relayed Exit holds
- *                                   its inputs for as long
+ *                                   observer; must exceed stability-window-ms
  * accept.interval-ms (60000)        owner only: how often the owner batches CREDITED-but-unaccepted deposits into an
  *                                   Accept (D8f); 0 disables it
  * accept.max-batch (16), accept.max-proved-batch (12)   deposits per co-signed and per proved Accept, at most the
@@ -73,7 +74,10 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                                SlotClock slots, long validityWindowSlots, int maxVaultInputs,
                                Duration inclusionTimeout, BigInteger maxSupplementPerPayout,
                                Duration stabilityWindow, Tasks tasks) {
-    /** The owner's validity window bound: the members accept a TTL up to 10 minutes plus clock skew past their tip. */
+    /**
+     * The validity window bound of every node that builds (the owner and a relayer): the members accept a TTL up to 10
+     * minutes plus clock skew past their tip, and holds and the startup grace last one window.
+     */
     static final long MAX_VALIDITY_WINDOW_MS = 600_000;
 
     private static final Set<String> VAULT_EXTRAS = Set.of("script-ref", "shard-script-ref");
@@ -164,8 +168,10 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 bounded(required(config, "slot.zero-slot"), 0, Long.MAX_VALUE / 4, "slot.zero-slot"),
                 bounded(required(config, "slot.length-ms"), 1, 3_600_000, "slot.length-ms"));
         long window = bounded(optional(config, "validity-window-slots", "600"), 10, 86_400, "validity-window-slots");
-        // Only the owner builds bodies, so only the owner's window must fit what members sign.
-        if (owner && window * slots.slotLengthMs() > MAX_VALIDITY_WINDOW_MS) {
+        boolean relayer = Boolean.parseBoolean(optional(config, "exit-relayer.enabled", "false"));
+        // Only the owner and a relayer build: the owner's window must fit what members sign, and every builder's
+        // holds last one window, so a pending transaction holds its inputs briefly.
+        if ((owner || relayer) && window * slots.slotLengthMs() > MAX_VALIDITY_WINDOW_MS) {
             throw new IllegalArgumentException("validity-window-slots spans more than " + MAX_VALIDITY_WINDOW_MS
                     + " ms, past what members sign");
         }
@@ -178,7 +184,6 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
             // inclusion; a shorter timeout would re-batch claims a stable payout already paid.
             throw new IllegalArgumentException("inclusion-timeout-ms must exceed stability-window-ms");
         }
-        boolean relayer = Boolean.parseBoolean(optional(config, "exit-relayer.enabled", "false"));
         Optional<String> relayerKey = Optional.ofNullable(config.get("exit-relayer.fee-wallet.key-file"))
                 .filter(value -> !value.isBlank());
         if (owner && relayerKey.isPresent()) {
@@ -208,6 +213,11 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 BigInteger.valueOf(bounded(optional(config, "max-supplement-per-payout", "0"), 0, 100_000_000L,
                         "max-supplement-per-payout")),
                 stability, tasks);
+    }
+
+    /** The validity window in L1 time. */
+    long validityWindowMs() {
+        return validityWindowSlots * slots.slotLengthMs();
     }
 
     Optional<VaultPins> vault(Hash32 vaultId) {
