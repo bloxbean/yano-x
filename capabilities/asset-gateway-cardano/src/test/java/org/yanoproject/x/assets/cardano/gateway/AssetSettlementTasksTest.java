@@ -104,9 +104,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>{@code Accept} (D8f): the owner batches CREDITED-but-unaccepted deposits into a co-signed {@code Accept} that
  *       every member checks; deposits credited above the anchor, uncredited or unknown are left; without a quorum it
- *       falls back to proofs at the L1-stable anchor's height.</li>
+ *       falls back to proofs at the live anchor's height.</li>
  *   <li>Exit relayer (D9): an eligible claim is relayed by proof {@code Exit} with proofs from the node at the
- *       anchored height; ineligible claims are not; it waits for an L1-stable anchor and refuses in exit mode.</li>
+ *       live anchor's height, however far that anchor is past the L1-stable one; ineligible claims are not; it refuses
+ *       in exit mode.</li>
  *   <li>Concurrency (D9): the relayer and the {@code Accept} batcher on the owner share the {@code Settle}
  *       executor's assembly lock and pending-spend holds, so no two pending transactions spend one outpoint and a
  *       payout never builds over a pending one's shard input.</li>
@@ -378,8 +379,6 @@ class AssetSettlementTasksTest {
         final byte[] seed;
         final Ledger ledger = new Ledger();
         BridgeDiffusionHandler handler;
-        /** The node's L1-stable anchor frontier (the proof floor). */
-        long stable = ANCHORED;
         final List<Long> proofHeights = Collections.synchronizedList(new ArrayList<>());
 
         Node(byte[] seed) {
@@ -452,7 +451,10 @@ class AssetSettlementTasksTest {
             this.handler = handler;
         }
 
-        /** The retained proof at the anchored height only, as a node with the L1-stable anchor floor serves it. */
+        /**
+         * The retained proof at the live anchor's height only, as a node with the L1-stable anchor floor serves it: the
+         * floor keeps every height from the L1-stable anchor's on, so a live anchor newer than that one is proved too.
+         */
         @Override
         public Optional<StateProofEnvelope> stateProofAtHeight(long height, byte[] key) {
             proofHeights.add(height);
@@ -465,11 +467,6 @@ class AssetSettlementTasksTest {
                     org.yanoproject.x.framework.api.appchain.state.StateProof.Presence.PRESENT,
                     StateCommitmentProfiles.MPF.proofEncodingId(), trie.getProofWire(key).orElseThrow());
             return Optional.of(new StateProofEnvelope(1, CHAIN, filled(32, 0x0b), proof, FinalityCert.empty()));
-        }
-
-        @Override
-        public long stableAnchoredHeight() {
-            return stable;
         }
     }
 
@@ -764,8 +761,9 @@ class AssetSettlementTasksTest {
         assertThat(submitted).hasSize(1);
     }
 
+    /** Fable P1: the live anchor is newer than the L1-stable one on a chain that keeps anchoring; it is proved at. */
     @Test
-    void withoutAQuorumTheAcceptFallsBackToProofsAtTheL1StableAnchor() throws Exception {
+    void withoutAQuorumTheAcceptFallsBackToProofsAtTheLiveAnchor() throws Exception {
         seed();
         Node owner = new Node(OWNER_SEED);
         deposit(0, 900, DepositAdmission.Reason.NONE, owner);
@@ -775,12 +773,6 @@ class AssetSettlementTasksTest {
         DepositAcceptor acceptor = executor.acceptor().orElseThrow();
         pump(owner); // the other member is offline
 
-        // The live anchor is not yet L1-stable: the proofs at its height are not guaranteed, so nothing is built.
-        owner.stable = ANCHORED - 10;
-        assertThat(acceptor.runOnce()).contains("co-sign round incomplete").contains("awaiting an L1-stable anchor");
-        assertThat(submitted).isEmpty();
-
-        owner.stable = ANCHORED;
         String outcome = acceptor.runOnce();
         assertThat(outcome).as(outcome).startsWith("accepted (proved) 2 deposits");
         byte[] accept = submitted.getFirst();
@@ -808,12 +800,7 @@ class AssetSettlementTasksTest {
         assertThat(product.effectTypes()).as("a relaying non-owner still owns no effect type").isEmpty();
         ExitRelayTask relayer = ((AssetSettlementExecutorFactory.CosignOnly) product).relayer().orElseThrow();
 
-        // Not yet L1-stable: no proof floor covers the live anchor's height.
-        relayerNode.stable = ANCHORED - 1;
-        assertThat(relayer.runOnce()).isEqualTo("waiting for the live anchor to be L1-stable");
-        assertThat(submitted).isEmpty();
-
-        relayerNode.stable = ANCHORED;
+        // The live anchor is newer than the node's L1-stable one (Fable P1): the proof floor still covers its height.
         String outcome = relayer.runOnce();
         assertThat(outcome).as(outcome).startsWith("relayed 1 on shard 3");
         assertThat(submitted).hasSize(1);

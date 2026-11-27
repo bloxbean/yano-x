@@ -36,8 +36,8 @@ import java.util.Set;
  *       {@code Settle} executor's signer rotation: this node first when it is a member, then the members that answered
  *       the previous round, then the untried ones;</li>
  *   <li>when the round does not complete, fall back to the proved {@code Accept} of at most
- *       {@code accept.max-proved-batch} deposits, with proofs from the node at the anchor's height once that anchor is
- *       L1-stable (D8b); otherwise wait for the next pass;</li>
+ *       {@code accept.max-proved-batch} deposits, with proofs from the node at the live anchor's height (D8b);
+ *       otherwise wait for the next pass;</li>
  *   <li>witness with the fee wallet, submit, and hold the spent outpoints until the inclusion timeout.</li>
  * </ol>
  * An {@code Accept} only moves credited value into spendable custody: it changes no ledger state, and its continuation
@@ -123,7 +123,7 @@ final class DepositAcceptor {
 
         // The proved fallback: anyone may submit it; the script checks every proof against the anchored root.
         Optional<StateProof.Source> proofs = node.anchoredProofs(anchor.get());
-        if (proofs.isEmpty()) return roundNote + "; awaiting an L1-stable anchor for the proved Accept";
+        if (proofs.isEmpty()) return roundNote + "; the live anchor has no anchored height";
         Attempt proved = build(deposits, node.settings().tasks().acceptProvedBatch(),
                 batch -> AcceptTxBuilder.proved(context, batch, proofs.get(), node.evaluator()));
         if (proved.built() == null) return roundNote + "; no proved Accept: " + proved.failure();

@@ -15,13 +15,12 @@ import java.util.function.Supplier;
 
 /**
  * What the periodic settlement tasks read and use of their node: settings, the L1 view, committed state, protocol
- * parameters, the phase-2 evaluator, submission, the wall clock, and the node's state proofs with the L1-stable anchor
- * frontier (ADR-059 D8b, D9).
+ * parameters, the phase-2 evaluator, submission, the wall clock, and the node's state proofs at a height (ADR-059 D8b,
+ * D9).
  */
 record NodeServices(AssetSettlementSettings settings, NodeL1View l1, CommittedClaims committed,
                     Supplier<ProtocolParams> protocolParams, TransactionEvaluator evaluator,
-                    Function<byte[], String> submit, LongSupplier clock, NodeStateProofs.AtHeight proofs,
-                    LongSupplier stableAnchoredHeight) {
+                    Function<byte[], String> submit, LongSupplier clock, NodeStateProofs.AtHeight proofs) {
     NodeServices {
         Objects.requireNonNull(settings, "settings");
         Objects.requireNonNull(l1, "l1");
@@ -31,7 +30,6 @@ record NodeServices(AssetSettlementSettings settings, NodeL1View l1, CommittedCl
         Objects.requireNonNull(submit, "submit");
         Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(proofs, "proofs");
-        Objects.requireNonNull(stableAnchoredHeight, "stable anchored height");
     }
 
     /**
@@ -52,19 +50,14 @@ record NodeServices(AssetSettlementSettings settings, NodeL1View l1, CommittedCl
     }
 
     /**
-     * The state proofs under the referenced anchor's root (D8b): only once that anchor is L1-stable, so its height is
-     * at or below the node's L1-stable anchor frontier and therefore within the proof floor. An anchor not yet stable
-     * has no source: the caller waits.
+     * The state proofs under the referenced anchor's root (D8b), at its height. The live anchor is the newest on L1, so
+     * its height is at or above the node's L1-stable anchor height, and the proof floor keeps every height from there
+     * on: a fresh anchor's proofs exist. {@link NodeStateProofs#at} binds each proof to that height, root and key. A
+     * transaction that references an anchor which then rolls back fails on L1 and is rebuilt (D8b).
      */
     Optional<StateProof.Source> anchoredProofs(NodeL1View.Anchored anchor) {
         long height = anchor.datum().height();
-        long stable;
-        try {
-            stable = stableAnchoredHeight.getAsLong();
-        } catch (RuntimeException unavailable) {
-            return Optional.empty();
-        }
-        if (height < 1 || height > stable) return Optional.empty();
+        if (height < 1) return Optional.empty();
         return Optional.of(NodeStateProofs.at(height, anchor.datum().stateRoot().bytes(), proofs));
     }
 

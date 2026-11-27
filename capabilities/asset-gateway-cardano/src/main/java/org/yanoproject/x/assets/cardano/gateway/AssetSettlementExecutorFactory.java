@@ -51,7 +51,7 @@ import java.util.function.Supplier;
  * co-signed {@code Accept} with {@link AcceptBodyCheck} (D8h §1). The owner also batches credited deposits into
  * {@code Accept}s ({@link DepositAcceptor}, {@code accept.interval-ms}); any node with {@code exit-relayer.enabled}
  * relays {@code EXIT_ELIGIBLE} claims by proof {@code Exit} ({@link ExitRelayTask}), with state proofs from this
- * node at the referenced L1-stable anchor's height. Both run on a timer owned by the executor product, which stops it
+ * node at the referenced live anchor's height. Both run on a timer owned by the executor product, which stops it
  * on close; on the owner they share the {@code Settle} executor's assembly lock, pending-spend holds and fee wallet
  * ({@link OwnerAssembly}), and a relaying non-owner has its own.
  */
@@ -96,7 +96,7 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
         context.registerBridgeDiffusionHandler(cosign);
         TransactionEvaluator evaluator = evaluator(context::txEvaluation);
         NodeServices node = new NodeServices(settings, l1, committed, context.protocolParams(), evaluator,
-                context::submitTx, clock, NodeServices.proofsOf(context), context::stableAnchoredHeight);
+                context::submitTx, clock, NodeServices.proofsOf(context));
         int network = settings.vaults().domain().addressNetworkId();
         AssetSettlementSettings.Tasks taskSettings = settings.tasks();
         if (!settings.owner()) {

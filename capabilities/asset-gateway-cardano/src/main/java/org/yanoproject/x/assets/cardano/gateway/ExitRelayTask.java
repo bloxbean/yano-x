@@ -32,8 +32,9 @@ import java.util.Set;
  * <p>One pass, under its {@link OwnerAssembly} lock (the owner's own, on the owner), per vault:
  * <ol>
  *   <li>refuse unless the exit-mode thread is {@code NORMAL}: exit-mode relaying is M4a;</li>
- *   <li>reference the live anchor, and wait until it is L1-stable, so its height lies within the node's proof floor
- *       (D8b); every proof is then the node's own at exactly that height, under that anchor's root;</li>
+ *   <li>reference the live anchor, whose height lies within the node's proof floor (D8b: the floor keeps every
+ *       height from the L1-stable anchor's on); every proof is the node's own at exactly that height, under that
+ *       anchor's root;</li>
  *   <li>read the anchored domain status from its proof, and the vault's {@code RESERVED} claims from committed
  *       state; plan the eligible ones by shard, dropping any whose nullifier the shard mirror (confirmed payouts plus
  *       this node's pending ones) already holds, and stopping a shard whose mirror does not match its live root;</li>
@@ -77,7 +78,7 @@ final class ExitRelayTask {
         Optional<NodeL1View.Anchored> anchor = node.l1().anchor(pins);
         if (anchor.isEmpty()) return "no live anchor";
         Optional<StateProof.Source> proofs = node.anchoredProofs(anchor.get());
-        if (proofs.isEmpty()) return "waiting for the live anchor to be L1-stable";
+        if (proofs.isEmpty()) return "the live anchor has no anchored height";
         Optional<DomainStatusV1> anchoredStatus = proofs.get().inclusion(pins.domainStatusKey())
                 .flatMap(proof -> decodeStatus(proof.value()));
         if (anchoredStatus.isEmpty()) return "no status proof at the anchored height";
