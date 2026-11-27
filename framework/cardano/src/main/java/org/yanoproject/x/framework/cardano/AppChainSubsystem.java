@@ -327,11 +327,6 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
             public Optional<StateProofEnvelope> stateProofAtHeight(long height, byte[] key) {
                 return AppChainSubsystem.this.stateProofEnvelopeAtHeight(height, key);
             }
-
-            @Override
-            public long stableAnchoredHeight() {
-                return AppChainSubsystem.this.stableAnchoredHeight();
-            }
         };
     }
 

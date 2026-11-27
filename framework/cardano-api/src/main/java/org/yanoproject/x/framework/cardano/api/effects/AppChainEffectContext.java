@@ -71,20 +71,11 @@ public interface AppChainEffectContext {
      * the committed root of finalized height {@code height}, while this node
      * still retains it; empty otherwise. With the L1-stable anchor proof
      * floor ({@code state.proof-pruning.l1-stable-anchor-floor}) every height
-     * from {@link #stableAnchoredHeight()} onward is retained, so an exit
-     * relayer that references that anchor can prove claims against its root.
+     * from the latest L1-stable anchor's onward is retained, so an exit
+     * relayer that references the live anchor, which is never older, can
+     * prove claims against its root.
      */
     default Optional<StateProofEnvelope> stateProofAtHeight(long height, byte[] key) {
         return Optional.empty();
-    }
-
-    /**
-     * The highest app height covered by an L1 anchor that is at least
-     * {@code l1.stability-depth} blocks deep on this node's L1 view (the
-     * {@code L1_ANCHORED} frontier and the proof floor); 0 when none yet.
-     * Node-local execution-plane state, never consensus input.
-     */
-    default long stableAnchoredHeight() {
-        return 0L;
     }
 }

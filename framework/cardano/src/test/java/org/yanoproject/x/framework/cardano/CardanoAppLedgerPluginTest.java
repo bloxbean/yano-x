@@ -134,8 +134,7 @@ class CardanoAppLedgerPluginTest {
             assertThat(createdContext.get().protocolParams().get()).isNull();
             assertThatThrownBy(() -> createdContext.get().submitTx(new byte[0]))
                     .isInstanceOf(IllegalStateException.class).hasMessageContaining("not wired");
-            // ADR-059 D8b, D9: no anchor is L1-stable and no block is finalized, so no proof is served.
-            assertThat(createdContext.get().stableAnchoredHeight()).isZero();
+            // ADR-059 D8b, D9: no block is finalized, so no proof is served.
             assertThat(createdContext.get().stateProofAtHeight(1, new byte[] {1})).isEmpty();
         } finally {
             manager.close();
