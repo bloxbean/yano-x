@@ -125,7 +125,9 @@ final class ExitRelayTask {
         List<String> relayed = new ArrayList<>();
         Set<Integer> used = new HashSet<>();
         for (ExitRelayer.Batch batch : batches) {
-            if (!used.add(batch.shardIndex())) continue; // one Exit per shard per pass; the next chains on its output
+            // One Exit per shard per pass, the next chains on its output; a batch that fails leaves the shard to the
+            // shard's next batch.
+            if (used.contains(batch.shardIndex())) continue;
             List<ResolvedOutput> funding = wallet.funding(node.l1().at(wallet.address()), held);
             if (funding.isEmpty()) {
                 relayed.add("no fee wallet funds");
@@ -141,7 +143,7 @@ final class ExitRelayTask {
             try {
                 built = build(context, batch, proofs.get(), mirrors.get(batch.shardIndex()));
             } catch (PayoutTxBuilder.BuildException unbuildable) {
-                // Nothing built: a plain failure, or (LimitExceeded) no claim fits one Exit.
+                // Nothing built: a plain failure, or no claim of the batch fits one Exit.
                 relayed.add("shard " + batch.shardIndex() + ": " + unbuildable.getMessage());
                 continue;
             }
@@ -157,6 +159,7 @@ final class ExitRelayTask {
                     OwnerAssembly.expiry(node.clock().getAsLong(), node.settings().validityWindowMs()));
             assembly.hold("exit:" + built.get().txId().hex(), hold);
             held.addAll(hold.spends());
+            used.add(batch.shardIndex());
             relayed.add("relayed " + built.get().claimIds().size() + " on shard " + batch.shardIndex() + " in "
                     + built.get().txId());
         }
@@ -164,21 +167,22 @@ final class ExitRelayTask {
     }
 
     /**
-     * The {@code Exit} of the batch's first claims that fit: halved on a per-transaction limit; a single claim that
-     * alone exceeds one is skipped (its user can self-relay with a larger supplement) and the next ones are tried.
-     * Any other build failure is thrown to the caller, which reports it.
+     * The {@code Exit} of the batch's first claims that fit: halved on a per-transaction limit or on custody that
+     * does not cover the batch (Codex P1-2: free custody after holds may pay a smaller one); a single claim that alone
+     * does not fit is skipped (its user can self-relay with a larger supplement, or it waits for custody) and the next
+     * ones are tried. Any other build failure is thrown to the caller, which reports it.
      */
     private Optional<PayoutTxBuilder.Built> build(PayoutTxBuilder.Context context, ExitRelayer.Batch batch,
                                                   StateProof.Source proofs, ShardMirror mirror) {
         List<ClaimLeafV1> claims = new ArrayList<>(batch.claims());
         int size = claims.size();
-        PayoutTxBuilder.LimitExceeded last = null;
+        PayoutTxBuilder.BuildException last = null;
         while (!claims.isEmpty()) {
             try {
                 return Optional.of(ExitRelayer.build(context, new ExitRelayer.Batch(batch.shardIndex(),
                         claims.subList(0, size)), proofs, mirror, node.evaluator()));
-            } catch (PayoutTxBuilder.LimitExceeded tooLarge) {
-                last = tooLarge;
+            } catch (PayoutTxBuilder.LimitExceeded | PayoutTxBuilder.CustodyShort doesNotFit) {
+                last = doesNotFit;
                 if (size == 1) {
                     claims.removeFirst();
                     size = claims.size();

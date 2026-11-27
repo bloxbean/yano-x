@@ -329,10 +329,15 @@ class AssetSettlementTasksTest {
 
     /** A claim reserved at {@code height} and {@code reservedAtMs}, committed on every node and in the trie. */
     ClaimLeafV1 reserve(int shard, int seed, long height, long reservedAtMs, Node... nodes) {
+        return reserve(shard, seed, height, reservedAtMs, 1_500_000, nodes);
+    }
+
+    /** {@link #reserve(int, int, long, long, Node...)} of a claim whose payout takes {@code vaultLovelace}. */
+    ClaimLeafV1 reserve(int shard, int seed, long height, long reservedAtMs, long vaultLovelace, Node... nodes) {
         byte[] id = Blake2bUtil.blake2bHash256(("claim-" + seed).getBytes());
         id[31] = (byte) ((id[31] & 0xf0) | shard);
         ClaimLeafV1 leaf = new ClaimLeafV1(Hash32.of(id), VAULT, ClaimKind.USER_WITHDRAWAL,
-                AssetValue.single(USDM, BigInteger.valueOf(100 + seed)), BigInteger.valueOf(1_500_000),
+                AssetValue.single(USDM, BigInteger.valueOf(100 + seed)), BigInteger.valueOf(vaultLovelace),
                 concat(new byte[] {0x60}, filled(28, 0x80 + seed % 64)), height, reservedAtMs);
         for (Node node : nodes) {
             node.ledger.leaves.put(leaf.claimId(), leaf);
@@ -839,6 +844,70 @@ class AssetSettlementTasksTest {
         assertThat(relayer.runOnce()).isEqualTo(org.yanoproject.x.assets.cardano.support.settlement.ExitRelayer
                 .EXIT_MODE_REFUSAL);
         assertThat(submitted).isEmpty();
+    }
+
+    /** Replaces the vault's accepted custody with outputs of these lovelace amounts, each with plenty of USDM. */
+    void custody(long... lovelace) {
+        synchronized (l1) {
+            l1.keySet().removeIf(key -> key.startsWith("61".repeat(32)));
+        }
+        for (int i = 0; i < lovelace.length; i++) {
+            put(utxo("61".repeat(32), i, enterprise(VAULT_HASH), lovelace[i], asset("f0".repeat(28), "5553444d", 100_000),
+                    HexFormat.of().parseHex("d87a8180"), null));
+        }
+    }
+
+    /** The claim ids an Exit or Settle pays, from its vault continuation (output k, after the k payouts). */
+    static List<Hash32> paidBy(byte[] cbor) {
+        Transaction tx = tx(cbor);
+        int k = tx.getBody().getOutputs().size() - 3;
+        return GatewayPlutus.decodeContinuation(tx.getBody().getOutputs().get(k).getInlineDatum());
+    }
+
+    /**
+     * Codex P1-2, first case: an older claim no Exit can pay (one vault input of 6 ADA cannot cover 8 ADA and the
+     * 2 ADA floor) does not take its shard's turn: the later 2 ADA claim on the same shard is relayed.
+     */
+    @Test
+    void anUnpayableClaimDoesNotStarveTheNextClaimOnItsShard() throws Exception {
+        seed();
+        custody(6_000_000, 6_000_000);
+        Node relayerNode = new Node(MEMBER_SEED);
+        reserve(3, 51, 900, NOW - 3 * DAY, 8_000_000, relayerNode);
+        ClaimLeafV1 payable = reserve(3, 52, 900, NOW - 2 * DAY, 2_000_000, relayerNode);
+        anchor();
+        ExitRelayTask relayer = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true,
+                Map.of("max-exit-batch", "1", "max-vault-inputs", "1"))).relayer().orElseThrow();
+
+        String outcome = relayer.runOnce();
+
+        assertThat(outcome).as(outcome).contains("relayed 1 on shard 3");
+        assertThat(submitted).hasSize(1);
+        assertPasses(submitted.getFirst());
+        assertThat(paidBy(submitted.getFirst())).containsExactly(payable.claimId());
+    }
+
+    /**
+     * Codex P1-2, second case: custody that cannot pay the whole batch (8 ADA for two 4 ADA claims and a 2 ADA floor)
+     * pays a smaller one.
+     */
+    @Test
+    void custodyShortOfTheBatchPaysASmallerOne() throws Exception {
+        seed();
+        custody(8_000_000);
+        Node relayerNode = new Node(MEMBER_SEED);
+        ClaimLeafV1 older = reserve(3, 53, 900, NOW - 3 * DAY, 4_000_000, relayerNode);
+        reserve(3, 54, 900, NOW - 2 * DAY, 4_000_000, relayerNode);
+        anchor();
+        ExitRelayTask relayer = ((AssetSettlementExecutorFactory.CosignOnly) product(relayerNode, false, true))
+                .relayer().orElseThrow();
+
+        String outcome = relayer.runOnce();
+
+        assertThat(outcome).as(outcome).startsWith("relayed 1 on shard 3");
+        assertThat(submitted).hasSize(1);
+        assertPasses(submitted.getFirst());
+        assertThat(paidBy(submitted.getFirst())).containsExactly(older.claimId());
     }
 
     // ------------------------------------------------------------------ the concurrency contract

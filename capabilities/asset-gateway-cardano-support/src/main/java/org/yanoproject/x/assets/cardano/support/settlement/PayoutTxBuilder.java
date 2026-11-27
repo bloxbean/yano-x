@@ -104,6 +104,17 @@ public final class PayoutTxBuilder {
         }
     }
 
+    /**
+     * The custody offered (accepted vault outputs that no pending submission spends) does not cover the batch: a
+     * smaller batch may fit, so the exit relayer splits on it like on {@link LimitExceeded}, and skips a claim that
+     * alone does not fit.
+     */
+    public static final class CustodyShort extends BuildException {
+        public CustodyShort(String message) {
+            super(message);
+        }
+    }
+
     /** The key-locked inputs that pay fees, collateral and supplements, and where change goes. */
     public record Funding(List<ResolvedOutput> inputs, byte[] changeAddress) {
         public Funding {
@@ -418,7 +429,7 @@ public final class PayoutTxBuilder {
      * asset and actual lovelace. Dust at low outpoints therefore never fills {@code maxVaultInputs} ahead of the
      * custody that pays, and token inputs are not taken for their lovelace. Needing more than
      * {@code maxVaultInputs} inputs is {@link LimitExceeded}, so the caller splits; custody that cannot cover the
-     * batch at all is a {@link BuildException}. The selected inputs are returned in canonical outpoint order, the
+     * batch at all is {@link CustodyShort}, on which a caller may split too. The selected inputs are returned in canonical outpoint order, the
      * ledger order that redeemer indexes refer to; the scripts do not depend on selection order.
      */
     static List<ResolvedOutput> selectVaultInputs(Context context, BigInteger assetDebit, BigInteger lovelaceDebit,
@@ -440,7 +451,7 @@ public final class PayoutTxBuilder {
             boolean needAsset = asset.compareTo(assetDebit) < 0;
             ResolvedOutput best = remaining.stream().min(needAsset ? byAsset : byLovelace).orElse(null);
             if (best == null || (needAsset && vaultQuantity(best, pins).signum() == 0)) {
-                throw new BuildException("accepted vault custody does not cover the batch");
+                throw new CustodyShort("accepted vault custody does not cover the batch");
             }
             if (selected.size() == context.maxVaultInputs()) {
                 throw new LimitExceeded("the batch needs more than " + context.maxVaultInputs()
