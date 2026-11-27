@@ -1757,7 +1757,7 @@ class AssetSettlementTasksTest {
         assertThat(paidBy(submitted.getFirst())).containsExactly(claim.claimId());
     }
 
-    /** Codex #7: without a TTL file, the grace also waits for the applied tip to pass the start slot plus 10 minutes. */
+    /** Codex #7: without a TTL file, the grace also waits for the applied tip to pass the start slot plus 10 min. */
     @Test
     void theFallbackGraceWaitsForABehindView() throws Exception {
         seed();
