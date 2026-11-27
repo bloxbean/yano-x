@@ -1,6 +1,6 @@
 # ADR-059 — Cardano asset gateway, with a multi-asset payment ledger as its first consumer
 
-- **Status:** Proposed (2026-11-27, r22). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r22 record the rules settled while implementing M4 (see the revision history).
+- **Status:** Proposed (2026-11-27, r23). Design approved by reviewer3 (r8), review A, Fable (r11), and review B, Codex (r13). Approved by reviewer3 (r8) and by review A, Fable (r11). The maintainer decided D8 in r3 and the open questions in r4. r15 to r23 record the rules settled while implementing M4 (see the revision history).
 - **Issues:**
   - [#110](https://github.com/bloxbean/yano-x/issues/110): generic Cardano asset ingress and
     settlement framework.
@@ -316,7 +316,7 @@ Names are provisional and are settled in M1 (Q11).
 | `capabilities/asset-gateway-contracts` | pure library | Asset and value types, identifiers, CDDL and canonical codecs, deposit/claim/payout/receipt records, the accounting helper (D12), invariant checkers, test vectors. No Cardano client dependency. |
 | `capabilities/asset-gateway-cardano-support` | pure library (no manifest) | Protocol-neutral helpers lifted from the EUTxO bridge (D16), plus the vault and shard transaction builder and the shard mirror (D9). |
 | `capabilities/asset-gateway-cardano` | runtime plugin bundle | Observers (D5, D10), relayer executor (D9), domain API (deposit instructions, unsigned deposit builder, claim and shard witnesses, reconciliation report, doctor). |
-| `capabilities/asset-gateway-onchain` | on-chain artifacts | Julc sources and checked `plutus.json` for: the vault, the shard validator, the shard thread policy, the exit-mode thread validator and policy, `ForcedInboxValidator` (minting and spending). `anchor.ak` v2 stays in `framework/cardano-onchain` (D8, D8c, D8g). |
+| `capabilities/asset-gateway-onchain` | on-chain artifacts | Julc sources and checked `plutus.json` for: the vault, the shard validator, the shard thread policy, the exit-mode thread validator and policy, `ForcedInboxValidator` (minting and spending). *(r23)* Also the Aiken shard backend (`aiken/`, with its checked blueprint and artifact). `anchor.ak` v2 stays in `framework/cardano-onchain` (D8, D8c, D8g). |
 | `capabilities/cardano-wallet-auth` | pure library plus a JS SDK piece | CIP-8 verifier, account credentials, intent envelope, session grants (D13). |
 | `ledgers/asset-payments/{contracts,ledger,client}` | contracts library, state-machine bundle, client | The #109 payment ledger (D14). |
 | `examples/asset-escrow` | example state-machine bundle | The second consumer (D17a). |
@@ -883,6 +883,19 @@ anchor still references.
 - A vault therefore never accepts another vault's shard, and a payout can never insert into
   another vault's nullifier set (A-F9, B-F3).
 
+**Backends** *(r23)*
+- The shard validator has two interchangeable backends with the same parameters, datum,
+  redeemer and rules: julc (`AssetShardValidator`, the default) and Aiken (`asset_shard.ak`:
+  aiken-lang/merkle-patricia-forestry v2.1.0 behind Yano X's own proof-shape checks, the same
+  rules as the julc backend's `isWellFormed` and `excludedTerminalIsUnambiguous`).
+- The deployment profile selects one with `shard-backend` (`julc` or `aiken`). The choice is part
+  of the pinned script identity: it changes the shard script hash and address, every member's
+  observer identity includes it, and a node whose pinned shard hash is not the selected backend's
+  shard of `(shardThreadPolicyId, vaultScriptHash)` fails startup.
+- The shard thread policy is parameterized by its seed only, so it and the vault are the same
+  under either backend. A differential suite runs both backends on the same transactions and
+  requires identical verdicts.
+
 **Bootstrap**
 - Bootstrap mints all 16 tokens to the pinned shard address, each with the empty MPF root. The
   policy requires every output that receives a token to hold exactly that one token `[i]` and the
@@ -1287,7 +1300,8 @@ it signs itself** (r7).
    token, with no reference script, and with the datum whose root is the fold of the redeemer's
    inserts from the input's root. *(r20)* Each insert's proof must also pass the shard script's
    own shape rules (`isWellFormed`, `excludedTerminalIsUnambiguous`), so the member accepts
-   exactly the proofs the script accepts. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
+   exactly the proofs the script accepts. *(r23)* Both shard backends enforce these rules, so the
+   fold check is the same for either; only the pinned shard hash and address differ. Check the outputs against V5–V7. Every claim must be one of the member's own `RESERVED`
    claims with `USER_WITHDRAWAL` kind and exact fields, at a reservation height at or below the
    referenced anchor's height (V12). The domain must be `ACTIVE` and the exit-mode thread
    `NORMAL`.
@@ -1316,7 +1330,7 @@ identity:
 | Observer | Reports |
 |---|---|
 | `asset-anchor-v1` | Stable anchor outputs: height, `updatedAtMs`, member set, threshold, state root. It feeds the D8b deposit gate, the handoff step 3, and the proof floor. |
-| `asset-shard-bootstrap-v1` | The 16 shard outputs per vault, each with an empty root and exactly one thread token and *(r19)* no other native asset. It feeds the D8c deposit gate. |
+| `asset-shard-bootstrap-v1` | The 16 shard outputs per vault, each with an empty root and exactly one thread token and *(r19)* no other native asset. It feeds the D8c deposit gate. *(r23)* It and the payout observer read the pinned shard address, so they serve either shard backend. |
 | `asset-exit-mode-v1` | The exit-mode thread moving to `EXIT`. The ledger then freezes: no further intents, reservations or credits. Deposits that arrive later are refunded through `Refund`. |
 | `asset-forced-withdrawal-v1` | Inbox outputs carrying a token of the pinned policy (D8g R1). It reports a bounded summary, so a malformed datum yields `MALFORMED`, never silence. |
 
@@ -2858,3 +2872,12 @@ names "a direct ZeroJ validity proof" as the selected long-term settlement direc
       to the no-file grace;
     - deferred, as a known limit: pending inserts lost on a restart before the observer confirms
       them make the next payout on that shard wait about one stability window.
+- **r23** (2026-11-27): a second shard backend.
+  - D8c: the nullifier-shard validator has two interchangeable backends, julc (default) and Aiken
+    (aiken-lang/merkle-patricia-forestry v2.1.0 behind Yano X's own proof-shape checks, the same
+    rules as the julc backend). The deployment profile selects one with `shard-backend`, and the
+    choice is part of the pinned script identity.
+  - D8h §1 step 5 and §3: the member's fold check and the observers are backend-independent,
+    because both backends enforce identical semantics; they read the pinned shard hash and address.
+  - D2: `asset-gateway-onchain` also carries the Aiken backend. Its costs are in `BUDGETS.md`; the
+    `Settle` and `Exit` caps are unchanged.
