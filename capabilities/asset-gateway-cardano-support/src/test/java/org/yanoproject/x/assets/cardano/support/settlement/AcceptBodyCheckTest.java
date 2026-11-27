@@ -170,4 +170,16 @@ class AcceptBodyCheckTest {
                 custody.assets(), custody.inlineDatum(), Optional.empty()));
         refused(check(g.world(), withCustody, new Records(g.records())), "not a deposit-shaped");
     }
+
+    /** Codex P3-8: a body whose required signers name fewer distinct anchor members than its threshold is refused. */
+    @Test
+    void requiredSignersBelowTheAnchorThresholdAreRefused() throws Exception {
+        Fixture f = fixture(1);
+        byte[] member = PayoutWorld.signers(1).getFirst();
+        for (List<byte[]> signers : List.of(List.of(member), List.of(member, member),
+                List.of(member, PayoutWorld.filled(28, 9)))) {
+            byte[] body = mutate(f.built(), tx -> tx.getBody().setRequiredSigners(signers));
+            refused(check(f.world(), body, new Records(f.records())), "below its threshold");
+        }
+    }
 }

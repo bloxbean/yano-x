@@ -1,5 +1,6 @@
 package org.yanoproject.x.assets.cardano.support.settlement;
 
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
@@ -16,9 +17,12 @@ import org.yanoproject.x.assets.contracts.Hash32;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -175,6 +179,28 @@ final class BodyChecks {
         if (anchor == null) throw hazard("the pinned live anchor is not referenced");
         if (!normalMode) throw hazard("the exit-mode thread is not referenced in NORMAL");
         return anchor;
+    }
+
+    /**
+     * The required signers name at least the referenced anchor's threshold of distinct members (V9), so a member never
+     * signs a body that its quorum's signatures could not make pass on L1 (Codex P3-8).
+     */
+    static void quorumOfRequiredSigners(TransactionBody body, AnchorObservationV1.Anchored anchor) {
+        Set<String> members = new HashSet<>();
+        for (Hash32 member : anchor.memberKeys()) {
+            members.add(HexFormat.of().formatHex(Blake2bUtil.blake2bHash224(member.bytes())));
+        }
+        Set<String> named = new HashSet<>();
+        if (body.getRequiredSigners() != null) {
+            for (byte[] signer : body.getRequiredSigners()) {
+                String hash = HexFormat.of().formatHex(signer);
+                if (members.contains(hash)) named.add(hash);
+            }
+        }
+        if (named.size() < anchor.threshold()) {
+            throw hazard("the required signers name " + named.size() + " anchor members, below its threshold of "
+                    + anchor.threshold());
+        }
     }
 
     /** The spend redeemers by the outpoint they point at in ledger order; anything else is refused. */

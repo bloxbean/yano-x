@@ -45,6 +45,7 @@ import java.util.function.Function;
  *       every other one the same redeemer or {@code Follow}; no other input has a redeemer, so there are no claims.
  *       Exactly one output has the vault's payment credential: at the exact vault address, with no reference script,
  *       the datum {@code VaultContinuationV1([])}, and exactly the inputs' summed lovelace and vault asset.</li>
+ *   <li>The required signers name at least the referenced anchor's threshold of distinct members (V9).</li>
  * </ol>
  *
  * A signable outcome carries the body hash and the referenced anchor; it names no claims and no shard
@@ -192,6 +193,7 @@ public final class AcceptBodyCheck {
                 && continuation.getInlineDatum() != null
                 && isEmptyContinuation(continuation.getInlineDatum());
         if (!exact) throw BodyChecks.hazard("the vault output is not the exact empty continuation of the deposits");
+        BodyChecks.quorumOfRequiredSigners(body, anchor);
         byte[] bodyHash = HexFormat.of().parseHex(TransactionUtil.getTxHash(tx));
         return new SettleBodyCheck.Signable(new SettleBodyCheck.Verified(bodyHash, List.of(), -1, anchor));
     }

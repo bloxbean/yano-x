@@ -306,4 +306,19 @@ class SettleBodyCheckTest {
             }
         };
     }
+
+    /** Codex P3-8: a body whose required signers name fewer distinct anchor members than its threshold is refused. */
+    @Test
+    void requiredSignersBelowTheAnchorThresholdAreRefused() throws Exception {
+        List<ClaimLeafV1> claims = world.claims(12, 1);
+        world.anchor(claims, 20_006);
+        PayoutTxBuilder.Built built = build(12, claims);
+        byte[] member = PayoutWorld.signers(1).getFirst();
+        for (List<byte[]> signers : List.of(List.of(member), List.of(member, member),
+                List.of(member, PayoutWorld.filled(28, 9)))) {
+            Transaction tx = Transaction.deserialize(built.cbor());
+            tx.getBody().setRequiredSigners(signers);
+            refused(check(tx.serialize(), new State(claims)), "below its threshold");
+        }
+    }
 }

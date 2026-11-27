@@ -61,6 +61,7 @@ import java.util.function.Function;
  *       pays the shard script: at the exact shard address, with only lovelace (at least the input's) and the thread
  *       token, no reference script, and the datum {@code ShardDatumV1(1, shard, root)} whose root is the fold of the
  *       redeemer's inserts from the input's root ({@link ShardFold}). The domain status leaf is {@code ACTIVE}.</li>
+ *   <li>The required signers name at least the referenced anchor's threshold of distinct members (V9).</li>
  * </ol>
  */
 public final class SettleBodyCheck {
@@ -352,6 +353,7 @@ public final class SettleBodyCheck {
                 && GatewayDatums.shardDatum(datumBytes(shardContinuation.getInlineDatum()))
                 .equals(Optional.of(new GatewayDatums.ShardDatum(shardIndex, Hash32.of(postInsertRoot))));
         if (!shardValid) throw hazard("the shard continuation is not the exact post-insert shard");
+        BodyChecks.quorumOfRequiredSigners(body, anchor);
         byte[] bodyHash = HexFormat.of().parseHex(TransactionUtil.getTxHash(tx));
         return new Signable(new Verified(bodyHash, ids, shardIndex, anchor));
     }
