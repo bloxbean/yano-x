@@ -31,10 +31,17 @@ import java.util.function.Consumer;
  * on L1 (its inputs gone from the view) or never will be. A hold is released earlier once its transaction is provably
  * dead: a reference input (the anchor) or a spent input no longer resolves while none of the transaction's own outputs
  * does. A {@code Settle} hold is also released when its effect closes.
+ *
+ * <p>Holds live in memory only. After a start (or restart), the node therefore assembles nothing for one hold's
+ * lifetime ({@link #warmingUp}): a transaction submitted before the restart was submitted before the start, so by then
+ * it has landed (its inputs gone from the view) or expired, and nothing it spends can be selected while it is still
+ * pending. A {@code Settle} effect submitted before the restart is still probed from its persisted reference.
  */
 final class OwnerAssembly {
     /** How long past its transaction's TTL a hold lasts: the L1 view's lag and the clock skew to the L1 slot clock. */
     static final long SLACK_MS = 120_000;
+    /** The outcome of an assembly refused during the startup grace. */
+    static final String WARMING_UP = "startup grace: waiting out transactions submitted before the start";
 
     /** One pending submission: what it spends and references, its output count, and for a payout its inserts. */
     record Hold(Hash32 txId, Set<ResolvedOutput.Outpoint> spends, Set<ResolvedOutput.Outpoint> references,
@@ -69,11 +76,23 @@ final class OwnerAssembly {
         }
     }
 
+    /** The end of the startup grace: no assembly starts before it. */
+    private final long readyAtMs;
     private final Object lock = new Object();
     /** Guarded by {@link #lock}. */
     private final Map<String, Hold> holds = new LinkedHashMap<>();
     /** Told, under the lock, the key of every hold dropped by expiry or death (not by {@link #release}). */
     private volatile Consumer<String> onDrop = key -> { };
+
+    /** The assembly of a node started at {@code startedAtMs}, warming up for one hold's lifetime. */
+    OwnerAssembly(long startedAtMs, long validityWindowMs) {
+        this.readyAtMs = expiry(startedAtMs, validityWindowMs);
+    }
+
+    /** True during the startup grace: no new transaction may be assembled yet. */
+    boolean warmingUp(long nowMs) {
+        return nowMs < readyAtMs;
+    }
 
     /** The expiry of a hold whose transaction was submitted at {@code submittedAtMs}, see the class comment. */
     static long expiry(long submittedAtMs, long validityWindowMs) {

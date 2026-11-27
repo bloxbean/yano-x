@@ -104,7 +104,8 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             // A relaying non-owner assembles alone, with its own fee wallet.
             FeeWallet wallet = new FeeWallet(taskSettings.relayerSeed().orElseThrow(), network, memberKey,
                     "exit-relayer.fee-wallet.key-file");
-            ExitRelayTask relayer = new ExitRelayTask(node, new OwnerAssembly(), wallet);
+            ExitRelayTask relayer = new ExitRelayTask(node,
+                    new OwnerAssembly(clock.getAsLong(), settings.validityWindowMs()), wallet);
             CosignOnly product = new CosignOnly(cosign, relayer);
             if (schedule) {
                 SettlementTasks tasks = new SettlementTasks(context.chainId());
@@ -113,7 +114,7 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             }
             return List.of(product);
         }
-        OwnerAssembly assembly = new OwnerAssembly();
+        OwnerAssembly assembly = new OwnerAssembly(clock.getAsLong(), settings.validityWindowMs());
         FeeWallet wallet = new FeeWallet(settings.feeWalletSeed().orElseThrow(() ->
                 new IllegalArgumentException("the settlement owner needs fee-wallet.key-file")), network, memberKey,
                 "fee-wallet.key-file");

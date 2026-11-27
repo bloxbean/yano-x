@@ -70,6 +70,7 @@ final class DepositAcceptor {
     /** One pass over every vault; returns what happened, per vault. */
     String runOnce() throws Exception {
         return assembly.serialized(() -> {
+            if (assembly.warmingUp(node.clock().getAsLong())) return lastOutcome = OwnerAssembly.WARMING_UP;
             List<String> outcomes = new ArrayList<>();
             for (VaultPins pins : node.settings().pins()) outcomes.add(accept(pins));
             lastOutcome = String.join("; ", outcomes);

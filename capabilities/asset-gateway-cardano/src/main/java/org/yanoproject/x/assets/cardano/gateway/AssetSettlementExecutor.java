@@ -298,6 +298,11 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
             entry = Journal.recover(ctx.submittedRef(), batch).orElse(null);
         }
         if (entry != null) return probe(key, entry);
+        if (assembly.warmingUp(clock.getAsLong())) {
+            // Holds are in memory: until any transaction submitted before a restart has landed or expired, nothing
+            // new is assembled. A pending Settle is still probed above, from its persisted reference.
+            return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), OwnerAssembly.WARMING_UP);
+        }
 
         VaultPins pins = settings.vault(batch.vaultId()).orElse(null);
         if (pins == null) return outcome(EffectExecution.failed("the batch names an unknown vault", false), "vault");

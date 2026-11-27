@@ -177,6 +177,8 @@ class AssetSettlementTasksTest {
     /** The anchored state: claim leaves, deposit records and the domain status, as the app ledger commits them. */
     final MpfTrie trie = new MpfTrie(new MapNodeStore());
     long now = NOW;
+    /** How long before {@code now} a product starts: past its startup grace, so it assembles at once. */
+    long startedAgoMs = HOUR;
     long anchorHeight = ANCHORED;
     String exitModeDatum = "d87980";
 
@@ -635,7 +637,14 @@ class AssetSettlementTasksTest {
     AppEffectExecutor product(Node node, boolean owner, boolean relayer, Map<String, String> extra) throws Exception {
         Map<String, String> config = config(owner, relayer);
         config.putAll(extra);
-        List<AppEffectExecutor> products = AssetSettlementExecutorFactory.create(config, node, () -> now);
+        long at = now;
+        now = at - startedAgoMs;
+        List<AppEffectExecutor> products;
+        try {
+            products = AssetSettlementExecutorFactory.create(config, node, () -> now);
+        } finally {
+            now = at;
+        }
         assertThat(products).hasSize(1);
         return products.getFirst();
     }
@@ -1122,6 +1131,48 @@ class AssetSettlementTasksTest {
         assertThat(executor.execute(attempt(1, new byte[0]), settle)).as(executor.lastOutcome())
                 .isInstanceOf(EffectExecution.Submitted.class);
         assertThat(inputs(submitted.getLast())).contains("60".repeat(32) + "#0");
+    }
+
+    /**
+     * Codex P2-5: holds are in memory, so a node that (re)starts assembles nothing for one validity window plus the
+     * slack, by when any transaction it submitted before the restart has landed or expired; a Settle submitted before
+     * it is still probed from its persisted reference.
+     */
+    @Test
+    void aStartedNodeAssemblesNothingUntilItsGraceHasPassed() throws Exception {
+        seed();
+        for (int i = 1; i < 12; i++) {
+            put(utxo("60".repeat(32), i, keyAddress(FEE_SEED), 80_000_000, List.of(), null, null));
+        }
+        Node owner = new Node(OWNER_SEED);
+        Node member = new Node(MEMBER_SEED);
+        ClaimLeafV1 claim = reserve(3, 61, 900, NOW - 2 * DAY, owner, member);
+        ClaimLeafV1 other = reserve(4, 62, 900, NOW - HOUR, owner, member);
+        deposit(0, 900, DepositAdmission.Reason.NONE, owner, member);
+        anchor();
+        product(member, false, false);
+        pump(owner, member);
+        AssetSettlementExecutor before = (AssetSettlementExecutor) product(owner, true, true);
+        PendingEffect pending = effect(new SettlementBatchV1(VAULT, 4, List.of(other.claimId())), 1);
+        byte[] ref = ((EffectExecution.Submitted) before.execute(attempt(1, new byte[0]), pending)).externalRef();
+
+        // The node restarts: its holds are gone.
+        startedAgoMs = 0;
+        AssetSettlementExecutor restarted = (AssetSettlementExecutor) product(owner, true, true);
+        PendingEffect fresh = effect(new SettlementBatchV1(VAULT, 3, List.of(claim.claimId())), 0);
+        assertThat(restarted.acceptor().orElseThrow().runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
+        assertThat(restarted.relayer().orElseThrow().runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
+        assertThat(restarted.execute(attempt(1, new byte[0]), fresh)).isInstanceOf(EffectExecution.Retry.class);
+        assertThat(restarted.lastOutcome()).isEqualTo(OwnerAssembly.WARMING_UP);
+        assertThat(restarted.execute(attempt(2, ref), pending)).as("the pending Settle is still probed")
+                .isInstanceOf(EffectExecution.Submitted.class);
+        assertThat(submitted).hasSize(1);
+
+        now = NOW + HOLD_MS - 1_000;
+        assertThat(restarted.acceptor().orElseThrow().runOnce()).isEqualTo(OwnerAssembly.WARMING_UP);
+        now = NOW + HOLD_MS + 1_000;
+        assertThat(restarted.acceptor().orElseThrow().runOnce()).startsWith("accepted (co-signed) 1 deposits");
+        assertThat(restarted.relayer().orElseThrow().runOnce()).startsWith("relayed 1 on shard 3");
     }
 
     /** Fable P3-1: a relaying non-owner's validity window, and so its holds, are bounded like the owner's. */

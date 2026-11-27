@@ -477,8 +477,16 @@ class AssetSettlementExecutorTest {
         return executor(node, config, () -> now);
     }
 
+    /** A product started an hour before {@code now}: past its startup grace (D9), so it assembles at once. */
     AppEffectExecutor executor(Node node, Map<String, String> config, java.util.function.LongSupplier clock) {
-        List<AppEffectExecutor> products = AssetSettlementExecutorFactory.create(config, node, clock);
+        long at = now;
+        now = at - 3_600_000L;
+        List<AppEffectExecutor> products;
+        try {
+            products = AssetSettlementExecutorFactory.create(config, node, clock);
+        } finally {
+            now = at;
+        }
         assertThat(products).hasSize(1);
         return products.getFirst();
     }
