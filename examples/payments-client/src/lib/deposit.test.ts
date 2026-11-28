@@ -98,6 +98,26 @@ describe('unsigned deposit check', () => {
     for (const key of [4, 5, 9, 14]) refused(deposit({ extraBody: [[u(key), arr()]] }).hex, ada, /never has/);
   });
 
+  it('refuses a repeated key in the body, an output or a multi-asset map', () => {
+    // A second outputs field, a second fee: only the first would have been checked.
+    refused(deposit({ extraBody: [[u(1), arr(arr(b(attacker), u(49_000_000)))]] }).hex, ada, /its body repeats a key/);
+    refused(deposit({ extraBody: [[u(2), u(0)]] }).hex, ada, /its body repeats a key/);
+    // A second address key in the vault output.
+    const vaultOut = map([u(0), b(vault)], [u(0), b(attacker)], [u(1), u(10_000_000)],
+      [u(2), arr(u(1), tag(24, b(datum)))]);
+    const body = map([u(0), tag(258, arr(arr(b(txA), u(0))))], [u(1), arr(vaultOut)], [u(2), u(200_000)],
+      [u(3), u(12_200)]);
+    refused(toHex(concat(Uint8Array.of(0x84), body, Uint8Array.of(0xa0, 0xf5, 0xf6))), ada, /output 0 repeats a key/);
+    const twice = (names: [Uint8Array, Uint8Array][], policies = 1) => arr(u(1_500_000),
+      map(...Array.from({ length: policies }, () => [b(fromHex(policy)), map(...names)] as [Uint8Array, Uint8Array])));
+    const token = { ...ada, asset: { policyId: policy, assetName: '5553444d', ada: false }, quantity: 400n,
+      lovelace: 1_500_000n };
+    refused(deposit({ vaultValue: twice([[b(fromHex('5553444d')), u(400)], [b(fromHex('5553444d')), u(9)]]) }).hex,
+      token, /multi-asset repeats a key/);
+    refused(deposit({ vaultValue: twice([[b(fromHex('5553444d')), u(400)]], 2) }).hex, token,
+      /multi-asset repeats a key/);
+  });
+
   it('checks a token deposit: exactly the vault token, its quantity and bounded lovelace', () => {
     const token = { ...ada, asset: { policyId: policy, assetName: '5553444d', ada: false }, quantity: 400n,
       lovelace: 1_500_000n };

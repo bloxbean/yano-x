@@ -70,6 +70,19 @@ function bytes(item: Item | undefined, what: string): Uint8Array {
   return item.value;
 }
 
+/** Refuses a map that repeats a key: entry() reads only the first, so a second copy would go unchecked. */
+function uniqueKeys(map: Extract<Item, { kind: 'map' }>, what: string): void {
+  const seen = new Set<string>();
+  for (const [key] of map.entries) {
+    let id: string;
+    if (key.kind === 'uint') id = `u${key.value}`;
+    else if (key.kind === 'bytes') id = `b${toHex(key.value)}`;
+    else fail(`${what} has a key that is neither an integer nor bytes`);
+    if (seen.has(id)) fail(`${what} repeats a key`);
+    seen.add(id);
+  }
+}
+
 function entry(map: Item, key: bigint): Item | undefined {
   if (map.kind !== 'map') return undefined;
   return map.entries.find(([k]) => k.kind === 'uint' && k.value === key)?.[1];
@@ -91,8 +104,11 @@ function value(item: Item | undefined): Value {
     fail('an output value is malformed');
   }
   const assets: Value['assets'] = [];
-  for (const [policy, names] of (item.items[1] as Extract<Item, { kind: 'map' }>).entries) {
+  const policies = item.items[1] as Extract<Item, { kind: 'map' }>;
+  uniqueKeys(policies, 'an output multi-asset');
+  for (const [policy, names] of policies.entries) {
     if (names.kind !== 'map') fail('an output multi-asset is malformed');
+    uniqueKeys(names, 'an output multi-asset');
     for (const [name, quantity] of names.entries) {
       assets.push({ policyId: toHex(bytes(policy, 'policy id')), assetName: toHex(bytes(name, 'asset name')),
         quantity: uint(quantity, 'asset quantity') });
@@ -116,6 +132,7 @@ function output(item: Item, index: number): Output {
       extra: item.items.length === 3 };
   }
   if (item.kind !== 'map') fail(`output ${index} is malformed`);
+  uniqueKeys(item, `output ${index}`);
   for (const [key] of item.entries) {
     if (key.kind !== 'uint' || key.value > 3n) fail(`output ${index} has an unknown field`);
   }
@@ -163,6 +180,7 @@ export function verifyDeposit(unsignedTxHex: string, expected: DepositExpectatio
   const bodyBytes = part(0);
   const body = read(bodyBytes, 0).item;
   if (body.kind !== 'map') fail('its body is not a map');
+  uniqueKeys(body, 'its body');
   for (const [key] of body.entries) {
     // Certificates, withdrawals, mints, collateral, required signers, votes and proposals have no place in a deposit.
     if (key.kind !== 'uint' || !BODY_KEYS.has(key.value)) fail(`its body has field ${key.kind === 'uint' ? key.value
