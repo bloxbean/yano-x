@@ -298,6 +298,18 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         }
     }
 
+    /**
+     * Counts what a transition that already committed did. It runs after the transition's try block, so a failure
+     * here can neither drop the committed writes nor be logged as a dropped transition; it is only logged.
+     */
+    private void observe(String path, Runnable record) {
+        try {
+            record.run();
+        } catch (RuntimeException failure) {
+            LOG.debug("asset-payments could not count a committed {} transition: {}", path, failure.toString());
+        }
+    }
+
     /** A transition dropped an unexpected exception: count it and say so, never silently (D15a). */
     private void dropped(String path, long height, RuntimeException failure) {
         diagnostics.count("dropped." + path);
@@ -360,20 +372,23 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     private void processGovernance(AssetAccounts.Store state, AppMessage message, AppBlock block) {
         StagedStore staged = new StagedStore(state);
+        PaymentsGovernance.Result result;
         try {
-            PaymentsGovernance.Result result = governance.process(staged, message.getSender(), message.getBody(), block);
+            result = governance.process(staged, message.getSender(), message.getBody(), block);
             staged.commit();
-            diagnostics.count("governance." + result.name());
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; the staged writes are dropped and the chain continues.
             dropped("governance", block.height(), unexpected);
+            return;
         }
+        observe("governance", () -> diagnostics.count("governance." + result.name()));
     }
 
     // ------------------------------------------------------------------ deposits (D6)
 
     private void creditDeposit(AssetAccounts.Store state, L1Observation observation, long height) {
         StagedStore staged = new StagedStore(state);
+        DepositAdmission.Outcome outcome;
         try {
             byte[] anchor = observation.anchor() instanceof L1Observation.TransactionAnchor tx
                     ? tx.transactionHash() : null;
@@ -383,18 +398,19 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     new DepositAdmission.VaultBinding(entry.vaultId(), entry.asset(),
                             entry.status().depositsEnabled() && slot >= entry.activeFromSlot())));
             AssetAccounts accounts = new AssetAccounts(AssetPaymentsContract.PREFIX, staged);
-            DepositAdmission.Outcome outcome = admission.admit(staged, new DepositAdmission.ObservedDeposit(
+            outcome = admission.admit(staged, new DepositAdmission.ObservedDeposit(
                     observation.observerId(), anchor, observation.eventOrdinal(), slot, observation.blockHash(),
                     observation.claim()), height, candidate -> refuseCredit(staged, accounts, candidate));
             outcome.credit().ifPresent(credit -> accounts.credit(credit.vaultId(), credit.beneficiary(),
                     account(staged, credit.beneficiary()).orElseThrow().keyHash(), credit.amount(),
                     credit.minAdaCredit()));
             staged.commit();
-            diagnostics.count(depositKey(outcome));
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; the staged writes are dropped and the chain continues (I2).
             dropped("deposit", height, unexpected);
+            return;
         }
+        observe("deposit", () -> diagnostics.count(depositKey(outcome)));
     }
 
     private static String depositKey(DepositAdmission.Outcome outcome) {
@@ -420,6 +436,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
      */
     private void confirmPayout(AssetAccounts.Store state, L1Observation observation, AppBlock block) {
         StagedStore staged = new StagedStore(state);
+        PayoutConfirmation.Result result;
         try {
             byte[] anchor = observation.anchor() instanceof L1Observation.TransactionAnchor tx
                     ? tx.transactionHash() : null;
@@ -427,15 +444,16 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     settings.payoutObserverId().orElseThrow(), settings.domainId(), settings.exitDelayMs(),
                     vaultId -> registry(staged, vaultId).map(entry ->
                             new PayoutConfirmation.VaultBinding(entry.vaultId(), entry.asset())));
-            PayoutConfirmation.Result result = confirmation.apply(staged, new PayoutConfirmation.ObservedPayout(
+            result = confirmation.apply(staged, new PayoutConfirmation.ObservedPayout(
                     observation.observerId(), anchor, observation.eventOrdinal(), observation.slot(),
                     observation.blockHash(), observation.claim()), block.height(), block.timestamp());
             staged.commit();
-            countPayout(result, block.timestamp());
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; the staged writes are dropped and the chain continues (I2).
             dropped("payout", block.height(), unexpected);
+            return;
         }
+        observe("payout", () -> countPayout(result, block.timestamp()));
     }
 
     private void countPayout(PayoutConfirmation.Result result, long blockTimeMs) {
@@ -493,6 +511,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     private void processIntent(AssetAccounts.Store state, byte[] body, AppBlock block) {
         StagedStore staged = new StagedStore(state);
+        String counted;
         try {
             WalletAuthorizer.Authorized authorized;
             try {
@@ -522,12 +541,14 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     result.rejection().isEmpty() ? PaymentsRecords.Outcome.ACCEPTED : PaymentsRecords.Outcome.REJECTED,
                     result.rejection(), block.height()).encode());
             staged.commit();
-            diagnostics.count(result.rejection().isEmpty() ? "intents.accepted." + envelope.action()
-                    : "intents.rejected." + result.rejection());
+            counted = result.rejection().isEmpty() ? "intents.accepted." + envelope.action()
+                    : "intents.rejected." + result.rejection();
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; nothing of this intent is written and the chain continues.
             dropped("intent", block.height(), unexpected);
+            return;
         }
+        observe("intent", () -> diagnostics.count(counted));
     }
 
     private WalletAuthorizer.Authorized authorize(PaymentsMessageV1 message, AssetAccounts.Store state,
@@ -907,11 +928,12 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                 }
             }
             staged.commit();
-            diagnostics.count("batches.closed." + result.outcome().name());
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; nothing is written.
             dropped("effect-result", context.block().height(), unexpected);
+            return;
         }
+        observe("effect-result", () -> diagnostics.count("batches.closed." + result.outcome().name()));
     }
 
     private static byte[] queueEntry(Hash32 claimId, long queuedAtMs) {
