@@ -240,6 +240,39 @@ public final class PaymentsGovernanceV1 {
         }
     }
 
+    /** The committed query of {@link Status}: no parameters. */
+    public static final String STATUS_QUERY = "asset-payments/governance";
+
+    /**
+     * The committed governance view a member reads to build its next command: {@code [sequence, [* Proposal]]}, the
+     * number of commands decided so far and the open proposals (those still inside their epoch and window may be
+     * approved; the ledger prunes the rest on its next governance message).
+     */
+    public record Status(long sequence, List<Proposal> open) {
+        public Status {
+            if (sequence < 0) throw new IllegalArgumentException("sequence must be non-negative");
+            open = List.copyOf(open);
+        }
+
+        public byte[] encode() {
+            Array array = new Array();
+            array.add(AssetCbor.uint(sequence));
+            Array proposals = new Array();
+            open.forEach(proposal -> proposals.add(proposal.item()));
+            array.add(proposals);
+            return AssetCbor.encode(array);
+        }
+
+        public static Status decode(byte[] bytes) {
+            List<DataItem> items = AssetCbor.decodeArray(bytes, 2).getDataItems();
+            List<Proposal> open = new ArrayList<>();
+            for (DataItem item : AssetCbor.array(items.get(1), 0, MAX_OPEN_PROPOSALS).getDataItems()) {
+                open.add(Proposal.of(item));
+            }
+            return new Status(AssetCbor.uintLong(items.get(0)), open);
+        }
+    }
+
     /** What deciding a command did. The code is the wire value. */
     public enum Outcome { APPLIED, REFUSED }
 

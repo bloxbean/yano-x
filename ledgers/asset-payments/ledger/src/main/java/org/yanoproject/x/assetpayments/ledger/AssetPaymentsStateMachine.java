@@ -956,7 +956,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     /**
      * The {@link SettlementQueries} the settlement executor, the deposit acceptor, the exit relayer and the
-     * reconciliation (D15) read.
+     * reconciliation (D15) read, and the governance status the members' governance route reads
+     * ({@link PaymentsGovernanceV1#STATUS_QUERY}).
      */
     @Override
     public byte[] query(String path, byte[] params, AppQueryContext state) {
@@ -986,6 +987,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     yield SettlementQueries.encodeCounters(state.committedHeight(),
                             new AssetAccounts(AssetPaymentsContract.PREFIX, store).counters(vaultId));
                 }
+                case PaymentsGovernanceV1.STATUS_QUERY -> new PaymentsGovernanceV1.Status(
+                        PaymentsGovernance.sequence(store),
+                        store.get(AssetPaymentsContract.governanceProposalsKey())
+                                .map(PaymentsGovernanceV1::decodeProposals).orElse(List.of())).encode();
                 default -> throw new AppQueryException(AppQueryException.Code.UNSUPPORTED,
                         "unknown asset-payments query " + path);
             };
