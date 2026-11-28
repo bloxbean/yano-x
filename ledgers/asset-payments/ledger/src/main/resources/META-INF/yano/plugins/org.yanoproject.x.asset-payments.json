@@ -9,6 +9,11 @@
       "kind": "app-state-machine",
       "name": "asset-payments",
       "provider": "org.yanoproject.x.assetpayments.ledger.AssetPaymentsStateMachineProvider"
+    },
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.asset-payments",
+      "provider": "org.yanoproject.x.assetpayments.ledger.AssetPaymentsDomainApiProvider"
     }
   ]
 }

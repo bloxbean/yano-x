@@ -500,11 +500,16 @@ public final class PayoutTxBuilder {
      * the vault asset, or a {@code FloorTopUpV1} holding lovelace alone.
      */
     public static boolean accepted(ResolvedOutput utxo, VaultPins pins) {
-        if (!utxo.sameAddress(pins.vaultAddress()) || utxo.inlineDatum().isEmpty()) return false;
+        return accepted(utxo, pins.vaultAddress(), pins.asset());
+    }
+
+    /** {@link #accepted(ResolvedOutput, VaultPins)} for the vault at {@code vaultAddress} holding {@code asset}. */
+    public static boolean accepted(ResolvedOutput utxo, byte[] vaultAddress, AssetId asset) {
+        if (!utxo.sameAddress(vaultAddress) || utxo.inlineDatum().isEmpty()) return false;
         VaultOutputShape shape = VaultOutputShape.classify(utxo.inlineDatum().get());
         return switch (shape) {
             case CONTINUATION -> utxo.assets().isEmpty()
-                    || (!pins.adaVault() && utxo.assets().size() == 1 && utxo.assets().containsKey(pins.asset()));
+                    || (!asset.isAda() && utxo.assets().size() == 1 && utxo.assets().containsKey(asset));
             case FLOOR_TOP_UP -> utxo.assets().isEmpty();
             default -> false;
         };

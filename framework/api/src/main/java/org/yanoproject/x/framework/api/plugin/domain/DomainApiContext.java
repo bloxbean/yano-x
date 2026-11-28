@@ -175,6 +175,12 @@ public final class DomainApiContext {
             }
 
             @Override
+            public PricingParameters pricingParameters() {
+                return Objects.requireNonNull(delegate.pricingParameters(),
+                        "l1Transactions.pricingParameters() must not return null");
+            }
+
+            @Override
             public SpendableInput selectSpendableInput(String sourceAddress) {
                 return Objects.requireNonNull(
                         delegate.selectSpendableInput(l1Address(sourceAddress)),

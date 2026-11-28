@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Yano X Payments Client</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Yano X payments</h1>
+        <p class="sub">Reference CIP-30 client for the <code>asset-payments</code> app ledger</p>
+      </div>
+      <div id="chain-badge" class="badge" data-testid="chain-badge">connecting...</div>
+    </header>
+    <main>
+      <div id="action-error" class="error banner" data-testid="action-error" hidden></div>
+      <section id="chain">
+        <h2>Chain</h2>
+        <div id="chain-info" data-testid="chain-info"></div>
+      </section>
+
+      <section id="wallet">
+        <h2>Wallet</h2>
+        <div id="wallet-list" class="row" data-testid="wallet-list"></div>
+        <label class="inline"><input type="checkbox" id="use-stake-key" /> Sign with the stake key (reward address)</label>
+        <div id="wallet-error" class="error" data-testid="wallet-error" hidden></div>
+        <div id="wallet-info" data-testid="wallet-info"></div>
+      </section>
+
+      <section id="account" class="needs-wallet">
+        <h2>Account</h2>
+        <div id="account-info" data-testid="account-info"></div>
+        <div class="row">
+          <button id="register" data-testid="register">Register account (signData)</button>
+          <button id="refresh" class="secondary" data-testid="refresh">Refresh</button>
+        </div>
+        <table id="balances" data-testid="balances"></table>
+      </section>
+
+      <section id="deposit" class="needs-account">
+        <h2>Deposit from L1</h2>
+        <p class="hint">Builds an unsigned deposit from your wallet's UTxOs; your wallet signs it (signTx) and submits it.</p>
+        <div class="form">
+          <label>Asset <select id="deposit-vault" data-testid="deposit-vault"></select></label>
+          <label>Amount <input id="deposit-amount" data-testid="deposit-amount" placeholder="10" /></label>
+          <label class="token-only">Lovelace with the token (min-ADA credit) <input id="deposit-lovelace" value="1500000" /></label>
+          <button id="deposit-go" data-testid="deposit-go">Build, sign and submit</button>
+        </div>
+        <div id="deposit-status" class="status" data-testid="deposit-status"></div>
+      </section>
+
+      <section id="transfer" class="needs-account">
+        <h2>Transfer</h2>
+        <div class="form">
+          <label>Asset <select id="transfer-vault" data-testid="transfer-vault"></select></label>
+          <label>To (account id or address) <input id="transfer-to" data-testid="transfer-to" /></label>
+          <label>Amount <input id="transfer-amount" data-testid="transfer-amount" /></label>
+          <button id="transfer-go" data-testid="transfer-go">Sign transfer (signData)</button>
+        </div>
+      </section>
+
+      <section id="session" class="needs-account">
+        <h2>Session key</h2>
+        <p class="hint">A browser key (WebCrypto Ed25519, non-extractable) that pays within limits without a wallet prompt. It can never withdraw.</p>
+        <div class="form">
+          <label>Asset <select id="session-vault" data-testid="session-vault"></select></label>
+          <label>Per payment <input id="session-per" data-testid="session-per" value="1" /></label>
+          <label>Total <input id="session-total" data-testid="session-total" value="5" /></label>
+          <label>Valid for (minutes) <input id="session-minutes" data-testid="session-minutes" value="60" /></label>
+          <label>Only to (account id, optional) <input id="session-recipient" data-testid="session-recipient" /></label>
+          <button id="session-go" data-testid="session-go">Authorize session (signData)</button>
+        </div>
+        <div id="session-support" class="error" hidden></div>
+        <div id="sessions" data-testid="sessions"></div>
+      </section>
+
+      <section id="withdraw" class="needs-account">
+        <h2>Withdraw to L1</h2>
+        <div class="form">
+          <label>Asset <select id="withdraw-vault" data-testid="withdraw-vault"></select></label>
+          <label>Amount <input id="withdraw-amount" data-testid="withdraw-amount" /></label>
+          <label class="inline"><input type="checkbox" id="withdraw-all" data-testid="withdraw-all" /> All available</label>
+          <label class="token-only-w">Min-ADA credit to spend (lovelace) <input id="withdraw-lovelace" value="0" /></label>
+          <label>Recipient address <input id="withdraw-to" data-testid="withdraw-to" /></label>
+          <button id="withdraw-go" data-testid="withdraw-go">Request withdrawal (signData)</button>
+        </div>
+        <table id="withdrawals" data-testid="withdrawals"></table>
+      </section>
+
+      <section id="activity">
+        <h2>Receipts</h2>
+        <table id="receipts" data-testid="receipts"></table>
+      </section>
+    </main>
+
+    <dialog id="review" data-testid="review">
+      <h3 id="review-title">Review</h3>
+      <dl id="review-fields"></dl>
+      <details><summary>Exact bytes to sign</summary><code id="review-bytes" class="bytes"></code></details>
+      <p class="hint">Your wallet shows these bytes as hex, not as a Cardano transaction. Check the fields above here.</p>
+      <div class="row">
+        <button id="review-sign" data-testid="review-sign">Sign</button>
+        <button id="review-cancel" class="secondary" data-testid="review-cancel">Cancel</button>
+      </div>
+    </dialog>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

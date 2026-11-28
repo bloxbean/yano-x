@@ -61,6 +61,8 @@ final class DepositAcceptor {
      */
     private final Map<Hash32, Integer> scanFrom = new HashMap<>();
     private volatile String lastOutcome = "idle";
+    /** The status and metrics of this task (D15a). */
+    private final TaskProduct product = new TaskProduct(TaskProduct.ACCEPT);
 
     DepositAcceptor(NodeServices node, AssetCosignService cosign, byte[] memberPublicKey, OwnerAssembly assembly,
                     FeeWallet wallet) {
@@ -80,10 +82,26 @@ final class DepositAcceptor {
         return lastOutcome;
     }
 
+    TaskProduct product() {
+        return product;
+    }
+
+    /** Whether one vault's outcome submitted an {@code Accept}, or found nothing to accept. */
+    static boolean acted(String outcome) {
+        return outcome.startsWith("accepted ");
+    }
+
+    static boolean idle(String outcome) {
+        return outcome.equals("nothing to accept");
+    }
+
     /** One pass over every vault; returns what happened, per vault. One vault's failure does not stop the others. */
     String runOnce() throws Exception {
         return assembly.serialized(() -> {
-            if (assembly.warmingUp(node.clock().getAsLong(), node.l1())) return lastOutcome = OwnerAssembly.WARMING_UP;
+            if (assembly.warmingUp(node.clock().getAsLong(), node.l1())) {
+                product.record(TaskProduct.Pass.WAITING);
+                return lastOutcome = OwnerAssembly.WARMING_UP;
+            }
             List<String> outcomes = new ArrayList<>();
             for (VaultPins pins : node.settings().pins()) {
                 try {
@@ -94,6 +112,7 @@ final class DepositAcceptor {
                     outcomes.add("vault " + pins.vaultId() + " failed: " + failure);
                 }
             }
+            product.record(TaskProduct.worst(outcomes, DepositAcceptor::acted, DepositAcceptor::idle));
             lastOutcome = String.join("; ", outcomes);
             return lastOutcome;
         });

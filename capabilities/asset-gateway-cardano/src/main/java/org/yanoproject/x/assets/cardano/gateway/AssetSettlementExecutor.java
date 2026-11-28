@@ -1,6 +1,8 @@
 package org.yanoproject.x.assets.cardano.gateway;
 
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
@@ -17,6 +19,7 @@ import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
 import org.yanoproject.x.framework.api.appchain.effects.EffectExecution;
 import org.yanoproject.x.framework.api.appchain.effects.EffectExecutionContext;
 import org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationsTracker;
 import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 
 import java.nio.ByteBuffer;
@@ -82,6 +85,9 @@ import java.util.function.Supplier;
  * this node share, so none of them spends what another one's pending transaction spends.
  */
 final class AssetSettlementExecutor implements AppEffectExecutor {
+    private static final Logger LOG = LoggerFactory.getLogger(AssetSettlementExecutor.class);
+    /** Every {@code Settle} attempt, its outcome and its retries (D15a): the executor snapshot's counters. */
+    private final EffectExecutorOperationsTracker operations = new EffectExecutorOperationsTracker();
     static final String ID = "asset-settlement";
     static final Duration WAIT_FOR_ANCHOR = Duration.ofSeconds(20);
     /** The retry pace of a batch whose claims are all left for {@code Exit}: it closes by expiry, not in a loop. */
@@ -264,7 +270,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
 
     @Override
     public EffectExecutorOperationalSnapshot operationalSnapshot() {
-        return AssetSettlementExecutorFactory.cosignSnapshot(cosign);
+        return AssetSettlementExecutorFactory.withCosign(operations.snapshot(), cosign);
     }
 
     String lastOutcome() {
@@ -277,6 +283,10 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
 
     @Override
     public EffectExecution execute(EffectExecutionContext ctx, PendingEffect effect) throws Exception {
+        return operations.observeChecked(() -> executeTracked(ctx, effect));
+    }
+
+    private EffectExecution executeTracked(EffectExecutionContext ctx, PendingEffect effect) throws Exception {
         String key = HexFormat.of().formatHex(effect.idHash());
         EffectExecution result = assembly.serialized(() -> attempt(ctx, effect, key));
         boolean terminal = result instanceof EffectExecution.Confirmed
@@ -548,8 +558,21 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         return signerMemory.size();
     }
 
+    /**
+     * Records the attempt's note. A submission, a confirmation and a terminal failure are logged at INFO or WARN, so
+     * they reach the operator without DEBUG; a retry, the everyday wait, stays at DEBUG (its count is in the snapshot).
+     */
     private EffectExecution outcome(EffectExecution execution, String note) {
         lastOutcome = note;
+        switch (execution) {
+            case EffectExecution.Submitted ignored -> LOG.info("asset settlement: {}", note);
+            case EffectExecution.Confirmed ignored -> LOG.info("asset settlement: {}", note);
+            case EffectExecution.Failed failed when !failed.retryable() ->
+                    LOG.warn("asset settlement batch failed: {} ({})", failed.reason(), note);
+            case EffectExecution.Failed failed -> LOG.info("asset settlement attempt failed, will retry: {} ({})",
+                    failed.reason(), note);
+            case EffectExecution.Retry ignored -> LOG.debug("asset settlement waits: {}", note);
+        }
         return execution;
     }
 }

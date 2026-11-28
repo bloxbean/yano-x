@@ -68,6 +68,8 @@ final class AssetVaultPayoutObserver implements L1Observer {
 
     private final String observerId;
     private final AssetVaultShardSettings settings;
+    /** Node-local diagnostics only (D15a); never part of an observation. */
+    private final ObserverCounters counters = new ObserverCounters();
 
     AssetVaultPayoutObserver(String observerId, Map<String, String> settings) {
         if (observerId == null || observerId.isBlank()) throw new IllegalArgumentException("observer id is required");
@@ -93,6 +95,7 @@ final class AssetVaultPayoutObserver implements L1Observer {
     @Override
     public List<L1Observation> observe(long slot, byte[] blockHash, Block block) {
         if (block == null || blockHash == null || blockHash.length != Hash32.BYTES || slot < 0) return List.of();
+        counters.block(slot);
         Hash32 blockId = Hash32.of(blockHash);
         List<L1Observation> observations = new ArrayList<>();
         for (ValidTransactions.Indexed indexed : ValidTransactions.of(block)) {
@@ -104,9 +107,12 @@ final class AssetVaultPayoutObserver implements L1Observer {
                 try {
                     claim = claim(vault, block, indexed.blockIndex(), transaction, txId, slot, blockId);
                 } catch (RuntimeException unreadable) {
+                    counters.count("unreadable");
                     continue; // deterministic on every member; never a halt (I2)
                 }
                 if (claim == null) continue;
+                counters.count(claim instanceof BalanceExitObservationV1 ? "balanceExit"
+                        : ((PayoutObservationV1) claim).source().name());
                 observations.add(L1Observation.transaction(observerId, txId.bytes(), claim.shardOutputIndex(), slot,
                         blockHash, claim.encode()));
             }
@@ -252,6 +258,7 @@ final class AssetVaultPayoutObserver implements L1Observer {
                 "type", AssetVaultPayoutObserverProvider.TYPE,
                 "domainId", settings.domain().domainId().hex(),
                 "vaults", settings.vaults().size(),
-                "claimSchema", PayoutClaimV1.CLAIM_SCHEMA);
+                "claimSchema", PayoutClaimV1.CLAIM_SCHEMA,
+                "observed", counters.snapshot());
     }
 }

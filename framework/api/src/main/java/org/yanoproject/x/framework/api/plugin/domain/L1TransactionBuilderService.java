@@ -1,11 +1,13 @@
 package org.yanoproject.x.framework.api.plugin.domain;
 
 import java.util.Objects;
+import java.util.OptionalLong;
 
 /**
  * Reviewed, non-custodial L1 transaction-building seam for domain plugins.
- * It can select one public UTxO and build one unsigned payment with change;
- * it cannot sign, submit, evaluate scripts, or access node stores directly.
+ * It can select one public UTxO, build one unsigned payment with change and
+ * report the current L1 pricing parameters; it cannot sign, submit, evaluate
+ * scripts, or access node stores directly.
  */
 public interface L1TransactionBuilderService {
     int MAX_ADDRESS_LENGTH = 256;
@@ -69,7 +71,46 @@ public interface L1TransactionBuilderService {
         @Override public byte[] cbor() { return cbor.clone(); }
     }
 
+    /**
+     * The node's current L1 protocol parameters that price a plain payment:
+     * the linear fee rule, the min-UTxO rule and the transaction size limit,
+     * plus the max value size when the host reports one (it never changes a
+     * fee). A domain plugin that builds its own unsigned transaction uses
+     * these so its fee matches L1.
+     */
+    record PricingParameters(
+            long minFeeA,
+            long minFeeB,
+            long coinsPerUtxoByte,
+            long maxTxSize,
+            OptionalLong maxValueSize
+    ) {
+        public PricingParameters {
+            Objects.requireNonNull(maxValueSize, "maxValueSize");
+            if (minFeeA < 0 || minFeeB < 0 || coinsPerUtxoByte < 1
+                    || maxTxSize < 1
+                    || maxValueSize.isPresent() && maxValueSize.getAsLong() < 1) {
+                throw new IllegalArgumentException("invalid L1 pricing parameters");
+            }
+        }
+
+        /** Parameters from a host that reports no max value size. */
+        public PricingParameters(long minFeeA, long minFeeB, long coinsPerUtxoByte, long maxTxSize) {
+            this(minFeeA, minFeeB, coinsPerUtxoByte, maxTxSize, OptionalLong.empty());
+        }
+    }
+
     long tipSlot();
+
+    /**
+     * The current L1 pricing parameters.
+     *
+     * @throws IllegalStateException when the node has none (for example before
+     *                               it has followed L1 far enough)
+     */
+    default PricingParameters pricingParameters() {
+        throw new IllegalStateException("L1 pricing parameters are unavailable");
+    }
 
     SpendableInput selectSpendableInput(String sourceAddress);
 

@@ -3,6 +3,7 @@ package org.yanoproject.x.assetpayments.ledger;
 import org.yanoproject.x.assetpayments.contracts.AssetPaymentsContract;
 import org.yanoproject.x.assets.contracts.SettlementBatchV1;
 import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
@@ -39,9 +40,11 @@ public final class AssetPaymentsStateMachineProvider implements AppStateMachineP
         }
         // D7 step 4: settlement batches are effects, so they are emitted only on a chain with effects enabled.
         // The profile is consensus configuration, so every member makes the same choice.
+        // Governed commands are decided against the membership epoch at each block's height (D14).
+        AppChainMembershipView membership = context.membershipView().orElse(null);
         if (!profile.effectsEnabled()) {
             return new AssetPaymentsStateMachine(settings, profile.blockMaxForwardSkewMs(), false,
-                    settings.settlement().batchSize());
+                    settings.settlement().batchSize(), membership);
         }
         AssetPaymentsSettings.Settlement settlement = settings.settlement();
         int payloadCap = SettlementBatchV1.maxClaimsWithin(profile.effectsMaxPayloadBytes());
@@ -56,6 +59,6 @@ public final class AssetPaymentsStateMachineProvider implements AppStateMachineP
                     + settlement.expiryBlocks() + ") exceeds the chain's effect expiry window (" + expiryWindow + ")");
         }
         return new AssetPaymentsStateMachine(settings, profile.blockMaxForwardSkewMs(), true,
-                Math.min(settlement.batchSize(), payloadCap));
+                Math.min(settlement.batchSize(), payloadCap), membership);
     }
 }

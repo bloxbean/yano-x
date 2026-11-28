@@ -9,6 +9,7 @@ import org.yanoproject.api.utxo.model.Utxo;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
+import org.yanoproject.x.assets.cardano.support.settlement.VaultReconciliation;
 import org.yanoproject.x.assets.contracts.AnchorObservationV1;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.GatewayDatums;
@@ -75,6 +76,25 @@ final class NodeL1View {
     }
 
     /**
+     * The last L1 block applied to this node's UTxO view, slot <b>and</b> block hash, read under the store's own
+     * exclusion; empty when either is unknown (no view, a disabled store, no applied point yet, a store that does not
+     * name the block hash, or a failed read). The reconciliation (D15) names this point, so a scan whose point cannot
+     * be established is never compared.
+     */
+    Optional<VaultReconciliation.L1Point> appliedPoint() {
+        UtxoState state = view.get();
+        if (!(state instanceof RollbackCapableStore store)) return Optional.empty();
+        try {
+            if (!state.isEnabled()) return Optional.empty();
+            RollbackCapableStore.AppliedPoint point = store.readAtLatestAppliedPoint(applied -> applied);
+            if (point == null || point.slot() < 0 || point.blockHash() == null) return Optional.empty();
+            return Optional.of(new VaultReconciliation.L1Point(point.slot(), point.blockHash()));
+        } catch (RuntimeException unavailable) {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Whether the view has ever held {@code outpoint}, spent or unspent: the output of a transaction it applied. The
      * host's point reads answer empty on a failure too, so an empty answer is {@link Read#ABSENT} only while the
      * applied tip can be read, and {@link Read#UNKNOWN} otherwise.
@@ -111,6 +131,28 @@ final class NodeL1View {
             if (!window.more()) break;
         }
         return custody;
+    }
+
+    /**
+     * Every output at the address, for the reconciliation (D15): empty unless the whole address was read, so a view
+     * that is unavailable, a read that fails, an output this node cannot represent, or more than
+     * {@link #MAX_CUSTODY_SCAN} outputs never pass for a complete scan.
+     */
+    Optional<List<ResolvedOutput>> scan(byte[] rawAddress) {
+        UtxoState state = view.get();
+        if (state == null) return Optional.empty();
+        String bech32 = new Address(rawAddress).toBech32();
+        List<ResolvedOutput> out = new ArrayList<>();
+        try {
+            for (int page = 1; page <= MAX_CUSTODY_SCAN / PAGE; page++) {
+                List<Utxo> utxos = state.getUtxosByAddress(bech32, page, PAGE);
+                for (Utxo utxo : utxos) out.add(convert(utxo));
+                if (utxos.size() < PAGE) return Optional.of(out);
+            }
+        } catch (RuntimeException unavailable) {
+            return Optional.empty();
+        }
+        return Optional.empty();
     }
 
     /** The first {@link #MAX_PAGES} pages of outputs at the address. */

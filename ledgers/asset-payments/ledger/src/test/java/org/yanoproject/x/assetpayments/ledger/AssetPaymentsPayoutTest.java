@@ -171,6 +171,11 @@ class AssetPaymentsPayoutTest {
 
     /** A Settle of {@code leaf} paying {@code recipient}, with or without its shard thread output. */
     Message[] settle(ClaimLeafV1 leaf, byte[] recipient, boolean threaded) {
+        return settle(payouts, leaf, recipient, threaded);
+    }
+
+    /** The same Settle, observed by {@code observer} (one whose vaults include USDM with this shard pin). */
+    Message[] settle(L1Observer observer, ClaimLeafV1 leaf, byte[] recipient, boolean threaded) {
         int shard = leaf.claimId().bytes()[31] & 0x0f;
         List<TransactionOutput> outputs = new ArrayList<>(List.of(
                 output(bech32(recipient), null, lovelace(1_700_000),
@@ -185,7 +190,7 @@ class AssetPaymentsPayoutTest {
         byte[] settle = constr(0, list(constr(0, bstr(leaf.claimId().bytes()))), new byte[] {(byte) shard});
         Witnesses witnesses = Witnesses.builder().redeemers(List.of(Redeemer.builder().tag(RedeemerTag.Spend)
                 .index(0).data(Datum.builder().cbor(HexFormat.of().formatHex(settle)).build()).build())).build();
-        return payouts.observe(2_000, filled(32, 0xb2), Block.builder().transactionBodies(List.of(tx))
+        return observer.observe(2_000, filled(32, 0xb2), Block.builder().transactionBodies(List.of(tx))
                 .transactionWitness(List.of(witnesses)).build()).stream().map(PaymentsHarness::deposit)
                 .toArray(Message[]::new);
     }
