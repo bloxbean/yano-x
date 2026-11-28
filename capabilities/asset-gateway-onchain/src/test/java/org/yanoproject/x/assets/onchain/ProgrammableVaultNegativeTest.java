@@ -234,7 +234,7 @@ class ProgrammableVaultNegativeTest extends ProgrammableTestBase {
     }
 
     /** Constructor-0 datums that are not {@code ProgrammableDepositDatumV1}: 3 and 5 fields, wrong types, bad refund. */
-    private static List<PlutusData> malformedDeposits() {
+    static List<PlutusData> malformedDeposits() {
         PlutusData origin = PlutusData.constr(0, PlutusData.bytes(filled(0x40, 32)), PlutusData.integer(0),
                 PlutusData.integer(1));
         PlutusData beneficiary = PlutusData.bytes(filled(0xa1, 28));

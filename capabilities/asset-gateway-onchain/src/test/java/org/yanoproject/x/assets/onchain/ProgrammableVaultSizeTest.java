@@ -10,9 +10,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ADR-061 D9: the applied custody script {@code h}, its exit delegate {@code e} and the shard binding variant stay
- * under the 15,500-byte guard that the native vault uses ({@code GatewayBudgetTest.scriptSizes}), so each fits in
- * one reference-script output. {@code SIZE|} lines report the CBOR-wrapped script bytes.
+ * ADR-061 D9: the applied custody script {@code h}, its exit delegate {@code e} and the shard binding variant, of
+ * both backends, stay under the 15,500-byte guard that the native vault uses ({@code GatewayBudgetTest.scriptSizes}),
+ * so each fits in one reference-script output. {@code SIZE|} lines report the CBOR-wrapped script bytes.
  */
 class ProgrammableVaultSizeTest extends ProgrammableTestBase {
     static final int GUARD = 15_500;
@@ -27,6 +27,13 @@ class ProgrammableVaultSizeTest extends ProgrammableTestBase {
         applied.put("ProgrammableVaultValidator", custody());
         applied.put("ProgrammableVaultExitDelegate", exitDelegate());
         applied.put("ProgrammableShardValidator", programmableShard());
+        // The Aiken backend (ADR-061 D3), applied with the julc scripts' parameters.
+        templates.put("ProgrammableVaultValidatorAiken", aikenTemplate(AIKEN_CUSTODY_ARTIFACT));
+        templates.put("ProgrammableVaultExitDelegateAiken", aikenTemplate(AIKEN_EXIT_DELEGATE_ARTIFACT));
+        templates.put("ProgrammableShardValidatorAiken", aikenTemplate(AIKEN_PROGRAMMABLE_SHARD_ARTIFACT));
+        applied.put("ProgrammableVaultValidatorAiken", aikenCustody());
+        applied.put("ProgrammableVaultExitDelegateAiken", aikenExitDelegate());
+        applied.put("ProgrammableShardValidatorAiken", aikenProgrammableShard());
         for (String name : templates.keySet()) {
             int template = size(templates.get(name));
             int full = size(applied.get(name));

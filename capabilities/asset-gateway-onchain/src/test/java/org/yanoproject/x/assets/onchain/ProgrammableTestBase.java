@@ -168,6 +168,44 @@ abstract class ProgrammableTestBase extends GatewayTestBase {
         return Cip113Blueprint.hash(programmableShard());
     }
 
+    // The Aiken backend (ADR-061 D3): the committed templates, applied with the julc scripts' parameters.
+
+    static final java.nio.file.Path AIKEN_CUSTODY_ARTIFACT =
+            java.nio.file.Path.of("src/main/resources/META-INF/plutus/ProgrammableVaultValidatorAiken.plutus.json");
+    static final java.nio.file.Path AIKEN_EXIT_DELEGATE_ARTIFACT = java.nio.file.Path.of(
+            "src/main/resources/META-INF/plutus/ProgrammableVaultExitDelegateAiken.plutus.json");
+    static final java.nio.file.Path AIKEN_PROGRAMMABLE_SHARD_ARTIFACT =
+            java.nio.file.Path.of("src/main/resources/META-INF/plutus/ProgrammableShardValidatorAiken.plutus.json");
+
+    private static final Map<String, Program> AIKEN = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static Program aikenProgram(java.nio.file.Path artifact, PlutusData... params) {
+        String key = artifact + Arrays.toString(params);
+        return AIKEN.computeIfAbsent(key, ignored -> {
+            Program template = aikenTemplate(artifact);
+            return params.length == 0 ? template : template.applyParams(params);
+        });
+    }
+
+    /** The Aiken {@code e} with the julc {@code e}'s parameters. */
+    static Program aikenExitDelegate() {
+        return aikenProgram(AIKEN_EXIT_DELEGATE_ARTIFACT, delegateParams(ASSET));
+    }
+
+    /** The Aiken {@code h} with the julc {@code h}'s parameters, the julc {@code e}'s hash included. */
+    static Program aikenCustody() {
+        PlutusData[] base = delegateParams(ASSET);
+        PlutusData[] params = Arrays.copyOf(base, base.length + 1);
+        params[base.length] = PlutusData.bytes(exitDelegateHash());
+        return aikenProgram(AIKEN_CUSTODY_ARTIFACT, params);
+    }
+
+    /** The Aiken shard variant with the julc variant's parameters (the julc {@code h}'s hash). */
+    static Program aikenProgrammableShard() {
+        return aikenProgram(AIKEN_PROGRAMMABLE_SHARD_ARTIFACT, PlutusData.bytes(SHARD_POLICY),
+                PlutusData.bytes(custodyHash()));
+    }
+
     // ------------------------------------------------------------------
     // Addresses
 
@@ -474,8 +512,17 @@ abstract class ProgrammableTestBase extends GatewayTestBase {
 
         /** Every script run of the transaction: name and result. */
         Map<String, EvalResult> evaluate() {
-            PlutusData info = txInfo();
             Map<String, EvalResult> results = new LinkedHashMap<>();
+            for (ScriptRun run : runs()) {
+                results.put(run.name(), run(run.program(), run.context()));
+            }
+            return results;
+        }
+
+        /** Every script run of the transaction, with its script context, in {@link #evaluate} order. */
+        List<ScriptRun> runs() {
+            PlutusData info = txInfo();
+            List<ScriptRun> runs = new ArrayList<>();
             for (Spent spent : sortedSpent()) {
                 byte[] hash = paymentHash(spent.input().resolved().address());
                 Program program = hash == null ? null : scripts.get(hex(hash));
@@ -485,10 +532,10 @@ abstract class ProgrammableTestBase extends GatewayTestBase {
                 PlutusData datum = spent.input().resolved().datum() instanceof OutputDatum.OutputDatumInline inline
                         ? PlutusData.constr(0, inline.datum()) : PlutusData.constr(1);
                 PlutusData scriptInfo = PlutusData.constr(1, spent.input().outRef().toPlutusData(), datum);
-                results.put("spend:" + name(hash) + "#" + spent.input().outRef().index() + "@"
-                                + hex(spent.input().outRef().txId().hash()).substring(0, 4),
-                        run(program, PlutusData.constr(0, info,
-                                spent.redeemer() == null ? PlutusData.constr(0) : spent.redeemer(), scriptInfo)));
+                runs.add(new ScriptRun("spend:" + name(hash) + "#" + spent.input().outRef().index() + "@"
+                        + hex(spent.input().outRef().txId().hash()).substring(0, 4), hash, program,
+                        PlutusData.constr(0, info, spent.redeemer() == null ? PlutusData.constr(0) : spent.redeemer(),
+                                scriptInfo)));
             }
             for (Withdrawal w : sortedWithdrawals()) {
                 byte[] hash = credentialHash(w.credential());
@@ -496,7 +543,7 @@ abstract class ProgrammableTestBase extends GatewayTestBase {
                 if (program == null || ((PlutusData.ConstrData) w.credential()).tag() != 1) {
                     continue;
                 }
-                results.put("withdraw:" + name(hash), run(program, PlutusData.constr(0, info,
+                runs.add(new ScriptRun("withdraw:" + name(hash), hash, program, PlutusData.constr(0, info,
                         w.redeemer() == null ? PlutusData.constr(0) : w.redeemer(),
                         PlutusData.constr(2, w.credential()))));
             }
@@ -505,11 +552,11 @@ abstract class ProgrammableTestBase extends GatewayTestBase {
                 byte[] hash = credentialHash(((PlutusData.ConstrData) cert).fields().get(0));
                 Program program = scripts.get(hex(hash));
                 if (program != null) {
-                    results.put("publish:" + name(hash) + "#" + i, run(program, PlutusData.constr(0, info,
-                            PlutusData.constr(0), PlutusData.constr(3, PlutusData.integer(i), cert))));
+                    runs.add(new ScriptRun("publish:" + name(hash) + "#" + i, hash, program, PlutusData.constr(0,
+                            info, PlutusData.constr(0), PlutusData.constr(3, PlutusData.integer(i), cert))));
                 }
             }
-            return results;
+            return runs;
         }
 
         String name(byte[] hash) {
@@ -522,6 +569,10 @@ abstract class ProgrammableTestBase extends GatewayTestBase {
             if (Arrays.equals(hash, programmableShardHash())) return "shard";
             return "hook-" + hex(hash).substring(0, 6);
         }
+    }
+
+    /** One script run of a transaction: its name, the script's hash, the script and the full script context. */
+    record ScriptRun(String name, byte[] hash, Program program, PlutusData context) {
     }
 
     static final Comparator<TxInInfo> OUTREF_ORDER = Comparator

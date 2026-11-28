@@ -149,12 +149,17 @@ abstract class GatewayTestBase extends ContractTest {
             java.nio.file.Path.of("src/main/resources/META-INF/plutus/AssetShardValidatorAiken.plutus.json");
 
     static synchronized Program aikenShardTemplate() {
-        return PROGRAMS.computeIfAbsent("aiken:template", ignored -> {
+        return aikenTemplate(AIKEN_SHARD_ARTIFACT);
+    }
+
+    /** A committed Aiken template, read from its text envelope. */
+    static synchronized Program aikenTemplate(java.nio.file.Path artifact) {
+        return PROGRAMS.computeIfAbsent("aiken:template:" + artifact, ignored -> {
             try {
                 java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
                         "\"cborHex\"\\s*:\\s*\"([0-9a-fA-F]+)\"").matcher(
-                        java.nio.file.Files.readString(AIKEN_SHARD_ARTIFACT));
-                assertThat(matcher.find()).as("%s carries cborHex", AIKEN_SHARD_ARTIFACT).isTrue();
+                        java.nio.file.Files.readString(artifact));
+                assertThat(matcher.find()).as("%s carries cborHex", artifact).isTrue();
                 return org.julclang.clientlib.JulcScriptAdapter.toProgram(matcher.group(1));
             } catch (java.io.IOException failure) {
                 throw new IllegalStateException(failure);
