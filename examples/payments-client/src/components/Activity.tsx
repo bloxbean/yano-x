@@ -68,7 +68,7 @@ function IntentCard({ item }: { item: IntentActivity }) {
   ];
   const outcome = state.state === 'accepted' ? 'ACCEPTED' : state.state === 'rejected' ? `REJECTED ${state.reason}`
     : state.state === 'expired' ? 'EXPIRED' : 'PENDING';
-  const summary = item.fields.find(([label]) => ['Send', 'Withdraw', 'Limit', 'Revoke grant', 'Owner'].includes(label));
+  const summary = item.fields.find(([label]) => ['Send', 'Withdraw', 'Limit', 'Revoke grant', 'Owner (payment key)', 'Owner (stake key)'].includes(label));
   return (
     <Card className={clsx('rise overflow-hidden', state.state === 'rejected' && 'border-rose/40',
       state.state === 'accepted' && 'border-accent/40')} data-testid={`receipt-${item.intentId}`}>

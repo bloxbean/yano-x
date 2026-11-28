@@ -197,6 +197,9 @@ export function Copy({ value, label = 'Copy' }: { value: string; label?: string 
   );
 }
 
+/** Long hex values, and bech32 ids and addresses, are set in mono and wrap anywhere. */
+const MONO_VALUE = /^(?:[0-9a-f.]{40,}|[a-z_]+1[02-9ac-hj-np-z]{30,})$/;
+
 /** A label/value grid (the showcase's FactsGrid); long hex values wrap instead of overflowing. */
 export function Facts({ rows, className, ...rest }: { rows: [string, ReactNode][]; className?: string;
   'data-testid'?: string }) {
@@ -207,7 +210,7 @@ export function Facts({ rows, className, ...rest }: { rows: [string, ReactNode][
         <div key={label + i} className="contents">
           <dt className="text-xs text-faint">{label}</dt>
           <dd className={clsx('min-w-0 break-words',
-            typeof value === 'string' && /^[0-9a-f.]{40,}$/.test(value) ? 'break-all font-mono text-[12px] text-muted' : 'text-ink')}>
+            typeof value === 'string' && MONO_VALUE.test(value) ? 'break-all font-mono text-[12px] text-muted' : 'text-ink')}>
             {value}
           </dd>
         </div>

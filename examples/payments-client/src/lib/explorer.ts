@@ -84,6 +84,8 @@ export interface DecodedTx {
   envelopeHex?: string;
   session?: SessionTerms;
   newOwner?: { credentialKind: number; keyHash: string };
+  /** The raw address (hex) in an owner signature's COSE protected header: the key that signed, as reported. */
+  signerAddress?: string;
   // L1 observations
   observerId?: string;
   l1TxId?: string;
@@ -211,7 +213,7 @@ export function decodeEnvelope(envelope: Uint8Array): Envelope {
 }
 
 /** The envelope a COSE_Sign1 signed: its payload, which must be the envelope itself (not its hash). */
-function signedEnvelope(coseSign1: Uint8Array): Uint8Array {
+function signedParts(coseSign1: Uint8Array): { payload: Uint8Array; address: Uint8Array | null } {
   let cose;
   try {
     cose = parseCoseSign1(coseSign1);
@@ -219,7 +221,7 @@ function signedEnvelope(coseSign1: Uint8Array): Uint8Array {
     fail(`the COSE_Sign1 is malformed (${error instanceof Error ? error.message : 'unreadable'})`);
   }
   if (cose.hashed === true || !cose.payload) fail('the COSE_Sign1 carries no plain payload');
-  return cose.payload;
+  return { payload: cose.payload, address: cose.protectedAddress };
 }
 
 function assetOf(item: Item | undefined): { policyId: string; assetName: string } {
@@ -290,14 +292,15 @@ function decodeIntent(body: Uint8Array): Partial<DecodedTx> {
   if (uint(items[0], 'payments message version') !== 1n) fail('unknown payments message version');
   const form = uint(items[1], 'payments message kind');
   let envelopeBytes: Uint8Array;
+  let signer: Uint8Array | null = null;
   if (form === 0n && items.length === 4) {
-    envelopeBytes = signedEnvelope(bytes(items[2], 'COSE_Sign1'));
+    ({ payload: envelopeBytes, address: signer } = signedParts(bytes(items[2], 'COSE_Sign1')));
     bytes(items[3], 'COSE_Key');
   } else if (form === 1n && items.length === 4) {
     envelopeBytes = bytes(items[2], 'envelope');
     bytes(items[3], 'session signature', 64);
   } else if (form === 2n && items.length === 6) {
-    envelopeBytes = signedEnvelope(bytes(items[2], 'current owner COSE_Sign1'));
+    ({ payload: envelopeBytes, address: signer } = signedParts(bytes(items[2], 'current owner COSE_Sign1')));
     for (const i of [3, 4, 5]) bytes(items[i], 'rotation part');
   } else {
     fail('unknown payments message kind');
@@ -315,6 +318,7 @@ function decodeIntent(body: Uint8Array): Partial<DecodedTx> {
     nonce: envelope.nonce,
     notAfterMs: envelope.notAfterMs,
     domain: envelope.domain,
+    ...(signer && signer.length > 0 && signer.length <= 128 ? { signerAddress: toHex(signer) } : {}),
   };
   try {
     return { ...fields, ...bodyFields(envelope.action, envelope.body) };

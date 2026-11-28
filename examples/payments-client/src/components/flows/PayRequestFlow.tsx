@@ -9,6 +9,9 @@ import { MAX_MEMO, parsePayRequest, payRequestLink, requestAsset, type PayReques
 import { useAccountView, usePayments } from '../../state';
 import { Badge, Button, Copy, ErrorBox, Facts, Field, inputClass, Modal } from '../../ui';
 import { AmountInput, AssetSelect, useAction } from '../common';
+import { useNetworkId } from '../ids';
+import { RecipientCheck, useRecipient } from '../Recipient';
+import { accountIdBech32 } from '../../lib/ids';
 
 type Mode = 'pay' | 'request';
 
@@ -39,30 +42,32 @@ export function PayRequestFlow({ onClose, initialLink }: { onClose: () => void; 
 }
 
 function PayRequestPay({ onClose, initialLink }: { onClose: () => void; initialLink: string }) {
-  const { info, account, flow, track, toast } = usePayments();
+  const { info, flow, track, toast } = usePayments();
   const view = useAccountView().data;
   const [text, setText] = useState(initialLink);
   const action = useAction();
+  const networkId = useNetworkId();
   const parsed = useMemo((): { request?: PayRequest; error?: string } => {
     if (!text.trim()) return {};
     try {
-      return { request: parsePayRequest(text) };
+      return { request: parsePayRequest(text, networkId) };
     } catch (failure) {
       return { error: errorMessage(failure) ?? 'not a payment request' };
     }
-  }, [text]);
+  }, [text, networkId]);
   const request = parsed.request;
+  const recipient = useRecipient(request?.to ?? '');
   const vault = request && info?.vaults.find((entry) => requestAsset(entry.asset) === request.asset);
   const problem = !request || !info ? parsed.error
     : request.chainId !== info.chainId ? `This request is for chain ${request.chainId}; this ledger is ${info.chainId}.`
-      : !vault ? 'This ledger has no vault for the requested asset.'
-        : request.toAccount === account?.accountId ? 'This request is for your own account.' : undefined;
+      : !vault ? 'This ledger has no vault for the requested asset.' : undefined;
   const balance = vault && view?.balances.find((entry) => entry.vaultId === vault.vaultId);
 
   const pay = () => action.run(async () => {
-    if (!request || !vault || problem) return;
+    if (!request || !vault || problem || recipient.problem) return;
     const extra: [string, string][] = request.memo ? [['Memo (from the request, unverified)', request.memo]] : [];
-    const submitted = await transferBase(flow(), vault.vaultId, request.toAccount, request.amount, extra);
+    // The recipient is resolved and checked again by the transfer flow before the review.
+    const submitted = await transferBase(flow(), vault.vaultId, request.to, request.amount, extra);
     track(submitted);
     toast({ tone: 'default', title: 'Payment submitted', detail: 'Waiting for its receipt.' });
     onClose();
@@ -83,8 +88,9 @@ function PayRequestPay({ onClose, initialLink }: { onClose: () => void; initialL
             </div>
             {balance && <span className="text-xs text-faint">You have {formatUnits(balance.available, balance.decimals)}</span>}
           </div>
-          <Facts rows={[['To account', request.toAccount], ['Amount (base units)', request.amount.toString()],
-            ['Asset id', assetIdText(vault)], ['Chain', request.chainId]]} />
+          <Facts rows={[['Amount (base units)', request.amount.toString()], ['Asset id', assetIdText(vault)],
+            ['Chain', request.chainId]]} />
+          <RecipientCheck state={recipient} />
           {request.memo && (
             <div className="flex items-start gap-2 text-sm">
               <Badge tone="amber"><AlertTriangle size={11} /> unverified</Badge>
@@ -96,7 +102,7 @@ function PayRequestPay({ onClose, initialLink }: { onClose: () => void; initialL
       {problem && <ErrorBox data-testid="payreq-problem">{problem}</ErrorBox>}
       {action.error && <ErrorBox data-testid="action-error">{action.error}</ErrorBox>}
       <div className="flex justify-end">
-        <Button onClick={() => void pay()} busy={action.busy} disabled={!request || !vault || !!problem}
+        <Button onClick={() => void pay()} busy={action.busy} disabled={!request || !vault || !!problem || !!recipient.problem || recipient.loading}
           data-testid="payreq-pay">Review &amp; pay</Button>
       </div>
     </div>
@@ -115,8 +121,9 @@ function PayRequestCreate() {
     try {
       const base = toBaseUnits(amount, vault.decimals);
       if (base <= 0n) return { error: 'the amount must be more than zero' };
-      return { link: payRequestLink(window.location.href, { chainId: info.chainId, toAccount: account.accountId,
-        asset: requestAsset(vault.asset), amount: base, memo }) };
+      return { link: payRequestLink(window.location.href, { chainId: info.chainId,
+        to: accountIdBech32(account.accountId, info.intentDomain.addressNetworkId), asset: requestAsset(vault.asset),
+        amount: base, memo }) };
     } catch (failure) {
       return { error: errorMessage(failure) ?? undefined };
     }

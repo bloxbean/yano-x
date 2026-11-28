@@ -1,14 +1,16 @@
 /**
  * What the explorer's search box was given: a block height, a 32-byte id (a message id or an intent id), a 28-byte
- * account id, or a Cardano address (bech32, or its raw bytes in hex). Parsing is local; resolving an id or an
- * address asks the node (and an address's account id is also derived here and must match).
+ * account id (bech32 acct1… / acct_test1…, or hex), or a Cardano address (bech32, or its raw bytes in hex). Parsing is
+ * local and refuses an id or address of the other network; resolving an id or an address asks the node (and an
+ * address's account id is also derived here and must match, lib/recipient.ts).
  */
 import { ApiError } from './api';
-import { bech32Decode } from './bech32';
 import type { Block } from './chain';
 import { decodeMessage, type DecodeContext } from './explorer';
 import { fromHex, toHex } from './hex';
+import { IdError, parseAccountId, parseAddress } from './ids';
 import { credentialFromAddress } from './intents';
+import { resolveAddress } from './recipient';
 
 export type SearchQuery =
   | { kind: 'height'; height: number }
@@ -17,9 +19,11 @@ export type SearchQuery =
   | { kind: 'address'; addressHex: string }
   | { kind: 'invalid'; reason: string };
 
-const ADDRESS_PREFIXES = new Set(['addr', 'addr_test', 'stake', 'stake_test']);
+function reason(error: unknown): string {
+  return error instanceof IdError ? error.message : 'That is not a valid id or address.';
+}
 
-export function parseSearch(input: string): SearchQuery {
+export function parseSearch(input: string, networkId: number): SearchQuery {
   const text = input.trim();
   if (!text) return { kind: 'invalid', reason: 'Enter a block height, a transaction or intent id, an account id or an address.' };
   if (text.length > 256) return { kind: 'invalid', reason: 'That is too long for any id or address.' };
@@ -32,16 +36,27 @@ export function parseSearch(input: string): SearchQuery {
     if (hex.length === 64) return { kind: 'id', hex };
     if (hex.length === 56) return { kind: 'account', accountId: hex };
     // A raw Shelley address: 29 bytes (enterprise, reward) or 57 (base); pointer addresses fall in between.
-    if (hex.length % 2 === 0 && hex.length >= 58 && hex.length <= 128) return { kind: 'address', addressHex: hex };
+    if (hex.length % 2 === 0 && hex.length >= 58 && hex.length <= 128) {
+      try {
+        return { kind: 'address', addressHex: toHex(parseAddress(hex, networkId)) };
+      } catch (error) {
+        return { kind: 'invalid', reason: reason(error) };
+      }
+    }
     return { kind: 'invalid', reason: 'Hex input must be a 64-character id, a 56-character account id or an address.' };
   }
-  if (/^(addr|stake)(_test)?1[02-9ac-hj-np-z]+$/i.test(text)) {
+  if (/^acct(_test)?1/i.test(text)) {
     try {
-      const { prefix, bytes } = bech32Decode(text);
-      if (!ADDRESS_PREFIXES.has(prefix)) throw new Error('prefix');
-      return { kind: 'address', addressHex: toHex(bytes) };
-    } catch {
-      return { kind: 'invalid', reason: 'That is not a valid Cardano address (bad checksum).' };
+      return { kind: 'account', accountId: parseAccountId(text, networkId) };
+    } catch (error) {
+      return { kind: 'invalid', reason: reason(error) };
+    }
+  }
+  if (/^(addr|stake)(_test)?1/i.test(text)) {
+    try {
+      return { kind: 'address', addressHex: toHex(parseAddress(text, networkId)) };
+    } catch (error) {
+      return { kind: 'invalid', reason: reason(error) };
     }
   }
   return { kind: 'invalid', reason: 'Not a block height, id, account id or Cardano address.' };
@@ -53,6 +68,8 @@ export interface SearchApi {
   receipt(intentId: string): Promise<{ found: boolean; receipt?: { height: number } }>;
   block(height: number): Promise<Block>;
   address(addressHex: string): Promise<{ accountId: string; networkMatches: boolean }>;
+  /** Read only when the node names another account than the address derives to (its owner must be the key). */
+  account?(accountId: string): Promise<{ registered: boolean; owner?: { credentialKind: string; keyHash: string } }>;
 }
 
 export type SearchTarget =
@@ -77,18 +94,16 @@ export async function resolveSearch(api: SearchApi, query: SearchQuery, ctx: Dec
     case 'account':
       return { page: 'account', accountId: query.accountId };
     case 'address': {
-      const view = await api.address(query.addressHex);
-      if (!/^[0-9a-f]{56}$/.test(view.accountId)) throw new Error('The node returned a malformed account id.');
-      if (!view.networkMatches) throw new Error('That address is for another network than this chain.');
-      // The account id is derived here too; a node that names another account is not followed.
-      let local: string | undefined;
+      let credential;
       try {
-        local = credentialFromAddress(fromHex(query.addressHex)).accountId;
-      } catch {
-        local = undefined;
+        credential = credentialFromAddress(fromHex(query.addressHex));
+      } catch (error) {
+        throw new Error(`This address has no key that can own an account (${error instanceof Error ? error.message : 'unsupported'}).`);
       }
-      if (local && local !== view.accountId) throw new Error("The node's account for this address is not the one it derives to.");
-      return { page: 'account', accountId: view.accountId };
+      // The account id is derived here too; a node that names another account is followed only if that account's
+      // current owner is this address's key.
+      const resolved = await resolveAddress(api, query.addressHex, credential);
+      return { page: 'account', accountId: resolved.accountId };
     }
     case 'id': {
       try {

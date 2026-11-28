@@ -2,12 +2,13 @@ import clsx from 'clsx';
 import { ChevronDown, Compass, Globe2, LogOut, UserRound, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { addressToBech32 } from '../lib/bech32';
-import { short } from '../lib/display';
 import { errorMessage } from '../lib/errors';
+import { accountIdBech32, shortId } from '../lib/ids';
 import { PAYMENT_KEY } from '../lib/intents';
 import { explorerHref, type Route } from '../route';
 import { usePayments } from '../state';
 import { Button, Copy, ErrorBox, Facts, inputClass, LiveDot, Logo, Modal } from '../ui';
+import { AccountId, OwnerAddress, ownerLabel, useNetworkId } from './ids';
 import { WalletPicker } from './WalletPicker';
 
 /** The network the chain's intent domain binds, as a label (the configured one wins). */
@@ -89,6 +90,7 @@ export function Header({ route }: { route: Route }) {
 
 function AccountChip({ onDetails }: { onDetails: () => void }) {
   const { wallet, account, disconnect } = usePayments();
+  const networkId = useNetworkId();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -116,7 +118,8 @@ function AccountChip({ onDetails }: { onDetails: () => void }) {
         </span>
         <span className="hidden flex-col items-start leading-tight sm:flex">
           <span className="font-medium text-ink">{wallet.name}</span>
-          <span className="font-mono text-[10px] text-faint">{short(account.accountId, 6)}</span>
+          <span className="font-mono text-[10px] text-faint" data-testid="account-chip-id"
+            data-hex={account.accountId}>{shortId(accountIdBech32(account.accountId, networkId), 5)}</span>
         </span>
         <ChevronDown size={14} className="text-faint" />
       </button>
@@ -139,6 +142,7 @@ function AccountChip({ onDetails }: { onDetails: () => void }) {
 /** The connected wallet, its credential, and acting for another account after an owner rotation. */
 function AccountSheet({ onClose }: { onClose: () => void }) {
   const { wallet, credential, account, chooseAccount } = usePayments();
+  const networkId = useNetworkId();
   const [choice, setChoice] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,11 +153,14 @@ function AccountSheet({ onClose }: { onClose: () => void }) {
       <div className="space-y-4">
         <Facts rows={[
           ['Wallet', wallet.name],
-          ['Signing address', <span className="break-all font-mono text-[12px]" data-testid="signing-address">
-            {addressToBech32(wallet.signingAddress)}</span>],
+          ['Your wallet address', <span className="flex items-start gap-1">
+            <span className="break-all font-mono text-[12px]" data-testid="signing-address">
+              {addressToBech32(wallet.signingAddress)}</span>
+            <Copy value={addressToBech32(wallet.signingAddress)} label="Copy wallet address" /></span>],
+          [ownerLabel({ credentialKind: credential.kind }), <OwnerAddress testId="sheet-owner-address"
+            owner={{ credentialKind: credential.kind, keyHash: credential.keyHash }} networkId={networkId} />],
           ['Credential', `${credential.kind === PAYMENT_KEY ? 'payment key' : 'stake key'} ${credential.keyHash}`],
-          ['Account id', <span className="flex items-start gap-1"><span className="break-all font-mono text-[12px]">
-            {account.accountId}</span><Copy value={account.accountId} label="Copy account id" /></span>],
+          ['Account id', <AccountId id={account.accountId} networkId={networkId} hex="line" testId="sheet-account-id" />],
           ...(wallet.quirks.length ? [['Wallet quirks', wallet.quirks.join(', ')] as [string, string]] : []),
         ]} />
         <form className="space-y-2" onSubmit={(event) => {
@@ -168,7 +175,7 @@ function AccountSheet({ onClose }: { onClose: () => void }) {
             own account.</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input id="account-choose" className={`${inputClass} font-mono`} value={choice} data-testid="account-choose"
-              onChange={(event) => setChoice(event.target.value)} placeholder="existing account id (56 hex)" />
+              onChange={(event) => setChoice(event.target.value)} placeholder={`existing account id (${networkId === 1 ? 'acct' : 'acct_test'}1… or 56 hex)`} />
             <Button type="submit" variant="ghost" busy={busy} data-testid="account-use">Use this account</Button>
           </div>
           {error && <ErrorBox>{error}</ErrorBox>}

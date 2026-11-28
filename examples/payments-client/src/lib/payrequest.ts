@@ -3,18 +3,29 @@
  * The link is only a pre-filled transfer. Paying it runs the ordinary TRANSFER flow, whose review shows the decoded
  * values, so a link can never make the wallet sign anything the review does not show.
  *
- *   <page>#/pay?v=1&chain=<chainId>&to=<accountId>&asset=<lovelace | policyId.assetNameHex>&amount=<base units>&memo=
+ *   <page>#/pay?v=1&chain=<chainId>&to=<recipient>&asset=<lovelace | policyId.assetNameHex>&amount=<base units>&memo=
  *
- * The amount is in base units, so a link does not depend on the node's display decimals; the asset is the full
- * AssetId, never a ticker. The memo is the requester's own text: it is shown as unverified and is not signed.
+ * The recipient is the requester's bech32 account id (acct1… / acct_test1…) in links this client makes; a 56-hex
+ * account id (older links) or a Cardano address on the chain's network is accepted too, and an address is resolved
+ * to its account before the review, like a typed Send recipient. The amount is in base units, so a link does not
+ * depend on the node's display decimals; the asset is the full AssetId, never a ticker. The memo is the requester's
+ * own text: it is shown as unverified and is not signed.
  */
-export interface PayRequest {
+import { IdError, parseRecipient, type Recipient } from './ids';
+
+export interface PayRequestInput {
   chainId: string;
-  toAccount: string;
+  /** The recipient as the link carries it: a bech32 account id, normally. */
+  to: string;
   /** "lovelace" or "<policyId hex>.<assetName hex>". */
   asset: string;
   amount: bigint;
   memo: string;
+}
+
+export interface PayRequest extends PayRequestInput {
+  /** The parsed recipient: an account id (as hex) or an address whose account is resolved before paying. */
+  recipient: Recipient;
 }
 
 export const MAX_MEMO = 120;
@@ -25,8 +36,8 @@ export function requestAsset(asset: { ada: boolean; policyId: string; assetName:
   return asset.ada ? 'lovelace' : `${asset.policyId}.${asset.assetName}`;
 }
 
-export function payRequestLink(base: string, request: PayRequest): string {
-  const params = new URLSearchParams({ v: '1', chain: request.chainId, to: request.toAccount, asset: request.asset,
+export function payRequestLink(base: string, request: PayRequestInput): string {
+  const params = new URLSearchParams({ v: '1', chain: request.chainId, to: request.to, asset: request.asset,
     amount: request.amount.toString() });
   if (request.memo) params.set('memo', request.memo.slice(0, MAX_MEMO));
   return `${base.replace(/#.*$/, '')}#/pay?${params}`;
@@ -43,14 +54,23 @@ function queryOf(text: string): string {
   throw new Error('not a payment request link');
 }
 
-/** Parses a payment request; throws with the reason when it is malformed. */
-export function parsePayRequest(text: string): PayRequest {
+/**
+ * Parses a payment request; throws with the reason when it is malformed. The recipient is checked against the chain's
+ * network (its address network id): an id or address of the other network is refused.
+ */
+export function parsePayRequest(text: string, networkId: number): PayRequest {
   const params = new URLSearchParams(queryOf(text));
   if (params.get('v') !== '1') throw new Error('unsupported payment request version');
   const chainId = params.get('chain') ?? '';
   if (!chainId) throw new Error('the request names no chain');
-  const toAccount = (params.get('to') ?? '').toLowerCase();
-  if (!/^[0-9a-f]{56}$/.test(toAccount)) throw new Error('the request\'s recipient is not an account id');
+  const to = (params.get('to') ?? '').trim();
+  let recipient: Recipient;
+  try {
+    recipient = parseRecipient(to, networkId);
+  } catch (error) {
+    throw new Error(`the request's recipient is not an account id or address: ${error instanceof IdError
+      ? error.message : 'unreadable'}`);
+  }
   const asset = (params.get('asset') ?? '').toLowerCase();
   if (asset !== 'lovelace' && !/^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$/.test(asset)) {
     throw new Error('the request\'s asset is not an asset id');
@@ -60,5 +80,5 @@ export function parsePayRequest(text: string): PayRequest {
   const amount = BigInt(amountText);
   if (amount > MAX_U64) throw new Error('the request\'s amount is too large');
   const memo = (params.get('memo') ?? '').slice(0, MAX_MEMO);
-  return { chainId, toAccount, asset, amount, memo };
+  return { chainId, to, recipient, asset, amount, memo };
 }

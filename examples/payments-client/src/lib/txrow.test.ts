@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ADA, USDM } from '../test/fixtures';
 import type { DecodedTx } from './explorer';
+import { accountIdBech32, shortId } from './ids';
 import { ago, rowView } from './txrow';
 
 const base: DecodedTx = {
@@ -15,7 +16,10 @@ describe('explorer row mapping', () => {
     const view = rowView({ ...base, kind: 'transfer', from, to, asset: { policyId: USDM.asset.policyId,
       assetName: USDM.asset.assetName }, amount: 12_345_678n }, [ADA, USDM]);
     expect(view).toMatchObject({ title: 'Transfer', amount: '12.345678', ticker: 'USDM' });
-    expect(view.from).toEqual({ account: from, text: 'aaaaaa…aaaaaa', title: from });
+    const bech32 = accountIdBech32(from, 0);
+    expect(view.from).toEqual({ account: from, text: shortId(bech32, 6), title: `${bech32}\n${from}` });
+    expect(view.from?.text).toMatch(/^acct_test1[02-9ac-hj-np-z]{6}…[02-9ac-hj-np-z]{6}$/);
+    expect(rowView({ ...base, kind: 'register', from }, [], 1).from?.text).toMatch(/^acct1/);
     expect(view.to?.account).toBe(to);
   });
 

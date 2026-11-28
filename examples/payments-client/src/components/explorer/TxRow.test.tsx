@@ -29,7 +29,10 @@ describe('an explorer transaction row', () => {
     expect(within(row).getByTestId('tx-position').textContent).toBe('#10·0');
     expect(within(row).getByTestId('tx-position').getAttribute('href')).toBe('#/explorer/block/10');
     expect(row.textContent).toContain('1m ago');
-    expect(within(row).getByTestId('party-account').getAttribute('href')).toBe(`#/explorer/account/${LIVE_ACCOUNT}`);
+    expect(within(row).getByTestId('party-account').getAttribute('href'))
+      .toBe('#/explorer/account/acct_test1h8srr6086wultxhxturgqcyglxn3m4nxymq3dw826pewvzu7whj');
+    expect(within(row).getByTestId('party-account').getAttribute('data-hex')).toBe(LIVE_ACCOUNT);
+    expect(within(row).getByTestId('party-account').textContent).toBe('acct_test1h8srr6…zu7whj');
     expect(within(row).getByTestId('tx-parties').textContent).toMatch(/addr_test1/);
     expect(within(row).getByTestId('tx-amount').textContent).toBe('1000ADA');
     expect(within(row).getByTestId('outcome').textContent).toBe('Accepted');

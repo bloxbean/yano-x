@@ -4,6 +4,7 @@ import { decimalsOf, revokeSession, sessionPay } from '../flows';
 import type { GrantView } from '../lib/api';
 import { formatUnits } from '../lib/amounts';
 import { short, vaultLabel } from '../lib/display';
+import { accountIdBech32, shortId } from '../lib/ids';
 import type { StoredSession } from '../lib/session';
 import { usePayments, useSessions } from '../state';
 import { Badge, Button, Card, EmptyState, ErrorBox, inputClass, Mono, Skeleton } from '../ui';
@@ -64,6 +65,7 @@ function GrantCard({ grant, local }: { grant: GrantView; local: StoredSession | 
   const vault = limit && info?.vaults.find((entry) => entry.vaultId === limit.vaultId);
   const decimals = limit && info ? decimalsOf(info, limit.vaultId) : 0;
   const ticker = vault ? vaultLabel(vault) : '';
+  const networkId = info?.intentDomain.addressNetworkId ?? 0;
 
   const onPay = () => pay.run(async () => {
     if (!local || !limit) throw new Error('this browser has no key for this session');
@@ -112,11 +114,13 @@ function GrantCard({ grant, local }: { grant: GrantView; local: StoredSession | 
           );
         })}
         <div className="text-[11px] text-faint">
-          Recipients: {grant.recipients.length ? grant.recipients.map((r) => short(r, 6)).join(', ') : 'any registered account'}
+          Recipients: {grant.recipients.length ? grant.recipients.map((r) => (
+            <span key={r} className="font-mono" title={`${accountIdBech32(r, networkId)}\n${r}`} data-testid="grant-recipient"
+              data-hex={r}>{shortId(accountIdBech32(r, networkId), 6)} </span>)) : 'any registered account'}
         </div>
         <form className="grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]"
           onSubmit={(event) => { event.preventDefault(); void onPay(); }}>
-          <input className={`${inputClass} font-mono`} placeholder="to: account id or address" value={to}
+          <input className={`${inputClass} font-mono`} placeholder={`to: acct${networkId === 1 ? '' : '_test'}1… or an address`} value={to}
             onChange={(event) => setTo(event.target.value)} disabled={pay.busy || !local} aria-label="Pay to"
             spellCheck={false} data-testid="session-pay-to" />
           <AmountInput value={amount} onChange={setAmount} ticker={ticker} placeholder="amount" disabled={pay.busy || !local}

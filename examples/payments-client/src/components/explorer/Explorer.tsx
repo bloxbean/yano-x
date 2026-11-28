@@ -1,10 +1,12 @@
 import { Compass, Info as InfoIcon, Search } from 'lucide-react';
-import { Component, useState, type FormEvent, type ReactNode } from 'react';
+import { Component, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { errorMessage } from '../../lib/errors';
+import { isMainnet, networkName } from '../../lib/ids';
 import { parseSearch, resolveSearch } from '../../lib/search';
 import { accountHref, blockHref, explorerHref, navigate, txHref, type Route } from '../../route';
 import { usePayments } from '../../state';
 import { Badge, Button, EmptyState, ErrorBox, inputClass } from '../../ui';
+import { useNetworkId } from '../ids';
 import { AccountPage } from './AccountPage';
 import { BlockPage } from './BlockPage';
 import { useDecodeContext } from './hooks';
@@ -14,6 +16,16 @@ import { TxPage } from './TxPage';
 /** The public explorer: every block and message of the payments chain, readable without a wallet. */
 export function Explorer({ route }: { route: Extract<Route, { view: 'explorer' }> }) {
   const { info } = usePayments();
+  const networkId = useNetworkId();
+  const account = route.page === 'account' ? route : undefined;
+  const wrongNetwork = account?.idNetwork !== undefined && isMainnet(account.idNetwork) !== isMainnet(networkId);
+  // An old hex account link resolves; the address bar then shows the canonical bech32 link.
+  useEffect(() => {
+    if (account && account.idNetwork === undefined) {
+      const canonical = accountHref(account.accountId, networkId);
+      if (canonical) history.replaceState(null, '', canonical);
+    }
+  }, [account, networkId]);
   return (
     <div className="space-y-6" data-testid="explorer">
       <section className="rise flex flex-wrap items-end justify-between gap-4 pt-2">
@@ -29,11 +41,15 @@ export function Explorer({ route }: { route: Extract<Route, { view: 'explorer' }
         {route.page === 'overview' && <Overview />}
         {route.page === 'block' && <BlockPage height={route.height} />}
         {route.page === 'tx' && <TxPage messageId={route.messageId} />}
-        {route.page === 'account' && <AccountPage accountId={route.accountId} />}
+        {route.page === 'account' && !wrongNetwork && <AccountPage accountId={route.accountId} />}
       </PageBoundary>
+      {account && wrongNetwork && (
+        <ErrorBox data-testid="account-wrong-network">This is a {networkName(account.idNetwork!)} account id; this
+          ledger is on {networkName(networkId)}.</ErrorBox>
+      )}
       {route.page === 'not-found' && (
         <EmptyState icon={<Compass size={18} />} title="Nothing here">
-          <span className="break-all">No explorer page at {route.path}.</span>{' '}
+          <span className="break-all" data-testid="not-found-reason">{route.reason ?? `No explorer page at ${route.path}.`}</span>{' '}
           <a className="font-medium text-accent-strong hover:underline" href={explorerHref}>Back to the overview</a>
         </EmptyState>
       )}
@@ -76,13 +92,14 @@ function AsReported() {
 export function SearchBox({ compact }: { compact?: boolean }) {
   const { api } = usePayments();
   const ctx = useDecodeContext();
+  const networkId = useNetworkId();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    const query = parseSearch(text);
+    const query = parseSearch(text, networkId);
     if (query.kind === 'invalid') {
       setError(query.reason);
       return;
@@ -92,7 +109,7 @@ export function SearchBox({ compact }: { compact?: boolean }) {
     try {
       const target = await resolveSearch(api, query, ctx);
       const href = target.page === 'block' ? blockHref(target.height) : target.page === 'tx' ? txHref(target.messageId)
-        : accountHref(target.accountId);
+        : accountHref(target.accountId, networkId);
       if (href) {
         navigate(href);
         setText('');

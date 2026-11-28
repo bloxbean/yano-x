@@ -12,9 +12,12 @@ import type { ClientConfig } from './lib/config';
 import { depositDatum, verifyDeposit, type DecodedDeposit } from './lib/deposit';
 import { assetIdText, short, vaultLabel } from './lib/display';
 import { fromHex, randomBytes, toHex } from './lib/hex';
+import { accountIdBech32, ownerAddress, parseAccountId, parseAddress, parseRecipient, recipientAccountId,
+  shortId } from './lib/ids';
 import { bodyFromJson, credentialFromAddress, encodeEnvelope, INTENT_TOPIC, intentId, ownerMessage, PAYMENT_KEY,
   sessionMessage, type Action, type Authorizer, type Credential, type IntentDomain } from './lib/intents';
 import { proofMismatch, type Fact } from './lib/proof';
+import { recipientFields, recipientProblem, resolveRecipient, type ResolvedRecipient } from './lib/recipient';
 import { deleteSession, generateSessionKey, isStale, listSessions, MAX_SESSION_VALIDITY_MS, saveSession,
   signWithSession, type StoredSession } from './lib/session';
 import { assembleSignedTx } from './lib/tx';
@@ -77,18 +80,28 @@ export function vaultById(info: Info, id: string): VaultView {
   return vault;
 }
 
-/** An account id, or the account a Cardano address's key owns. */
-export function recipientAccount(text: string): string {
-  const value = text.trim();
-  if (!value) throw new Error('enter a recipient account id or address');
-  if (/^[0-9a-fA-F]{56}$/.test(value)) return value.toLowerCase();
-  return credentialFromAddress(addressBytes(value)).accountId;
+/** The chain's address network id, which every shown and typed identifier is checked against. */
+export function networkOf(info: Pick<Info, 'intentDomain'>): number {
+  return info.intentDomain.addressNetworkId;
+}
+
+/**
+ * A typed, pasted or linked recipient resolved with the node and checked: it must be registered, an address's key must
+ * be its account's current owner, and it must not be the payer. Throws the readable reason otherwise, before any
+ * review or signature.
+ */
+export async function checkedRecipient(ctx: Pick<FlowContext, 'api' | 'info' | 'account'>, text: string):
+  Promise<ResolvedRecipient> {
+  const resolved = await resolveRecipient(ctx.api, parseRecipient(text, networkOf(ctx.info)));
+  const problem = recipientProblem(resolved, ctx.account.accountId);
+  if (problem) throw new Error(problem);
+  return resolved;
 }
 
 /** The fields every owner-signed intent's review adds: who acts, on which chain and genesis, until when. */
 export function intentReviewFields(fields: Field[], accountId: string, domain: IntentDomain, notAfterMs: number,
                                   id: string): Field[] {
-  return [...fields, ['Account', accountId],
+  return [...fields, ['Account', accountIdBech32(accountId, domain.addressNetworkId)], ['Account (hex)', accountId],
     ['Chain (intent domain)', `${domain.chainId}, application ${domain.applicationId}`],
     ['Genesis id', domain.genesisId],
     ['Network', `magic ${domain.networkMagic}, address network id ${domain.addressNetworkId}`],
@@ -149,13 +162,15 @@ export async function runIntent(ctx: FlowContext, action: Action, bodyJson: Reco
 
 export async function register(ctx: FlowContext): Promise<Submitted> {
   const { account } = ctx;
-  return runIntent(ctx, 'REGISTER_ACCOUNT', {}, [['Account', account.accountId],
-    ['Owner', `${account.kind === PAYMENT_KEY ? 'payment' : 'stake'} key ${account.keyHash}`]]);
+  const owner = ownerAddress({ credentialKind: account.kind, keyHash: account.keyHash }, networkOf(ctx.info));
+  return runIntent(ctx, 'REGISTER_ACCOUNT', {}, [[owner.label, owner.address],
+    ['Owner key hash', `${account.kind === PAYMENT_KEY ? 'payment' : 'stake'} key ${account.keyHash}`]]);
 }
 
-export function transferFields(vault: VaultView, amount: bigint, to: string): Field[] {
+/** A transfer's review rows: the amount, the asset, and the recipient as entered and as the account paid. */
+export function transferFields(vault: VaultView, amount: bigint, to: ResolvedRecipient, networkId: number): Field[] {
   return [['Send', `${formatUnits(amount, vault.decimals)} ${vaultLabel(vault)}`],
-    ['Amount (base units)', amount.toString()], ['Asset id', assetIdText(vault)], ['To account', to]];
+    ['Amount (base units)', amount.toString()], ['Asset id', assetIdText(vault)], ...recipientFields(to, networkId)];
 }
 
 export interface TransferInput {
@@ -168,18 +183,18 @@ export interface TransferInput {
 
 export async function transfer(ctx: FlowContext, input: TransferInput): Promise<Submitted> {
   const vault = vaultById(ctx.info, input.vaultId);
-  const to = recipientAccount(input.to);
   const amount = toBaseUnits(input.amount, vault.decimals);
-  return runIntent(ctx, 'TRANSFER', { asset: { policyId: vault.asset.policyId, assetName: vault.asset.assetName },
-    toAccount: to, amount: amount.toString() }, [...transferFields(vault, amount, to), ...(input.extra ?? [])]);
+  return transferBase(ctx, vault.vaultId, input.to, amount, input.extra);
 }
 
-/** A transfer of an exact base-unit amount (a payment request). */
-export async function transferBase(ctx: FlowContext, vaultId: string, to: string, amount: bigint,
+/** A transfer of an exact base-unit amount (a payment request) to a recipient as typed or linked. */
+export async function transferBase(ctx: FlowContext, vaultId: string, toText: string, amount: bigint,
                                    extra: Field[] = []): Promise<Submitted> {
   const vault = vaultById(ctx.info, vaultId);
+  const to = await checkedRecipient(ctx, toText);
   return runIntent(ctx, 'TRANSFER', { asset: { policyId: vault.asset.policyId, assetName: vault.asset.assetName },
-    toAccount: to, amount: amount.toString() }, [...transferFields(vault, amount, to), ...extra]);
+    toAccount: to.accountId, amount: amount.toString() },
+  [...transferFields(vault, amount, to, networkOf(ctx.info)), ...extra]);
 }
 
 export interface SessionInput {
@@ -206,7 +221,7 @@ export async function authorizeSession(ctx: FlowContext, input: SessionInput): P
     throw new Error(`a session is valid for at most ${MAX_SESSION_VALIDITY_MS / 60_000} minutes`);
   }
   const recipientText = input.recipient.trim();
-  const recipients = recipientText ? [recipientAccount(recipientText)] : [];
+  const recipients = recipientText ? [recipientAccountId(parseRecipient(recipientText, networkOf(info)))] : [];
   const key = await generateSessionKey();
   const notAfterMs = Date.now() + Math.round(minutes * 60_000);
   const submitted = await runIntent(ctx, 'AUTHORIZE_SESSION', { sessionKey: toHex(key.publicKey),
@@ -215,7 +230,8 @@ export async function authorizeSession(ctx: FlowContext, input: SessionInput): P
     ['Limit', `${formatUnits(per, vault.decimals)} per payment, ${formatUnits(total, vault.decimals)} in total `
       + vaultLabel(vault)], ['Limit (base units)', `${per} per payment, ${total} in total`],
     ['Vault id', vault.vaultId], ['Asset id', assetIdText(vault)],
-    ['Recipients', recipients.length ? recipients.join(', ') : 'any registered account'],
+    ['Recipients', recipients.length ? recipients.map((id) => `${accountIdBech32(id, networkOf(info))} (hex ${id})`)
+      .join(', ') : 'any registered account'],
     ['Valid until', new Date(notAfterMs).toLocaleString()]]);
   // The grant id is the AUTHORIZE_SESSION intent id.
   const stored = await saveSession({ id: `${info.chainId}/${account.accountId}/${submitted.intentId}`,
@@ -228,11 +244,12 @@ export async function authorizeSession(ctx: FlowContext, input: SessionInput): P
 export async function sessionPay(ctx: FlowContext, session: StoredSession, vaultId: string, toText: string,
                                  amountText: string): Promise<Submitted> {
   const vault = vaultById(ctx.info, vaultId);
-  const to = recipientAccount(toText);
   const amount = toBaseUnits(amountText, vault.decimals);
+  const to = await checkedRecipient(ctx, toText);
   return runIntent(ctx, 'TRANSFER', { asset: { policyId: vault.asset.policyId, assetName: vault.asset.assetName },
-    toAccount: to, amount: amount.toString() }, [['Send', `${formatUnits(amount, vault.decimals)} ${vaultLabel(vault)}`],
-    ['Amount (base units)', amount.toString()], ['To account', to], ['Signed by', `session ${short(session.grantId)}`]],
+    toAccount: to.accountId, amount: amount.toString() }, [['Send', `${formatUnits(amount, vault.decimals)} ${vaultLabel(vault)}`],
+    ['Amount (base units)', amount.toString()], ['To account', accountIdBech32(to.accountId, networkOf(ctx.info))],
+    ['To account (hex)', to.accountId], ['Signed by', `session ${short(session.grantId)}`]],
   session);
 }
 
@@ -255,7 +272,7 @@ export async function withdraw(ctx: FlowContext, input: WithdrawInput, balance: 
   const vault = vaultById(info, input.vaultId);
   const amount = input.all ? BigInt(balance?.available ?? '0') : toBaseUnits(input.amount, vault.decimals);
   const vaultLovelace = vault.asset.ada ? 0n : BigInt(input.lovelace.trim() || '0');
-  const recipient = addressBytes(input.to);
+  const recipient = parseAddress(input.to, networkOf(info));
   if (vault.asset.ada && amount < BigInt(info.minAdaPayout)) {
     throw new Error(`an ADA withdrawal is at least ${formatUnits(info.minAdaPayout, 6)} ADA`);
   }
@@ -287,12 +304,13 @@ export interface DepositSubmitted {
 
 /** The deposit review: every value decoded from the transaction itself, not from the API's summary. */
 export function depositReviewFields(vault: VaultView, decoded: DecodedDeposit, accountId: string,
-                                    refundAddress: Uint8Array): Field[] {
+                                    refundAddress: Uint8Array, networkId: number): Field[] {
   const amount = vault.asset.ada ? `${formatUnits(decoded.quantity, 6)} ADA`
     : `${formatUnits(decoded.quantity, vault.decimals)} ${vaultLabel(vault)}`;
   return [['Deposit', amount], ['Amount (base units)', decoded.quantity.toString()], ['Asset id', assetIdText(vault)],
     ['Lovelace in the vault output', formatUnits(decoded.outputLovelace, 6) + ' ADA'],
-    ['To vault', addressToBech32(addressBytes(vault.address))], ['Credited to (datum)', accountId],
+    ['To vault', addressToBech32(addressBytes(vault.address))],
+    ['Credited to (datum)', accountIdBech32(accountId, networkId)], ['Credited to (hex)', accountId],
     ['Refund address (datum)', addressToBech32(refundAddress)],
     ['Inputs', `${decoded.inputs.length}, all from this wallet`],
     ['Change back to you', formatUnits(decoded.change, 6) + ' ADA'],
@@ -333,7 +351,7 @@ export async function deposit(ctx: FlowContext, input: DepositInput, onStep: (te
   }
   onStep('Review the decoded transaction…');
   await ctx.review({ kind: 'deposit', title: 'L1 deposit (decoded from the transaction)',
-    fields: depositReviewFields(vault, decoded, account.accountId, wallet.changeAddress),
+    fields: depositReviewFields(vault, decoded, account.accountId, wallet.changeAddress, networkOf(info)),
     bytesHex: built.unsignedTxCborHex });
   onStep('Waiting for the wallet to sign (signTx)…');
   const witnessSet = await wallet.api.signTx(built.unsignedTxCborHex, false);
@@ -413,14 +431,14 @@ export async function forgetSession(chainId: string, accountId: string, grantId:
  * Acts for an existing account instead of the credential's own: after ROTATE_OWNER the account keeps its id while a
  * new credential owns it. The account's committed owner must be the connected credential.
  */
-export async function chooseAccount(api: PaymentsApi, credential: Credential, text: string): Promise<Credential> {
-  const id = text.trim().toLowerCase() || credential.accountId;
-  if (!/^[0-9a-f]{56}$/.test(id)) throw new Error('an account id is 28 bytes of hex');
+export async function chooseAccount(api: PaymentsApi, credential: Credential, text: string, networkId: number):
+  Promise<Credential> {
+  const id = text.trim() ? parseAccountId(text, networkId) : credential.accountId;
   if (id !== credential.accountId) {
     const chosen = await api.account(id);
     const kind = credential.kind === PAYMENT_KEY ? 'PAYMENT_KEY' : 'STAKE_KEY';
     if (!chosen.registered || chosen.owner?.keyHash !== credential.keyHash || chosen.owner?.credentialKind !== kind) {
-      throw new Error(`account ${short(id)} is not owned by this wallet's ${kind === 'PAYMENT_KEY' ? 'payment' : 'stake'}`
+      throw new Error(`account ${shortId(accountIdBech32(id, networkId))} is not owned by this wallet's ${kind === 'PAYMENT_KEY' ? 'payment' : 'stake'}`
         + ' key at the committed height');
     }
   }

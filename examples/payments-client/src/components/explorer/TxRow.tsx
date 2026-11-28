@@ -58,11 +58,11 @@ export function OutcomeBadge({ tx, outcome, error }: { tx: DecodedTx; outcome?: 
   );
 }
 
-function PartyText({ party }: { party?: Party }) {
+function PartyText({ party, networkId }: { party?: Party; networkId: number }) {
   if (!party) return <span className="text-faint">—</span>;
-  const href = accountHref(party.account);
+  const href = accountHref(party.account, networkId);
   return href
-    ? <a href={href} title={party.title} data-testid="party-account"
+    ? <a href={href} title={party.title} data-testid="party-account" data-hex={party.account}
       className="font-mono text-[12px] text-accent-strong hover:underline">{party.text}</a>
     : <span title={party.title} className={party.title ? 'font-mono text-[12px] text-muted' : 'text-xs text-muted'}>
       {party.text}</span>;
@@ -83,11 +83,13 @@ export function L1Link({ txId, template, label = 'L1 tx' }: { txId?: string; tem
  * One decoded message as a row: kind, from → to, amount, outcome, position and age. Presentational: the outcome and
  * the Verify control come from the caller, so the row renders the same with or without a node.
  */
-export function TxRow({ tx, vaults, outcome, outcomeError, timestamp, now, fresh, verify, explorerTxUrl = '' }: {
+export function TxRow({ tx, vaults, outcome, outcomeError, timestamp, now, fresh, verify, explorerTxUrl = '', networkId = 0 }: {
   tx: DecodedTx; vaults: VaultView[]; outcome?: Outcome; outcomeError?: boolean; timestamp?: number; now: number;
   fresh?: boolean; verify?: ReactNode; explorerTxUrl?: string;
+  /** The chain's address network id, for the accounts' bech32 ids. */
+  networkId?: number;
 }) {
-  const view = rowView(tx, vaults);
+  const view = rowView(tx, vaults, networkId);
   const Icon = KIND_ICONS[tx.kind];
   const detail = txHref(tx.messageId);
   return (
@@ -114,9 +116,9 @@ export function TxRow({ tx, vaults, outcome, outcomeError, timestamp, now, fresh
         {view.note && !view.from && !view.to
           ? <span className="min-w-0 break-words text-muted" data-testid="tx-note">{view.note}</span>
           : <>
-            <PartyText party={view.from} />
+            <PartyText party={view.from} networkId={networkId} />
             <ArrowRight size={12} className="shrink-0 text-faint" aria-label="to" />
-            <PartyText party={view.to} />
+            <PartyText party={view.to} networkId={networkId} />
             {view.note && <span className="w-full break-words text-[11px] text-rose" data-testid="tx-note">{view.note}</span>}
           </>}
       </div>
@@ -145,7 +147,7 @@ export function LiveTxRow({ tx, timestamp, fresh }: { tx: DecodedTx; timestamp?:
   const { outcome, error } = useOutcome(tx);
   return (
     <TxRow tx={tx} vaults={info?.vaults ?? []} outcome={outcome} outcomeError={error} timestamp={timestamp} now={now}
-      explorerTxUrl={config?.explorerTxUrl}
+      explorerTxUrl={config?.explorerTxUrl} networkId={info?.intentDomain.addressNetworkId ?? 0}
       fresh={fresh} verify={outcome?.fact ? <ProofCheck fact={outcome.fact} label="Verify" compact /> : null} />
   );
 }

@@ -6,6 +6,7 @@ import { MAX_SESSION_VALIDITY_MS } from '../../lib/session';
 import { usePayments } from '../../state';
 import { Button, ErrorBox, Field, inputClass, Modal } from '../../ui';
 import { AmountInput, AssetSelect, useAction } from '../common';
+import { useNetworkId } from '../ids';
 
 export function SessionFlow({ onClose }: { onClose: () => void }) {
   const { info, flow, track, toast, sessionKeysSupported } = usePayments();
@@ -18,6 +19,7 @@ export function SessionFlow({ onClose }: { onClose: () => void }) {
   const action = useAction();
   const vault = vaults.find((entry) => entry.vaultId === vaultId);
   const ticker = vault ? vaultLabel(vault) : '';
+  const prefix = useNetworkId() === 1 ? '' : '_test';
 
   const go = () => action.run(async () => {
     const authorized = await authorizeSession(flow(), { vaultId, perPayment, total, minutes, recipient });
@@ -62,7 +64,7 @@ export function SessionFlow({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Only to" optional hint="Leave empty to allow any registered account.">
           <input className={`${inputClass} font-mono`} value={recipient} disabled={action.busy} spellCheck={false}
-            onChange={(event) => setRecipient(event.target.value)} placeholder="account id or address"
+            onChange={(event) => setRecipient(event.target.value)} placeholder={`acct${prefix}1… or addr${prefix}1…`}
             data-testid="session-recipient" />
         </Field>
         <div className="flex gap-2 rounded-xl border border-accent/25 bg-mint/15 px-3 py-2 text-xs text-muted">

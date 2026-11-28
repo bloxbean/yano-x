@@ -1,7 +1,8 @@
 /**
  * What one explorer row says about a decoded message: its kind, who to whom, and the amount in display units. Tickers
  * and decimals are the registry's display metadata from payments/info; an asset the registry does not name is shown
- * by its id in base units. Display only: nothing here is verified.
+ * by its id in base units. Accounts are shown by their bech32 id on the chain's network (hex in the title). Display
+ * only: nothing here is verified.
  */
 import type { VaultView } from './api';
 import { formatUnits } from './amounts';
@@ -9,10 +10,11 @@ import { addressToBech32 } from './bech32';
 import { short, vaultLabel } from './display';
 import { KIND_LABELS, type DecodedTx, type TxKind } from './explorer';
 import { fromHex } from './hex';
+import { accountIdBech32, shortId } from './ids';
 
 export type RowTone = 'accent' | 'lime' | 'amber' | 'cyan' | 'violet' | 'rose' | 'default';
 
-/** One side of a row: an account (linked), an L1 address, or a plain label. */
+/** One side of a row: an account (linked; its hex id), an L1 address, or a plain label. */
 export interface Party {
   account?: string;
   text: string;
@@ -39,7 +41,11 @@ const TONES: Record<TxKind, RowTone> = {
   unknown: 'default',
 };
 
-const account = (id: string | undefined): Party | undefined => id ? { account: id, text: short(id, 6), title: id } : undefined;
+function accountParty(id: string | undefined, networkId: number): Party | undefined {
+  if (!id) return undefined;
+  const bech32 = accountIdBech32(id, networkId);
+  return { account: id, text: shortId(bech32, 6), title: `${bech32}\n${id}` };
+}
 
 function vaultById(vaults: VaultView[], vaultId: string | undefined): VaultView | undefined {
   return vaultId ? vaults.find((vault) => vault.vaultId === vaultId) : undefined;
@@ -66,7 +72,8 @@ function addressParty(hex: string | undefined): Party | undefined {
   }
 }
 
-export function rowView(tx: DecodedTx, vaults: VaultView[]): RowView {
+export function rowView(tx: DecodedTx, vaults: VaultView[], networkId = 0): RowView {
+  const account = (id: string | undefined) => accountParty(id, networkId);
   const base: RowView = { title: KIND_LABELS[tx.kind], tone: TONES[tx.kind] };
   switch (tx.kind) {
     case 'register':

@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { newestFirst } from '../../lib/chain';
 import { involves } from '../../lib/explorer';
 import { usePayments } from '../../state';
-import { Badge, Button, Copy, EmptyState, ErrorBox, Skeleton } from '../../ui';
+import { Badge, Button, EmptyState, ErrorBox, Skeleton } from '../../ui';
 import { BalanceCard } from '../Balances';
+import { AccountId, OwnerAddress, ownerLabel, useNetworkId } from '../ids';
 import { ClaimCard } from '../Withdrawals';
 import { Panel } from './Explorer';
 import { useBlocks, useTip } from './hooks';
@@ -34,6 +35,7 @@ export function AccountPage({ accountId }: { accountId: string }) {
     refetchInterval: 15_000,
   });
   const registered = !!view.data?.registered;
+  const networkId = useNetworkId();
   return (
     <div className="space-y-6" data-testid="account-page">
       <section className="rise rounded-3xl border border-line bg-surface p-5 sm:p-6">
@@ -41,10 +43,7 @@ export function AccountPage({ accountId }: { accountId: string }) {
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent"><UserRound size={18} /></span>
           <div className="min-w-0">
             <div className="text-[11px] font-medium text-faint">Account id</div>
-            <div className="flex items-start gap-1">
-              <span className="min-w-0 break-all font-mono text-[13px] text-ink" data-testid="explorer-account-id">{accountId}</span>
-              <Copy value={accountId} label="Copy account id" />
-            </div>
+            <AccountId id={accountId} networkId={networkId} hex="line" testId="explorer-account-id" />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {view.data ? (
                 <Badge tone={registered ? 'accent' : 'amber'} data-testid="explorer-registration">
@@ -57,6 +56,12 @@ export function AccountPage({ accountId }: { accountId: string }) {
               )}
               {view.data && <Badge>at height {view.data.committed.height}</Badge>}
             </div>
+            {view.data?.owner && (
+              <div className="mt-3 min-w-0" data-testid="explorer-owner">
+                <div className="text-[11px] font-medium text-faint">{ownerLabel(view.data.owner)}</div>
+                <OwnerAddress owner={view.data.owner} networkId={networkId} testId="explorer-owner-address" />
+              </div>
+            )}
           </div>
         </div>
       </section>

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runIntent, transfer, type FlowContext } from './flows';
+import { chooseAccount, runIntent, transfer, withdraw, type FlowContext } from './flows';
+import type { PaymentsApi } from './lib/api';
+import { bech32Encode } from './lib/bech32';
+import { accountIdBech32 } from './lib/ids';
 import type { ClientConfig } from './lib/config';
 import { fromHex, toHex } from './lib/hex';
 import { bodyFromJson, credentialFromAddress, encodeEnvelope, intentId, sessionMessage, type Action } from './lib/intents';
@@ -7,11 +10,21 @@ import { generateSessionKey, type StoredSession } from './lib/session';
 import type { ConnectedWallet } from './lib/wallet';
 import { ACCOUNT, ADA, INFO } from './test/fixtures';
 
-/** A node whose encoder agrees with this client, unless told otherwise. */
-function fakeApi(overrides: { encode?: 'wrong'; prepare?: 'wrong' } = {}) {
+const RECIPIENT = 'ab'.repeat(28);
+const OTHER_KEY = '0e'.repeat(28);
+/** An enterprise address of another key: its account is the recipient's in these tests. */
+const OTHER_ADDRESS = bech32Encode('addr_test', fromHex(`60${OTHER_KEY}`));
+const OTHER_ACCOUNT = credentialFromAddress(fromHex(`60${OTHER_KEY}`)).accountId;
+
+/** A node whose encoder agrees with this client, unless told otherwise; every account but `unregistered` exists. */
+function fakeApi(overrides: { encode?: 'wrong'; prepare?: 'wrong'; unregistered?: string; rotated?: string } = {}) {
   const calls = { submit: vi.fn(async () => ({ messageId: 'm' })) };
   const api = {
     chainId: INFO.chainId,
+    account: vi.fn(async (id: string) => ({ accountId: id, registered: id !== overrides.unregistered,
+      owner: { credentialKind: 'PAYMENT_KEY', keyHash: id === overrides.rotated ? '99'.repeat(28) : OTHER_KEY },
+      committed: { height: 7 } })),
+    address: vi.fn(async (hex: string) => ({ accountId: credentialFromAddress(fromHex(hex)).accountId, networkMatches: true })),
     encodeIntent: async (request: { action: Action; accountId: string; authorizer: never; nonce: string;
       notAfterMs: number; body: Record<string, unknown> }) => {
       const envelope = encodeEnvelope({ domain: INFO.intentDomain, ...request, body: bodyFromJson(request.action, request.body) });
@@ -77,9 +90,58 @@ describe('the intent pipeline', () => {
     await expect(transfer(ctx, { vaultId: ADA.vaultId, to: 'ab'.repeat(28), amount: '2.5' })).rejects.toThrow('cancelled');
     const request = (ctx.review as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(request.fields).toContainEqual(['Amount (base units)', '2500000']);
+    expect(request.fields).toContainEqual(['To account', accountIdBech32(RECIPIENT, 0)]);
+    expect(request.fields).toContainEqual(['To account (hex)', RECIPIENT]);
+    expect(request.fields).toContainEqual(['Account', accountIdBech32(ACCOUNT.accountId, 0)]);
     expect(request.fields).toContainEqual(['Genesis id', INFO.intentDomain.genesisId]);
     expect(ctx.wallet.api.signData).not.toHaveBeenCalled();
     expect(calls.submit).not.toHaveBeenCalled();
+  });
+
+  it('pays an address\'s account, showing the address and the account (bech32 and hex) in the review', async () => {
+    const { api } = fakeApi();
+    const ctx = context(api, vi.fn(async () => { throw new Error('cancelled'); }));
+    await expect(transfer(ctx, { vaultId: ADA.vaultId, to: OTHER_ADDRESS, amount: '1' })).rejects.toThrow('cancelled');
+    const request = (ctx.review as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(request.fields).toContainEqual(['To address (as entered)', OTHER_ADDRESS]);
+    expect(request.fields).toContainEqual(['To account', accountIdBech32(OTHER_ACCOUNT, 0)]);
+    expect(request.fields).toContainEqual(['To account (hex)', OTHER_ACCOUNT]);
+    // The signed body names the account by its 28 bytes.
+    expect(request.bytesHex).toContain(`581c${OTHER_ACCOUNT}`);
+  });
+
+  it('refuses an unregistered recipient, a rotated-away address and another network before anything is encoded', async () => {
+    for (const [overrides, to, reason] of [
+      [{ unregistered: RECIPIENT }, accountIdBech32(RECIPIENT, 0), /not registered/],
+      [{ rotated: OTHER_ACCOUNT }, OTHER_ADDRESS, /no longer owns/],
+      [{}, accountIdBech32(RECIPIENT, 1), /mainnet account id; this ledger is on testnet/],
+      [{}, `${accountIdBech32(RECIPIENT, 0).slice(0, -1)}q`, /bad checksum/],
+      [{}, accountIdBech32(ACCOUNT.accountId, 0), /cannot send to itself/],
+    ] as const) {
+      const { api, calls } = fakeApi(overrides);
+      const encode = vi.spyOn(api, 'encodeIntent');
+      const ctx = context(api);
+      await expect(transfer(ctx, { vaultId: ADA.vaultId, to, amount: '1' })).rejects.toThrow(reason);
+      expect(encode).not.toHaveBeenCalled();
+      expect(ctx.review).not.toHaveBeenCalled();
+      expect(calls.submit).not.toHaveBeenCalled();
+    }
+  });
+
+  it('refuses a withdrawal to an address of the other network', async () => {
+    const { api } = fakeApi();
+    const mainnet = bech32Encode('addr', fromHex(`61${OTHER_KEY}`));
+    await expect(withdraw(context(api), { vaultId: ADA.vaultId, amount: '5', all: false, lovelace: '0', to: mainnet },
+      undefined)).rejects.toThrow('This is a mainnet address; this ledger is on testnet.');
+  });
+
+  it('acts for another account given by its bech32 or hex id, on this network only', async () => {
+    const credential = credentialFromAddress(fromHex(ACCOUNT.addressHex));
+    const api = { account: vi.fn(async () => ({ registered: true, owner: { credentialKind: 'PAYMENT_KEY',
+      keyHash: ACCOUNT.keyHash } })) } as unknown as PaymentsApi;
+    expect((await chooseAccount(api, credential, accountIdBech32(RECIPIENT, 0), 0)).accountId).toBe(RECIPIENT);
+    expect((await chooseAccount(api, credential, RECIPIENT, 0)).accountId).toBe(RECIPIENT);
+    await expect(chooseAccount(api, credential, accountIdBech32(RECIPIENT, 1), 0)).rejects.toThrow(/mainnet account id/);
   });
 
   it('refuses to act for an account another credential owns', async () => {

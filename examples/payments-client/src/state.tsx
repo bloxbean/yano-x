@@ -248,9 +248,9 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
   }, [info, disconnect]);
 
   const chooseAccount = useCallback(async (text: string) => {
-    if (!api || !credential) throw new Error('connect a wallet first');
-    setAccount(await pickAccount(api, credential, text));
-  }, [api, credential]);
+    if (!api || !credential || !info) throw new Error('connect a wallet first');
+    setAccount(await pickAccount(api, credential, text, info.intentDomain.addressNetworkId));
+  }, [api, credential, info]);
 
   // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);

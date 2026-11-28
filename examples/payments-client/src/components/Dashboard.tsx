@@ -6,12 +6,15 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ownsAccount, register } from '../flows';
 import type { Info } from '../lib/api';
+import { addressToBech32 } from '../lib/bech32';
+import { accountIdBech32 } from '../lib/ids';
 import { PAYMENT_KEY } from '../lib/intents';
 import { useAccountView, usePayments, useSessions, useWithdrawals } from '../state';
 import { Badge, Button, Card, Copy, ErrorBox, LiveDot, Skeleton } from '../ui';
 import { ActivityFeed } from './Activity';
 import { Balances } from './Balances';
 import { useAction } from './common';
+import { OwnerAddress, ownerLabel } from './ids';
 import { DepositFlow } from './flows/DepositFlow';
 import { PayRequestFlow } from './flows/PayRequestFlow';
 import { SendFlow } from './flows/SendFlow';
@@ -87,6 +90,9 @@ function AccountHero({ info, onAction }: { info: Info; onAction: (sheet: Sheet) 
   const can = registered && owned;
   const pending = withdrawals.data?.withdrawals.filter((claim) => !['PAID', 'PAID_MISMATCH'].includes(claim.lifecycle)).length;
   if (!account || !wallet) return null;
+  const networkId = info.intentDomain.addressNetworkId;
+  const bech32 = accountIdBech32(account.accountId, networkId);
+  const walletAddress = addressToBech32(wallet.signingAddress);
   const actions: { id: Exclude<Sheet, null>; label: string; icon: typeof Send; testId: string; disabled?: boolean }[] = [
     { id: 'deposit', label: 'Deposit', icon: ArrowDownToLine, testId: 'action-deposit' },
     { id: 'send', label: 'Send', icon: Send, testId: 'action-send' },
@@ -102,10 +108,36 @@ function AccountHero({ info, onAction }: { info: Info; onAction: (sheet: Sheet) 
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-strong">
             asset-payments · {info.chainId}</div>
           <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Your account</h1>
-          <div className="mt-2 flex min-w-0 items-start gap-1">
-            <span className="min-w-0 break-all font-mono text-[13px] text-muted" id="account-id" data-testid="account-id">
-              {account.accountId}</span>
-            <Copy value={account.accountId} label="Copy account id" />
+          <div className="mt-3 space-y-2.5">
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium text-faint">Account id</div>
+              <div className="flex min-w-0 items-start gap-1">
+                <span className="min-w-0 break-all font-mono text-[13px] text-ink" id="account-id" data-testid="account-id"
+                  data-bech32={bech32} data-hex={account.accountId}>{bech32}</span>
+                <Copy value={bech32} label="Copy account id" />
+              </div>
+              <details className="text-[11px] text-faint">
+                <summary className="cursor-pointer select-none hover:text-ink">hex and owner</summary>
+                <div className="mt-1 space-y-1.5">
+                  <span className="flex min-w-0 items-start gap-1">
+                    <span className="min-w-0 break-all font-mono" data-testid="account-id-hex">{account.accountId}</span>
+                    <Copy value={account.accountId} label="Copy account id (hex)" />
+                  </span>
+                  {view.data?.owner && <div><span className="font-medium text-muted">{ownerLabel(view.data.owner)}</span>
+                    <OwnerAddress owner={view.data.owner} networkId={networkId} testId="account-owner-address" /></div>}
+                </div>
+              </details>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium text-faint">Your wallet address</div>
+              <div className="flex min-w-0 items-start gap-1">
+                <span className="min-w-0 break-all font-mono text-[12px] text-muted" data-testid="wallet-address">
+                  {walletAddress}</span>
+                <Copy value={walletAddress} label="Copy wallet address" />
+              </div>
+            </div>
+            <p className="text-xs text-muted" data-testid="identifiers-note">Your account is owned by this wallet's key;
+              people can pay you by this address or by your account id.</p>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {view.data ? (

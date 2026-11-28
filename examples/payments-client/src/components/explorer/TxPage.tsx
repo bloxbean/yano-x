@@ -10,11 +10,13 @@ import {
   decodeDepositValue, decodeReceiptValue, decodeMessage, KIND_LABELS, type DecodedTx, type Outcome
 } from '../../lib/explorer';
 import { fromHex } from '../../lib/hex';
+import { credentialFromAddress } from '../../lib/intents';
 import { money } from '../../lib/txrow';
-import { accountHref, blockHref } from '../../route';
+import { blockHref } from '../../route';
 import { usePayments } from '../../state';
 import { Badge, Copy, EmptyState, ErrorBox, Facts, Mono, Skeleton } from '../../ui';
 import { ProofCheck, Stepper } from '../common';
+import { AccountId, OwnerAddress, ownerLabel, useNetworkId } from '../ids';
 import { lifecycleSteps } from '../Withdrawals';
 import { Panel } from './Explorer';
 import { useDecodeContext, useOutcome } from './hooks';
@@ -29,14 +31,19 @@ function Hex({ value, label }: { value: string; label: string }) {
   );
 }
 
-function AccountLink({ id }: { id: string }) {
-  return (
-    <span className="flex items-start gap-1">
-      <a href={accountHref(id)} className="min-w-0 break-all font-mono text-[12px] text-accent-strong hover:underline"
-        data-testid="detail-account">{id}</a>
-      <Copy value={id} label="Copy account id" />
-    </span>
-  );
+/** An account in a transaction's detail: its bech32 id, linked, with the hex on a second line. */
+function AccountLink({ id, networkId }: { id: string; networkId: number }) {
+  return <AccountId id={id} networkId={networkId} link hex="line" testId="detail-account" />;
+}
+
+/** The key an owner signature was made with, from its COSE protected address, as the owner's L1 address. */
+function signerOwner(addressHex: string): { credentialKind: number; keyHash: string } | null {
+  try {
+    const credential = credentialFromAddress(fromHex(addressHex));
+    return { credentialKind: credential.kind, keyHash: credential.keyHash };
+  } catch {
+    return null;
+  }
 }
 
 function vaultText(vaults: VaultView[], vaultId: string): ReactNode {
@@ -50,13 +57,16 @@ function amountText(amount: bigint, vault: VaultView | undefined, fallback: stri
   return vault ? `${view.amount} ${view.ticker} (${amount} base units)` : `${view.amount} ${view.ticker}`;
 }
 
-function addressText(hex: string): ReactNode {
+function addressText(hex: string): ReactNode;
+function addressText(hex: string, plain: true): string;
+function addressText(hex: string, plain?: boolean): ReactNode {
   let bech32: string | null = null;
   try {
     bech32 = addressToBech32(fromHex(hex));
   } catch {
     bech32 = null;
   }
+  if (plain) return bech32 ?? hex;
   return <span className="block min-w-0">{bech32 && <span className="block break-all font-mono text-[12px]">{bech32}</span>}
     <Mono className="block break-all text-[11px]">{hex}</Mono></span>;
 }
@@ -64,6 +74,7 @@ function addressText(hex: string): ReactNode {
 /** Every decoded field of a message, as label/value rows. */
 export function txFacts(tx: DecodedTx, info: Pick<Info, 'vaults' | 'intentDomain'>, template = ''): [string, ReactNode][] {
   const { vaults } = info;
+  const networkId = info.intentDomain.addressNetworkId;
   const rows: [string, ReactNode][] = [['Kind', KIND_LABELS[tx.kind]]];
   const push = (label: string, value: ReactNode | undefined | null | false) => {
     if (value !== undefined && value !== null && value !== false) rows.push([label, value]);
@@ -72,8 +83,17 @@ export function txFacts(tx: DecodedTx, info: Pick<Info, 'vaults' | 'intentDomain
   push('Action', tx.action);
   push('Signed by', tx.authorizer && (tx.authorizer === 'SESSION'
     ? <span>session key of grant <Mono className="break-all text-[11px]">{tx.grantId}</Mono></span> : 'the account owner (CIP-30 signData)'));
-  push('Account', tx.from && <AccountLink id={tx.from} />);
-  push(tx.kind === 'deposit' ? 'Beneficiary' : 'Recipient', tx.to && <AccountLink id={tx.to} />);
+  push('Account', tx.from && <AccountLink id={tx.from} networkId={networkId} />);
+  const signer = tx.authorizer === 'OWNER' && tx.signerAddress ? signerOwner(tx.signerAddress) : null;
+  if (signer) {
+    push(`${ownerLabel(signer)}, signer`, <span className="flex flex-col gap-1">
+      <OwnerAddress owner={signer} networkId={networkId} testId="detail-signer" />
+      <span className="text-[11px] text-faint">Signed with{' '}
+        <span className="break-all font-mono">{addressText(tx.signerAddress!, true)}</span>, as the COSE header reports.
+        The ledger accepts it only from the account's owner.</span>
+    </span>);
+  }
+  push(tx.kind === 'deposit' ? 'Beneficiary' : 'Recipient', tx.to && <AccountLink id={tx.to} networkId={networkId} />);
   if (tx.amount !== undefined) {
     const vault = tx.vaultId ? vaults.find((entry) => entry.vaultId === tx.vaultId)
       : vaults.find((entry) => entry.asset.policyId === tx.asset?.policyId && entry.asset.assetName === tx.asset?.assetName);
@@ -93,11 +113,13 @@ export function txFacts(tx: DecodedTx, info: Pick<Info, 'vaults' | 'intentDomain
         + `${amountText(limit.cumulative, vault, 'base units')} in total`);
     });
     push('Session recipients', tx.session.recipients.length
-      ? <span className="space-y-0.5">{tx.session.recipients.map((id) => <AccountLink key={id} id={id} />)}</span> : 'any account');
+      ? <span className="space-y-0.5">{tx.session.recipients.map((id) => <AccountLink key={id} id={id} networkId={networkId} />)}</span>
+      : 'any account');
     push('Session expires', expiry(tx.session.notAfterMs));
   }
   push('Revokes grant', tx.kind === 'revoke' && tx.grantId && <Hex value={tx.grantId} label="grant id" />);
-  push('New owner', tx.newOwner && `${tx.newOwner.credentialKind === 0 ? 'payment' : 'stake'} key ${tx.newOwner.keyHash}`);
+  push(tx.newOwner ? `New ${ownerLabel(tx.newOwner).toLowerCase()}` : 'New owner',
+    tx.newOwner && <OwnerAddress owner={tx.newOwner} networkId={networkId} testId="detail-new-owner" />);
   push('Nonce', tx.nonce && <Mono className="text-[11px]">{tx.nonce}</Mono>);
   push('Intent expires', tx.notAfterMs !== undefined && expiry(tx.notAfterMs));
   if (tx.domain) {
@@ -161,6 +183,7 @@ function Raw({ label, hex, testId }: { label: string; hex: string; testId: strin
 /** The record behind an outcome, decoded from the value its proof covers, and the Verify control. */
 function RecordPanel({ tx, outcome, raw, error }: { tx: DecodedTx; outcome?: Outcome; raw?: unknown; error?: boolean }) {
   const { info, config } = usePayments();
+  const networkId = useNetworkId();
   if (!tx.intentId && tx.kind !== 'deposit') return null;
   const receipt = tx.intentId ? raw as ReceiptView | undefined : undefined;
   let rows: [string, ReactNode][] = [];
@@ -170,7 +193,7 @@ function RecordPanel({ tx, outcome, raw, error }: { tx: DecodedTx; outcome?: Out
       if (tx.intentId) {
         const value = decodeReceiptValue(valueHex);
         rows = [['Outcome', value.outcome], ['Reason', value.reason || '—'], ['Action', value.action],
-          ['Account', <AccountLink id={value.accountId} />], ['Amount', `${value.amount} base units`],
+          ['Account', <AccountLink id={value.accountId} networkId={networkId} />], ['Amount', `${value.amount} base units`],
           ['Executed at height', String(value.height)]];
       } else {
         const value = decodeDepositValue(valueHex);
