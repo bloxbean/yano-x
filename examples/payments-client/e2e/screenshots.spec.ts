@@ -20,7 +20,7 @@ async function activeAccount(id: string): Promise<void> {
 async function connect(page: Page): Promise<string> {
   await page.getByTestId('connect-wallet').click();
   await page.getByTestId('wallet-yacidevkit').click();
-  await expect(page.getByTestId('account-id')).toHaveText(/^[0-9a-f]{56}$/);
+  await expect(page.getByTestId('account-id')).toHaveText(/^acct_test1[02-9ac-hj-np-z]{51}$/);
   return (await page.getByTestId('account-id').textContent())!;
 }
 
@@ -37,6 +37,7 @@ async function shot(page: Page, name: string, fullPage = false): Promise<void> {
 
 test.describe.serial('screenshots', () => {
   let bob = '';
+  let bobAddress = '';
 
   test('welcome, wallet picker and the unsupported-wallet message', async ({ page }) => {
     await page.goto(PAGE);
@@ -59,6 +60,7 @@ test.describe.serial('screenshots', () => {
     await activeAccount('1');
     await page.goto(PAGE);
     bob = await connect(page);
+    bobAddress = (await page.getByTestId('wallet-address').textContent())!;
     await activeAccount('2');
     await page.goto(PAGE);
     await connect(page);
@@ -98,10 +100,12 @@ test.describe.serial('screenshots', () => {
     await shot(page, '07-deposit-credited');
     await page.getByTestId('modal-close').click();
 
-    // Send: the form and its review.
+    // Send to Bob's wallet address: the form with the resolved account, then the review naming both.
     await page.getByTestId('action-send').click();
-    await page.getByTestId('transfer-to').fill(bob);
+    await page.getByTestId('transfer-to').fill(bobAddress);
     await page.getByTestId('transfer-amount').fill('2.5');
+    await expect(page.getByTestId('recipient-account')).toHaveText(bob);
+    await shot(page, '08-send-by-address');
     await page.getByTestId('transfer-go').click();
     await expect(page.getByTestId('review')).toBeVisible();
     await shot(page, '08-review-transfer');

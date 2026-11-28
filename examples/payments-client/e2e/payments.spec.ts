@@ -5,6 +5,7 @@
  * e2e/devkit-node.sh running, with the node caught up with DevKit's L1 tip.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { accountIdBech32 } from '../src/lib/ids';
 
 const DEVKIT = process.env.DEVKIT_WALLET_URL ?? 'http://localhost:10000';
 const NODE = process.env.PAYMENTS_NODE_URL ?? 'http://localhost:7470';
@@ -25,11 +26,18 @@ async function activeAccount(id: string): Promise<void> {
   expect(response.ok).toBeTruthy();
 }
 
+/** A testnet account id as bech32 (BIP-173 over 28 bytes, HRP acct_test). */
+const ACCOUNT_ID = /^acct_test1[02-9ac-hj-np-z]{51}$/;
+
+/** Connects DevKit's wallet; the account card shows the bech32 account id (hex in its data-hex hook). */
 async function connect(page: Page): Promise<string> {
   await page.getByTestId('connect-wallet').click();
   await page.getByTestId('wallet-yacidevkit').click();
-  await expect(page.getByTestId('account-id')).toHaveText(/^[0-9a-f]{56}$/);
-  return (await page.getByTestId('account-id').textContent())!;
+  await expect(page.getByTestId('account-id')).toHaveText(ACCOUNT_ID);
+  await expect(page.getByTestId('account-id-hex')).toHaveText(/^[0-9a-f]{56}$/);
+  const bech32 = (await page.getByTestId('account-id').textContent())!;
+  expect(accountIdBech32((await page.getByTestId('account-id').getAttribute('data-hex'))!, 0)).toBe(bech32);
+  return bech32;
 }
 
 /** The newest entry in the activity feed. */
@@ -63,6 +71,8 @@ async function register(page: Page): Promise<void> {
 
 test.describe.serial('asset-payments reference client on a DevKit devnet', () => {
   let bob = '';
+  let bobHex = '';
+  let bobAddress = '';
   let request = '';
 
   test.beforeAll(async () => {
@@ -74,9 +84,22 @@ test.describe.serial('asset-payments reference client on a DevKit devnet', () =>
     await activeAccount('1');
     await page.goto(PAGE);
     bob = await connect(page);
+    bobHex = (await page.getByTestId('account-id').getAttribute('data-hex'))!;
     await register(page);
 
-    // A merchant-style request for 1 ADA: the link names the chain, the account, the asset id and base units.
+    // The card shows the wallet's own address (what it registered and signs with) next to the account id.
+    await expect(page.getByTestId('wallet-address')).toHaveText(/^addr_test1[02-9ac-hj-np-z]+$/);
+    await expect(page.getByTestId('identifiers-note')).toContainText('people can pay you by this address or by your account id');
+    bobAddress = (await page.getByTestId('wallet-address').textContent())!;
+    await page.getByTestId('account-chip').click();
+    await page.getByTestId('account-details').click();
+    await expect(page.getByTestId('signing-address')).toHaveText(bobAddress);
+    await expect(page.getByTestId('sheet-owner-address')).toHaveText(/^addr_test1v[02-9ac-hj-np-z]+$/);
+    await expect(page.getByTestId('sheet-account-id')).toHaveText(bob);
+    await expect(page.getByTestId('sheet-account-id-hex')).toHaveText(bobHex);
+    await page.getByTestId('modal-close').click();
+
+    // A merchant-style request for 1 ADA: the link names the chain, the bech32 account, the asset id and base units.
     await page.getByTestId('action-pay-request').click();
     await page.getByTestId('payreq-tab-request').click();
     await page.getByTestId('payreq-amount').fill('1');
@@ -103,13 +126,35 @@ test.describe.serial('asset-payments reference client on a DevKit devnet', () =>
     await page.getByTestId('modal-close').click();
     await expect.poll(async () => Number(await available(page))).toBe(before + 25);
 
-    // An owner-signed transfer; the review shows base units and the full asset id.
+    // An owner-signed transfer to Bob's account id; the review shows base units, the full asset id and both forms of
+    // the account. An id of the other network is refused before review.
     await page.getByTestId('action-send').click();
+    await page.getByTestId('transfer-to').fill(accountIdBech32(bobHex, 1));
+    await expect(page.getByTestId('recipient-problem')).toHaveText('This is a mainnet account id; this ledger is on testnet.');
+    await expect(page.getByTestId('transfer-go')).toBeDisabled();
     await page.getByTestId('transfer-to').fill(bob);
-    await page.getByTestId('transfer-amount').fill('3');
+    await expect(page.getByTestId('recipient-status')).toContainText('registered');
+    await expect(page.getByTestId('recipient-account')).toHaveText(bob);
+    await page.getByTestId('transfer-amount').fill('2');
     await page.getByTestId('transfer-go').click();
-    await expect(page.getByTestId('review-fields')).toContainText('3000000');
+    await expect(page.getByTestId('review-fields')).toContainText('2000000');
     await expect(page.getByTestId('review-fields')).toContainText('lovelace (ADA)');
+    await expect(page.getByTestId('review-fields')).toContainText(bob);
+    await expect(page.getByTestId('review-fields')).toContainText(bobHex);
+    await signAndWait(page, /^ACCEPTED/);
+
+    // The same recipient by its wallet address: resolved to Bob's account before review, both shown in the review.
+    await page.getByTestId('action-send').click();
+    await page.getByTestId('transfer-to').fill(bobAddress);
+    await expect(page.getByTestId('recipient-status')).toHaveText(/^address resolves to account acct_test1.+ \(current owner matches\)$/);
+    await expect(page.getByTestId('recipient-account')).toHaveText(bob);
+    await expect(page.getByTestId('recipient-account-hex')).toHaveText(bobHex);
+    await page.getByTestId('transfer-amount').fill('1');
+    await page.getByTestId('transfer-go').click();
+    await expect(page.getByTestId('review-fields')).toContainText('To address (as entered)');
+    await expect(page.getByTestId('review-fields')).toContainText(bobAddress);
+    await expect(page.getByTestId('review-fields')).toContainText(bob);
+    await expect(page.getByTestId('review-fields')).toContainText(bobHex);
     await signAndWait(page, /^ACCEPTED/);
     await expect.poll(async () => Number(await available(page))).toBe(before + 22);
 
@@ -118,6 +163,7 @@ test.describe.serial('asset-payments reference client on a DevKit devnet', () =>
     await page.getByTestId('payreq-input').fill(request);
     await expect(page.getByTestId('payreq-preview')).toContainText('1 ADA');
     await expect(page.getByTestId('payreq-preview')).toContainText('unverified');
+    await expect(page.getByTestId('payreq-preview').getByTestId('recipient-account')).toHaveText(bob);
     await page.getByTestId('payreq-pay').click();
     await expect(page.getByTestId('review-fields')).toContainText('Memo (from the request, unverified)');
     await signAndWait(page, /^ACCEPTED/);
