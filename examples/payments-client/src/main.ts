@@ -199,7 +199,7 @@ async function connect(descriptor: ReturnType<typeof installedWallets>[number]):
       addressToBech32(wallet.signingAddress)),
     h('dt', {}, 'Credential'), h('dd', {}, `${credential.kind === PAYMENT_KEY ? 'payment key' : 'stake key'} `
       + short(credential.keyHash)),
-    h('dt', {}, 'Account id'), h('dd', { class: 'mono', 'data-testid': 'account-id' }, account.accountId)),
+    h('dt', {}, 'Account id'), h('dd', { id: 'account-id', class: 'mono', 'data-testid': 'account-id' }, account.accountId)),
   h('div', { class: 'row' }, choose, use));
   await refresh();
 }
