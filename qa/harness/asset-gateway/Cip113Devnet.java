@@ -125,6 +125,7 @@ public final class Cip113Devnet {
                 case "deposit" -> deposit();
                 case "accept" -> accept();
                 case "settle" -> settle();
+                case "deregister" -> deregister();
                 case "all" -> { fund(); deploy(); deposit(); accept(); settle(); }
                 default -> throw new IllegalArgumentException("fund | deploy | deposit | accept | settle | all");
             }
@@ -394,6 +395,26 @@ public final class Cip113Devnet {
         ProgrammableVaultTxAssembler.Assembled assembled = ProgrammableVaultTxAssembler.assemble(w.deployment(),
                 wiring(w), txPlan, l1(w), adapter(), hash -> BigInteger.ZERO, pp(), evaluator());
         STATE.setProperty("settle", submitSigned("settle", sign(assembled.transaction(), "payer", "m1", "m2")));
+    }
+
+    /** I34 on the node: a deregistration of {@code e}'s credential is refused by its publish handler. */
+    static void deregister() throws Exception {
+        World w = world();
+        String stake = AddressProvider.getRewardAddress(Credential.fromScript(w.custody().exitDelegateHash()),
+                Networks.testnet()).toBech32();
+        com.bloxbean.cardano.client.quicktx.ScriptTx tx = new com.bloxbean.cardano.client.quicktx.ScriptTx()
+                .deregisterStakeAddress(stake, ConstrPlutusData.of(0))
+                .attachCertificateValidator(SCRIPTS.get(HEX.formatHex(w.custody().exitDelegateHash())));
+        try {
+            Transaction built = builder().compose(tx).feePayer(wallet("payer")).collateralPayer(wallet("payer"))
+                    .withSigner(SignerProviders.signerFrom(secret("payer"))).ignoreScriptCostEvaluationError(true)
+                    .buildAndSign();
+            submitSigned("deregister-e", built);
+            System.out.println("UNEXPECTED: the deregistration was accepted");
+        } catch (RuntimeException refused) {
+            System.out.println("deregister-e refused: " + String.valueOf(refused.getMessage()).substring(0,
+                    Math.min(300, String.valueOf(refused.getMessage()).length())));
+        }
     }
 
     // ------------------------------------------------------------------ the builder's L1 view
