@@ -198,6 +198,17 @@ final class ProgrammableWorld {
         return custody.smartWallet();
     }
 
+    /** The runtime pins of this CIP-113 vault: {@code h}, its smart wallet and the binding shard variant. */
+    VaultPins pins() {
+        VaultPins b = base.pins;
+        return new VaultPins(vaultId(), PayoutWorld.TOKEN, 0, custody.custodyHash(), vaultWallet(),
+                PayoutWorld.SHARD_POLICY, shard.scriptHash(), shard.address(), b.anchor(), PayoutWorld.EXIT_POLICY,
+                PayoutWorld.EXIT_HASH, PayoutWorld.CLAIM_PREFIX, PayoutWorld.DEPOSIT_PREFIX, PayoutWorld.STATUS_KEY,
+                BigInteger.valueOf(PayoutWorld.FLOOR), 16, 8, PayoutWorld.MAX_PAUSE, ShardBackend.JULC,
+                Optional.of(new VaultPins.Programmable(deployment, custody.exitDelegateHash(), ProgrammableBackend.JULC,
+                        params.address(), nodes.getFirst().address(), List.of(), Cip113L1.TEST_SUBSTANDARD)));
+    }
+
     byte[] keyWallet(byte[] keyHash) {
         return ProgrammableBackend.keySmartWallet(plb, keyHash, 0);
     }

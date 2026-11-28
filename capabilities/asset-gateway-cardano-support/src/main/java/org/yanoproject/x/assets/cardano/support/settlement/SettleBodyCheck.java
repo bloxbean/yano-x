@@ -253,6 +253,26 @@ public final class SettleBodyCheck {
                 throw hazard("a vault input carries another action");
             }
         }
+        List<Hash32> ids = settleAction(pins, vaultInputs, shardInput, shardIndex, settle,
+                redeemers.get(shardInput.outpoint()), body.getOutputs(), committed, anchor);
+        BodyChecks.quorumOfRequiredSigners(body, anchor);
+        byte[] bodyHash = HexFormat.of().parseHex(TransactionUtil.getTxHash(tx));
+        return new Signable(new Verified(bodyHash, ids, shardIndex, anchor));
+    }
+
+    /**
+     * The {@code Settle} action of §1 step 5, shared by the native vault and a CIP-113 vault (ADR-061 D13): the
+     * shard inserts exactly the paid ids and folds to the shard continuation; every claim is one of the member's own
+     * {@code RESERVED} user claims of this vault with exactly the committed fields, reserved at or below the referenced
+     * anchor (V12); the domain is {@code ACTIVE}; and the outputs satisfy V5 to V7: output {@code i} pays
+     * {@code claim[i]}, output {@code k} is the exact continuation, and no other output pays the vault. A CIP-113
+     * payout of the asset goes to a key-owned smart wallet of the pinned deployment (D7), and no other output is at
+     * the vault smart wallet or has {@code h} as its payment credential (V15). Returns the paid ids in order.
+     */
+    static List<Hash32> settleAction(VaultPins pins, List<ResolvedOutput> vaultInputs, ResolvedOutput shardInput,
+                                     int shardIndex, GatewayPlutus.DecodedSettle settle, PlutusData shardRedeemer,
+                                     List<TransactionOutput> outputs, Committed committed,
+                                     AnchorObservationV1.Anchored anchor) {
         List<GatewayPlutus.RedeemerClaim> claims = settle.claims();
         if (claims.isEmpty() || claims.size() > pins.maxSettleBatch()) throw hazard("batch size outside the profile");
         if (settle.shardIndex() != shardIndex) throw hazard("Settle names another shard");
@@ -260,7 +280,7 @@ public final class SettleBodyCheck {
         if (new HashSet<>(ids).size() != ids.size()) throw hazard("a claim is paid twice");
         List<Hash32> inserts;
         try {
-            inserts = GatewayPlutus.decodeShardInserts(redeemers.get(shardInput.outpoint()));
+            inserts = GatewayPlutus.decodeShardInserts(shardRedeemer);
         } catch (RuntimeException malformed) {
             throw hazard("the shard redeemer does not decode");
         }
@@ -269,7 +289,7 @@ public final class SettleBodyCheck {
                 .filter(datum -> datum.shardIndex() == settle.shardIndex())
                 .map(datum -> datum.nullifierRoot().bytes())
                 .orElseThrow(() -> hazard("the shard input has no shard datum of its index"));
-        byte[] postInsertRoot = ShardFold.postInsertRoot(shardRoot, shardIndex, redeemers.get(shardInput.outpoint()))
+        byte[] postInsertRoot = ShardFold.postInsertRoot(shardRoot, shardIndex, shardRedeemer)
                 .orElseThrow(() -> hazard("the shard inserts do not fold from the shard input's root"));
 
         // Every claim is a committed, RESERVED user claim of this vault, with exactly these fields (V12 included).
@@ -292,7 +312,6 @@ public final class SettleBodyCheck {
         }
 
         // V5-V7 against the committed leaves.
-        List<TransactionOutput> outputs = body.getOutputs();
         int k = leaves.size();
         if (outputs.size() <= k) throw hazard("too few outputs");
         BigInteger quantity = BigInteger.ZERO;
@@ -302,10 +321,11 @@ public final class SettleBodyCheck {
             TransactionOutput out = outputs.get(i);
             byte[] raw = addressBytes(out);
             Optional<ResolvedOutput.PaymentCredential> credential = ResolvedOutput.paymentCredential(raw);
-            if (!Arrays.equals(raw, leaf.recipient()) || credential.isEmpty() || credential.get().script()) {
+            BigInteger claimQuantity = leaf.value().quantityOf(pins.asset());
+            if (!Arrays.equals(raw, leaf.recipient()) || credential.isEmpty() || !payable(pins, raw, credential.get(),
+                    claimQuantity.signum() > 0)) {
                 throw hazard("output " + i + " does not pay claim " + leaf.claimId() + "'s recipient");
             }
-            BigInteger claimQuantity = leaf.value().quantityOf(pins.asset());
             Map<AssetId, BigInteger> assets = assets(out);
             boolean amounts = pins.adaVault()
                     ? assets.isEmpty() && out.getValue().getCoin().compareTo(claimQuantity) >= 0
@@ -336,7 +356,10 @@ public final class SettleBodyCheck {
             Optional<ResolvedOutput.PaymentCredential> credential =
                     ResolvedOutput.paymentCredential(addressBytes(outputs.get(i)));
             if (credential.isEmpty() || !credential.get().script()) continue;
-            if (i != k && Arrays.equals(credential.get().hash(), pins.vaultScriptHash())) {
+            if (i != k && Arrays.equals(addressBytes(outputs.get(i)), pins.vaultAddress())) {
+                throw hazard("another output pays the vault");
+            }
+            if (i != k && paysVault(pins, addressBytes(outputs.get(i)), credential.get())) {
                 throw hazard("another output pays the vault");
             }
             if (Arrays.equals(credential.get().hash(), pins.shardScriptHash())) {
@@ -353,9 +376,26 @@ public final class SettleBodyCheck {
                 && GatewayDatums.shardDatum(datumBytes(shardContinuation.getInlineDatum()))
                 .equals(Optional.of(new GatewayDatums.ShardDatum(shardIndex, Hash32.of(postInsertRoot))));
         if (!shardValid) throw hazard("the shard continuation is not the exact post-insert shard");
-        BodyChecks.quorumOfRequiredSigners(body, anchor);
-        byte[] bodyHash = HexFormat.of().parseHex(TransactionUtil.getTxHash(tx));
-        return new Signable(new Verified(bodyHash, ids, shardIndex, anchor));
+        return ids;
+    }
+
+    /**
+     * A payout recipient (D7, 059-D7): a key payment address; for a CIP-113 vault, a claim of the asset pays only a
+     * key-owned smart wallet of the pinned deployment, and a lovelace-only claim either of them.
+     */
+    private static boolean payable(VaultPins pins, byte[] raw, ResolvedOutput.PaymentCredential credential,
+                                   boolean carriesAsset) {
+        if (pins.programmable().isEmpty()) return !credential.script();
+        ProgrammableVaultTxAssembler.Deployment deployment = pins.programmable().get().deployment();
+        boolean smartWallet = org.yanoproject.x.assets.contracts.CardanoAddresses.payableSmartWallet(raw,
+                deployment.plbHash(), deployment.networkId());
+        return smartWallet || (!carriesAsset && !credential.script());
+    }
+
+    /** An output that pays the vault other than its continuation: its script hash, or for CIP-113 also {@code e}. */
+    private static boolean paysVault(VaultPins pins, byte[] raw, ResolvedOutput.PaymentCredential credential) {
+        if (Arrays.equals(credential.hash(), pins.vaultScriptHash())) return true;
+        return pins.programmable().map(p -> Arrays.equals(credential.hash(), p.exitDelegateHash())).orElse(false);
     }
 
     private static boolean leafMatches(ClaimLeafV1 leaf, GatewayPlutus.RedeemerClaim claim, AssetId asset) {
@@ -371,7 +411,7 @@ public final class SettleBodyCheck {
                 && leaf.reservedAtMs() == claim.reservedAtMs();
     }
 
-    private static int shardTokenIndex(ResolvedOutput shard, VaultPins pins) {
+    static int shardTokenIndex(ResolvedOutput shard, VaultPins pins) {
         int found = -1;
         for (Map.Entry<AssetId, BigInteger> entry : shard.assets().entrySet()) {
             AssetId asset = entry.getKey();
