@@ -27,7 +27,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * exitModeThreadPolicyId, anchor identity, forcedInboxPolicyId, timeouts, forcedKeyPrefix, domainStatusKey)}; then per
  * vault: {@code VaultId}, {@code AssetShardThreadPolicy(seed)}, {@code AssetVaultValidator(VaultId fields, network,
  * anchor identity, shardThreadPolicyId, exitModeThreadPolicyId, exitModeScriptHash, key prefixes, profile)}, the
- * vault's enterprise address, and last {@code AssetShardValidator(shardThreadPolicyId, vaultScriptHash)}.
+ * vault's enterprise address, and last {@code AssetShardValidator(shardThreadPolicyId, vaultScriptHash)}. A CIP-113
+ * vault (ADR-061 D2) replaces the vault and shard steps with {@code ProgrammableVaultExitDelegate(vault parameters,
+ * plbHash, maxInlineDatumBytes)}, then {@code ProgrammableVaultValidator(the same, exitDelegateHash)}, the vault smart
+ * wallet {@code base(Script(PLB), Script(h))}, and last {@code ProgrammableShardValidator(shardThreadPolicyId, h)}.
  */
 class GatewayArtifactBundleTest extends ContractTest {
     private static final Path RESOURCES = Path.of("src/main/resources/META-INF/plutus");
@@ -42,7 +45,11 @@ class GatewayArtifactBundleTest extends ContractTest {
             new Artifact(ExitModeThreadValidator.class, "spending"),
             new Artifact(AssetShardThreadPolicy.class, "minting"),
             new Artifact(AssetVaultValidator.class, "spending"),
-            new Artifact(AssetShardValidator.class, "spending"));
+            new Artifact(AssetShardValidator.class, "spending"),
+            // ADR-061: a CIP-113 vault's exit delegate e, custody script h and shard binding variant, in that order.
+            new Artifact(ProgrammableVaultExitDelegate.class, "rewarding,certifying"),
+            new Artifact(ProgrammableVaultValidator.class, "rewarding,certifying"),
+            new Artifact(ProgrammableShardValidator.class, "spending"));
 
     @BeforeAll
     static void crypto() {

@@ -189,3 +189,70 @@ carries `verifyAbsence` as dead code) grew with it. Payout costs rose by at most
 (before the single-script-input rule); the rest of the growth comes from the rewritten `verifyAbsence`, which the inbox never calls (it only calls
 `verifyInclusion`), so julc 0.1.0-pre20 evidently does not eliminate that code. The size is still well within the
 limit.
+
+## CIP-113 custody (ADR-061)
+
+`ProgrammableVaultSizeTest` and `ProgrammableVaultCompositionTest` measure the custody scripts of a CIP-113 vault.
+The composition runs evaluate **every** script of each honest transaction in one script context: the pinned PLB
+(once per vault input), dispatcher and transfer delegate of cip113-programmable-tokens `6b75ba32`, applied with a
+fixture deployment (`Cip113Blueprint`), a test transfer hook per registered policy present, `h`, `e` (EXIT-only
+actions) and the shard binding variant. Rerun with:
+
+```bash
+./gradlew :capabilities:asset-gateway-onchain:test --tests '*ProgrammableVault*' -i | grep -E 'BUDGET\||SIZE\|'
+```
+
+### Script sizes
+
+| Script | Template bytes | Applied bytes |
+|---|---:|---:|
+| `ProgrammableVaultValidator` (`h`) | 14,608 | 15,200 |
+| `ProgrammableVaultExitDelegate` (`e`) | 9,687 | 10,244 |
+| `ProgrammableShardValidator` | 4,517 | 4,586 |
+
+All three are under the 15,500-byte guard; `h` has 300 bytes of headroom. The split of ADR-061 D2 is what makes `h`
+fit: `e` carries the four EXIT-only actions and the absence verifier.
+
+### Execution units
+
+Whole transactions: the sum over every script. Shape: the token vault, 2-of-3 members for co-signed actions,
+recipients at key-owned smart wallets (57-byte base addresses), one registered policy with a test hook (two
+registered policies and an unregistered token for the refunds), state tries of 32 to 64 leaves and shards of 5 paid
+ids. The `h` column is the custody script's share.
+
+| Transaction | k | Vault inputs | CPU | Memory | CPU % | Memory % | `h` memory |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `Settle` | 1 | 1 | 793,533,536 | 2,512,483 | 7.9 | 15.2 | 1,664,417 |
+| `Settle` | 4 | 1 | 1,170,358,337 | 3,749,548 | 11.7 | 22.7 | 2,310,857 |
+| `Settle` | 8 | 1 | 1,739,846,407 | 5,634,990 | 17.4 | 34.2 | 3,172,889 |
+| `Settle` | 16 | 1 | 2,887,786,486 | 9,455,076 | 28.9 | 57.3 | 4,897,337 |
+| `Exit` | 1 | 1 | 1,015,570,831 | 3,264,172 | 10.2 | 19.8 | 2,301,364 |
+| `Exit` | 4 | 1 | 1,729,106,279 | 5,598,811 | 17.3 | 33.9 | 3,922,114 |
+| `Exit` | 8 | 1 | 2,710,622,053 | 8,806,839 | 27.1 | 53.4 | 6,229,508 |
+| `Exit` (EXIT) | 2 | 1 | 1,022,677,161 | 3,250,203 | 10.2 | 19.7 | 2,208,898 |
+| `SweepExit` (outpoint) | 1 | 1 | 944,112,039 | 3,017,456 | 9.4 | 18.3 | 2,222,386 |
+| `SweepExit` (`DepositId`) | 1 | 1 | 964,445,975 | 2,956,488 | 9.6 | 17.9 | 2,191,046 |
+| `AcceptCosigned` | 1 | 1 | 543,144,593 | 1,618,439 | 5.4 | 9.8 | 1,279,922 |
+| `AcceptCosigned` | 4 | 4 | 924,287,957 | 2,455,043 | 9.2 | 14.9 | 1,742,435 |
+| `AcceptCosigned` | 8 | 8 | 1,432,479,109 | 3,570,515 | 14.3 | 21.6 | 2,359,119 |
+| `AcceptProved` | 1 | 1 | 620,492,775 | 1,881,654 | 6.2 | 11.4 | 1,543,137 |
+| `AcceptProved` | 4 | 4 | 1,311,300,985 | 3,761,194 | 13.1 | 22.8 | 3,048,586 |
+| `AcceptProved` | 8 | 8 | 2,187,194,672 | 6,113,191 | 21.9 | 37.0 | 4,901,795 |
+| `AcceptProved` (EXIT) | 2 | 2 | 729,650,500 | 2,102,600 | 7.3 | 12.7 | 1,640,544 |
+| `RefundUncredited` | 1 | 1 | 641,956,838 | 1,903,621 | 6.4 | 11.5 | 420,841 (`e` 977,160) |
+| `RefundAbsent` | 1 | 1 | 592,766,279 | 1,743,736 | 5.9 | 10.6 | 420,841 (`e` 817,275) |
+| `BalanceExit` | 1 | 1 | 851,384,883 | 2,651,915 | 8.5 | 16.1 | 431,091 (`e` 1,364,508) |
+| `BalanceExit` | 1 | 4 | 1,095,816,942 | 3,305,273 | 11.0 | 20.0 | 463,437 (`e` 1,659,684) |
+| `Consolidate` | 2 | 2 | 559,663,734 | 1,691,772 | 5.6 | 10.3 | 431,623 (`e` 815,321) |
+| `Consolidate` | 4 | 4 | 726,289,494 | 2,129,817 | 7.3 | 12.9 | 453,187 (`e` 1,002,822) |
+| `Consolidate` | 8 | 8 | 1,059,541,014 | 3,005,907 | 10.6 | 18.2 | 496,315 (`e` 1,377,824) |
+
+The CIP-113 core's own share per transaction: PLB about 57,000 memory per vault input, the dispatcher about 23,500,
+the transfer delegate 186,000 to 982,000 (it scans every input and output), and the test hook 72,000 to 362,000.
+The shard's share is the same as for the native vault.
+
+**Not yet measured:** whole-transaction sizes. The native suite serializes each transaction (`TxSizes`); for a
+CIP-113 vault that needs the assembler's output, so the batch caps of ADR-061 D9 (provisional: `Settle` 16, `Exit`
+8, `AcceptCosigned` 16, `AcceptProved` 12) are not yet replaced by measured ones. By units alone every provisional
+cap fits (`Settle` 16 at 57.3 % and `Exit` 8 at 53.4 % of the memory limit); sizes, with the larger base addresses
+and a spend redeemer per vault input, are expected to bind first.

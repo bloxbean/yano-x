@@ -16,6 +16,9 @@ with `-Dyano.regenerate.plutus=true`). The on-chain ABI (datums and redeemers) i
 | `AssetVaultValidator` | one vault per asset | `VaultId` fields, address network id, anchor identity, shard thread policy id, exit-mode policy id and script hash, claim / deposit / exit key prefixes, status key, profile (batch caps, floor, exit-delay bounds, max pause) |
 | `AssetShardValidator` | one of a vault's 16 nullifier threads (julc shard backend, the default) | shard thread policy id, vault script hash |
 | `AssetShardValidatorAiken` | the same shard, Aiken backend (`aiken/validators/asset_shard.ak`, r23) | shard thread policy id, vault script hash |
+| `ProgrammableVaultExitDelegate` | `e`, the EXIT-only actions of a CIP-113 vault (ADR-061 D2) | the vault's, then the pinned PLB hash and `maxInlineDatumBytes` |
+| `ProgrammableVaultValidator` | `h`, the custody script of a CIP-113 vault (ADR-061 D2, D5) | the same as `e`, then `e`'s hash |
+| `ProgrammableShardValidator` | the shard binding variant of a CIP-113 vault (ADR-061 D5) | shard thread policy id, `h` |
 
 The vault's redeemers are `Settle` (co-signed by a threshold of the referenced v2 anchor's members), `Exit` (per-claim
 proof against the anchor root, or the frozen root in exit mode), `SweepExit` (`SWEEP_UNATTRIBUTED`: one unaccepted
@@ -25,6 +28,42 @@ outpoint, its native assets paid exactly and at least its lovelace, with a `Swee
 in-flight payouts every round, and `Settle` already merges its inputs). Every payout inserts exactly the paid ids, in order, into one shard of the same vault, so a claim
 or an exit leaf is paid at most once on either path. Rules V1–V11 and V13 are enforced on chain; V12 (`Settle` covers
 only anchored reservations) is the members' body check and is not visible to the script.
+
+## CIP-113 custody (ADR-061)
+
+A registered CIP-113 programmable token can never leave the pinned deployment's base script (PLB), so its vault is
+the smart wallet `base(Script(PLB), Inline(Script(h)))`. PLB spends every vault UTxO, and CIP-113 accepts a script
+owner's consent only as that script's withdrawal, so the vault rules run in `h`'s withdraw handler, once per
+transaction, over every input at the vault smart wallet (V14). There is no lead input and no `Follow`.
+
+- `h` (`ProgrammableVaultValidator`) runs `Settle`, `Exit`, `SweepExit`, `AcceptCosigned` and `AcceptProved`. For the
+  EXIT-only actions (`RefundAbsent`, `RefundUncredited`, `BalanceExit`, `Consolidate`) it requires the exit-mode
+  thread in `EXIT` and `e`'s withdrawal with the redeemer `DelegatedActionV1(h, action)`.
+- `e` (`ProgrammableVaultExitDelegate`) learns `h` from that redeemer, requires `h`'s withdrawal and runs the full
+  rules of the action, V11 included. It alone holds the absence verifier. It is derived first; `h` takes its hash.
+- Both have one entrypoint dispatched on the purpose: `withdraw` runs the actions, `publish` accepts only
+  `RegisterCredential`, and `spend` and every other purpose fail.
+- `ProgrammableShardValidator` is `AssetShardValidator` with its vault binding replaced: `Script(h)` among the
+  withdrawals, since no vault transaction has an input whose payment credential is `h`. The native shard is
+  unchanged.
+- V15: no output pays `h` or `e`, and only the continuation sits at the vault smart wallet. V16: a continuation lists
+  at most `floor((maxInlineDatumBytes - 6) / 34)` ids (29 at 1,024 bytes). V17: no certificates and no mint;
+  withdrawals, and their amounts, are not restricted.
+- Deposits carry `ProgrammableDepositDatumV1` with an origin; `Accept`, the deposit-shaped sweep and the refunds key
+  a deposit by its origin `DepositId`, never its outpoint, and use one total deposit-shaped predicate.
+- Payouts carrying the asset go only to key-owned smart wallets of the pinned deployment; lovelace-only payouts may
+  also go to a key-payment address.
+
+The ABI is `META-INF/yano/contracts/asset-gateway/v1/asset-gateway-onchain-cip113-v1.cddl`. The tests compose the
+custody scripts with the pinned CIP-113 v0.0.1 scripts (`src/test/resources/cip113/plutus.json`,
+cip113-programmable-tokens `6b75ba32`, sha256 checked): `ProgrammableVaultCompositionTest` evaluates every script of
+an honest transaction of each action (PLB per vault input, the dispatcher, the transfer delegate, a test transfer
+hook, `h`, `e` and the shard), and `ProgrammableVaultNegativeTest` requires each V14 to V17 negative to fail in the
+intended script. Sizes and costs are in [`BUDGETS.md`](BUDGETS.md#cip-113-custody-adr-061).
+
+Each `@OnchainLibrary` call stays small, but a julc `@MultiValidator` with one `@Entrypoint` per purpose compiled
+to about 4,300 bytes more than one entrypoint dispatching on the script purpose itself, so the custody scripts use
+one entrypoint.
 
 ## Shard backends (ADR-059 D8c, r23)
 
