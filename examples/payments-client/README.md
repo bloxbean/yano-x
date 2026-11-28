@@ -16,6 +16,9 @@ wallet.
 | Pay with a session | nothing: the browser's session key signs | message |
 | Withdraw | `signData` | message; settlement pays it on L1 |
 
+An **Explorer** tab shows every block and transaction on the chain to anyone,
+without a wallet (see [Explorer](#explorer)).
+
 Network names are never hard-coded. The client reads the chain's intent domain
 from the node and refuses a wallet whose `getNetworkId()` doesn't match the
 chain's address network id. The same build works against a devnet, preview,
@@ -40,6 +43,7 @@ JetBrains Mono), cards, badges and header.
 | Withdraw | Amount (or everything available), destination address and the `RESERVED` -> `SETTLING` -> `PAID` tracker, with the L1 payout tx link. |
 | Pay request | Paste a payment request link (or its QR payload) to preview and pay it, or make a link for your own account. |
 | Review sheet | The last step before every wallet prompt (see below). |
+| Explorer | Public chain data with no wallet: the latest blocks and transactions, block, transaction and account pages, and search (see [Explorer](#explorer)). |
 
 | | |
 |---|---|
@@ -69,6 +73,86 @@ The memo is the requester's own text: it appears as "unverified" and isn't
 signed. Opening the client with such a link opens the pay sheet once the
 account is registered.
 
+## Explorer
+
+The **Explorer** tab (`#/explorer`, next to **Wallet** in the header) is a block
+explorer for the payments chain. It reads only public chain data, so it works
+without connecting a wallet.
+
+| Page | What it shows |
+|---|---|
+| Overview (`#/explorer`) | Tip height, block count, last block time, state root and vault count. A live list of the latest blocks (height, age, messages, certificate signatures, short state root) and a list of the latest transactions that streams new messages as they are finalized. Both have **Load older**. |
+| Block (`#/explorer/block/{height}`) | The header as the node reports it (time, state root, messages root, previous block hash, proposer, signatures), previous/next, and its decoded transactions. |
+| Transaction (`#/explorer/tx/{messageId}`) | Every decoded field (intent id, signer, recipient, amount in display and base units, asset id, vault, L1 address, session terms, nonce, expiry, intent domain), the message's position, topic and sender, the raw body and signed envelope (collapsible), and the receipt or deposit record with **Verify** and any withdrawal claim with its L1 payout link. |
+| Account (`#/explorer/account/{accountId}`) | Registration and owner, balances with **Verify proof**, the account's transactions, and its withdrawals. |
+
+Each transaction row shows its kind (Register, Transfer, Session authorize,
+Session pay, Revoke session, Withdraw, Rotate owner, Deposit (L1), Payout (L1),
+L1 observation, Governance), from and to, the amount in display units, the block
+height and index, the age, the outcome (Accepted, Rejected with its code and a
+readable reason, Credited, Uncredited) and, for deposits and payouts, the L1
+transaction (linked through `explorerTxUrl` when it is a plain 64-hex id). A
+message that does not decode is an **Unknown message** with its topic, size and
+the reason.
+
+The search box takes a block height, a message id or intent id (64 hex), an
+account id (56 hex), or a Cardano address (bech32 or raw hex). An intent id is
+found through its receipt's height and the message there whose envelope hashes
+to it. An address resolves through `addresses/{addressHex}`, and the client
+derives the account id itself as well and refuses a node that names another one.
+
+| | |
+|---|---|
+| ![Explorer overview](docs/screenshots/explorer-overview.png) | ![A block](docs/screenshots/explorer-block.png) |
+| ![A transaction with its receipt verified](docs/screenshots/explorer-tx.png) | ![An account](docs/screenshots/explorer-account.png) |
+
+### How the explorer treats node data
+
+Everything the explorer shows comes from the node and is untrusted:
+
+- **As reported by the node.** Every page says so. Blocks, messages and their
+  order are the node's report. The client decodes message bodies itself; it
+  doesn't take a decoded form from the node.
+- **Verified only by a proof.** An outcome counts as verified only after its
+  **Verify** check passes. The outcome is read from the receipt or deposit record
+  *value* that the state proof covers, not from the view's JSON (a view whose
+  JSON disagrees with its value is shown as **Inconsistent**). The record's key
+  is derived from the message itself (`ap/receipt/` plus the intent id computed
+  from the signed envelope, `ap/deposit/` plus the claim's deposit id), so a
+  node can't prove some other record in its place. Verify then runs the same
+  proof check as the wallet view, at the view's height and root.
+- **Bounded decoding.** The decoder reads only the ledger's own forms, refuses a
+  body over 64 KiB or nested deeper than 8 levels, and never throws: anything
+  else becomes an unknown message. Node responses are checked field by field
+  (heights, hex ids, string lengths), and a page that still can't render the
+  node's data fails alone, behind an error boundary.
+- **Text only.** Node strings are rendered as text, never as HTML. Internal
+  links are built from checked heights and hex ids only.
+
+### Endpoints the explorer reads
+
+All under `/api/v1`, chain-scoped:
+
+| Endpoint | Used for |
+|---|---|
+| `GET app-chain/chains/{chain}/tip` | Tip height and state root (polled every 3 s, every 15 s while the stream is live) |
+| `GET app-chain/chains/{chain}/blocks?limit=` | Latest blocks and the last block time |
+| `GET app-chain/chains/{chain}/blocks/{height}` | Block pages, and the messages behind the transaction lists (cached: a finalized block never changes) |
+| `GET app-chain/chains/{chain}/messages/{messageId}` | Transaction pages and search |
+| `GET app-chain/chains/{chain}/stream` | The live transaction list (SSE `app-message` events), with polling as the fallback |
+| `GET …/payments/info` | Vaults (tickers, decimals) and the deposit observer's topic |
+| `GET …/payments/receipts/{intentId}` | Intent outcomes |
+| `GET …/payments/vaults/{vaultId}/deposits/{txId}/{index}` | Deposit outcomes |
+| `GET …/payments/accounts/{accountId}` and `…/withdrawals` | The account page |
+| `GET …/payments/addresses/{addressHex}` | Address search |
+| `GET app-chain/chains/{chain}/state/proof/{key}?height=`, `POST …/proof/verify` | **Verify** |
+
+The node has no per-account message index (every message is sent by a member
+key, so `messages/by-sender` doesn't find an account), so the account page scans
+the newest 50 blocks and offers **Scan 50 older blocks**, up to 500. The latest
+blocks list pages up to 100 blocks; further back, open a block and use
+previous/next, or search a height.
+
 ## Stack and layout
 
 React 19, Vite, Tailwind CSS 4 (`@tailwindcss/vite`), TanStack Query,
@@ -82,6 +166,8 @@ TypeScript.
 | `src/flows.ts` | Every action, independent of the UI: the intent pipeline (encode, cross-check, review, sign, pre-check, submit), deposit build and verification, sessions, proofs. |
 | `src/state.tsx` | Configuration, chain, wallet and account state, the polled views, the activity this tab submitted, toasts and the pending review. |
 | `src/components/` | Screens, flow sheets and the review sheet. |
+| `src/components/explorer/` | The Explorer: overview, block, transaction and account pages, transaction rows, search, and its queries and SSE stream (`hooks.ts`). Its decoder, chain-response checks, row mapping and search live in `src/lib/` (`explorer.ts`, `chain.ts`, `txrow.ts`, `search.ts`). |
+| `src/route.ts` | The hash routes: the wallet (`#/`, `#/pay?…`) and the explorer (`#/explorer…`). |
 | `src/ui.tsx`, `src/index.css` | UI primitives and design tokens, adapted from the client showcase. |
 
 Every read goes through TanStack Query. Receipts, deposit records and
@@ -280,7 +366,12 @@ deposit verification, the proof binding, session pruning, configuration,
 payment request links and error texts; the intent pipeline refusing an intent
 the node encodes differently or a prepared message that isn't the signed one;
 the review sheet showing the decoded values in full (base units, asset id,
-chain, genesis); and the wallet picker's unsupported-wallet messages.
+chain, genesis); and the wallet picker's unsupported-wallet messages. For the
+explorer: the message decoder on every intent kind from the Java vectors, a
+deposit and a withdrawal captured from a devnet chain, payouts and governance;
+malformed, oversized and deeply nested input; outcomes bound to the record
+value; the row mapping; chain-response checks; routes; search parsing and
+resolution; and component tests of the transaction row and the search box.
 
 ## End-to-end test
 
@@ -304,6 +395,18 @@ PAYMENTS_NODE_URL=http://localhost:7470 npm run screenshots   # refreshes docs/s
 The screenshot run (`e2e/screenshots.spec.ts`) expects the E2E to have run
 first, so DevKit accounts 0 and 1 are registered; it leaves account 2
 unregistered for the onboarding screen.
+
+`e2e/explorer.spec.ts` opens the Explorer without a wallet: it sees blocks and
+transactions on the overview, opens a block and a transaction (raw body, receipt
+proof verified), follows the signer to its account page, and searches by height,
+account id and address. It needs some activity on the chain, so run
+`payments.spec.ts` first on a fresh chain. It doesn't change the chain. To
+refresh only the explorer screenshots:
+
+```bash
+PAYMENTS_NODE_URL=http://localhost:7470 npx playwright test e2e/explorer.spec.ts
+PAYMENTS_NODE_URL=http://localhost:7470 npm run screenshots -- -g explorer
+```
 
 ## Wallet compatibility
 
@@ -343,6 +446,12 @@ wallet signs with, so they can't own an account.
   claims, at most 2,048 claims scanned per page. `reservedFrom.complete` says
   whether that covered every claim; the client labels an incomplete total
   "partial".
+- Explorer: blocks and messages are the node's report. Only an outcome or
+  balance whose **Verify** passed is checked, and only against the node's own
+  verifier and state root (see the proofs item above). The account page finds
+  transactions by scanning recent blocks, not through an index. The live list
+  uses SSE, which can't send the API key header; with `apiKey` set on a node
+  that requires it, the list falls back to polling.
 - Activity lives in this browser tab's memory: a reload starts an empty feed
   (balances, sessions and withdrawals are read from the ledger again).
 - A payment request is shown as a link to copy; the client doesn't draw QR
