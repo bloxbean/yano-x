@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AuthScheme;
 import org.yanoproject.x.assetpayments.contracts.AssetPaymentsContract;
+import org.yanoproject.x.assetpayments.contracts.PaymentsGovernanceV1;
 import org.yanoproject.x.assetpayments.contracts.PaymentsMessageV1;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords;
 import org.yanoproject.x.assets.contracts.AssetAccounts;
@@ -18,6 +19,8 @@ import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
 import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.x.framework.api.appchain.effects.EffectId;
 import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
@@ -134,8 +137,15 @@ final class PaymentsHarness {
             @Override public String chainId() { return CHAIN; }
             @Override public Map<String, String> settings() { return settings; }
             @Override public Optional<AppChainConsensusProfile> consensusProfile() { return profile; }
+            @Override public Optional<AppChainMembershipView> membershipView() { return Optional.of(MEMBERSHIP); }
         });
     }
+
+    /** Three governing members, threshold two; the default sender of {@link #block} is none of them. */
+    static final List<byte[]> MEMBERS = List.of(filled(32, 0x71), filled(32, 0x72), filled(32, 0x73));
+    static final AppChainMembershipView MEMBERSHIP = height -> new AppChainMembershipEpoch(0,
+            MEMBERS.stream().map(HexFormat.of()::formatHex).toList(), 2);
+    static final byte[] DEFAULT_SENDER = filled(32, 0x5e);
 
     /** A minimal v1 consensus profile with effects disabled and the default forward skew. */
     static AppChainConsensusProfile profile(int l1StabilityDepth) {
@@ -161,7 +171,16 @@ final class PaymentsHarness {
                 FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, false, List.of());
     }
 
-    record Message(String topic, byte[] body) { }
+    record Message(String topic, byte[] body, byte[] sender) {
+        Message(String topic, byte[] body) {
+            this(topic, body, DEFAULT_SENDER);
+        }
+    }
+
+    /** One member's copy of a governed command (D14), as its privileged submission would sequence it. */
+    static Message governance(int member, PaymentsGovernanceV1.Command command) {
+        return new Message(PaymentsGovernanceV1.TOPIC, command.encode(), MEMBERS.get(member));
+    }
 
     static Message intent(PaymentsMessageV1 message) {
         return new Message(AssetPaymentsContract.INTENT_TOPIC, message.encode());
@@ -275,14 +294,14 @@ final class PaymentsHarness {
     void block(long timestamp, Message... messages) {
         height++;
         ordinal = 0;
-        byte[] sender = filled(32, 0x5e);
+        byte[] sender = DEFAULT_SENDER;
         List<AppMessage> appMessages = new ArrayList<>();
         for (Message message : messages) {
             long sequence = ++senderSeq;
             appMessages.add(AppMessage.builder()
-                    .messageId(AppMessage.computeMessageId(CHAIN, message.topic(), sender, sequence, 4_000_000_000L,
-                            message.body()))
-                    .chainId(CHAIN).topic(message.topic()).sender(sender).senderSeq(sequence)
+                    .messageId(AppMessage.computeMessageId(CHAIN, message.topic(), message.sender(), sequence,
+                            4_000_000_000L, message.body()))
+                    .chainId(CHAIN).topic(message.topic()).sender(message.sender()).senderSeq(sequence)
                     .expiresAt(4_000_000_000L).body(message.body())
                     .authScheme(AuthScheme.ED25519.getValue()).authProof(new byte[64]).build());
         }

@@ -17,7 +17,8 @@ import java.util.Set;
  *
  * <pre>
  * ap/domain                      DomainRecordV1      genesis domain and settings digest
- * ap/registry/&lt;VaultId&gt;          RegistryEntryV1     genesis asset registry, one vault per asset
+ * ap/registry/&lt;VaultId&gt;          RegistryEntryV1     asset registry, one vault per asset; genesis set,
+ *                                                    status changed only by governance (PaymentsGovernanceV1)
  * ap/account/&lt;AccountId&gt;         AccountRecordV1     owner credential and active grant ids
  * ap/grant/&lt;GrantId&gt;             SessionGrantV1      registered, unrevoked grants
  * ap/usage/&lt;GrantId&gt;&lt;VaultId&gt;    u64                 cumulative session spend
@@ -31,6 +32,9 @@ import java.util.Set;
  * ap/settle-queue-meta/&lt;VaultId&gt;&lt;shard&gt;      [head, tail]
  * ap/settle-batch-seq            [next]              the next settlement batch sequence
  * ap/settle-batch/&lt;u64 be&gt;       SettlementBatchV1   an open asset.settlement.batch effect
+ * ap/gov-seq                     [next]              governance commands decided so far (PaymentsGovernanceV1)
+ * ap/gov-proposals               [* Proposal]        open governance proposals, at most 16
+ * ap/gov-history/&lt;u64 be&gt;       DecisionV1          one write-once record per decided governance command
  * </pre>
  *
  * <p>The used-intent queue is FIFO by insertion. Because every accepted intent expires within
@@ -48,7 +52,7 @@ public final class AssetPaymentsContract {
     public static final String TRANSFER = "TRANSFER";
     /** Owner only (D14): checks feasibility, reserves and writes the claim (D7). */
     public static final String REQUEST_WITHDRAWAL = "REQUEST_WITHDRAWAL";
-    /** The user actions this ledger executes; governed asset commands come in a later milestone. */
+    /** The user actions this ledger executes; governed commands ride {@link PaymentsGovernanceV1#TOPIC} instead. */
     public static final Set<String> ACTIONS = Set.of("REGISTER_ACCOUNT", "AUTHORIZE_SESSION",
             "REVOKE_SESSION", "ROTATE_OWNER", TRANSFER, REQUEST_WITHDRAWAL);
     /** The only action a session grant may carry: a session never withdraws (I11). */
@@ -127,6 +131,18 @@ public final class AssetPaymentsContract {
 
     public static byte[] settleBatchKey(long sequence) {
         return concat(PREFIX, ascii("settle-batch/"), u64(sequence));
+    }
+
+    public static byte[] governanceSequenceKey() {
+        return concat(PREFIX, ascii("gov-seq"));
+    }
+
+    public static byte[] governanceProposalsKey() {
+        return concat(PREFIX, ascii("gov-proposals"));
+    }
+
+    public static byte[] governanceHistoryKey(long sequence) {
+        return concat(PREFIX, ascii("gov-history/"), u64(sequence));
     }
 
     static byte[] u64(long value) {

@@ -3,6 +3,7 @@ package org.yanoproject.x.assetpayments.ledger;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.yanoproject.x.assetpayments.contracts.AssetPaymentsContract;
 import org.yanoproject.x.assetpayments.contracts.PaymentsBodies;
+import org.yanoproject.x.assetpayments.contracts.PaymentsGovernanceV1;
 import org.yanoproject.x.assetpayments.contracts.PaymentsMessageV1;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.AccountRecordV1;
@@ -30,6 +31,7 @@ import org.yanoproject.x.assets.contracts.internal.AssetCbor;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.x.framework.api.appchain.AppChainInfo;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
 import org.yanoproject.x.framework.api.appchain.AppQueryContext;
 import org.yanoproject.x.framework.api.appchain.AppQueryException;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
@@ -58,11 +60,14 @@ import java.util.Optional;
 /**
  * The #109 multi-asset payment ledger (ADR-059 D14): a genesis asset registry, accounts owned by
  * Cardano wallet credentials, session grants, transfers, owner rotation, deposit credit from
- * finalized L1 observations, withdrawal reservation (D7) and payout confirmation (D10). Governed
- * registry changes and the escape hatch come in later stages.
+ * finalized L1 observations, withdrawal reservation (D7), payout confirmation (D10), and the threshold-governed
+ * asset lifecycle and domain {@code PAUSE} / {@code RESUME} ({@link PaymentsGovernance}). The escape hatch comes in a
+ * later stage.
  *
  * <p><b>Inputs.</b> User intents are the bodies of ordinary messages on
- * {@link AssetPaymentsContract#INTENT_TOPIC} ({@link PaymentsMessageV1}). Deposits are credited
+ * {@link AssetPaymentsContract#INTENT_TOPIC} ({@link PaymentsMessageV1}). Governed commands are privileged member
+ * submissions on {@link PaymentsGovernanceV1#TOPIC}, decided once the membership epoch's threshold approves the exact
+ * command bytes. Deposits are credited
  * only from {@code ~l1/<deposit-observer-id>} observations in a finalized block, through
  * {@link DepositAdmission} and {@link AssetAccounts} in the same transition (D6, I1). No command
  * creates value (I3). Claims are confirmed only from {@code ~l1/<payout-observer-id>}
@@ -102,12 +107,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     private final boolean batching;
     /** The claims of one batch: {@code settlement.batch-size}, bounded by what the effect payload limit admits. */
     private final int batchCap;
+    private final PaymentsGovernance governance;
 
-    AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs) {
-        this(settings, maxForwardSkewMs, false, settings.settlement().batchSize());
-    }
-
-    AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs, boolean batching, int batchCap) {
+    AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs, boolean batching, int batchCap,
+                              AppChainMembershipView membership) {
         if (settings.maxIntentTtlMs() <= maxForwardSkewMs) {
             throw new IllegalArgumentException("max-intent-ttl-ms must exceed the chain's maximum forward clock skew");
         }
@@ -120,6 +123,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             throw new IllegalArgumentException("the settlement batch cap is 1..settlement.batch-size");
         }
         this.batchCap = batchCap;
+        this.governance = new PaymentsGovernance(membership, AssetPaymentsContract.domainStatusKey());
     }
 
     @Override
@@ -140,6 +144,9 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     @Override
     public AdmissionResult validate(AppMessage message) {
+        if (PaymentsGovernanceV1.TOPIC.equals(message.getTopic())) {
+            return validatePrivilegedSystemSubmission(message.getTopic(), message.getBody());
+        }
         if (settings.depositTopic().equals(message.getTopic())
                 || settings.payoutTopic().filter(message.getTopic()::equals).isPresent()) {
             return AdmissionResult.accept();
@@ -188,6 +195,28 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         }
     }
 
+    /**
+     * The local operator's submission check for a governed command (D14): a decodable {@link PaymentsGovernanceV1}
+     * command whose vault, if any, is in this chain's registry. Authority is decided in {@code apply()} by the
+     * membership epoch's threshold, never here.
+     */
+    @Override
+    public AdmissionResult validatePrivilegedSystemSubmission(String topic, byte[] body) {
+        if (!PaymentsGovernanceV1.TOPIC.equals(topic)) {
+            return AdmissionResult.reject("asset-payments governs only topic " + PaymentsGovernanceV1.TOPIC);
+        }
+        try {
+            PaymentsGovernanceV1.Command command = PaymentsGovernanceV1.Command.decode(body);
+            if (command.action() instanceof PaymentsGovernanceV1.AssetStatusChange change
+                    && settings.vaults().stream().noneMatch(vault -> vault.vaultId().equals(change.vaultId()))) {
+                return AdmissionResult.reject("UNKNOWN_VAULT");
+            }
+            return AdmissionResult.accept();
+        } catch (RuntimeException invalid) {
+            return AdmissionResult.reject("INVALID_GOVERNANCE_COMMAND");
+        }
+    }
+
     // ------------------------------------------------------------------ transition
 
     @Override
@@ -210,6 +239,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                         .ifPresent(observation -> confirmPayout(state, observation, block));
             } else if (AssetPaymentsContract.INTENT_TOPIC.equals(topic)) {
                 processIntent(state, message.getBody(), block);
+            } else if (PaymentsGovernanceV1.TOPIC.equals(topic)) {
+                processGovernance(state, message, block);
             }
             // Every other topic (framework '~' topics included) is not this ledger's.
         }
@@ -259,6 +290,18 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         }
         if (pruned > 0) {
             state.put(AssetPaymentsContract.usedQueueMetaKey(), PaymentsRecords.encodeU64s(head, meta[1]));
+        }
+    }
+
+    // ------------------------------------------------------------------ governance (D14, D8a)
+
+    private void processGovernance(AssetAccounts.Store state, AppMessage message, AppBlock block) {
+        StagedStore staged = new StagedStore(state);
+        try {
+            governance.process(staged, message.getSender(), message.getBody(), block);
+            staged.commit();
+        } catch (RuntimeException unexpected) {
+            // Deterministic on every member; the staged writes are dropped and the chain continues.
         }
     }
 
