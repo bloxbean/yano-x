@@ -18,6 +18,12 @@ dependencies {
     compileOnly libs.yaci.core
     compileOnly libs.cardano.client.crypto
     compileOnly libs.cbor
+    // The payments domain API (#109 §7): its deposit builder and JSON use the host's CCL and Jackson.
+    compileOnly libs.cardano.client.core
+    compileOnly libs.cardano.client.address
+    compileOnly libs.cardano.client.common
+    compileOnly libs.cardano.client.quicktx
+    compileOnly libs.jackson.databind
 
     testImplementation project(':framework:api')
     testImplementation rootProject.ext.yanoModule('yano-runtime')
@@ -33,6 +39,8 @@ dependencies {
     testImplementation libs.cardano.client.common
     testImplementation libs.cardano.client.core
     testImplementation libs.cardano.client.crypto
+    testImplementation libs.cardano.client.quicktx
+    testImplementation libs.jackson.databind
     testImplementation libs.cbor
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine

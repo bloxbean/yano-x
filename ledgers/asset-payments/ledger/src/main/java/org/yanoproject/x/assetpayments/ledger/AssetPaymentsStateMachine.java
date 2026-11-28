@@ -102,6 +102,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     private final boolean batching;
     /** The claims of one batch: {@code settlement.batch-size}, bounded by what the effect payload limit admits. */
     private final int batchCap;
+    private final PaymentsViewQueries views;
 
     AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs) {
         this(settings, maxForwardSkewMs, false, settings.settlement().batchSize());
@@ -120,6 +121,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             throw new IllegalArgumentException("the settlement batch cap is 1..settlement.batch-size");
         }
         this.batchCap = batchCap;
+        this.views = new PaymentsViewQueries(settings);
     }
 
     @Override
@@ -797,8 +799,9 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                         SettlementQueries.decodeSequence(request))).orElse(new byte[0]);
                 case SettlementQueries.DEPOSIT -> store.get(depositRecordKey(Hash32.of(request)))
                         .orElse(new byte[0]);
-                default -> throw new AppQueryException(AppQueryException.Code.UNSUPPORTED,
-                        "unknown asset-payments query " + path);
+                // The read-only views of the payments domain API (#109 §7) live in their own class.
+                default -> views.query(path, request, store).orElseThrow(() -> new AppQueryException(
+                        AppQueryException.Code.UNSUPPORTED, "unknown asset-payments query " + path));
             };
         } catch (AppQueryException unsupported) {
             throw unsupported;
