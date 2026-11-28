@@ -233,8 +233,10 @@ async function refresh(): Promise<void> {
     info = await api.info();
     $('chain-badge').textContent = $('chain-badge').textContent!.replace(/height \d+/, `height ${info.committed.height}`);
     view = await api.account(account.accountId);
-    grants = view.registered ? (await api.sessions(account.accountId)).grants : [];
-    localSessions = await pruneSessions(await listSessions(info.chainId, account.accountId));
+    const sessions = view.registered ? await api.sessions(account.accountId) : undefined;
+    grants = sessions?.grants ?? [];
+    localSessions = await pruneSessions(await listSessions(info.chainId, account.accountId),
+      sessions?.committed.height ?? view.committed.height);
     renderAccount();
     renderSessions();
     if (view.registered) await renderWithdrawals();
@@ -245,17 +247,20 @@ async function refresh(): Promise<void> {
 }
 
 /** Deletes local session keys that can never pay again (expired, rejected, revoked or never executed). */
-async function pruneSessions(sessions: StoredSession[]): Promise<StoredSession[]> {
+async function pruneSessions(sessions: StoredSession[], grantsHeight: number): Promise<StoredSession[]> {
   const committed = new Set(grants.map((grant) => grant.grantId));
   const kept: StoredSession[] = [];
   for (const session of sessions) {
-    let receiptFound: boolean | undefined;
+    let receiptHeight: number | undefined;
     if (!committed.has(session.grantId) && session.notAfterMs > Date.now()) {
       // The grant id is the AUTHORIZE_SESSION intent id: its receipt says whether that intent was decided.
-      receiptFound = await api.receipt(session.grantId).then((receipt) => receipt.found, () => undefined);
+      receiptHeight = await api.receipt(session.grantId).then((receipt) => receipt.receipt?.height, () => undefined);
     }
-    if (isStale(session, committed, receiptFound, Date.now(), info.maxIntentTtlMs)) await deleteSession(session.id);
-    else kept.push(session);
+    if (isStale(session, committed, grantsHeight, receiptHeight, Date.now(), info.maxIntentTtlMs)) {
+      await deleteSession(session.id);
+    } else {
+      kept.push(session);
+    }
   }
   return kept;
 }

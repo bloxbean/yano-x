@@ -25,12 +25,16 @@ export const MAX_SESSION_VALIDITY_MS = 24 * 3_600_000;
  * Whether a local session key can be deleted: it has expired, or its grant is no longer committed although its
  * AUTHORIZE_SESSION intent has a receipt (rejected, or accepted and since revoked or replaced), or that intent can no
  * longer execute (its envelope expired without a receipt). A key whose intent is still pending is kept.
+ *
+ * {@code committedGrants} is the sessions view at {@code grantsHeight}; {@code receiptHeight} is the height the
+ * intent's receipt was committed at (undefined: none, or it could not be read). A receipt above the view's height may
+ * be a grant committed after the view was read, so it deletes nothing.
  */
-export function isStale(session: StoredSession, committedGrants: Set<string>, receiptFound: boolean | undefined,
-                        nowMs: number, maxIntentTtlMs: number): boolean {
+export function isStale(session: StoredSession, committedGrants: Set<string>, grantsHeight: number,
+                        receiptHeight: number | undefined, nowMs: number, maxIntentTtlMs: number): boolean {
   if (session.notAfterMs <= nowMs) return true;
   if (committedGrants.has(session.grantId)) return false;
-  if (receiptFound === true) return true;
+  if (receiptHeight !== undefined) return receiptHeight <= grantsHeight;
   return session.createdAtMs + maxIntentTtlMs + 60_000 < nowMs;
 }
 
