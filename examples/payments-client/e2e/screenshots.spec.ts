@@ -1,7 +1,8 @@
 /**
  * Screenshots of the main screens for the README and the PR (npm run screenshots), taken on a DevKit devnet with the
  * node from e2e/devkit-node.sh. Run the E2E first so DevKit accounts 0 and 1 are registered and funded; account 2 is
- * left unregistered for the onboarding screen.
+ * left unregistered for the onboarding screen. The explorer screenshots need no wallet:
+ * npm run screenshots -- -g explorer
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -153,5 +154,38 @@ test.describe.serial('screenshots', () => {
     await grant.getByTestId('session-revoke').click();
     await page.getByTestId('review-sign').click();
     await expect(latest(page).getByTestId('outcome')).toHaveText(/^ACCEPTED/);
+  });
+
+  test('explorer: overview, block, transaction and account (no wallet)', async ({ page }) => {
+    await page.goto('/#/explorer');
+    const txs = page.getByTestId('latest-transactions').getByTestId('tx-row');
+    await expect(txs.first()).toBeVisible();
+    await expect(page.getByTestId('stream-mode').first()).toHaveText('Live');
+    // Every visible row has settled on its outcome.
+    await expect(page.getByTestId('latest-transactions').locator('.skeleton')).toHaveCount(0);
+    await txs.first().getByTestId('proof-verify').click();
+    await expect(txs.first().getByTestId('proof-verdict')).toHaveText('Verified');
+    await shot(page, 'explorer-overview');
+
+    // The block of the newest session payment (an E2E run leaves one), else the newest block.
+    const pays = page.getByTestId('latest-transactions').locator('[data-testid="tx-row"][data-kind="session-pay"]');
+    await ((await pays.count()) ? pays.first() : txs.first()).getByTestId('tx-position').click();
+    await expect(page.getByTestId('block-facts')).toBeVisible();
+    await expect(page.getByTestId('block-transactions').locator('.skeleton')).toHaveCount(0);
+    await shot(page, 'explorer-block', true);
+
+    await page.getByTestId('block-transactions').getByTestId('tx-kind').first().click();
+    await expect(page.getByTestId('tx-facts')).toBeVisible();
+    await page.getByTestId('record-panel').getByTestId('proof-verify').click();
+    await expect(page.getByTestId('record-panel').getByTestId('proof-verdict')).toContainText('verified at height');
+    await page.getByTestId('raw-body').locator('summary').click();
+    await shot(page, 'explorer-tx', true);
+
+    await page.getByTestId('tx-facts').getByTestId('detail-account').first().click();
+    await expect(page.getByTestId('account-transactions').getByTestId('tx-row').first()).toBeVisible();
+    await expect(page.getByTestId('account-page').locator('.skeleton')).toHaveCount(0);
+    await page.getByTestId('explorer-balances').getByTestId('proof-verify').first().click();
+    await expect(page.getByTestId('explorer-balances').getByTestId('proof-verdict').first()).toContainText('verified');
+    await shot(page, 'explorer-account');
   });
 });
