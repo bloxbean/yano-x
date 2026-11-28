@@ -78,6 +78,46 @@ class ProgrammableVaultTxAssemblerTest {
                 .isEqualTo(HexFormat.of().formatHex(world.custody.custodyHash()));
     }
 
+    @Test
+    void bothBackendsDeriveJulcsParameterApplicationOfTheirTemplates() throws Exception {
+        ProgrammableWorld world = new ProgrammableWorld();
+        java.nio.file.Path onchain = java.nio.file.Path.of("../asset-gateway-onchain/src/main/resources/META-INF/plutus");
+        for (ProgrammableBackend backend : ProgrammableBackend.values()) {
+            String suffix = backend == ProgrammableBackend.AIKEN ? "Aiken" : "";
+            ProgrammableBackend.Custody custody = backend.derive(world.parameters);
+            List<org.julclang.core.PlutusData> params = new ArrayList<>();
+            for (byte[] data : world.parameters.delegateData()) {
+                params.add(org.julclang.core.cbor.PlutusDataCborDecoder.decode(data));
+            }
+            assertThat(HexFormat.of().formatHex(custody.exitDelegateHash())).as("%s e", backend)
+                    .isEqualTo(org.julclang.clientlib.JulcScriptAdapter.scriptHash(template(onchain.resolve(
+                            "ProgrammableVaultExitDelegate" + suffix + ".plutus.json")).applyParams(
+                            params.toArray(new org.julclang.core.PlutusData[0]))));
+            params.add(org.julclang.core.PlutusData.bytes(custody.exitDelegateHash()));
+            assertThat(HexFormat.of().formatHex(custody.custodyHash())).as("%s h", backend)
+                    .isEqualTo(org.julclang.clientlib.JulcScriptAdapter.scriptHash(template(onchain.resolve(
+                            "ProgrammableVaultValidator" + suffix + ".plutus.json")).applyParams(
+                            params.toArray(new org.julclang.core.PlutusData[0]))));
+            ShardBackend shardBackend = backend == ProgrammableBackend.AIKEN ? ShardBackend.AIKEN : ShardBackend.JULC;
+            assertThat(HexFormat.of().formatHex(shardBackend.deriveProgrammable(PayoutWorld.SHARD_POLICY,
+                    custody.custodyHash(), 0).scriptHash())).as("%s shard", backend)
+                    .isEqualTo(org.julclang.clientlib.JulcScriptAdapter.scriptHash(template(onchain.resolve(
+                            "ProgrammableShardValidator" + suffix + ".plutus.json")).applyParams(
+                            org.julclang.core.PlutusData.bytes(PayoutWorld.SHARD_POLICY),
+                            org.julclang.core.PlutusData.bytes(custody.custodyHash()))));
+        }
+        assertThat(ProgrammableBackend.AIKEN.derive(world.parameters).custodyHash())
+                .isNotEqualTo(world.custody.custodyHash());
+    }
+
+    @Test
+    void anAssembledSettlePassesEveryScriptUnderTheAikenBackend() throws Exception {
+        ProgrammableWorld world = new ProgrammableWorld(ProgrammableBackend.AIKEN, ShardBackend.AIKEN, false);
+        assertThat(world.evaluate(settle(world, 4, 3))).hasSize(6);
+        assertThat(world.evaluate(ProgrammableDepositBuilderTest.deposit(world,
+                ProgrammableDepositBuilderTest.single(TOKEN, 1_000)).assembled())).hasSize(4);
+    }
+
     static org.julclang.core.Program template(java.nio.file.Path file) throws Exception {
         java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\"cborHex\"\\s*:\\s*\"([0-9a-fA-F]+)\"")
                 .matcher(java.nio.file.Files.readString(file));
