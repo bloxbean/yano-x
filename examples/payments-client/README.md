@@ -24,6 +24,42 @@ from the node and refuses a wallet whose `getNetworkId()` doesn't match the
 chain's address network id. The same build works against a devnet, preview,
 preprod or mainnet node.
 
+## Identifiers
+
+Three identifiers appear in the client. They are different things, and all of
+them are written for the chain's network: the intent domain's address network
+id, where 1 is mainnet and 0 (any other value) is a testnet.
+
+| Identifier | What it is | How the client writes it |
+|---|---|---|
+| Account id | The ledger's name for an account: `blake2b-224("acct\0" ‖ initial credential kind ‖ key hash)` (ADR-059 D14a). It is fixed when the account registers and stays the same after an owner rotation. It is not an address and holds nothing on L1. | Bech32 over its 28 bytes (BIP-173, the codec CIP-19 addresses use) with HRP `acct` on mainnet and `acct_test` on a testnet, for example `acct_test1h8srr6086wultxhxturgqcyglxn3m4nxymq3dw826pewvzu7whj`. The hex form (56 characters) is shown next to it on the account card, the account page, transaction details and every review. |
+| Owner | The key that currently owns the account (`owner` in the account view): a payment key or a stake key. | The L1 address of that key alone. A payment key is an enterprise address (CIP-19 type 6, header `0x60 \| network`), shown as **Owner (payment key)**: `addr_test1v…` / `addr1v…`. A stake key is a reward address (type 14, header `0xe0 \| network`): `stake_test1u…` / `stake1u…`. |
+| Wallet address | The address the connected CIP-30 wallet registered with and signs with, usually a base address with a stake part. | Its own bech32, labelled **Your wallet address** on the account card. |
+
+The account is owned by the wallet's key, so people can pay it by the account id
+or by any address of that key: the address resolves to the account its key's
+credential derives to. **Send**, session payments and payment requests take
+either. The client parses what was typed (checksum, prefix, network), resolves
+an address through `addresses/{addressHex}`, and derives the account id itself
+as well. It shows the account and whether it is registered before the review,
+and the review shows the address as typed and the account paid, as bech32 and
+hex. It refuses, before anything is signed:
+
+- an account id or address for the other network, with a message such as "This
+  is a mainnet account id; this ledger is on testnet";
+- a bad checksum, mixed case, or a wrong length;
+- an account that isn't registered (the ledger would reject it with
+  `UNKNOWN_RECIPIENT`);
+- an address whose key no longer owns the account it derives to (after an owner
+  rotation). An account whose owner rotated to a new key can't be found from
+  the new key's address, so pay it by its account id;
+- a node whose answer for an address is neither the account derived here nor an
+  account whose committed owner is that address's key.
+
+Search, explorer links (`#/explorer/account/acct_test1…`) and the **Act for
+another account** field accept both forms. Links the client makes use the
+bech32 id, and old hex links still work.
+
 ## Screens
 
 The client is a single-page React app styled as a sibling of the Yano X client
@@ -35,10 +71,10 @@ JetBrains Mono), cards, badges and header.
 | Welcome | The chain, its network badge (from the intent domain) and the assets in the vault registry, with a Connect button. |
 | Wallet picker | Every CIP-30 wallet injected into the page (`yano`, `yacidevkit`, Eternl, Lace, ...), the stake-key option, and the "Unsupported wallet" message for a wallet without `signData` or on another network. |
 | Onboarding | Registration as one step: sign a message, no L1 transaction and no fee. |
-| Dashboard | The account, per-asset balance cards (available, reserved with a "partial" badge, min-ADA credit, registry status, the full asset id and a **Verify proof** button), action buttons, and tabs for sessions, withdrawals and the ledger (intent domain and vault registry, each vault with its proof). |
+| Dashboard | The account id (bech32, with its hex and the owner's address under **hex and owner**), **Your wallet address**, per-asset balance cards (available, reserved with a "partial" badge, min-ADA credit, registry status, the full asset id and a **Verify proof** button), action buttons, and tabs for sessions, withdrawals and the ledger (intent domain and vault registry, each vault with its proof). |
 | Activity | Every action this tab submitted, followed to its receipt (`ACCEPTED`, `REJECTED <reason>` with a readable explanation, or `EXPIRED`) or deposit record, with a **Verify receipt** button. |
 | Deposit | Asset and amount, then the review decoded from the transaction, `signTx`, and a status that follows the deposit to `CREDITED`. |
-| Send | Recipient (account id or address), asset and amount, then the review. |
+| Send | Recipient (account id, bech32 or hex, or a Cardano address), resolved to its account with its registration before the review; asset and amount; then the review with the address and the account in both forms. |
 | Session | Limits and expiry, one wallet prompt. The session card shows used and remaining limits, pays without a prompt, and has **Revoke**. |
 | Withdraw | Amount (or everything available), destination address and the `RESERVED` -> `SETTLING` -> `PAID` tracker, with the L1 payout tx link. |
 | Pay request | Paste a payment request link (or its QR payload) to preview and pay it, or make a link for your own account. |
@@ -51,8 +87,9 @@ JetBrains Mono), cards, badges and header.
 | ![Onboarding](docs/screenshots/03-onboarding.png) | ![Register review](docs/screenshots/04-review-register.png) |
 | ![Dashboard](docs/screenshots/10-dashboard.png) | ![Withdrawals](docs/screenshots/11-withdrawals.png) |
 | ![Deposit review, decoded from the transaction](docs/screenshots/06-review-deposit.png) | ![Deposit credited](docs/screenshots/07-deposit-credited.png) |
-| ![Transfer review](docs/screenshots/08-review-transfer.png) | ![Authorize a session](docs/screenshots/09-session-authorize.png) |
-| ![Withdraw](docs/screenshots/12-withdraw.png) | ![Pay request](docs/screenshots/13-pay-request.png) |
+| ![Send to an address, resolved to its account](docs/screenshots/08-send-by-address.png) | ![Transfer review with the address and the account](docs/screenshots/08-review-transfer.png) |
+| ![Authorize a session](docs/screenshots/09-session-authorize.png) | ![Withdraw](docs/screenshots/12-withdraw.png) |
+| ![Pay request](docs/screenshots/13-pay-request.png) | |
 
 ![Phone width](docs/screenshots/14-phone.png)
 
@@ -62,13 +99,16 @@ A payment request is a link that asks for an exact amount of one asset to one
 account on one chain:
 
 ```
-<client>#/pay?v=1&chain=<chainId>&to=<accountId>&asset=<lovelace | policyId.assetNameHex>&amount=<base units>&memo=<text>
+<client>#/pay?v=1&chain=<chainId>&to=<recipient>&asset=<lovelace | policyId.assetNameHex>&amount=<base units>&memo=<text>
 ```
 
-The amount is in base units and the asset is the full asset id, so a link
-doesn't depend on the node's display metadata. The client refuses a link for
-another chain, for an asset this ledger has no vault for, or for your own
-account. Paying it is an ordinary owner-signed transfer with the usual review.
+Links the client makes carry the requester's bech32 account id in `to`. It also
+accepts a 56-hex account id (older links) or a Cardano address, which it
+resolves like a typed **Send** recipient. The amount is in base units and the
+asset is the full asset id, so a link doesn't depend on the node's display
+metadata. The client refuses a link for another chain, for a recipient on the
+other network or with a bad checksum, for an unregistered recipient, for an
+asset this ledger has no vault for, or for your own account. Paying it is an ordinary owner-signed transfer with the usual review.
 The memo is the requester's own text: it appears as "unverified" and isn't
 signed. Opening the client with such a link opens the pay sheet once the
 account is registered.
@@ -83,8 +123,8 @@ without connecting a wallet.
 |---|---|
 | Overview (`#/explorer`) | Tip height, block count, last block time, state root and vault count. A live list of the latest blocks (height, age, messages, certificate signatures, short state root) and a list of the latest transactions that streams new messages as they are finalized. Both have **Load older**. |
 | Block (`#/explorer/block/{height}`) | The header as the node reports it (time, state root, messages root, previous block hash, proposer, signatures), previous/next, and its decoded transactions. |
-| Transaction (`#/explorer/tx/{messageId}`) | Every decoded field (intent id, signer, recipient, amount in display and base units, asset id, vault, L1 address, session terms, nonce, expiry, intent domain), the message's position, topic and sender, the raw body and signed envelope (collapsible), and the receipt or deposit record with **Verify** and any withdrawal claim with its L1 payout link. |
-| Account (`#/explorer/account/{accountId}`) | Registration and owner, balances with **Verify proof**, the account's transactions, and its withdrawals. |
+| Transaction (`#/explorer/tx/{messageId}`) | Every decoded field (intent id, the account and, for an owner signature, its signing key as an owner address, recipient, amount in display and base units, asset id, vault, L1 address, session terms, nonce, expiry, intent domain), the message's position, topic and sender, the raw body and signed envelope (collapsible), and the receipt or deposit record with **Verify** and any withdrawal claim with its L1 payout link. |
+| Account (`#/explorer/account/{acct…}`) | The bech32 account id with its hex, registration, the owner as an L1 address, balances with **Verify proof**, the account's transactions, and its withdrawals. |
 
 Each transaction row shows its kind (Register, Transfer, Session authorize,
 Session pay, Revoke session, Withdraw, Rotate owner, Deposit (L1), Payout (L1),
@@ -96,10 +136,14 @@ message that does not decode is an **Unknown message** with its topic, size and
 the reason.
 
 The search box takes a block height, a message id or intent id (64 hex), an
-account id (56 hex), or a Cardano address (bech32 or raw hex). An intent id is
-found through its receipt's height and the message there whose envelope hashes
-to it. An address resolves through `addresses/{addressHex}`, and the client
-derives the account id itself as well and refuses a node that names another one.
+account id (`acct…` bech32 or 56 hex), or a Cardano address (bech32 or raw hex),
+and refuses an id or address for the other network. An intent id is found
+through its receipt's height and the message there whose envelope hashes to it.
+An address resolves through `addresses/{addressHex}`; the client derives the
+account id itself as well and follows the node only to that account, or to an
+account whose committed owner is the address's key. Account links use the
+bech32 id; an old hex link opens the same page and the address bar switches to
+the bech32 link.
 
 | | |
 |---|---|
@@ -162,7 +206,7 @@ TypeScript.
 
 | Path | Role |
 |---|---|
-| `src/lib/` | The tested logic: the intent encoder, CBOR, COSE, deposit verification, CIP-30 wallet access, session keys, proof binding, configuration and the API client. Also readable error codes (`errors.ts`) and payment request links (`payrequest.ts`). |
+| `src/lib/` | The tested logic: the intent encoder, CBOR, COSE, deposit verification, CIP-30 wallet access, session keys, proof binding, configuration and the API client. Also readable error codes (`errors.ts`), payment request links (`payrequest.ts`), the bech32 codec (`bech32.ts`), network-aware account ids, owner addresses and recipients (`ids.ts`), and recipient resolution with the node (`recipient.ts`). |
 | `src/flows.ts` | Every action, independent of the UI: the intent pipeline (encode, cross-check, review, sign, pre-check, submit), deposit build and verification, sessions, proofs. |
 | `src/state.tsx` | Configuration, chain, wallet and account state, the polled views, the activity this tab submitted, toasts and the pending review. |
 | `src/components/` | Screens, flow sheets and the review sheet. |
@@ -361,12 +405,16 @@ the client's origin in the node's CORS configuration. Eternl and Lace inject
 ## Tests
 
 `npm test` runs the unit tests (vitest) and the component tests
-(Testing Library with jsdom): the intent encoder against the Java vectors,
+(Testing Library with jsdom): the bech32 codec against the BIP-173 checksum and
+segwit vectors; account ids, owner addresses (the CIP-19 enterprise and reward
+vectors on both networks) and recipients, with wrong-network, checksum, case and
+length refusals; recipient resolution; the intent encoder against the Java vectors,
 deposit verification, the proof binding, session pruning, configuration,
 payment request links and error texts; the intent pipeline refusing an intent
 the node encodes differently or a prepared message that isn't the signed one;
 the review sheet showing the decoded values in full (base units, asset id,
-chain, genesis); and the wallet picker's unsupported-wallet messages. For the
+chain, genesis, and the recipient as address and account); the Send form's
+recipient check; and the wallet picker's unsupported-wallet messages. For the
 explorer: the message decoder on every intent kind from the Java vectors, a
 deposit and a withdrawal captured from a devnet chain, payouts and governance;
 malformed, oversized and deeply nested input; outcomes bound to the record
@@ -376,8 +424,11 @@ resolution; and component tests of the transaction row and the search box.
 ## End-to-end test
 
 `e2e/payments.spec.ts` drives the client with the DevKit wallet. It covers
-registering two accounts, a 25 ADA deposit (`signTx`) credited by the observer,
-a transfer, a payment request made by one account and paid by the other, a
+registering two accounts, the account card's bech32 account id and wallet
+address, a 25 ADA deposit (`signTx`) credited by the observer, a mainnet account
+id refused in **Send**, a transfer by account id and one by the recipient's
+wallet address (resolved before the review, which shows both), a payment request
+made by one account (with its bech32 id) and paid by the other, a
 session (one payment without a wallet prompt, one refused with
 `SESSION_LIMIT`, then a revoke), a withdrawal shown as reserved, verified
 balance and receipt proofs, and the unsupported-wallet message. It skips itself
@@ -398,8 +449,11 @@ unregistered for the onboarding screen.
 
 `e2e/explorer.spec.ts` opens the Explorer without a wallet: it sees blocks and
 transactions on the overview, opens a block and a transaction (raw body, receipt
-proof verified), follows the signer to its account page, and searches by height,
-account id and address. It needs some activity on the chain, so run
+proof verified), follows the signer to its account page (bech32 id with its hex,
+owner address), opens an owner-signed transfer's signing key, and searches by
+height, account id (bech32 and hex) and address. It also checks that an old hex
+account link resolves to the bech32 one and that a mainnet account id is refused
+in search and as a link. It needs some activity on the chain, so run
 `payments.spec.ts` first on a fresh chain. It doesn't change the chain. To
 refresh only the explorer screenshots:
 
