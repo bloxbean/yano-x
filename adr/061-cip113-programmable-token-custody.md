@@ -1,8 +1,8 @@
 # ADR-061 — Custody of CIP-113 programmable tokens in the asset gateway
 
-- **Status:** Proposed (2026-11-28, r4). Design only; no implementation code. Three decisions were
-  taken by the maintainer before drafting (§1.3); the open questions are in §13. r2 to r4 answer
-  three review rounds by Fable and Codex (revision history).
+- **Status:** Proposed (2026-11-28, r5). Three decisions were taken by the maintainer before
+  drafting (§1.3); the open questions are in §13. r2 to r4 answer three review rounds by Fable and
+  Codex; r5 aligns the text with the C1/C2 implementation and its review fixes (revision history).
 - **Extends:** ADR-059 r23, the Cardano asset gateway and its custody profile
   `anchored-claim-vault-v1` (PR #111).
 - **Issues:** [#110](https://github.com/bloxbean/yano-x/issues/110) (generic Cardano asset ingress
@@ -507,7 +507,7 @@ vault input and output under any action. Members require `TransferAct` (D13).
 |---|---|
 | `Settle` | Recipients are smart wallets. Otherwise as 059. |
 | `Exit` | As 059. In exit mode, against `frozenRoot`. |
-| `SweepExit` | It spends one non-accepted vault input. Output 0 pays a **smart wallet**, because registered tokens may not leave PLB. It needs the transfer hook of every registered policy in that input (D10), and it fails while any of them refuses. *(r3)* **For a deposit-shaped input** (D6's total predicate) the withdrawal key is the `DepositId` of its datum origin, not the outpoint; the input's native assets must equal the committed ones and its lovelace must be at least the committed amount. Governance reserves such a sweep only for an `UNCREDITED` id, so no deposit proof is needed on chain and the redeemer is unchanged. `RECREATED` outputs whose id is absent are **not sweepable in NORMAL**: they are donor dust and leave in exit mode by `RefundAbsent` (D6). |
+| `SweepExit` | It spends one non-accepted vault input. Output 0 pays a **smart wallet**, because registered tokens may not leave PLB. It needs the transfer hook of every registered policy in that input (D10), and it fails while any of them refuses. *(r3)* **For a deposit-shaped input** (D6's total predicate) the withdrawal key is the `DepositId` of its datum origin, not the outpoint; the input's native assets must equal the committed ones and its lovelace must be at least the committed amount. Governance reserves such a sweep only for an `UNCREDITED` id, so no deposit proof is needed on chain and the redeemer is unchanged. *(r5)* **The lovelace commitment** is the claim value's **last** entry, `[h'', h'', lovelace]` (empty policy and name): it trails the native-asset entries even though ADA sorts first in canonical value order, so the native entries keep their canonical positions and the script reads the lovelace from the end. *(r5)* **A lovelace-only sweep** (an input holding no registered token) may pay a key address instead of a smart wallet, as a lovelace-only claim may (D7). `RECREATED` outputs whose id is absent are **not sweepable in NORMAL**: they are donor dust and leave in exit mode by `RefundAbsent` (D6). |
 | `AcceptCosigned`, `AcceptProved` | Each input must be deposit-shaped (D6's total predicate) and hold only `A` and lovelace. `DepositId` is computed from the input's **datum origin**, not its outref (D6). Otherwise as 059-D8f. |
 | `RefundAbsent`, `RefundUncredited` | Delegated to `e`. EXIT only. One deposit-shaped vault input. `DepositId` comes from the datum origin. The input's exact value is paid to `refundAddress`, a smart wallet, with a hook for every registered policy it holds. |
 | `BalanceExit` | Delegated to `e`. EXIT only. One output pays `amount` of `A` plus at least `vaultLovelace` to a smart wallet. The continuation lists the escape id. |
@@ -790,7 +790,7 @@ rejects script recipients for the same reason.
 | `ForcedWithdrawalV1.recipient` (059-D8g R3) | A non-smart-wallet recipient for `A` is `INFEASIBLE_RECIPIENT`. |
 | `refund_address` | D6. |
 | `BalanceExit` recipient | Chosen by the holder at exit time. A wrong one fails in the transfer delegate, and the holder rebuilds. |
-| Sweep recipients | D5. |
+| Sweep recipients | D5: a smart wallet for any input holding a registered token; *(r5)* a lovelace-only sweep may pay an ordinary 059-D7 recipient. |
 | `MIGRATE` targets | With 059-M4b, only a vault on the **same PLB** (r2, finding 10): the old transfer delegate counts only outputs at its own PLB, so a migration across PLB deployments cannot pass. |
 
 **Script side.** The custody script compares raw bytes rebuilt from the Plutus address, as 059 does.
@@ -1035,6 +1035,42 @@ insertion order:
     input counts as contention.
 11. **Splitting.** 059-D9's halving applies, with the refused-recipient rule of D7.
 
+**Runtime wiring (r5).** The `asset-settlement` executor carries the custody kind in its vault pins:
+a CIP-113 vault's pins name the smart wallet, the deployment, `e`, the custody backend, the
+addresses of the params UTxO and the registry nodes, the deployment's reference-script UTxOs and the
+substandard. At startup the selected backend's `h` and `e` for the vault's parameters must equal
+the pinned hashes (`ProgrammableBackend.requireDerived`, D3), and the profile's `Settle` and `Exit`
+caps must fit V16's cap (29 at 1,024 bytes), or startup fails. The owner's `Settle` and co-signed
+`Accept` are built through this assembler; the live wiring is the params UTxO in the node's own L1
+view and the approved tuple of its dispatcher, read from committed state. The acceptance scanner
+looks deposits up by their origin-keyed `DepositId`. Members check a CIP-113 request whole (D13).
+Reconciliation counts only spendable custody (D14(a)).
+
+*Implementation choices (r5):*
+- **Dispatcher-only wiring.** A vault transaction decodes only field 0 of the params datum, so a
+  key credential in field 1 (which the pinned params validator accepts) never blocks it. Admission
+  keeps each field's credential kind: the tuple's identity includes the kinds, and a key field never
+  matches a script withdrawal. `cip113.issuance-logic-kind` pins the kind of wiring version 0.
+- **Exact tuple for deposits.** The user deposit builder requires the live params' four fields to be
+  exactly an approved tuple, and the final transaction to stay within the observer's reported
+  limits (32 reference inputs, 16 script withdrawals); otherwise it refuses.
+- **Key-credential hooks are refused** before anything is built. A hook keyed by a verification key
+  would need that key's signature, which D12 requirement 2 excludes, and a reward balance read by key
+  credential.
+- **One deployment per domain.** Every CIP-113 vault of a domain is on one deployment, with one
+  custody backend and one wiring version 0. The wiring observer's `params-policy` must be that
+  deployment's, so each wiring observation is recorded for exactly it. The wiring observer's id is
+  part of the settings digest.
+- **Datum indexes** are exact unsigned 64-bit values through decoding, the claim and the
+  `DepositId` hash.
+
+*Deferred (r5):* the proved CIP-113 `Accept` and the relayer's CIP-113 `Exit` (the SDK and
+third-party builders use the assembler directly); live reward-balance reads (the host offers no
+reward-account read to an effect, so the runtime withdraws zero and a positive balance makes the
+transaction fail on L1 until it is rebuilt); an adapter for any substandard other than the Yano X
+test substandard; the `DepositId`-keyed `SWEEP_UNATTRIBUTED` reservation (059 has no governed sweep
+reservation in the ledger yet, so both sweeps land together).
+
 ### D11. The escape hatch under issuer control (question h)
 
 **Unchanged.** 059-D8g is unchanged at the domain level: the forced inbox, triggers (a) to (c), the
@@ -1144,7 +1180,14 @@ identity: for each input the member computes `DepositId` from the input's datum 
 that its own `deposit/<DepositId>` record is `CREDITED` at or below the referenced anchor's height.
 It never compares the input's live outpoint with the outpoint the record keeps as history.
 
-**Domain status.** A vault in `ISSUER_HOLD` is refused for `Settle` (D14).
+**Domain status.** A vault in `ISSUER_HOLD` is refused for `Settle` (D14). *(r5)* A member that
+cannot read the hold from its committed state refuses too.
+
+*(r5)* **Step 3a, as implemented.** The custody redeemer must be `Settle` or `AcceptCosigned`; the PLB
+outputs are matched to that action's positions: outputs `0..k−1` are the `Settle`'s payouts and
+output `k` the continuation (`k = 0` for `Accept`). A reference input outside 3b's list is allowed
+only when it holds a script the transaction runs. A redeemer index outside its list is a refusal,
+never an error. Where its node can read no reward balance, the member leaves the amounts to L1.
 
 ### D14. The `ISSUER_CONTROLLED` trust label, reconciliation and `ISSUER_HOLD` (decided by the maintainer)
 
@@ -1210,7 +1253,10 @@ The substandard's own powers (D12 item 4) are listed with the issuer's name.
 | Forced withdrawals | Still reserved (059-D8g R3: no registry status rejects them). |
 | Proof `Exit` | Unchanged: no brake, because the domain status leaf stays `ACTIVE`. |
 
-`ASSET_RESUME` lifts the status.
+`ASSET_RESUME` lifts the status. *(r5)* `ASSET_HOLD`, `ASSET_RESUME` and `ASSET_REWIRE` are governed
+commands on 059's privileged governance route (threshold approval by the membership epoch, a
+decision history record per command). `ASSET_STATUS` never moves an asset into or out of
+`ISSUER_HOLD`.
 
 **The hold stops only the co-signed path on L1.** Proof `Exit` and forced withdrawals continue, so
 holders are never locked out by the operators. Under a shortfall, holders who leave by `Exit` are
@@ -1397,8 +1443,10 @@ CIP-113 core's cost.
 - a no-op third-party re-spend of a pending deposit in a later block, and in the same block in both
   hash orders: credited once, and `RECREATED` recorded;
 - a partial seizure of a pending deposit in the same block, in both orders;
-- *(r2)* finding 7's case: an output naming an unspent input `J`, then a third-party re-spend
-  that spends `J` and re-creates the output at the same index: `RECREATED`, never credited;
+- *(r2; r5)* finding 7's case: an output naming an unspent input `J`, then a third-party re-spend
+  that spends `J` and re-creates the output at the same index. The original output is `RECREATED`
+  (its origin is not spent by its own transaction); the copy is origin-valid, so it is the
+  `DEPOSIT` of its id, recorded `UNCREDITED(INELIGIBLE_ACTION)`; neither is ever credited;
 - *(r2)* each creating-action class; an issuer mint into the vault (`ISSUANCE`); *(r3)* an
   issuance without a positive mint of the policy (`UNKNOWN`); a deposit that references an
   unapproved version (`UNCREDITED(WIRING_UNPINNED)`); withdrawal and reference-input lists over
@@ -1711,3 +1759,16 @@ under the devnet's protocol version.
   - **Fable P3s:** one sweep reservation per `DepositId`, committing at most the recorded value; the
     materializer citations corrected (`:811` and `invokeLogicScript` `:2605` for the dedupe,
     `rejectConflictingRedeemer` `:617`).
+- **r5** (2026-11-28): Aligns the text with the C1/C2 implementation after its reviews by Fable and
+  Codex (no on-chain soundness defect; the scripts are unchanged).
+  - D5: the `SweepExit` lovelace commitment is the trailing `[h'', h'', lovelace]` value entry,
+    trailing even though ADA sorts first canonically; a lovelace-only sweep may pay a key address
+    (D7 table too).
+  - D10: the runtime wiring and its implementation choices (dispatcher-only wiring with credential
+    kinds kept for admission, the exact tuple for deposits and the observer limits, key hooks
+    refused, one deployment per domain, exact uint64 datum indexes), and what is deferred.
+  - D13: the members' whole check as implemented (positional PLB outputs, `h`'s action, reference
+    scripts only for scripts the transaction runs, bounded redeemer indexes, the hold refusal).
+  - D14: `ASSET_HOLD`, `ASSET_RESUME` and `ASSET_REWIRE` run on the governed route.
+  - §10 P4: finding 7's copy is the origin-valid `DEPOSIT`, `UNCREDITED(INELIGIBLE_ACTION)`, and the
+    original output is `RECREATED`.
