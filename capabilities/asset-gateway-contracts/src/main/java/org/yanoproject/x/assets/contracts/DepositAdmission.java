@@ -55,7 +55,15 @@ public final class DepositAdmission {
         UNKNOWN_BENEFICIARY(9),
         BALANCE_OVERFLOW(10),
         /** The claim's ADA-vault summary is internally inconsistent (registered quantity ≠ lovelace). */
-        INCONSISTENT_VALUE(11);
+        INCONSISTENT_VALUE(11),
+        /** ADR-061: the creating transaction referenced a CIP-113 wiring version whose fields are not approved. */
+        WIRING_UNPINNED(12),
+        /** ADR-061: the creating transaction was a third-party or unfracking action, which never creates a deposit. */
+        INELIGIBLE_ACTION(13),
+        /** ADR-061: the creating action could not be classified (no recorded version referenced, a list over its cap). */
+        UNKNOWN_ACTION(14),
+        /** ADR-061 D14: the asset is in {@code ISSUER_HOLD}. */
+        ASSET_HELD(15);
 
         private final int code;
 
