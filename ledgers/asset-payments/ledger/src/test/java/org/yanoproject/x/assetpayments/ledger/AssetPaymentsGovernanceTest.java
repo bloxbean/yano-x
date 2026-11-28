@@ -295,6 +295,36 @@ class AssetPaymentsGovernanceTest {
     }
 
     @Test
+    void aProposalOtherMembersApprovedIsNotReplacedByItsProposer() {
+        // Three of three members decide: dropping any approval would leave the PAUSE one short.
+        PaymentsHarness chain = new PaymentsHarness(AssetPaymentsPayoutTest.settings(), profile(1),
+                height -> new org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch(0,
+                        MEMBERS.stream().map(java.util.HexFormat.of()::formatHex).toList(), 3));
+        chain.block(T0);
+        Command pause = new Command(0, new PaymentsGovernanceV1.Pause());
+        chain.block(T0 + 1_000, governance(0, pause), governance(1, pause));
+        // Member 0's newer command would have replaced its PAUSE and dropped member 1's approval: it is refused.
+        byte[] before = chain.get(AssetPaymentsContract.governanceProposalsKey()).orElseThrow();
+        chain.block(T0 + 2_000, governance(0, status(0, EURC_VAULT, AssetStatus.DEPOSITS_PAUSED)));
+        assertThat(chain.get(AssetPaymentsContract.governanceProposalsKey())).hasValue(before);
+        assertThat(PaymentsGovernanceV1.decodeProposals(before)).singleElement().satisfies(open -> {
+            assertThat(open.sameCommand(pause.encode())).isTrue();
+            assertThat(open.approvers()).containsExactly(MEMBERS.get(0), MEMBERS.get(1));
+        });
+        chain.block(T0 + 3_000, governance(2, pause));
+        assertThat(chain.get(AssetPaymentsContract.domainStatusKey()).map(DomainStatusV1::decode).orElseThrow()
+                .status()).isEqualTo(DomainStatusV1.Status.PAUSED);
+
+        // A proposal only its proposer approved is still replaced.
+        Command first = status(1, EURC_VAULT, AssetStatus.DEPOSITS_PAUSED);
+        Command second = status(1, USDM_VAULT, AssetStatus.DEPOSITS_PAUSED);
+        chain.block(T0 + 4_000, governance(0, first), governance(0, second));
+        assertThat(PaymentsGovernanceV1.decodeProposals(chain.get(AssetPaymentsContract.governanceProposalsKey())
+                .orElseThrow())).singleElement().satisfies(open -> assertThat(open.sameCommand(second.encode()))
+                .isTrue());
+    }
+
+    @Test
     void identicalInputsGiveIdenticalStateOnEveryMember() {
         PaymentsHarness other = new PaymentsHarness(AssetPaymentsPayoutTest.settings());
         for (PaymentsHarness member : List.of(ledger, other)) {

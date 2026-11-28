@@ -54,12 +54,16 @@ import java.util.Optional;
  * deterministic pruning of expired proposals.
  *
  * <p><b>Proposal capacity.</b> A member holds at most one open proposal it started; its newer command replaces it
- * (dropping the approvals the older one had), and approving another member's proposal uses no slot. One member can
- * therefore never crowd out the others: a {@code PAUSE} started by any member always gets a slot.
+ * while no other member has approved it, and is refused once one has, so no member's approval is ever dropped.
+ * Approving another member's proposal uses no slot. One member can therefore never crowd out the others: a
+ * {@code PAUSE} started by any member always gets a slot.
  */
 final class PaymentsGovernance {
     /** What one governance message did; node-local diagnostics only. */
-    enum Result { NO_MEMBERSHIP, MALFORMED, NOT_A_MEMBER, STALE, REPEATED, PROPOSALS_FULL, PENDING, APPLIED, REFUSED }
+    enum Result {
+        NO_MEMBERSHIP, MALFORMED, NOT_A_MEMBER, STALE, REPEATED, REPLACE_REFUSED, PROPOSALS_FULL, PENDING, APPLIED,
+        REFUSED
+    }
 
     private final AppChainMembershipView membership;
     private final byte[] domainStatusKey;
@@ -106,7 +110,12 @@ final class PaymentsGovernance {
         Proposal proposal;
         if (index < 0) {
             // The sender's newer command replaces the proposal it started before, so the table holds at most one
-            // proposal per member of the epoch and no member can crowd out the others (D15 PAUSE).
+            // proposal per member of the epoch and no member can crowd out the others (D15 PAUSE). A proposal other
+            // members have approved is not replaced: their approvals stay until it decides or expires.
+            if (live.stream().anyMatch(open -> open.proposedBy(sender) && open.approvers().size() > 1)) {
+                if (pruned) writeProposals(state, live);
+                return Result.REPLACE_REFUSED;
+            }
             live.removeIf(open -> open.proposedBy(sender));
             if (live.size() >= PaymentsGovernanceV1.MAX_OPEN_PROPOSALS) {
                 // Unreachable while an epoch has at most MAX_APPROVERS members; kept as a bound on the record.
