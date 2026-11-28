@@ -75,7 +75,27 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                              String applicationId, String profileId, long profileVersion, Hash32 domainId,
                              String depositObserverId, Optional<String> payoutObserverId, long maxIntentTtlMs,
                              int minStabilityDepth, long exitDelayMs, List<PaymentsRecords.RegistryEntryV1> vaults,
-                             long minAdaPayout, long payoutLovelaceCap, Settlement settlement) {
+                             long minAdaPayout, long payoutLovelaceCap, Settlement settlement,
+                             DatumBounds depositDatumBounds) {
+    /**
+     * The deposit observer's inline-datum bounds ({@code observers.<deposit-observer-id>.datum.max-bytes} and
+     * {@code datum.max-depth}, defaults 16384 and 16). The observer drops a deposit whose datum exceeds them, so the
+     * payments API never hands out a datum outside them. Node-local: not part of the domain or settings digest.
+     */
+    record DatumBounds(int maxBytes, int maxDepth) {
+        static final DatumBounds DEFAULTS = new DatumBounds(16_384, 16);
+
+        DatumBounds {
+            if (maxBytes < 1 || maxBytes > 65_536 || maxDepth < 1 || maxDepth > 64) {
+                throw new IllegalArgumentException("datum bounds must be 1..65536 bytes and depth 1..64");
+            }
+        }
+
+        boolean admits(byte[] datum, int depth) {
+            return datum.length <= maxBytes && depth <= maxDepth;
+        }
+    }
+
     /** D7 step 4: how reserved claims are batched into {@code asset.settlement.batch} effects. */
     record Settlement(int batchSize, long batchWaitMs, long expiryBlocks, long minQueuedVaultLovelace) {
         Settlement {
@@ -192,7 +212,7 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         AssetPaymentsSettings parsed = new AssetPaymentsSettings(chainId, networkId, magic, genesis, applicationId,
                 profileId, profileVersion, domainId, observerId,
                 payoutId.isEmpty() ? Optional.empty() : Optional.of(payoutId), ttl, minDepth, exitDelay, vaults,
-                minAdaPayout, payoutLovelaceCap, settlement);
+                minAdaPayout, payoutLovelaceCap, settlement, datumBounds(all, observerId));
         parsed.checkObserver(all, observerId, OBSERVER_TYPE);
         parsed.payoutObserverId.ifPresent(id -> parsed.checkObserver(all, id, PAYOUT_OBSERVER_TYPE));
         return parsed;
@@ -242,6 +262,18 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         } catch (IOException impossible) {
             throw new UncheckedIOException(impossible);
         }
+    }
+
+    /** The deposit observer's datum bounds, as {@code AssetVaultDepositSettings} reads them, or the defaults. */
+    static DatumBounds datumBounds(Map<String, String> all, String observerId) {
+        String observer = "observers." + observerId + ".";
+        String bytes = all.get(observer + "datum.max-bytes");
+        String depth = all.get(observer + "datum.max-depth");
+        return new DatumBounds(
+                (int) bounded(bytes == null || bytes.isBlank() ? String.valueOf(DatumBounds.DEFAULTS.maxBytes())
+                        : bytes.trim(), 1, 65_536, observer + "datum.max-bytes"),
+                (int) bounded(depth == null || depth.isBlank() ? String.valueOf(DatumBounds.DEFAULTS.maxDepth())
+                        : depth.trim(), 1, 64, observer + "datum.max-depth"));
     }
 
     /** An observer this ledger reads and this ledger must describe the same domain and vault set. */

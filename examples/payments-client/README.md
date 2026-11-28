@@ -81,10 +81,20 @@ observer, and the L1 payout transaction id comes with it.
 
 The `deposits/build` body is
 `{vaultId, quantity, lovelace?, changeAddress, utxos: [cip30 utxo hex], beneficiaryAccount?}`.
-Fees use the linear fee rule, with parameters from the bundle configuration
-(`deposit-builder.min-fee-a`, `min-fee-b`, `coins-per-utxo-byte`,
-`max-tx-size`, `max-value-size`). The defaults are today's mainnet values, which
-Yaci DevKit also uses.
+Fees use the linear fee rule, priced with the node's current L1 protocol
+parameters, and count one witness per payment key of the inputs actually spent.
+The transaction is valid until two hours of slots past the node's L1 tip. The
+route refuses to build without a known tip (`L1_TIP_UNKNOWN`) or protocol
+parameters (`L1_PARAMETERS_UNAVAILABLE`).
+
+`deposit-instructions` and `deposits/build` refuse a vault whose
+`activeFromSlot` the L1 tip hasn't reached (`VAULT_NOT_ACTIVE`), and a datum
+larger than the deposit observer reads (`observers.<id>.datum.max-bytes` and
+`datum.max-depth`, `DATUM_TOO_LARGE`). `info` reports both bounds as
+`depositDatumBounds`.
+
+An accepted withdrawal's receipt names its claim through the ledger's
+`intent-claim/<IntentId>` entry, with that entry's proof as `intentLinkProof`.
 
 ## Run it
 

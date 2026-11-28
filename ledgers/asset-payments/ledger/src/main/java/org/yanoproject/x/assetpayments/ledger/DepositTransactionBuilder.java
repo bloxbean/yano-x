@@ -27,18 +27,17 @@ import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.RegistryEntryV1;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.DepositDatumV1;
+import org.yanoproject.x.framework.api.plugin.domain.L1TransactionBuilderService;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 
 /**
@@ -52,8 +51,8 @@ import java.util.Set;
  * nothing else, and a positive quantity (D5). For a token vault the output's lovelace becomes the depositor's min-ADA
  * credit (D11); it is raised to the output's min-UTxO when the request asks for less, and an ADA deposit below
  * its min-UTxO is refused. Fees use the linear fee rule with
- * the protocol parameters given at construction (the node-local bundle configuration), so a fee mismatch makes the
- * wallet or the node refuse the transaction; it never changes what the deposit credits.
+ * the host's current L1 protocol parameters, read for each build, so the fee matches what L1 charges; a mismatch
+ * would only make the wallet or the node refuse the transaction, never change what the deposit credits.
  */
 final class DepositTransactionBuilder {
     static final int MAX_UTXOS = 256;
@@ -72,34 +71,26 @@ final class DepositTransactionBuilder {
         }
     };
 
-    /** The linear fee and min-UTxO parameters a payment needs; {@link #defaults()} are today's mainnet values. */
-    record FeeParameters(int minFeeA, int minFeeB, long coinsPerUtxoByte, int maxTxSize, long maxValueSize) {
+    /** The linear fee and min-UTxO parameters a payment needs: the host's current L1 protocol parameters. */
+    record FeeParameters(long minFeeA, long minFeeB, long coinsPerUtxoByte, long maxTxSize, long maxValueSize) {
         FeeParameters {
-            if (minFeeA < 0 || minFeeB < 0 || coinsPerUtxoByte < 1 || maxTxSize < 1 || maxValueSize < 1) {
+            if (minFeeA < 0 || minFeeB < 0 || coinsPerUtxoByte < 1 || maxTxSize < 1 || maxValueSize < 1
+                    || minFeeA > Integer.MAX_VALUE || minFeeB > Integer.MAX_VALUE || maxTxSize > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("invalid deposit fee parameters");
             }
         }
 
-        static FeeParameters defaults() {
-            return new FeeParameters(44, 155_381, 4_310, 16_384, 5_000);
-        }
-
-        static FeeParameters from(Map<String, Object> config) {
-            FeeParameters fallback = defaults();
-            return new FeeParameters(
-                    (int) number(config, "deposit-builder.min-fee-a", fallback.minFeeA()),
-                    (int) number(config, "deposit-builder.min-fee-b", fallback.minFeeB()),
-                    number(config, "deposit-builder.coins-per-utxo-byte", fallback.coinsPerUtxoByte()),
-                    (int) number(config, "deposit-builder.max-tx-size", fallback.maxTxSize()),
-                    number(config, "deposit-builder.max-value-size", fallback.maxValueSize()));
+        static FeeParameters from(L1TransactionBuilderService.PricingParameters pricing) {
+            return new FeeParameters(pricing.minFeeA(), pricing.minFeeB(), pricing.coinsPerUtxoByte(),
+                    pricing.maxTxSize(), pricing.maxValueSize());
         }
 
         ProtocolParams protocolParams() {
             ProtocolParams params = new ProtocolParams();
-            params.setMinFeeA(minFeeA);
-            params.setMinFeeB(minFeeB);
+            params.setMinFeeA((int) minFeeA);
+            params.setMinFeeB((int) minFeeB);
             params.setCoinsPerUtxoSize(Long.toString(coinsPerUtxoByte));
-            params.setMaxTxSize(maxTxSize);
+            params.setMaxTxSize((int) maxTxSize);
             params.setMaxValSize(Long.toString(maxValueSize));
             params.setKeyDeposit("2000000");
             params.setPoolDeposit("500000000");
@@ -108,30 +99,21 @@ final class DepositTransactionBuilder {
             params.setMaxCollateralInputs(3);
             return params;
         }
+    }
 
-        private static long number(Map<String, Object> config, String key, long fallback) {
-            Object value = config.get(key);
-            if (value == null) return fallback;
-            try {
-                long parsed = Long.parseLong(String.valueOf(value).trim());
-                if (parsed < 0 || parsed > Integer.MAX_VALUE) throw new NumberFormatException();
-                return parsed;
-            } catch (NumberFormatException invalid) {
-                throw new IllegalArgumentException(key + " must be a non-negative integer");
-            }
+    /** A deposit to build; {@code validToSlot} is required, so a built deposit always has a TTL. */
+    record Request(RegistryEntryV1 vault, DepositDatumV1 datum, BigInteger quantity, BigInteger lovelace,
+                   String changeAddress, List<Utxo> utxos, long validToSlot, FeeParameters fees) {
+        Request {
+            if (validToSlot < 1) throw new IllegalArgumentException("a deposit needs a validity upper bound");
+            java.util.Objects.requireNonNull(fees, "fees");
         }
     }
 
-    record Request(RegistryEntryV1 vault, DepositDatumV1 datum, BigInteger quantity, BigInteger lovelace,
-                   String changeAddress, List<Utxo> utxos, OptionalLong validToSlot) { }
-
     record Built(byte[] cbor, String transactionId, long fee, int outputIndex, BigInteger outputLovelace,
-                 BigInteger outputQuantity, List<String> inputs, OptionalLong validToSlot) { }
+                 BigInteger outputQuantity, List<String> inputs, long validToSlot) { }
 
-    private final FeeParameters fees;
-
-    DepositTransactionBuilder(FeeParameters fees) {
-        this.fees = fees;
+    DepositTransactionBuilder() {
     }
 
     /**
@@ -187,7 +169,7 @@ final class DepositTransactionBuilder {
         } catch (Exception impossible) {
             throw new IllegalStateException("the deposit datum does not decode", impossible);
         }
-        ProtocolParams params = fees.protocolParams();
+        ProtocolParams params = request.fees().protocolParams();
         BigInteger minUtxo = minUtxo(params, vault, request.quantity(), datum);
         List<Amount> amounts = new ArrayList<>();
         if (asset.isAda()) {
@@ -202,8 +184,9 @@ final class DepositTransactionBuilder {
             amounts.add(Amount.asset(HEX.formatHex(asset.policyId()) + HEX.formatHex(asset.assetName()),
                     request.quantity()));
         }
-        // Every supplied UTxO is offered under the change address: they are all the wallet's, and the wallet adds
-        // one witness per payment key it spends from, which the fee estimate counts below.
+        // Every supplied UTxO is offered under the change address: they are all the wallet's. The fee estimate counts
+        // one witness per distinct payment key of the inputs CCL selects (UtxoUtil.getNoOfRequiredSigners), so a
+        // wallet that offers many addresses' UTxOs pays only for the keys it spends from.
         List<Utxo> offered = request.utxos().stream()
                 .sorted(Comparator.comparing(DepositTransactionBuilder::lovelaceOf).reversed()).toList();
         UtxoSupplier supplier = new UtxoSupplier() {
@@ -218,16 +201,11 @@ final class DepositTransactionBuilder {
                         && utxo.getOutputIndex() == outputIndex).findFirst();
             }
         };
-        Set<String> keys = new HashSet<>();
-        for (Utxo utxo : offered) {
-            new Address(utxo.getAddress()).getPaymentCredentialHash().map(HEX::formatHex).ifPresent(keys::add);
-        }
         ProtocolParamsSupplier paramsSupplier = () -> params;
         Tx tx = new Tx().payToContract(vault.vaultAddress(), amounts, datum).from(change.toBech32());
         QuickTxBuilder.TxContext context = new QuickTxBuilder(supplier, paramsSupplier, NO_SUBMIT).compose(tx)
                 .mergeOutputs(false)
-                .additionalSignersCount(Math.max(0, keys.size() - 1));
-        request.validToSlot().ifPresent(context::validTo);
+                .validTo(request.validToSlot());
         Transaction unsigned;
         try {
             unsigned = context.build();
@@ -238,7 +216,7 @@ final class DepositTransactionBuilder {
     }
 
     private static Built describe(Transaction unsigned, RegistryEntryV1 vault, DepositDatumV1 datum,
-                                  OptionalLong validTo) {
+                                  long validTo) {
         byte[] cbor;
         try {
             cbor = unsigned.serialize();

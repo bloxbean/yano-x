@@ -101,8 +101,13 @@ final class AssetPaymentsDomainApi implements DomainApi {
             route(INTENT_MESSAGE, DomainHttpMethod.POST, "intents/message")));
     /** Pages of {@code claims-of} an account view reads to total its reserved claims. */
     static final int RESERVED_PAGES = 8;
-    /** The validity a built deposit gets when the node knows its L1 tip: two hours of one-second slots. */
+    /** The validity a built deposit gets past the node's L1 tip: two hours of one-second slots. */
     static final long TTL_SLOTS = 7_200;
+    /**
+     * The CBOR nesting depth of a canonical {@link DepositDatumV1} as the deposit observer's datum preflight counts it:
+     * the constructor tag, then its field array.
+     */
+    static final int DEPOSIT_DATUM_DEPTH = 2;
     private static final HexFormat HEX = HexFormat.of();
 
     private final DomainApiContext context;
@@ -111,8 +116,7 @@ final class AssetPaymentsDomainApi implements DomainApi {
 
     AssetPaymentsDomainApi(DomainApiContext context) {
         this.context = Objects.requireNonNull(context, "context");
-        this.deposits = new DepositTransactionBuilder(
-                DepositTransactionBuilder.FeeParameters.from(context.bundleConfig()));
+        this.deposits = new DepositTransactionBuilder();
     }
 
     @Override
@@ -179,6 +183,8 @@ final class AssetPaymentsDomainApi implements DomainApi {
         out.put("withdrawalsEnabled", !chain.info().payoutObserverId().isEmpty());
         out.put("minAdaPayout", chain.info().minAdaPayout().toString());
         out.put("payoutLovelaceCap", chain.info().payoutLovelaceCap().toString());
+        out.put("depositDatumBounds", Map.of("maxBytes", chain.info().depositDatumBounds().maxBytes(),
+                "maxDepth", chain.info().depositDatumBounds().maxDepth()));
         out.put("domainStatus", chain.info().domainStatus().map(bytes -> {
             DomainStatusV1 status = DomainStatusV1.decode(bytes);
             Map<String, Object> view = new LinkedHashMap<>();
@@ -348,7 +354,7 @@ final class AssetPaymentsDomainApi implements DomainApi {
         out.put("receipt", view);
         if (AssetPaymentsContract.REQUEST_WITHDRAWAL.equals(receipt.action())
                 && receipt.outcome() == PaymentsRecords.Outcome.ACCEPTED) {
-            out.put("withdrawals", claimsAtHeight(chain, receipt));
+            out.put("withdrawals", claimOf(chain, intentId));
         }
         return ok(out);
     }
@@ -375,6 +381,8 @@ final class AssetPaymentsDomainApi implements DomainApi {
         if (!vault.status().depositsEnabled()) {
             return error(409, "DEPOSITS_PAUSED", "this vault does not credit deposits now");
         }
+        DomainApiResponse inactive = notActive(vault, tipSlot());
+        if (inactive != null) return inactive;
         Map<String, Object> out = vaultView(vault);
         out.put("chainId", chain.id());
         out.put("committed", committed(chain.result()));
@@ -443,11 +451,25 @@ final class AssetPaymentsDomainApi implements DomainApi {
         List<String> hexUtxos = new ArrayList<>();
         body.path("utxos").forEach(node -> hexUtxos.add(node.asText()));
         List<Utxo> utxos = DepositTransactionBuilder.decodeCip30(hexUtxos);
-        OptionalLong validTo = tipSlot().stream().map(slot -> slot + TTL_SLOTS).findFirst();
+        // A deposit is built only with a TTL past a known tip, and only once the observer would credit it.
+        OptionalLong tip = tipSlot();
+        if (tip.isEmpty()) {
+            return error(409, "L1_TIP_UNKNOWN", "this node does not know its L1 tip, so it cannot bound the deposit's "
+                    + "validity; try again when it follows L1");
+        }
+        DomainApiResponse inactive = notActive(vault, tip);
+        if (inactive != null) return inactive;
+        DepositTransactionBuilder.FeeParameters fees;
+        try {
+            fees = DepositTransactionBuilder.FeeParameters.from(context.l1Transactions().pricingParameters());
+        } catch (RuntimeException unavailable) {
+            return error(409, "L1_PARAMETERS_UNAVAILABLE",
+                    "this node has no current L1 protocol parameters to price the deposit with");
+        }
         DepositTransactionBuilder.Built built;
         try {
             built = deposits.build(new DepositTransactionBuilder.Request(vault, beneficiary.datum(), quantity,
-                    lovelace, new Address(change).toBech32(), utxos, validTo));
+                    lovelace, new Address(change).toBech32(), utxos, Math.addExact(tip.getAsLong(), TTL_SLOTS), fees));
         } catch (IllegalStateException cannotPay) {
             return error(409, "CANNOT_BUILD", cannotPay.getMessage());
         }
@@ -466,7 +488,7 @@ final class AssetPaymentsDomainApi implements DomainApi {
         out.put("datumHex", HEX.formatHex(beneficiary.datum().encode()));
         out.put("beneficiaryAccount", HEX.formatHex(beneficiary.datum().beneficiaryAccount()));
         out.put("inputs", built.inputs());
-        out.put("validToSlot", built.validToSlot().isPresent() ? built.validToSlot().getAsLong() : null);
+        out.put("validToSlot", built.validToSlot());
         out.put("next", "sign with CIP-30 signTx(unsignedTxCborHex, false), add the witness set, and submit");
         return ok(out);
     }
@@ -590,31 +612,21 @@ final class AssetPaymentsDomainApi implements DomainApi {
         return view;
     }
 
-    /** The account's claims reserved in the receipt's block whose value matches the receipt. */
-    private List<Object> claimsAtHeight(Chain chain, ReceiptV1 receipt) {
-        List<Object> out = new ArrayList<>();
-        long before = 0;
-        for (int page = 0; page < RESERVED_PAGES; page++) {
-            AppQueryResult result = query(chain.id(), PaymentsViewQueries.CLAIMS_OF, PaymentsViewQueries
-                    .claimsOfRequest(receipt.accountId(), before, PaymentsViewQueries.MAX_CLAIMS_PER_PAGE));
-            PaymentsViewQueries.ClaimsPage claims = PaymentsViewQueries.ClaimsPage.decode(result.payload());
-            boolean older = false;
-            for (PaymentsViewQueries.Claim claim : claims.claims()) {
-                ClaimLeafV1 leaf = ClaimLeafV1.decode(claim.leaf());
-                if (leaf.reservedHeight() < receipt.height()) {
-                    older = true;
-                    break;
-                }
-                Optional<AssetId> asset = chain.vault(leaf.vaultId()).map(RegistryEntryV1::asset);
-                if (leaf.reservedHeight() == receipt.height() && asset.equals(receipt.asset())
-                        && leaf.value().quantityOf(asset.orElseThrow()).equals(receipt.amount())) {
-                    out.add(claimView(chain, result, claim));
-                }
-            }
-            if (older || claims.nextBefore() == 0) break;
-            before = claims.nextBefore();
-        }
-        return out;
+    /**
+     * The claim an accepted withdrawal intent reserved, through the ledger's {@code intent-claim/<IntentId>} link,
+     * with the link's own proof next to the claim's leaf and status proofs.
+     */
+    private List<Object> claimOf(Chain chain, Hash32 intentId) {
+        AppQueryResult link = query(chain.id(), PaymentsViewQueries.INTENT_CLAIM, intentId.bytes());
+        Optional<byte[]> claimId = PaymentsViewQueries.decodeSingle(link.payload());
+        if (claimId.isEmpty()) return List.of();
+        AppQueryResult result = query(chain.id(), PaymentsViewQueries.CLAIM, claimId.get());
+        Optional<PaymentsViewQueries.Claim> claim = PaymentsViewQueries.Claim.decodeSingle(result.payload());
+        if (claim.isEmpty()) return List.of();
+        Map<String, Object> view = claimView(chain, result, claim.get());
+        view.put("intentLinkProof", proof(link, chain.id(), AssetPaymentsContract.intentClaimKey(intentId),
+                claimId.get()));
+        return List.of(view);
     }
 
     private Reserved reserved(Chain chain, byte[] accountId) {
@@ -732,13 +744,38 @@ final class AssetPaymentsDomainApi implements DomainApi {
         if (depositor.length > DepositDatumV1.MAX_REFUND_ADDRESS_BYTES) {
             return new Beneficiary(null, error(422, "UNSUPPORTED_ADDRESS", "the refund address is too long"));
         }
-        return new Beneficiary(new DepositDatumV1(beneficiary, depositor, credential.keyHash()), null);
+        DepositDatumV1 datum = new DepositDatumV1(beneficiary, depositor, credential.keyHash());
+        // The deposit observer drops a deposit whose datum is outside its bounds; never hand out such a datum.
+        AssetPaymentsSettings.DatumBounds bounds = chain.info().depositDatumBounds();
+        if (!bounds.admits(datum.encode(), DEPOSIT_DATUM_DEPTH)) {
+            return new Beneficiary(null, error(422, "DATUM_TOO_LARGE", "the deposit datum for this refund address is "
+                    + datum.encode().length + " bytes; the deposit observer reads at most " + bounds.maxBytes()
+                    + " bytes and depth " + bounds.maxDepth() + ". Deposit from a shorter address"));
+        }
+        return new Beneficiary(datum, null);
     }
 
     private PayoutConfirmation layout(Chain chain) {
         String observer = chain.info().payoutObserverId().isEmpty() ? "payouts" : chain.info().payoutObserverId();
         return new PayoutConfirmation(AssetPaymentsContract.PREFIX, observer, chain.domainId(), 0,
                 ignored -> Optional.empty());
+    }
+
+    /**
+     * D5: the observer credits a vault's deposit only from its {@code activeFromSlot}. A vault active from slot 0 is
+     * always active; any later activation needs a known tip at or past it.
+     */
+    private DomainApiResponse notActive(RegistryEntryV1 vault, OptionalLong tip) {
+        if (vault.activeFromSlot() == 0) return null;
+        if (tip.isPresent() && tip.getAsLong() >= vault.activeFromSlot()) return null;
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "VAULT_NOT_ACTIVE");
+        body.put("message", tip.isEmpty()
+                ? "this node does not know its L1 tip, so it cannot tell whether the vault is active yet"
+                : "the vault credits deposits from L1 slot " + vault.activeFromSlot() + "; the tip is "
+                + tip.getAsLong());
+        body.put("activeFromSlot", vault.activeFromSlot());
+        return respond(409, body);
     }
 
     private OptionalLong tipSlot() {

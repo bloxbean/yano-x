@@ -34,10 +34,12 @@ import java.util.Set;
  * asset-payments/info       h''                       -> [domain_record, max_intent_ttl_ms, deposit_observer_id,
  *                                                           payout_observer_id / "", min_ada_payout,
  *                                                           payout_lovelace_cap, [* registry_entry],
- *                                                           domain_status / h'']
+ *                                                           domain_status / h'', datum_max_bytes,
+ *                                                           datum_max_depth]
  * asset-payments/account    account_id(28)            -> [account_record / h'', [* [vault_id, exit_leaf / h'']],
  *                                                           [* [grant, [* [vault_id, used_u64]]]]]
  * asset-payments/receipt    intent_id(32)             -> [receipt / h'']
+ * asset-payments/intent-claim intent_id(32)           -> [claim_id / h'']   (accepted withdrawals only)
  * asset-payments/claim      claim_id(32)              -> [claim_leaf / h'', claim_status / h'', in_open_batch]
  * asset-payments/claims-of  [account_id, before, limit] -> [[* [sequence, claim_leaf, claim_status, in_open_batch]],
  *                                                           next_before, scanned]
@@ -56,6 +58,7 @@ final class PaymentsViewQueries {
     static final String RECEIPT = "asset-payments/receipt";
     static final String CLAIM = "asset-payments/claim";
     static final String CLAIMS_OF = "asset-payments/claims-of";
+    static final String INTENT_CLAIM = "asset-payments/intent-claim";
     static final int MAX_CLAIM_SCAN = 2_048;
     static final int MAX_CLAIMS_PER_PAGE = 64;
     static final int MAX_BATCH_SCAN = 64;
@@ -74,6 +77,8 @@ final class PaymentsViewQueries {
             case RECEIPT -> Optional.of(single(state.get(AssetPaymentsContract.receiptKey(Hash32.of(request)))));
             case CLAIM -> Optional.of(claim(state, Hash32.of(request)));
             case CLAIMS_OF -> Optional.of(claimsOf(state, request));
+            case INTENT_CLAIM ->
+                    Optional.of(single(state.get(AssetPaymentsContract.intentClaimKey(Hash32.of(request)))));
             default -> Optional.empty();
         };
     }
@@ -97,6 +102,8 @@ final class PaymentsViewQueries {
         }
         out.add(vaults);
         out.add(AssetCbor.bstr(state.get(AssetPaymentsContract.domainStatusKey()).orElse(new byte[0])));
+        out.add(AssetCbor.uint(settings.depositDatumBounds().maxBytes()));
+        out.add(AssetCbor.uint(settings.depositDatumBounds().maxDepth()));
         return AssetCbor.encode(out);
     }
 
@@ -238,9 +245,9 @@ final class PaymentsViewQueries {
 
     record Info(byte[] domainRecord, long maxIntentTtlMs, String depositObserverId, String payoutObserverId,
                 BigInteger minAdaPayout, BigInteger payoutLovelaceCap, List<RegistryEntryV1> vaults,
-                Optional<byte[]> domainStatus) {
+                Optional<byte[]> domainStatus, AssetPaymentsSettings.DatumBounds depositDatumBounds) {
         static Info decode(byte[] payload) {
-            List<DataItem> items = AssetCbor.decodeArray(payload, 8).getDataItems();
+            List<DataItem> items = AssetCbor.decodeArray(payload, 10).getDataItems();
             List<RegistryEntryV1> vaults = new ArrayList<>();
             for (DataItem item : AssetCbor.array(items.get(6), 0, AssetPaymentsContract.MAX_VAULTS).getDataItems()) {
                 vaults.add(RegistryEntryV1.decode(AssetCbor.bytes(item, 1, AssetCbor.MAX_WIRE_BYTES)));
@@ -250,7 +257,9 @@ final class PaymentsViewQueries {
                     AssetCbor.uintLong(items.get(1)), AssetCbor.text(items.get(2), 160),
                     AssetCbor.text(items.get(3), 160), AssetCbor.uint(items.get(4), Quantities.MAX_U64),
                     AssetCbor.uint(items.get(5), Quantities.MAX_U64), vaults,
-                    status.length == 0 ? Optional.empty() : Optional.of(status));
+                    status.length == 0 ? Optional.empty() : Optional.of(status),
+                    new AssetPaymentsSettings.DatumBounds((int) AssetCbor.uintLong(items.get(8)),
+                            (int) AssetCbor.uintLong(items.get(9))));
         }
     }
 

@@ -69,6 +69,12 @@ class AssetPaymentsDomainApiTest {
     int nonce;
     long slot = 9_000;
     long blockNumber = 600;
+    /** The node's L1 tip; null when it does not know one. */
+    Long tip = 5_000L;
+    L1TransactionBuilderService.PricingParameters pricing = MAINNET_PRICING;
+
+    static final L1TransactionBuilderService.PricingParameters MAINNET_PRICING =
+            new L1TransactionBuilderService.PricingParameters(44, 155_381, 4_310, 16_384, 5_000);
 
     static Map<String, String> settings() {
         Map<String, String> settings = new LinkedHashMap<>(PaymentsHarness.settings());
@@ -79,7 +85,12 @@ class AssetPaymentsDomainApiTest {
 
     @BeforeEach
     void setUp() {
-        ledger = new PaymentsHarness(settings());
+        useLedger(settings());
+    }
+
+    /** Points the API at a fresh ledger with these settings. */
+    void useLedger(Map<String, String> settings) {
+        ledger = new PaymentsHarness(settings);
         DomainQueryService queries = new DomainQueryService() {
             @Override
             public List<String> chainIds() {
@@ -96,7 +107,14 @@ class AssetPaymentsDomainApiTest {
             }
         };
         L1TransactionBuilderService l1 = new L1TransactionBuilderService() {
-            @Override public long tipSlot() { return 5_000; }
+            @Override public long tipSlot() {
+                if (tip == null) throw new IllegalStateException("no L1 tip");
+                return tip;
+            }
+            @Override public PricingParameters pricingParameters() {
+                if (pricing == null) throw new IllegalStateException("no protocol parameters");
+                return pricing;
+            }
             @Override public SpendableInput selectSpendableInput(String sourceAddress) {
                 throw new AssertionError("the payments API never selects node UTxOs");
             }
@@ -498,5 +516,169 @@ class AssetPaymentsDomainApiTest {
                 .isEqualTo("INVALID_ACCOUNT_ID");
         assertThat(call(AssetPaymentsDomainApi.INTENT_ENCODE, DomainHttpMethod.POST, "intents/encode", Map.of(),
                 Map.of(), Map.of("action", "MINT"), 400).path("error").asText()).isEqualTo("INVALID_REQUEST");
+    }
+
+    // ------------------------------------------------------------------ review fixes
+
+    Map<String, Object> adaDeposit(byte[] changeAddress, List<String> utxos) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("vaultId", ADA_VAULT.hex());
+        request.put("quantity", "10000000");
+        request.put("changeAddress", HEX.formatHex(changeAddress));
+        request.put("utxos", utxos);
+        return request;
+    }
+
+    JsonNode instructions(byte[] address, int status) throws Exception {
+        return call(AssetPaymentsDomainApi.DEPOSIT_INSTRUCTIONS, DomainHttpMethod.GET, "vaults/x/deposit-instructions",
+                Map.of("vault_id", ADA_VAULT.hex()), Map.of("address", List.of(HEX.formatHex(address))), null, status);
+    }
+
+    @Test
+    void depositsWaitForTheVaultsActivationSlotAndABuildNeedsAKnownTip() throws Exception {
+        Map<String, String> settings = settings();
+        settings.put("machines.asset-payments.vaults.0.active-from-slot", "6000");
+        useLedger(settings);
+        ledger.block(T0, register(alice));
+        List<String> utxos = List.of(cip30Utxo(filled(32, 0x11), 0, alice.address(), 50_000_000, null, 0));
+
+        // The tip is before the vault's activation: the observer would not credit the deposit yet.
+        assertThat(instructions(alice.address(), 409).path("error").asText()).isEqualTo("VAULT_NOT_ACTIVE");
+        JsonNode early = build(adaDeposit(alice.address(), utxos), 409);
+        assertThat(early.path("error").asText()).isEqualTo("VAULT_NOT_ACTIVE");
+        assertThat(early.path("activeFromSlot").asLong()).isEqualTo(6_000);
+        tip = 6_000L;
+        instructions(alice.address(), 200);
+        JsonNode built = build(adaDeposit(alice.address(), utxos), 200);
+        assertThat(built.path("validToSlot").asLong()).isEqualTo(6_000 + AssetPaymentsDomainApi.TTL_SLOTS);
+        // Without a tip, nothing is built (there would be no TTL), and a later activation cannot be judged.
+        tip = null;
+        assertThat(build(adaDeposit(alice.address(), utxos), 409).path("error").asText()).isEqualTo("L1_TIP_UNKNOWN");
+        assertThat(instructions(alice.address(), 409).path("error").asText()).isEqualTo("VAULT_NOT_ACTIVE");
+
+        // A vault active from slot 0 gives instructions without a tip, but its deposit still needs one to be built.
+        useLedger(settings());
+        ledger.block(T0, register(alice));
+        instructions(alice.address(), 200);
+        assertThat(build(adaDeposit(alice.address(), utxos), 409).path("error").asText()).isEqualTo("L1_TIP_UNKNOWN");
+    }
+
+    @Test
+    void theDepositIsPricedWithTheHostsCurrentProtocolParameters() throws Exception {
+        ledger.block(T0, register(alice));
+        List<String> utxos = List.of(cip30Utxo(filled(32, 0x11), 0, alice.address(), 50_000_000, null, 0));
+        long mainnet = build(adaDeposit(alice.address(), utxos), 200).path("fee").asLong();
+        pricing = new L1TransactionBuilderService.PricingParameters(44, 200_000, 4_310, 16_384, 5_000);
+        long raised = build(adaDeposit(alice.address(), utxos), 200).path("fee").asLong();
+        assertThat(raised - mainnet).isEqualTo(200_000 - 155_381);
+        pricing = null;
+        assertThat(build(adaDeposit(alice.address(), utxos), 409).path("error").asText())
+                .isEqualTo("L1_PARAMETERS_UNAVAILABLE");
+    }
+
+    @Test
+    void theFeeCountsOnlyTheKeysOfTheSelectedInputs() throws Exception {
+        ledger.block(T0, register(alice));
+        String big = cip30Utxo(filled(32, 0x11), 0, alice.address(), 50_000_000, null, 0);
+        List<String> offered = new ArrayList<>(List.of(big));
+        // Nineteen more UTxOs, each under another payment key: twenty keys offered, one input needed.
+        for (int i = 0; i < 19; i++) {
+            offered.add(cip30Utxo(filled(32, 0x20 + i), 0, TestWallet.of(40 + i).address(), 2_000_000, null, 0));
+        }
+        JsonNode many = build(adaDeposit(alice.address(), offered), 200);
+        JsonNode one = build(adaDeposit(alice.address(), List.of(big)), 200);
+        assertThat(many.path("inputs")).hasSize(1);
+        assertThat(many.path("fee").asLong()).isEqualTo(one.path("fee").asLong());
+        // One vkey witness is 1 + 34 + 66 bytes of CBOR at most: the fee is what one signer costs, not twenty.
+        Transaction tx = Transaction.deserialize(HEX.parseHex(one.path("unsignedTxCborHex").asText()));
+        long size = HEX.parseHex(one.path("unsignedTxCborHex").asText()).length;
+        assertThat(tx.getBody().getFee().longValueExact()).isBetween(44 * size + 155_381, 44 * (size + 110) + 155_381);
+    }
+
+    @Test
+    void theDepositDatumMustFitTheObserversDatumBounds() throws Exception {
+        Map<String, String> settings = settings();
+        settings.put("observers." + OBSERVER + ".datum.max-bytes", "100");
+        useLedger(settings);
+        ledger.block(T0, register(alice));
+        assertThat(get(AssetPaymentsDomainApi.INFO, "info", Map.of()).path("depositDatumBounds").path("maxBytes")
+                .asInt()).isEqualTo(100);
+        // Alice's enterprise address: a 94-byte datum, inside the bound.
+        instructions(alice.address(), 200);
+        // A base address of the same payment key (the same account) is 28 bytes longer: a 122-byte datum.
+        byte[] base = new byte[57];
+        base[0] = 0x00;
+        System.arraycopy(alice.keyHash(), 0, base, 1, 28);
+        System.arraycopy(filled(28, 0x5a), 0, base, 29, 28);
+        assertThat(instructions(base, 422).path("error").asText()).isEqualTo("DATUM_TOO_LARGE");
+        List<String> utxos = List.of(cip30Utxo(filled(32, 0x11), 0, base, 50_000_000, null, 0));
+        assertThat(build(adaDeposit(base, utxos), 422).path("error").asText()).isEqualTo("DATUM_TOO_LARGE");
+    }
+
+    @Test
+    void sessionRecipientsMustBeAnExplicitArray() throws Exception {
+        long notAfter = System.currentTimeMillis() + 120_000;
+        java.util.function.Function<Object, Map<String, Object>> authorize = recipients -> {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("sessionKey", "ab".repeat(32));
+            body.put("actions", List.of(AssetPaymentsContract.TRANSFER));
+            body.put("limits", List.of(Map.of("vaultId", ADA_VAULT.hex(), "perPayment", "1", "cumulative", "5")));
+            if (recipients != NONE) body.put("recipients", recipients);
+            body.put("notAfterMs", notAfter);
+            Map<String, Object> request = new LinkedHashMap<>();
+            request.put("action", WalletAuthorizer.AUTHORIZE_SESSION);
+            request.put("accountId", HEX.formatHex(alice.accountId()));
+            request.put("authorizer", Map.of("kind", "OWNER"));
+            request.put("nonce", "a0".repeat(16));
+            request.put("notAfterMs", notAfter);
+            request.put("body", body);
+            return request;
+        };
+        String bob28 = HEX.formatHex(bob.accountId());
+        for (Object scalar : java.util.Arrays.asList(bob28, null, NONE, 7, Map.of("0", bob28))) {
+            JsonNode refused = call(AssetPaymentsDomainApi.INTENT_ENCODE, DomainHttpMethod.POST, "intents/encode",
+                    Map.of(), Map.of(), authorize.apply(scalar), 400);
+            assertThat(refused.path("message").asText()).as(String.valueOf(scalar)).contains("recipients");
+        }
+        call(AssetPaymentsDomainApi.INTENT_ENCODE, DomainHttpMethod.POST, "intents/encode", Map.of(), Map.of(),
+                authorize.apply(List.of()), 200);
+        call(AssetPaymentsDomainApi.INTENT_ENCODE, DomainHttpMethod.POST, "intents/encode", Map.of(), Map.of(),
+                authorize.apply(List.of(bob28)), 200);
+    }
+
+    static final Object NONE = new Object();
+
+    @Test
+    void eachWithdrawalReceiptLinksToItsOwnClaimWithinOneBlock() throws Exception {
+        ledger.block(T0, register(alice));
+        depositVia(ADA_VAULT, 30_000_000, 0, List.of(cip30Utxo(filled(32, 0x11), 0, alice.address(), 80_000_000,
+                null, 0)));
+        // Two withdrawals of the same amount to the same address in one block: only their sequences differ.
+        byte[] body = new PaymentsBodies.RequestWithdrawal(ADA_VAULT, alice.address(), BigInteger.valueOf(2_000_000),
+                BigInteger.ZERO).encode();
+        IntentEnvelopeV1 first = env(alice, AssetPaymentsContract.REQUEST_WITHDRAWAL, body);
+        IntentEnvelopeV1 second = env(alice, AssetPaymentsContract.REQUEST_WITHDRAWAL, body);
+        ledger.block(T0 + 5_000, intent(owner(alice, first)), intent(owner(alice, second)));
+
+        List<String> claims = new ArrayList<>();
+        for (IntentEnvelopeV1 withdrawal : List.of(first, second)) {
+            JsonNode receipt = get(AssetPaymentsDomainApi.RECEIPT, "receipts/x",
+                    Map.of("intent_id", intentId(withdrawal).hex()));
+            assertThat(receipt.path("withdrawals")).hasSize(1);
+            JsonNode claim = receipt.path("withdrawals").get(0);
+            Hash32 claimId = Hash32.ofHex(claim.path("claimId").asText());
+            assertThat(claim.path("intentLinkProof").path("keyHex").asText()).isEqualTo(
+                    HEX.formatHex(AssetPaymentsContract.intentClaimKey(intentId(withdrawal))));
+            assertThat(claim.path("intentLinkProof").path("valueHex").asText()).isEqualTo(claimId.hex());
+            assertThat(ledger.get(AssetPaymentsContract.intentClaimKey(intentId(withdrawal))).orElseThrow())
+                    .isEqualTo(claimId.bytes());
+            claims.add(claimId.hex());
+        }
+        assertThat(claims).doesNotHaveDuplicates();
+        // Claim sequences follow block order, so the first intent holds the older claim.
+        JsonNode list = get(AssetPaymentsDomainApi.WITHDRAWALS, "accounts/x/withdrawals",
+                Map.of("account_id", HEX.formatHex(alice.accountId())));
+        assertThat(list.path("withdrawals").get(1).path("claimId").asText()).isEqualTo(claims.get(0));
+        assertThat(list.path("withdrawals").get(0).path("claimId").asText()).isEqualTo(claims.get(1));
     }
 }

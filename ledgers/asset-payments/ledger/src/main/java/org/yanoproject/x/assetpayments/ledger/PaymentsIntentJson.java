@@ -30,7 +30,7 @@ import java.util.Locale;
  * REGISTER_ACCOUNT    {}
  * TRANSFER            {"asset": {"policyId": hex, "assetName": hex}, "toAccount": hex28, "amount": "n"}
  * AUTHORIZE_SESSION   {"sessionKey": hex32, "actions": ["TRANSFER"], "limits": [{"vaultId", "perPayment",
- *                      "cumulative"}], "recipients": [hex28], "notAfterMs": n}
+ *                      "cumulative"}], "recipients": [hex28] ([] allows any), "notAfterMs": n}
  * REVOKE_SESSION      {"grantId": hex32}
  * REQUEST_WITHDRAWAL  {"vaultId": hex32, "recipient": hex | bech32, "amount": "n", "vaultLovelace": "n"}
  * ROTATE_OWNER        {"address": hex | bech32}   (the new owner's signing address)
@@ -73,15 +73,19 @@ final class PaymentsIntentJson {
                         hex(body, "toAccount", 28), amount(body, "amount")).encode();
             }
             case WalletAuthorizer.AUTHORIZE_SESSION -> {
+                // Each list must be a JSON array: a scalar or null must never read as an empty list, because an
+                // empty recipient list means "any recipient". Unrestricted is an explicit [].
                 List<String> actions = new ArrayList<>();
-                body.path("actions").forEach(node -> actions.add(node.asText()));
+                for (JsonNode entry : array(body, "actions")) actions.add(textValue(entry, "actions"));
                 List<SessionGrantV1.Limit> limits = new ArrayList<>();
-                for (JsonNode limit : body.path("limits")) {
+                for (JsonNode limit : array(body, "limits")) {
                     limits.add(new SessionGrantV1.Limit(Hash32.of(hex(limit, "vaultId", 32)),
                             amount(limit, "perPayment"), amount(limit, "cumulative")));
                 }
                 List<byte[]> recipients = new ArrayList<>();
-                for (JsonNode recipient : body.path("recipients")) recipients.add(parseHex(recipient.asText(), 28));
+                for (JsonNode recipient : array(body, "recipients")) {
+                    recipients.add(parseHex(textValue(recipient, "recipients"), 28));
+                }
                 long notAfter = body.path("notAfterMs").asLong(-1);
                 yield new PaymentsBodies.AuthorizeSession(hex(body, "sessionKey", 32), actions, limits, recipients,
                         notAfter).encode();
@@ -117,6 +121,20 @@ final class PaymentsIntentJson {
     static String text(JsonNode node, String field) {
         JsonNode value = node.path(field);
         if (!value.isTextual() || value.asText().isEmpty()) throw new IllegalArgumentException(field + " is required");
+        return value.asText();
+    }
+
+    /** A required JSON array; a missing field, null or a scalar is refused. */
+    static JsonNode array(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        if (!value.isArray()) {
+            throw new IllegalArgumentException(field + " must be a JSON array (use [] for none)");
+        }
+        return value;
+    }
+
+    private static String textValue(JsonNode value, String field) {
+        if (!value.isTextual()) throw new IllegalArgumentException(field + " entries must be strings");
         return value.asText();
     }
 
