@@ -207,7 +207,7 @@ export function parseRecipient(text: string, networkId: number): Recipient {
   if (!/^[0-9a-f]+$/i.test(hex) && !/^(addr|stake)(_test)?1/i.test(typed)) {
     throw new IdError(`Not a recipient: expected ${accountHrp(networkId)}1…, an addr… / stake… address or 56 hex characters.`);
   }
-  const bytes = parseAddress(typed, networkId);
+  const bytes = parseAddress(/^[0-9a-f]+$/i.test(hex) ? hex : typed, networkId);
   let credential: Credential;
   try {
     credential = credentialFromAddress(bytes);

@@ -109,6 +109,7 @@ describe('recipients', () => {
     expect(recipient).toMatchObject({ kind: 'address', addressHex: ACCOUNT.addressHex, address });
     expect(recipientAccountId(recipient)).toBe(ACCOUNT.accountId);
     expect(recipientAccountId(parseRecipient(ACCOUNT.addressHex, 0))).toBe(ACCOUNT.accountId);
+    expect(recipientAccountId(parseRecipient(`0x${ACCOUNT.addressHex}`, 0))).toBe(ACCOUNT.accountId);
   });
 
   it('refuses another network, a script address and anything else, with the reason', () => {
