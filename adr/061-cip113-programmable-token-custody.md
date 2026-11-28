@@ -559,7 +559,10 @@ lists, any constructor form). `Accept`, the sweep and the refunds use this one p
 and admission uses the same predicate off chain. A constructor-0 datum that fails it is
 `MALFORMED`: not deposit-shaped on chain either, so it leaves only through the outpoint-keyed
 governed `SWEEP_UNATTRIBUTED` of 059-D8d, to a valid recipient chosen by governance. A bad refund
-address therefore never strands a deposit, and an exit-mode refund never fails on it.
+address therefore never strands a deposit, and an exit-mode refund never fails on it. One limit:
+that sweep is keyed by the output's outpoint. If a third-party re-spend moves the output after the
+sweep is reserved, the reservation no longer matches, and v1 has no release for it. Only the
+issuer's third-party logic can cause that, and the `ISSUER_CONTROLLED` label already covers it.
 
 **Creditability.** A deposit output is creditable only if all of these hold:
 1. **Origin binding.** `origin_tx_id#origin_index` is one of the **regular inputs** of the
