@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.asset;
@@ -50,12 +51,25 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
     /** The nullifier-shard backend setting (ADR-059 r23). */
     static final String SHARD_BACKEND = "shard-backend";
     private static final Set<String> VAULT_KEYS = Set.of("asset", "ordinal", "script-hash", "address", "vault-id",
-            "shard-policy-id", "shard-script-hash", "shard-address");
+            "shard-policy-id", "shard-script-hash", "shard-address", "custody", "cip113.plb-hash");
 
     /** One vault and its nullifier shard thread. */
     record Vault(int index, Hash32 vaultId, AssetId asset, byte[] scriptHash, String address, byte[] shardPolicyId,
-                 byte[] shardScriptHash, String shardAddress) {
+                 byte[] shardScriptHash, String shardAddress, Optional<byte[]> plbHash) {
+        Vault(int index, Hash32 vaultId, AssetId asset, byte[] scriptHash, String address, byte[] shardPolicyId,
+              byte[] shardScriptHash, String shardAddress) {
+            this(index, vaultId, asset, scriptHash, address, shardPolicyId, shardScriptHash, shardAddress,
+                    Optional.empty());
+        }
+
+        /** ADR-061: a CIP-113 vault, whose address is its smart wallet and whose shard is the binding variant. */
+        boolean programmable() {
+            return plbHash.isPresent();
+        }
+
         Vault {
+            Objects.requireNonNull(plbHash, "plb hash");
+            plbHash = plbHash.map(byte[]::clone);
             scriptHash = scriptHash.clone();
             shardPolicyId = shardPolicyId.clone();
             shardScriptHash = shardScriptHash.clone();
@@ -109,13 +123,31 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
                 throw new IllegalArgumentException(prefix + "ordinal must be 0 in v1");
             }
             byte[] scriptHash = hex(required(settings, prefix + "script-hash"), 28, prefix + "script-hash");
-            String address = VaultAddresses.requireEnterpriseScript(required(settings, prefix + "address"),
-                    scriptHash, domain.addressNetworkId());
+            String custody = optional(settings, prefix + "custody", "native");
+            Optional<byte[]> plb = Optional.empty();
+            String address;
+            if (custody.equals("cip113")) {
+                // ADR-061 D4: the observer reads the continuation at the full vault smart-wallet address.
+                plb = Optional.of(hex(required(settings, prefix + "cip113.plb-hash"), 28, prefix + "cip113.plb-hash"));
+                address = required(settings, prefix + "address");
+                byte[] expected = org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend
+                        .smartWallet(plb.get(), scriptHash, domain.addressNetworkId());
+                if (!Arrays.equals(L1Tx.addressBytes(address), expected)) {
+                    throw new IllegalArgumentException(prefix + "address must be the vault smart wallet");
+                }
+            } else if (custody.equals("native")) {
+                address = VaultAddresses.requireEnterpriseScript(required(settings, prefix + "address"),
+                        scriptHash, domain.addressNetworkId());
+            } else {
+                throw new IllegalArgumentException(prefix + "custody must be native or cip113");
+            }
             byte[] shardPolicy = hex(required(settings, prefix + "shard-policy-id"), 28, prefix + "shard-policy-id");
             byte[] shardHash = hex(required(settings, prefix + "shard-script-hash"), 28, prefix + "shard-script-hash");
             String shardAddress = VaultAddresses.requireEnterpriseScript(required(settings, prefix + "shard-address"),
                     shardHash, domain.addressNetworkId());
-            byte[] derived = backend.derive(shardPolicy, scriptHash, domain.addressNetworkId()).scriptHash();
+            byte[] derived = plb.isPresent()
+                    ? backend.deriveProgrammable(shardPolicy, scriptHash, domain.addressNetworkId()).scriptHash()
+                    : backend.derive(shardPolicy, scriptHash, domain.addressNetworkId()).scriptHash();
             if (!Arrays.equals(derived, shardHash)) {
                 throw new IllegalArgumentException(prefix + "shard-script-hash is not the " + backend.id()
                         + " shard of this vault's shard-policy-id and script-hash (expected "
@@ -132,7 +164,8 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
             if (declared != null && !declared.trim().equals(vaultId.hex())) {
                 throw new IllegalArgumentException(prefix + "vault-id differs from the derived VaultId " + vaultId);
             }
-            vaults.add(new Vault(index, vaultId, asset, scriptHash, address, shardPolicy, shardHash, shardAddress));
+            vaults.add(new Vault(index, vaultId, asset, scriptHash, address, shardPolicy, shardHash, shardAddress,
+                    plb));
         }
         if (vaults.isEmpty()) throw new IllegalArgumentException("at least one vault (vaults.0.*) is required");
         for (String key : settings.keySet()) {
@@ -168,6 +201,10 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
             fields.put(prefix + "shard-policy-id", vault.shardPolicyHex());
             fields.put(prefix + "shard-script-hash", HexFormat.of().formatHex(vault.shardScriptHash()));
             fields.put(prefix + "shard-address", vault.shardAddress());
+            vault.plbHash().ifPresent(plb -> {
+                fields.put(prefix + "custody", "cip113");
+                fields.put(prefix + "cip113.plb-hash", HexFormat.of().formatHex(plb));
+            });
         }
         fields.put("min-stability-depth", String.valueOf(minStabilityDepth));
         List<String> out = new ArrayList<>();

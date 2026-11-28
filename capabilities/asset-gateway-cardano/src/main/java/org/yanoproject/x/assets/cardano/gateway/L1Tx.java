@@ -122,4 +122,69 @@ final class L1Tx {
         }
         return out;
     }
+
+    /**
+     * ADR-061 D6, D4: the script credentials among the withdrawals, in ledger order (script before key credentials,
+     * bytewise), each with the outer constructor index of its reward redeemer when that redeemer is a constructor;
+     * each reward redeemer is indexed by its withdrawal's ledger position, so it is attributed exactly. Empty
+     * ({@code OVERFLOW}) above {@code cap} script withdrawals or when the withdrawals or witness set cannot be read.
+     */
+    static java.util.Optional<List<org.yanoproject.x.assets.contracts.ProgrammableDepositClaimV1.Withdrawal>>
+    scriptWithdrawals(com.bloxbean.cardano.yaci.core.model.TransactionBody body, Block block, int blockIndex,
+                      int cap) {
+        List<byte[]> accounts = rewardAccounts(body);
+        if (accounts == null) return java.util.Optional.empty();
+        java.util.Map<Integer, byte[]> rewardRedeemers = rewardRedeemers(block, blockIndex);
+        if (rewardRedeemers == null) return java.util.Optional.empty();
+        List<org.yanoproject.x.assets.contracts.ProgrammableDepositClaimV1.Withdrawal> out = new ArrayList<>();
+        for (int position = 0; position < accounts.size(); position++) {
+            byte[] account = accounts.get(position);
+            if (((account[0] & 0xff) >>> 4) != 0xf) continue; // a key credential
+            if (out.size() == cap) return java.util.Optional.empty();
+            byte[] hash = java.util.Arrays.copyOfRange(account, 1, 29);
+            byte[] redeemer = rewardRedeemers.get(position);
+            long ctor = redeemer == null ? -1
+                    : org.yanoproject.x.assets.contracts.internal.PlutusDataReader.outerConstructor(redeemer);
+            out.add(new org.yanoproject.x.assets.contracts.ProgrammableDepositClaimV1.Withdrawal(hash,
+                    ctor < 0 ? java.util.Optional.empty() : java.util.Optional.of(ctor)));
+        }
+        return java.util.Optional.of(out);
+    }
+
+    /** The reward accounts of the withdrawals in ledger order, or null when one cannot be read. */
+    static List<byte[]> rewardAccounts(com.bloxbean.cardano.yaci.core.model.TransactionBody body) {
+        List<byte[]> accounts = new ArrayList<>();
+        if (body.getWithdrawals() == null) return accounts;
+        for (String key : body.getWithdrawals().keySet()) {
+            byte[] account;
+            try {
+                account = key.startsWith("stake") ? new Address(key).getBytes() : HexFormat.of().parseHex(key);
+            } catch (RuntimeException unreadable) {
+                return null;
+            }
+            if (account == null || account.length != 29) return null;
+            accounts.add(account);
+        }
+        accounts.sort((a, b) -> {
+            int kind = Integer.compare(((a[0] & 0xff) >>> 4) == 0xf ? 0 : 1, ((b[0] & 0xff) >>> 4) == 0xf ? 0 : 1);
+            return kind != 0 ? kind : java.util.Arrays.compareUnsigned(a, 1, 29, b, 1, 29);
+        });
+        return accounts;
+    }
+
+    /** The decoded data of the reward redeemers by index, or null when the witness set cannot be read. */
+    static java.util.Map<Integer, byte[]> rewardRedeemers(Block block, int blockIndex) {
+        java.util.Map<Integer, byte[]> out = new java.util.HashMap<>();
+        if (block.getTransactionWitness() == null || blockIndex >= block.getTransactionWitness().size()) return out;
+        Witnesses witnesses = block.getTransactionWitness().get(blockIndex);
+        if (witnesses == null || witnesses.getRedeemers() == null) return out;
+        for (Redeemer redeemer : witnesses.getRedeemers()) {
+            if (redeemer == null) return null;
+            if (redeemer.getTag() != RedeemerTag.Reward) continue;
+            byte[] data = redeemer.getData() == null ? null : inlineDatum(redeemer.getData().getCbor());
+            if (data == null) return null;
+            out.put(redeemer.getIndex(), data);
+        }
+        return out;
+    }
 }

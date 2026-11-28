@@ -26,6 +26,11 @@
       "provider": "org.yanoproject.x.assets.cardano.gateway.AssetShardBootstrapObserverProvider"
     },
     {
+      "kind": "l1-observer",
+      "name": "asset-cip113-wiring-v1",
+      "provider": "org.yanoproject.x.assets.cardano.gateway.Cip113WiringObserverProvider"
+    },
+    {
       "kind": "effect-executor",
       "name": "asset-settlement",
       "provider": "org.yanoproject.x.assets.cardano.gateway.AssetSettlementExecutorFactory"
