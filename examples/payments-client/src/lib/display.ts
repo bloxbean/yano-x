@@ -34,5 +34,6 @@ export function vaultStatus(status: string): { label: string; tone: 'accent' | '
 }
 
 export function explorerLink(template: string, txId: string | null | undefined): string | null {
-  return template && txId ? template.replace('{tx}', txId) : null;
+  // The id may come from the node, so only a plain 32-byte hex transaction id is put into a link.
+  return template && txId && /^[0-9a-f]{64}$/i.test(txId) ? template.replace('{tx}', txId.toLowerCase()) : null;
 }
