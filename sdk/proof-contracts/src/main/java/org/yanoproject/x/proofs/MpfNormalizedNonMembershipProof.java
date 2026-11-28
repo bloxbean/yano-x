@@ -10,9 +10,18 @@ import java.util.Objects;
 /**
  * Bounded normalization of an MPF non-membership proof.
  *
- * <p>The terminal is either the empty child hash or a conflicting leaf. Folds
- * are ordered from that terminal back to the root, matching
- * {@link MpfNormalizedProof}.</p>
+ * <p>The terminal node sits at {@code terminalCursor} on the key's path and is one of:</p>
+ * <ul>
+ *   <li>an empty branch slot: the three conflicting fields are empty;</li>
+ *   <li>a conflicting leaf: {@code conflictingKeyHash} names it, {@code conflictingLeafSuffix}
+ *       is its encoded suffix at {@code terminalCursor} and {@code conflictingValueHash} its
+ *       value hash;</li>
+ *   <li>a conflicting branch, whose compressed prefix leaves the key's path:
+ *       {@code conflictingKeyHash} is empty, {@code conflictingLeafSuffix} holds the branch prefix
+ *       (one nibble per byte) and {@code conflictingValueHash} the branch's 16-child merkle root.</li>
+ * </ul>
+ * <p>Folds are ordered from that terminal back to the root, matching
+ * {@link MpfNormalizedProof}. The field layout is the on-chain {@code AbsenceProof} layout.</p>
  */
 public record MpfNormalizedNonMembershipProof(
         byte[] stateRoot,
@@ -38,7 +47,16 @@ public record MpfNormalizedNonMembershipProof(
                 ? new byte[0] : conflictingValueHash.clone();
         boolean conflicting = conflictingLeafSuffix.length != 0
                 || conflictingKeyHash.length != 0 || conflictingValueHash.length != 0;
-        if (conflicting) {
+        if (conflicting && conflictingKeyHash.length == 0) {
+            bounded(conflictingLeafSuffix, 1, MpfNormalizedProof.PATH_NIBBLES - 1,
+                    "conflicting branch prefix");
+            for (byte nibble : conflictingLeafSuffix) {
+                if ((nibble & 0xFF) > 15) {
+                    throw new IllegalArgumentException("MPF conflicting branch prefix holds a non-nibble");
+                }
+            }
+            exact(conflictingValueHash, 32, "conflicting branch merkle root");
+        } else if (conflicting) {
             bounded(conflictingLeafSuffix, 1, 33, "conflicting leaf suffix");
             exact(conflictingKeyHash, 32, "conflicting key hash");
             exact(conflictingValueHash, 32, "conflicting value hash");
@@ -52,25 +70,46 @@ public record MpfNormalizedNonMembershipProof(
         }
     }
 
+    /** The terminal is a leaf of another key. */
     public boolean conflictingLeaf() {
-        return conflictingLeafSuffix.length != 0;
+        return conflictingKeyHash.length != 0;
+    }
+
+    /** The terminal is a branch whose compressed prefix leaves the key's path. */
+    public boolean conflictingBranch() {
+        return conflictingKeyHash.length == 0 && conflictingLeafSuffix.length != 0;
     }
 
     public boolean verify() {
         byte[] queryPath = MpfNormalizedProof.nibbles(Blake2bUtil.blake2bHash256(key));
         byte[] child;
         if (conflictingLeaf()) {
-            if (Arrays.equals(Blake2bUtil.blake2bHash256(key), conflictingKeyHash)) {
+            byte[] conflictPath = MpfNormalizedProof.nibbles(conflictingKeyHash);
+            // The folds authenticate only the query's path above the terminal, so the conflicting leaf must share
+            // that exact prefix, and its suffix at that depth (the authenticated part) must differ from the key's
+            // own suffix there.
+            if (!Arrays.equals(conflictPath, 0, terminalCursor, queryPath, 0, terminalCursor)) {
                 return false;
             }
-            byte[] conflictPath = MpfNormalizedProof.nibbles(conflictingKeyHash);
             byte[] expectedSuffix = MpfNormalizedProof.encodeLeafSuffix(
                     Arrays.copyOfRange(conflictPath, terminalCursor, conflictPath.length));
-            if (!Arrays.equals(expectedSuffix, conflictingLeafSuffix)) {
+            byte[] querySuffix = MpfNormalizedProof.encodeLeafSuffix(
+                    Arrays.copyOfRange(queryPath, terminalCursor, queryPath.length));
+            if (!Arrays.equals(expectedSuffix, conflictingLeafSuffix)
+                    || Arrays.equals(querySuffix, conflictingLeafSuffix)
+                    || readsAsBranch(conflictingLeafSuffix)) {
                 return false;
             }
             child = MpfNormalizedProof.commitLeaf(conflictingLeafSuffix,
                     conflictingValueHash);
+        } else if (conflictingBranch()) {
+            if (terminalCursor + conflictingLeafSuffix.length >= MpfNormalizedProof.PATH_NIBBLES
+                    || Arrays.equals(conflictingLeafSuffix, Arrays.copyOfRange(queryPath, terminalCursor,
+                    terminalCursor + conflictingLeafSuffix.length))
+                    || readsAsOddLeaf(terminalCursor, conflictingLeafSuffix)) {
+                return false;
+            }
+            child = hash(conflictingLeafSuffix, conflictingValueHash);
         } else {
             child = new byte[32];
         }
@@ -94,6 +133,36 @@ public record MpfNormalizedNonMembershipProof(
             cursorEnd = cursor;
         }
         return cursorEnd == 0 && Arrays.equals(stateRoot, child);
+    }
+
+    /**
+     * True when an odd leaf suffix ({@code 00 <nibble> <raw bytes>}) has only nibble-valued raw bytes, so its
+     * hash could equally be a branch node {@code blake2b-256(prefix ‖ merkle)}; such a "leaf" is never accepted
+     * as a conflicting leaf (the on-chain verifiers apply the same rule). An honest leaf at cursor {@code c} is
+     * refused with probability {@code 16^-((63 - c) / 2)}, depth-dependent and negligible.
+     */
+    static boolean readsAsBranch(byte[] encodedSuffix) {
+        if (encodedSuffix.length == 0 || encodedSuffix[0] != 0) {
+            return false;
+        }
+        for (int i = 2; i < encodedSuffix.length; i++) {
+            if ((encodedSuffix[i] & 0xFF) > 15) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * True when a conflicting branch prefix at {@code terminalCursor} has the shape of an odd leaf suffix: an odd
+     * cursor, first nibble 0 and exactly {@code 2 + (63 - cursor) / 2} nibbles. The present key's own leaf there,
+     * when its raw path bytes are all below 16, hashes like such a branch, so it is never accepted as one (the
+     * on-chain verifier applies the same rule). An honest branch of that shape needs two keys sharing at least 34
+     * nibbles.
+     */
+    static boolean readsAsOddLeaf(int terminalCursor, byte[] branchPrefix) {
+        return terminalCursor % 2 == 1 && branchPrefix.length == 2 + (63 - terminalCursor) / 2
+                && branchPrefix[0] == 0;
     }
 
     @Override public byte[] stateRoot() { return stateRoot.clone(); }

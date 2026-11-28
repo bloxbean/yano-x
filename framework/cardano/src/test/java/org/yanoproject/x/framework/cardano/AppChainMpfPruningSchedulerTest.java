@@ -51,6 +51,8 @@ class AppChainMpfPruningSchedulerTest {
             }
             await(() -> node.oldestProvableHeight() >= 3);
             await(() -> pruningLong(node, "lastCompletedAt") > 0);
+            // The watermark advances inside a pass before the pass records its retainFrom.
+            await(() -> pruningLong(node, "lastRetainFrom") >= 3);
 
             Map<?, ?> commitment = (Map<?, ?>) node.status().get("stateCommitment");
             Map<?, ?> pruning = (Map<?, ?>) commitment.get("proofPruning");

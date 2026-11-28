@@ -1,5 +1,6 @@
 package org.yanoproject.x.framework.cardano;
 
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -34,6 +35,7 @@ import org.yanoproject.x.framework.config.AppChainConfigParser;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
@@ -53,6 +55,33 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Timeout(30)
 class CardanoAppLedgerPluginTest {
     @TempDir Path directory;
+
+    @Test
+    void pricingParametersCarryTheReferenceScriptPriceOfTheSnapshot() {
+        // The host's cardano-client-lib pricing parameters leave minFeeRefScriptCostPerByte unset; a gateway Accept
+        // priced from them paid no reference-script fee and failed as FeeTooSmallUTxO on the ADR-059 M4 devnet.
+        ProtocolParams host = new ProtocolParams();
+        host.setMinFeeA(44);
+        host.setMinFeeB(155_381);
+        Supplier<ProtocolParams> pricing = CardanoAppLedgerPlugin.withReferenceScriptCost(() -> host,
+                () -> BigDecimal.valueOf(15));
+
+        ProtocolParams priced = pricing.get();
+        assertThat(priced.getMinFeeRefScriptCostPerByte()).isEqualByComparingTo("15");
+        assertThat(priced.getMinFeeA()).isEqualTo(44);
+        assertThat(priced.getMinFeeB()).isEqualTo(155_381);
+        assertThat(host.getMinFeeRefScriptCostPerByte()).as("the host's value is not mutated").isNull();
+
+        host.setMinFeeRefScriptCostPerByte(BigDecimal.valueOf(20));
+        assertThat(pricing.get()).as("a price the host supplies is kept").isSameAs(host);
+        assertThat(CardanoAppLedgerPlugin.withReferenceScriptCost(() -> null, () -> BigDecimal.ONE).get()).isNull();
+        ProtocolParams unpriced = new ProtocolParams();
+        assertThat(CardanoAppLedgerPlugin.withReferenceScriptCost(() -> unpriced, () -> null).get())
+                .isSameAs(unpriced);
+        assertThat(CardanoAppLedgerPlugin.withReferenceScriptCost(() -> unpriced, () -> {
+            throw new IllegalStateException("no snapshot");
+        }).get()).isSameAs(unpriced);
+    }
 
     @Test
     void integratedStandaloneRetainsLegacyEffectFactoryWithoutRequestingL1Capabilities() {
@@ -134,6 +163,8 @@ class CardanoAppLedgerPluginTest {
             assertThat(createdContext.get().protocolParams().get()).isNull();
             assertThatThrownBy(() -> createdContext.get().submitTx(new byte[0]))
                     .isInstanceOf(IllegalStateException.class).hasMessageContaining("not wired");
+            // ADR-059 D8b, D9: no block is finalized, so no proof is served.
+            assertThat(createdContext.get().stateProofAtHeight(1, new byte[] {1})).isEmpty();
         } finally {
             manager.close();
         }

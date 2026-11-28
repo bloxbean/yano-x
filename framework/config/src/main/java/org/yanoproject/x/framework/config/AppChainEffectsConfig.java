@@ -114,7 +114,9 @@ public record AppChainEffectsConfig(
                 config.enforceSenderSeq(), enabled, maxPerBlock,
                 maxPayloadBytes, maxExpiryBlocks, resultWindowBlocks, defaultGate,
                 outcomeCommitment, strictReservedPrefix,
-                resultSigners.stream().sorted().toList());
+                resultSigners.stream().sorted().toList(),
+                AppChainConsensusProfile.blockMaxBackwardSkewMs(config.pluginSettings()),
+                AppChainConsensusProfile.membershipHandoffGate(config.pluginSettings()));
     }
 
     public boolean resultSignerAllowedHex(String senderHex) {

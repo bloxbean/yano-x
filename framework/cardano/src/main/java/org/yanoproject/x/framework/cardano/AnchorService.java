@@ -187,6 +187,45 @@ final class AnchorService {
     }
 
     /**
+     * Why {@link #stableAnchoredHeight} is 0 at {@code stableSlot}, for operator status, or
+     * null when it is not.
+     */
+    static String stableAnchorAbsenceReason(AppLedgerStore ledger, long stableSlot) {
+        byte[] encoded = ledger.metaBytes(META_ANCHOR_HISTORY);
+        if (encoded == null || encoded.length == 0) {
+            return "no anchor confirmation is recorded yet";
+        }
+        List<Confirmation> history;
+        try {
+            history = ConfirmationHistory.decode(encoded);
+        } catch (IllegalArgumentException unreadable) {
+            return "the anchor confirmation journal is unreadable";
+        }
+        if (history.isEmpty()) {
+            return "no anchor confirmation is recorded yet";
+        }
+        boolean anyWithInclusion = false;
+        for (Confirmation confirmation : history) {
+            if (confirmation.l1BlockHash() != null) {
+                anyWithInclusion = true;
+                if (confirmation.l1Slot() <= stableSlot && confirmation.toHeight() > 0) {
+                    return null;
+                }
+            }
+        }
+        if (!anyWithInclusion) {
+            return "the recorded anchor confirmations carry no L1 inclusion block (legacy metadata "
+                    + "anchor journal entries never count)";
+        }
+        if (history.size() >= ConfirmationHistory.MAX_ENTRIES) {
+            return "the anchor confirmation journal keeps the last " + ConfirmationHistory.MAX_ENTRIES
+                    + " confirmations and all are newer than the L1-stable point; anchor less often "
+                    + "or lower l1.stability-depth";
+        }
+        return "no anchor confirmation is l1.stability-depth deep yet";
+    }
+
+    /**
      * Anchor the current tip now, ignoring the every-blocks/interval schedule
      * (admin force-anchor, ADR 006 E5.4). No-op if an anchor tx is already
      * pending or there is nothing new to anchor.

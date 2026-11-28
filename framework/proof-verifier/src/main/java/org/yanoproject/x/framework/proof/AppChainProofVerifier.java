@@ -86,7 +86,7 @@ public final class AppChainProofVerifier {
             byte[] proofWire
     ) {
         if (!validInputs(expectedRoot, key, null, proofWire)
-                || !MpfProofWirePreflight.accepts(proofWire)) {
+                || !MpfProofWirePreflight.acceptsExclusion(proofWire, key)) {
             return false;
         }
         try {

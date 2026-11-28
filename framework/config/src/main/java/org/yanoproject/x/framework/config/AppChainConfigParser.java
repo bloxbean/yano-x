@@ -31,10 +31,29 @@ public final class AppChainConfigParser {
             "retention.keep-blocks", "pool.max-messages",
             "message.enforce-sender-seq");
 
+    /**
+     * Chain-wide script-anchor profile (ADR-059 framework additions 3 and 5): read by every
+     * member, including followers without {@code anchor.enabled}.
+     */
+    public static final String ANCHOR_PROFILE_PREFIX = "anchor-profile.";
+    public static final Set<String> ANCHOR_PROFILE_KEYS = Set.of(
+            "anchor-profile.version",
+            "anchor-profile.max-window-ms",
+            "anchor-profile.slot-zero",
+            "anchor-profile.slot-zero-time-ms",
+            "anchor-profile.slot-length-ms",
+            "anchor-profile.pinned.thread-policy-id",
+            "anchor-profile.pinned.thread-asset-name",
+            "anchor-profile.pinned.script-hash",
+            "anchor-profile.pinned.genesis-id",
+            "anchor-profile.pinned.application-id",
+            "anchor-profile.pinned.commitment-profile",
+            "anchor-profile.pinned.format-fingerprint");
+
     private static final List<String> DYNAMIC_PREFIXES = List.of(
             "sinks.", "zk.", "machines.", "state.", "sequencer.", "membership.",
             "observation.", "observations.", "consensus.", "observers.", "transport.", "effects.", "capabilities.",
-            "block-time.", TopicChainSettings.PREFIX);
+            "block-time.", ANCHOR_PROFILE_PREFIX, TopicChainSettings.PREFIX);
 
     /*
      * Narrow ownership domains whose complete key set is parsed and parity-tested by Yano.
@@ -42,8 +61,10 @@ public final class AppChainConfigParser {
      */
     private static final Map<String, Set<String>> STRICT_OWNERSHIP_DOMAINS = Map.of(
             "effects.result.", Set.of("effects.result.signers"),
-            "block-time.", Set.of(AppChainConsensusProfile.BLOCK_MAX_FORWARD_SKEW_SETTING),
+            "block-time.", Set.of(AppChainConsensusProfile.BLOCK_MAX_FORWARD_SKEW_SETTING,
+                    AppChainConsensusProfile.BLOCK_MAX_BACKWARD_SKEW_SETTING),
             TopicChainSettings.PREFIX, TopicChainSettings.KEYS,
+            ANCHOR_PROFILE_PREFIX, ANCHOR_PROFILE_KEYS,
             "state.", Set.of(
                     StateCommitmentIdentity.PROFILE_SETTING,
                     StateCommitmentIdentity.FINGERPRINT_SETTING,
@@ -51,7 +72,20 @@ public final class AppChainConfigParser {
                     StateCommitmentIdentity.L1_PROOF_REQUIRED_SETTING,
                     "state.proof-pruning.enabled",
                     "state.proof-pruning.retain-heights",
-                    "state.proof-pruning.interval-seconds"));
+                    "state.proof-pruning.interval-seconds",
+                    "state.proof-pruning.l1-stable-anchor-floor"));
+
+    /*
+     * Runtime-owned exact keys inside OPEN namespaces. The namespace stays open for plugin
+     * strategies, but a key sharing one of these stems must be the exact runtime key, so a
+     * typo of a consensus-committed switch fails startup instead of silently reading as off.
+     */
+    private static final Set<String> HANDOFF_KEYS = Set.of(
+            AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING,
+            AppChainConsensusProfile.MEMBERSHIP_HANDOFF_GATE_SETTING);
+    private static final Map<String, Set<String>> GUARDED_KEY_STEMS = Map.of(
+            "membership.anchor", HANDOFF_KEYS,
+            "membership.handoff", HANDOFF_KEYS);
 
     private AppChainConfigParser() {
     }
@@ -88,6 +122,12 @@ public final class AppChainConfigParser {
                 if (key.startsWith(domain.getKey()) && !domain.getValue().contains(key)) {
                     throw new IllegalArgumentException("Unknown app-chain property in strict "
                             + "runtime-owned domain: " + key);
+                }
+            }
+            for (Map.Entry<String, Set<String>> guarded : GUARDED_KEY_STEMS.entrySet()) {
+                if (key.startsWith(guarded.getKey()) && !guarded.getValue().contains(key)) {
+                    throw new IllegalArgumentException("Unknown app-chain property " + key
+                            + " (did you mean one of " + new java.util.TreeSet<>(guarded.getValue()) + "?)");
                 }
             }
         }

@@ -33,7 +33,8 @@ Resources and specifications:
 
 - `META-INF/yano/contribution-kinds/org.yanoproject.x.framework.api.json`: the X
   contribution kinds (`app-state-machine`, `authenticated-map-validator`,
-  `sequencer-mode`, `l1-observer`, `l1-epoch-observer`, `observation-provider`,
+  `sequencer-mode`, `membership-handoff-gate`, `l1-observer`, `l1-epoch-observer`,
+  `observation-provider`,
   `signer-provider`, `finalized-sink`, `domain-api`, `local-read-model`). Yano has
   no built-in knowledge of these kinds (ADR-064 D3).
 - `META-INF/yano/topics/v1/topics.cddl` and the L1-observation golden vectors.

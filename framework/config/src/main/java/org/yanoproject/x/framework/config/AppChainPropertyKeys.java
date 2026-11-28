@@ -57,6 +57,12 @@ public final class AppChainPropertyKeys {
     /** Delay between background proof-pruning passes. */
     public static final String STATE_PROOF_PRUNING_INTERVAL_SECONDS =
             "yano.app-chain.state.proof-pruning.interval-seconds";
+    /**
+     * Keep proofs from the latest L1-stable anchor height onward
+     * (ADR-059 framework addition 2): {@code retainFrom = min(tip retention, stable anchor)}.
+     */
+    public static final String STATE_PROOF_PRUNING_L1_STABLE_ANCHOR_FLOOR =
+            "yano.app-chain.state.proof-pruning.l1-stable-anchor-floor";
     public static final String ANCHOR_ENABLED = "yano.app-chain.anchor.enabled";
     /** Anchor wallet Ed25519 payment key (hex, 32-byte seed). */
     public static final String ANCHOR_SIGNING_KEY = "yano.app-chain.anchor.signing-key";

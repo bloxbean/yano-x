@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.asset-payments",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "asset-payments",
+      "provider": "org.yanoproject.x.assetpayments.ledger.AssetPaymentsStateMachineProvider"
+    }
+  ]
+}

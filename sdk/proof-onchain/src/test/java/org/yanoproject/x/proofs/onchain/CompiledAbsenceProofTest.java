@@ -3,24 +3,37 @@ package org.yanoproject.x.proofs.onchain;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import org.julclang.core.PlutusData;
 import org.julclang.testkit.ContractTest;
+import org.julclang.testkit.JulcEval;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.yanoproject.x.proofs.MpfNormalizedNonMembershipProof;
 import org.yanoproject.x.proofs.MpfNormalizedProof;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Evaluates the compiled MPF absence verifiers as UPLC. Julc before 0.1.0-pre17 discarded a {@code return false}
  * inside an {@code if/else} that had statements after it, so the conflicting-leaf checks of {@code verifyAbsence}
- * never ran: a present key's own leaf was accepted as the "conflicting" leaf that proves it absent.
+ * never ran: a present key's own leaf was accepted as the "conflicting" leaf that proves it absent. The public
+ * {@code MpfOnChainVerifier.verifyAbsence} (ADR-059 framework addition 9) is the same check, lifted, and runs the same
+ * cases. It also authenticates the key's own suffix, not the conflicting key hash's prefix, and accepts a third
+ * terminal (a branch whose prefix leaves the path); those cases run against it alone. The pair and snapshot
+ * verifiers (PR #113) instead bind the conflicting key hash to the authenticated prefix; the flipped-prefix forgeries
+ * run against all three.
  */
 class CompiledAbsenceProofTest extends ContractTest {
     private static final List<Class<?>> VERIFIERS = List.of(
-            MpfPairOnChainVerifier.class, AuthenticatedSnapshotOnChainVerifier.class);
+            MpfOnChainVerifier.class, MpfPairOnChainVerifier.class, AuthenticatedSnapshotOnChainVerifier.class);
+    private static final Map<Class<?>, JulcEval> EVALUATORS = new HashMap<>();
     private static MpfTestTrie trie;
 
     @BeforeAll
@@ -52,6 +65,76 @@ class CompiledAbsenceProofTest extends ContractTest {
     }
 
     @Test
+    void acceptsEveryHonestAbsenceProofTheConverterProduces() {
+        int conflicting = 0;
+        int empty = 0;
+        for (int i = 0; i < 24; i++) {
+            MpfNormalizedNonMembershipProof absent = trie.absence(MpfTestTrie.key("absent/", i));
+            if (absent.conflictingBranch()) {
+                // Only MpfOnChainVerifier accepts the branch terminal; see everyAbsentKeyIsProvableOnChain...
+                continue;
+            }
+            if (absent.conflictingLeaf()) conflicting++; else empty++;
+            for (Class<?> verifier : VERIFIERS) {
+                assertThat(verifyAbsence(verifier, trie.root(), MpfTestTrie.absenceData(absent)))
+                        .as("%s, absent/%d", verifier.getSimpleName(), i).isTrue();
+            }
+        }
+        assertThat(conflicting).isPositive();
+        assertThat(empty).isPositive();
+    }
+
+    /**
+     * The folds authenticate only the query's own path above the terminal cursor, and the leaf hash commits only to
+     * the suffix below it. A conflicting key hash that agrees with a present key's leaf below the cursor but differs
+     * above it names that very leaf, so it must not prove the key absent.
+     */
+    @Test
+    void rejectsAPresentKeyWhoseConflictingKeyHashDiffersOnlyAboveTheCursor() {
+        Set<Long> depths = new TreeSet<>();
+        for (int i = 0; i < 48; i++) {
+            depths.add(assertForgeriesRejected(trie, MpfTestTrie.key("member/", i)));
+        }
+        assertThat(depths).as("leaf depths covered").hasSizeGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void rejectsTheSameForgeryForADeepLeaf() {
+        MpfTestTrie deep = MpfTestTrie.of("deep/", 4096);
+        long deepest = 0;
+        byte[] deepestKey = null;
+        for (int i = 0; i < 512; i++) {
+            byte[] key = MpfTestTrie.key("deep/", i);
+            long cursor = MpfTestTrie.leafCursor(deep.inclusion(key).leafSuffix());
+            if (cursor > deepest) {
+                deepest = cursor;
+                deepestKey = key;
+            }
+        }
+        assertThat(deepest).isGreaterThanOrEqualTo(4);
+        assertForgeriesRejected(deep, deepestKey);
+    }
+
+    /** Flips each nibble above the present key's leaf cursor in turn; returns that cursor. */
+    private static long assertForgeriesRejected(MpfTestTrie source, byte[] presentKey) {
+        MpfNormalizedProof present = source.inclusion(presentKey);
+        long cursor = MpfTestTrie.leafCursor(present.leafSuffix());
+        byte[] keyHash = Blake2bUtil.blake2bHash256(present.key());
+        byte[] valueHash = Blake2bUtil.blake2bHash256(present.value());
+        assertThat(cursor).isPositive();
+        for (long nibble = 0; nibble < cursor; nibble++) {
+            PlutusData forged = MpfTestTrie.absenceData(present.key(), present.leafSuffix(), present.folds(),
+                    cursor, MpfTestTrie.flipNibble(keyHash, nibble), valueHash);
+            for (Class<?> verifier : VERIFIERS) {
+                assertThat(verifyAbsence(verifier, source.root(), forged))
+                        .as("%s, cursor %d, flipped nibble %d", verifier.getSimpleName(), cursor, nibble)
+                        .isFalse();
+            }
+        }
+        return cursor;
+    }
+
+    @Test
     void rejectsAnEmptySlotAbsenceThatAlsoNamesAConflictingLeaf() {
         MpfNormalizedNonMembershipProof absent = trie.firstAbsence("absent/", false);
         byte[] junk = new byte[32];
@@ -63,7 +146,152 @@ class CompiledAbsenceProofTest extends ContractTest {
         }
     }
 
+    @Test
+    void everyAbsentKeyIsProvableOnChainWhateverItsTerminal() {
+        Map<MpfTestTrie.Terminal, Integer> seen = new EnumMap<>(MpfTestTrie.Terminal.class);
+        for (int i = 0; i < 400; i++) {
+            MpfNormalizedNonMembershipProof absent = trie.absence(MpfTestTrie.key("random/", i));
+            assertThat(verifyAbsence(MpfOnChainVerifier.class, MpfTestTrie.absenceData(absent)))
+                    .as("random/%d (%s)", i, MpfTestTrie.terminal(absent)).isTrue();
+            seen.merge(MpfTestTrie.terminal(absent), 1, Integer::sum);
+        }
+        assertThat(seen).containsOnlyKeys(MpfTestTrie.Terminal.values());
+    }
+
+    /**
+     * The conflicting key hash is free redeemer data above the terminal: only its suffix below {@code terminalCursor}
+     * is authenticated. A hash that differs from the present key's own hash in one nibble above the leaf must not make
+     * the key's own leaf a "conflicting" one, at any depth.
+     */
+    @Test
+    void aFlippedPrefixNibbleInTheConflictingKeyHashNeverProvesAPresentKeyAbsent() {
+        for (int member = 0; member < 48; member += 5) {
+            MpfNormalizedProof present = trie.inclusion(MpfTestTrie.key("member/", member));
+            long cursor = MpfTestTrie.leafCursor(present.leafSuffix());
+            byte[] keyHash = Blake2bUtil.blake2bHash256(present.key());
+            for (long flip : new long[] {0, cursor / 2, cursor - 1}) {
+                byte[] forged = keyHash.clone();
+                forged[(int) flip / 2] ^= (byte) (flip % 2 == 0 ? 0x10 : 0x01);
+                PlutusData claim = MpfTestTrie.absenceData(present.key(), present.leafSuffix(), present.folds(),
+                        cursor, forged, Blake2bUtil.blake2bHash256(present.value()));
+                assertThat(verifyAbsence(MpfOnChainVerifier.class, claim))
+                        .as("member/%d, flipped nibble %d of %d", member, flip, cursor).isFalse();
+            }
+        }
+    }
+
+    @Test
+    void aConflictingBranchMustBeAuthenticWellFormedAndLeaveThePath() {
+        MpfNormalizedNonMembershipProof honest = trie.firstAbsence("absent/", MpfTestTrie.Terminal.CONFLICTING_BRANCH);
+        assertThat(verifyAbsence(MpfOnChainVerifier.class, MpfTestTrie.absenceData(honest))).isTrue();
+        byte[] prefix = honest.conflictingLeafSuffix();
+        long cursor = honest.terminalCursor();
+
+        byte[] altered = prefix.clone();
+        altered[altered.length - 1] = (byte) ((altered[altered.length - 1] + 1) % 16);
+        assertThat(verifyAbsence(MpfOnChainVerifier.class, MpfTestTrie.absenceData(honest.key(), altered,
+                honest.folds(), cursor, new byte[0], honest.conflictingValueHash()))).isFalse();
+
+        byte[] notANibble = prefix.clone();
+        notANibble[0] = (byte) (notANibble[0] + 16);
+        assertThat(verifyAbsence(MpfOnChainVerifier.class, MpfTestTrie.absenceData(honest.key(), notANibble,
+                honest.folds(), cursor, new byte[0], honest.conflictingValueHash()))).isFalse();
+
+        byte[] tooLong = Arrays.copyOf(prefix, (int) (MpfNormalizedProof.PATH_NIBBLES - cursor));
+        assertThat(verifyAbsence(MpfOnChainVerifier.class, MpfTestTrie.absenceData(honest.key(), tooLong,
+                honest.folds(), cursor, new byte[0], honest.conflictingValueHash()))).isFalse();
+    }
+
+    /**
+     * A two-key trie whose root is a branch with a non-empty prefix: a present key's own root branch, read as a
+     * conflicting branch, is authentic but does not leave its path, so it proves nothing.
+     */
+    @Test
+    void aPresentKeysOwnBranchIsNotAConflictingBranch() {
+        List<byte[]> keys = sharedFirstNibble();
+        MpfTestTrie pair = MpfTestTrie.ofKeys(keys);
+        MpfNormalizedProof present = pair.inclusion(keys.get(0));
+        MpfNormalizedProof.FoldStep top = present.folds().getLast();
+        assertThat(top.cursor()).isZero();
+        assertThat(top.prefix()).isNotEmpty();
+        byte[] merkle = MpfTestTrie.branchMerkle(present, present.folds().size() - 1);
+        assertThat(MpfTestTrie.hash(top.prefix(), merkle)).isEqualTo(pair.root());
+        PlutusData ownBranch = MpfTestTrie.absenceData(present.key(), top.prefix(), List.of(), 0, new byte[0],
+                merkle);
+        assertThat(CompiledLoopArithmeticTest.evaluator(MpfOnChainVerifier.class)
+                .call("verifyAbsence", ownBranch, pair.root()).asBoolean()).isFalse();
+        // A key that leaves the root prefix is proved absent by that same branch.
+        for (int i = 0; ; i++) {
+            MpfNormalizedNonMembershipProof absent = pair.absence(MpfTestTrie.key("outside/", i));
+            if (absent.conflictingBranch()) {
+                assertThat(absent.terminalCursor()).isZero();
+                assertThat(CompiledLoopArithmeticTest.evaluator(MpfOnChainVerifier.class)
+                        .call("verifyAbsence", MpfTestTrie.absenceData(absent), pair.root()).asBoolean()).isTrue();
+                break;
+            }
+        }
+    }
+
+    private static List<byte[]> sharedFirstNibble() {
+        List<byte[]> keys = new ArrayList<>();
+        byte[] first = MpfTestTrie.key("pair/", 0);
+        keys.add(first);
+        int nibble = (Blake2bUtil.blake2bHash256(first)[0] & 0xff) >> 4;
+        for (int i = 1; ; i++) {
+            byte[] candidate = MpfTestTrie.key("pair/", i);
+            if ((Blake2bUtil.blake2bHash256(candidate)[0] & 0xff) >> 4 == nibble) {
+                keys.add(candidate);
+                return keys;
+            }
+        }
+    }
+
+    /**
+     * A real branch on a present key's own path, whose prefix starts with nibble 0 at an odd cursor, has the shape of
+     * an odd conflicting leaf. Before the raw-byte rule the verifiers accepted it as proof that the key is absent,
+     * while the same root proves the key present. Every verifier, compiled, now rejects it, as does the off-chain
+     * normalized proof.
+     */
+    @Test
+    void rejectsABranchOnThePathReadAsAConflictingLeaf() {
+        for (int cursor : new int[] {1, 3, 5, 9, 13}) {
+            MpfTestTrie.BranchAsLeaf forgery = MpfTestTrie.branchReadAsLeaf(cursor);
+            assertThat(forgery.inclusion().verify()).as("cursor %d: the key is present", cursor).isTrue();
+            assertThat(forgery.forgedAbsence().verify()).as("cursor %d: off-chain", cursor).isFalse();
+            PlutusData forged = MpfTestTrie.absenceData(forgery.forgedAbsence());
+            for (Class<?> verifier : VERIFIERS) {
+                assertThat(verifyAbsence(verifier, forgery.root(), forged))
+                        .as("%s, cursor %d", verifier.getSimpleName(), cursor).isFalse();
+            }
+        }
+    }
+
+    /**
+     * The converse direction: a present key's own odd leaf, whose raw path bytes are all below 16, has the shape of a
+     * branch whose prefix leaves the path at its first nibble. Read as the third terminal it proves the key absent
+     * under the very root that proves it present, unless the verifier refuses a branch prefix at an odd cursor that
+     * starts with 0 at exactly the odd-leaf length. {@code MpfOnChainVerifier}, compiled, and the off-chain
+     * normalized proof both refuse it at every cursor tried.
+     */
+    @Test
+    void rejectsAPresentKeysOwnLeafReadAsAConflictingBranch() {
+        for (int cursor : new int[] {53, 55, 57, 59}) {
+            MpfTestTrie.BranchAsLeaf forgery = MpfTestTrie.ownLeafReadAsBranch(cursor);
+            assertThat(forgery.inclusion().verify()).as("cursor %d: the key is present", cursor).isTrue();
+            assertThat(forgery.forgedAbsence().conflictingBranch()).isTrue();
+            assertThat(CompiledLoopArithmeticTest.evaluator(MpfOnChainVerifier.class)
+                    .call("verifyAbsence", MpfTestTrie.absenceData(forgery.forgedAbsence()), forgery.root())
+                    .asBoolean()).as("cursor %d: compiled", cursor).isFalse();
+            assertThat(forgery.forgedAbsence().verify()).as("cursor %d: off-chain", cursor).isFalse();
+        }
+    }
+
     private static boolean verifyAbsence(Class<?> verifier, PlutusData proof) {
-        return CompiledLoopArithmeticTest.evaluator(verifier).call("verifyAbsence", proof, trie.root()).asBoolean();
+        return verifyAbsence(verifier, trie.root(), proof);
+    }
+
+    private static boolean verifyAbsence(Class<?> verifier, byte[] root, PlutusData proof) {
+        return EVALUATORS.computeIfAbsent(verifier, CompiledLoopArithmeticTest::evaluator)
+                .call("verifyAbsence", proof, root).asBoolean();
     }
 }

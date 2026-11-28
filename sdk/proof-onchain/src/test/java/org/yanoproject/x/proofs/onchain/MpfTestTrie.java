@@ -31,6 +31,15 @@ final class MpfTestTrie {
         return result;
     }
 
+    /** Exactly {@code keys}, each holding its own key bytes as value. */
+    static MpfTestTrie ofKeys(List<byte[]> keys) {
+        MpfTestTrie result = new MpfTestTrie();
+        for (byte[] key : keys) {
+            result.trie.put(key, key);
+        }
+        return result;
+    }
+
     static byte[] key(String prefix, int index) {
         return (prefix + index).getBytes(StandardCharsets.US_ASCII);
     }
@@ -47,11 +56,23 @@ final class MpfTestTrie {
         return MpfProofConverter.convertAbsence(wire(key, null));
     }
 
-    /** The first absent {@code <prefix>i} whose path ends at a conflicting leaf, or at an empty branch slot. */
+    /** The terminal an absence proof ends at. */
+    enum Terminal { EMPTY_SLOT, CONFLICTING_LEAF, CONFLICTING_BRANCH }
+
+    static Terminal terminal(MpfNormalizedNonMembershipProof proof) {
+        return proof.conflictingLeaf() ? Terminal.CONFLICTING_LEAF
+                : proof.conflictingBranch() ? Terminal.CONFLICTING_BRANCH : Terminal.EMPTY_SLOT;
+    }
+
+    /** The first absent {@code <prefix>i} whose proof ends at a conflicting leaf, or at an empty branch slot. */
     MpfNormalizedNonMembershipProof firstAbsence(String prefix, boolean conflictingLeaf) {
+        return firstAbsence(prefix, conflictingLeaf ? Terminal.CONFLICTING_LEAF : Terminal.EMPTY_SLOT);
+    }
+
+    MpfNormalizedNonMembershipProof firstAbsence(String prefix, Terminal terminal) {
         for (int i = 0; ; i++) {
             MpfNormalizedNonMembershipProof proof = absence(key(prefix, i));
-            if (proof.conflictingLeaf() == conflictingLeaf) {
+            if (terminal(proof) == terminal) {
                 return proof;
             }
         }
@@ -107,6 +128,28 @@ final class MpfTestTrie {
         return PlutusData.list(result);
     }
 
+    /**
+     * The 16-child merkle root of the branch an inclusion proof passes through at fold {@code foldIndex} (leaf
+     * first): the node at that fold's cursor is {@code blake2b-256(prefix ‖ merkle)}.
+     */
+    static byte[] branchMerkle(MpfNormalizedProof proof, int foldIndex) {
+        byte[] child = hash(proof.leafSuffix(), Blake2bUtil.blake2bHash256(proof.value()));
+        byte[] merkle = null;
+        for (int i = 0; i <= foldIndex; i++) {
+            MpfNormalizedProof.FoldStep fold = proof.folds().get(i);
+            merkle = child;
+            for (int level = 0; level < 4; level++) {
+                byte[] sibling = fold.neighbors().get(3 - level);
+                merkle = ((fold.nibble() >> level) & 1) == 0 ? hash(merkle, sibling) : hash(sibling, merkle);
+            }
+            if (fold.branchValueHash().length == 32) {
+                merkle = hash(merkle, hash(new byte[] {(byte) 0xff}, fold.branchValueHash()));
+            }
+            child = hash(fold.prefix(), merkle);
+        }
+        return merkle;
+    }
+
     /** Fold the proof to its root, committing {@code branchValueHash} at fold {@code foldIndex} (-1 for none). */
     static byte[] root(MpfNormalizedProof proof, int foldIndex, byte[] branchValueHash) {
         byte[] child = hash(proof.leafSuffix(), Blake2bUtil.blake2bHash256(proof.value()));
@@ -125,10 +168,118 @@ final class MpfTestTrie {
         return child;
     }
 
+    /** A synthetic forgery: a real branch on a present key's own path presented as a conflicting leaf. */
+    record BranchAsLeaf(byte[] root, MpfNormalizedProof inclusion, MpfNormalizedNonMembershipProof forgedAbsence) {
+    }
+
+    /** {@link #branchReadAsLeaf(int)} at cursor 1. */
+    static BranchAsLeaf branchReadAsLeaf() {
+        return branchReadAsLeaf(1);
+    }
+
+    /**
+     * A trie whose root branch (cursor 0, prefix {@code path[0, c-1)}, nibble {@code path[c-1]}) leads to a branch
+     * at odd cursor {@code c} with a {@code 2 + (63 - c) / 2}-nibble prefix starting with nibble 0, under which the
+     * victim key's leaf sits. That branch, {@code blake2b-256(prefix ‖ merkle)}, has exactly the shape of an odd
+     * leaf {@code blake2b-256(00 n raw ‖ valueHash)}: a conflicting key hash sharing the path above {@code c} and
+     * carrying the prefix's nibbles as raw bytes makes it a "conflicting leaf" that proves the present victim
+     * absent, unless the verifier requires a raw byte above 15. (A real trie needs about 2^70 partial-collision
+     * grinding for such a long shared prefix.)
+     */
+    static BranchAsLeaf branchReadAsLeaf(int c) {
+        if (c % 2 == 0 || c < 1 || c > 61) throw new IllegalArgumentException("odd cursor 1..61");
+        int length = 2 + (63 - c) / 2;
+        byte[] key = null;
+        byte[] path = null;
+        for (int i = 0; ; i++) {
+            key = key("victim/" + c + "/", i);
+            path = MpfNormalizedProof.nibbles(Blake2bUtil.blake2bHash256(key));
+            if (path[c] == 0 && path[c + 1] != 0) break;
+        }
+        byte[] prefix = Arrays.copyOfRange(path, c, c + length);
+        byte[] leafSuffix = MpfNormalizedProof.encodeLeafSuffix(Arrays.copyOfRange(path, c + length + 1, 64));
+        byte[] leaf = hash(leafSuffix, Blake2bUtil.blake2bHash256(key));
+        List<byte[]> lower = MpfNormalizedProof.sparseNeighbors(path[c + length], (path[c + length] + 1) % 16,
+                Blake2bUtil.blake2bHash256(new byte[] {1}));
+        byte[] branchMerkle = merkle(path[c + length], leaf, lower);
+        byte[] branch = hash(prefix, branchMerkle);
+        List<byte[]> upper = MpfNormalizedProof.sparseNeighbors(path[c - 1], (path[c - 1] + 1) % 16,
+                Blake2bUtil.blake2bHash256(new byte[] {2}));
+        byte[] rootPrefix = Arrays.copyOfRange(path, 0, c - 1);
+        byte[] root = hash(rootPrefix, merkle(path[c - 1], branch, upper));
+        MpfNormalizedProof.FoldStep top = new MpfNormalizedProof.FoldStep(0, rootPrefix, path[c - 1], upper,
+                new byte[0]);
+        MpfNormalizedProof inclusion = new MpfNormalizedProof(root, key, key, leafSuffix, List.of(
+                new MpfNormalizedProof.FoldStep(c, prefix, path[c + length], lower, new byte[0]), top), 42);
+        byte[] keyHash = Blake2bUtil.blake2bHash256(key);
+        byte[] conflicting = new byte[32];
+        System.arraycopy(keyHash, 0, conflicting, 0, (c - 1) / 2);
+        conflicting[(c - 1) / 2] = (byte) ((path[c - 1] << 4) | prefix[1]);
+        System.arraycopy(prefix, 2, conflicting, (c + 1) / 2, length - 2);
+        MpfNormalizedNonMembershipProof forged = new MpfNormalizedNonMembershipProof(root, key, c, prefix,
+                conflicting, branchMerkle, List.of(top), 42);
+        return new BranchAsLeaf(root, inclusion, forged);
+    }
+
+    /**
+     * The converse forgery at odd cursor {@code c}: the victim key's own leaf sits at {@code c} under the root
+     * branch, and every raw path byte of its suffix {@code 00 <nibble> <raw bytes>} is below 16. Read as a branch
+     * with prefix {@code 0 <nibble> <raw bytes as nibbles>} and merkle root the value hash, it leaves the key's path
+     * at its first nibble and hashes to the very node, so it is a "conflicting branch" that proves the present key
+     * absent, unless the verifier refuses the odd-leaf shape. The key needs about {@code 2^(4 (63 - c) / 2)} tries
+     * (a real trie about 2^84 work at the best cursor).
+     */
+    static BranchAsLeaf ownLeafReadAsBranch(int c) {
+        if (c % 2 == 0 || c < 1 || c > 59) throw new IllegalArgumentException("odd cursor 1..59");
+        byte[] key = null;
+        byte[] path = null;
+        search:
+        for (int i = 0; ; i++) {
+            key = key("own-leaf/" + c + "/", i);
+            path = MpfNormalizedProof.nibbles(Blake2bUtil.blake2bHash256(key));
+            if (path[c] == 0) continue;
+            for (int j = c + 1; j < 64; j += 2) {
+                if (path[j] != 0) continue search;
+            }
+            break;
+        }
+        byte[] leafSuffix = MpfNormalizedProof.encodeLeafSuffix(Arrays.copyOfRange(path, c, 64));
+        byte[] valueHash = Blake2bUtil.blake2bHash256(key);
+        byte[] leaf = hash(leafSuffix, valueHash);
+        List<byte[]> upper = MpfNormalizedProof.sparseNeighbors(path[c - 1], (path[c - 1] + 1) % 16,
+                Blake2bUtil.blake2bHash256(new byte[] {2}));
+        byte[] rootPrefix = Arrays.copyOfRange(path, 0, c - 1);
+        byte[] root = hash(rootPrefix, merkle(path[c - 1], leaf, upper));
+        MpfNormalizedProof.FoldStep top = new MpfNormalizedProof.FoldStep(0, rootPrefix, path[c - 1], upper,
+                new byte[0]);
+        MpfNormalizedProof inclusion = new MpfNormalizedProof(root, key, key, leafSuffix, List.of(top), 42);
+        byte[] branchPrefix = new byte[leafSuffix.length];
+        System.arraycopy(leafSuffix, 0, branchPrefix, 0, leafSuffix.length);
+        MpfNormalizedNonMembershipProof forged = new MpfNormalizedNonMembershipProof(root, key, c, branchPrefix,
+                new byte[0], valueHash, List.of(top), 42);
+        return new BranchAsLeaf(root, inclusion, forged);
+    }
+
+    private static byte[] merkle(int nibble, byte[] child, List<byte[]> neighbors) {
+        byte[] merkle = child;
+        for (int level = 0; level < 4; level++) {
+            byte[] sibling = neighbors.get(3 - level);
+            merkle = ((nibble >> level) & 1) == 0 ? hash(merkle, sibling) : hash(sibling, merkle);
+        }
+        return merkle;
+    }
+
     static byte[] hash(byte[] left, byte[] right) {
         byte[] joined = Arrays.copyOf(left, left.length + right.length);
         System.arraycopy(right, 0, joined, left.length, right.length);
         return Blake2bUtil.blake2bHash256(joined);
+    }
+
+    /** A copy of {@code hash} with path nibble {@code index} changed. */
+    static byte[] flipNibble(byte[] hash, long index) {
+        byte[] result = hash.clone();
+        result[(int) (index / 2)] ^= (byte) (index % 2 == 0 ? 0x10 : 0x01);
+        return result;
     }
 
     /** Leaf-path nibbles below {@code leafSuffix}: the cursor an absence proof of a present key would claim. */

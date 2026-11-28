@@ -1,0 +1,40 @@
+dependencies {
+    api project(':capabilities:asset-gateway-contracts')
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+    // Differential oracle for the cryptographic step only (ADR-059 D13, V3).
+    testImplementation "com.bloxbean.cardano:cardano-client-cip30:${libs.versions.cardano.client.lib.get()}"
+    testImplementation libs.cardano.client.lib
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.register('generateWalletAuthOracleVectors', Exec) {
+    group = 'verification'
+    description = 'Regenerates ADR-059 V3 COSE vectors with an independent Python implementation'
+    commandLine 'python3', file('scripts/generate-cose-vectors.py'),
+            file('src/test/resources/walletauth/cose-oracle-vectors.txt')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Cardano Wallet Authorization'
+                description = 'CIP-8 / CIP-30 signData verification, intent envelopes and session grants (ADR-059 D13)'
+            }
+        }
+    }
+}

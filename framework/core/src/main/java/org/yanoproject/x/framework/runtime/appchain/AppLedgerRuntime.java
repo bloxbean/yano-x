@@ -21,6 +21,9 @@ import org.yanoproject.runtime.kernel.Subsystem;
 import org.yanoproject.runtime.kernel.SubsystemHealth;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.runtime.util.LifecycleFailures;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGate;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider;
 import org.yanoproject.x.framework.api.appchain.AppAnchorCommitment;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
@@ -284,6 +287,9 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
     private volatile long proofPruningLastStartedAt;
     private volatile long proofPruningLastCompletedAt;
     private volatile long proofPruningLastRetainFrom;
+    private volatile long proofPruningLastStableAnchorHeight;
+    /** Governed-membership handler of the running generation; null in static mode. */
+    private volatile GovernedMembership governedMembership;
     private volatile long proofPruningLastDeleted;
     private volatile QueryLane queryLane;
     private volatile EffectRuntime effectRuntime;
@@ -2707,6 +2713,14 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         });
     }
 
+    /**
+     * Operator pruning through the gateway. With
+     * {@code state.proof-pruning.l1-stable-anchor-floor=true} the request is clamped to the
+     * latest L1-stable anchor height exactly like the scheduled pass (ADR-059 framework
+     * addition 2): proofs at or above that height are never deleted, and with no L1-stable
+     * anchor nothing is. A clamp that lands at or below the already pruned height is a
+     * no-op ({@code 0}), never a failure.
+     */
     @Override
     public int pruneStateProofsBefore(long retainFromHeight) {
         return requireGenerationUse(() -> {
@@ -2714,7 +2728,23 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
             if (currentLedger == null) {
                 throw new IllegalStateException("App-chain ledger is unavailable");
             }
-            return currentLedger.pruneStateProofsBefore(retainFromHeight);
+            if (!proofPruningSettings.l1StableAnchorFloor()) {
+                return currentLedger.pruneStateProofsBefore(retainFromHeight);
+            }
+            long stableAnchorHeight = stableAnchoredHeight();
+            proofPruningLastStableAnchorHeight = stableAnchorHeight;
+            long floored = StateProofPruningSettings.clampToStableAnchor(
+                    retainFromHeight, stableAnchorHeight);
+            if (floored < retainFromHeight) {
+                log.info("App-chain '{}' proof pruning request below height {} clamped to the "
+                                + "L1-stable anchor floor {}", config.chainId(), retainFromHeight,
+                        floored);
+                if (floored == 0
+                        || floored <= currentLedger.stateBackend().oldestProvableHeight()) {
+                    return 0;
+                }
+            }
+            return currentLedger.pruneStateProofsBefore(floored);
         });
     }
 
@@ -3570,6 +3600,28 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         }
     }
 
+    /**
+     * Submit this member's approval to cancel the pending {@code membership.anchor-handoff}
+     * change (ADR-059 D8b). The cancel names the pending change's committed height and takes
+     * effect once the current threshold of members approves the identical command; it then
+     * clears exactly that pending change. Returns the committed height being cancelled.
+     *
+     * @throws IllegalStateException when no handoff is pending on this node
+     */
+    @Override
+    public long cancelPendingMembershipHandoff() {
+        return requireGenerationUse(() -> {
+            GovernedMembership governed = governedMembership;
+            MembershipHandoff handoff = governed == null ? null : governed.pendingHandoff().orElse(null);
+            if (handoff == null) {
+                throw new IllegalStateException("No membership anchor handoff is pending");
+            }
+            submitGovernance(GovernedMembership.TOPIC,
+                    GovernedMembership.encodeCancelHandoff(handoff.committedHeight()));
+            return handoff.committedHeight();
+        });
+    }
+
     @Override
     public void resetMembers() {
         requireGenerationUse(() -> {
@@ -3804,6 +3856,17 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         status.put("members", group.size());
         status.put("threshold", group.threshold());
         status.put("membershipMode", governedMode() ? "governed" : "static");
+        GovernedMembership governedStatus = governedMembership;
+        if (governedStatus != null && governedStatus.handoffGated()) {
+            Map<String, Object> handoff = new LinkedHashMap<>();
+            handoff.put("gate", "l1-stable-anchor");
+            governedStatus.pendingHandoff().ifPresent(pendingChange -> {
+                handoff.put("pendingCommittedHeight", pendingChange.committedHeight());
+                handoff.put("pendingThreshold", pendingChange.threshold());
+                handoff.put("pendingMembers", List.copyOf(new java.util.TreeSet<>(pendingChange.members())));
+            });
+            status.put("membershipHandoff", Map.copyOf(handoff));
+        }
         status.put("membershipEpochFromHeight", group.currentFromHeight());
         long nextHeight = tipHeight() + 1;
         status.put("membershipEpochActive", group.currentFromHeight() <= nextHeight);
@@ -4021,6 +4084,9 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         status.put("maxBlockBytes", consensusProfile.maxBlockBytes());
         status.put("l1StabilityDepth", consensusProfile.l1StabilityDepth());
         status.put("blockMaxForwardSkewMs", consensusProfile.blockMaxForwardSkewMs());
+        if (consensusProfile.blockBackwardSkewBounded()) {
+            status.put("blockMaxBackwardSkewMs", consensusProfile.blockMaxBackwardSkewMs());
+        }
         status.put("enforceSenderSeq", consensusProfile.enforceSenderSeq());
         status.put("effectsEnabled", consensusProfile.effectsEnabled());
         return status;
@@ -4051,6 +4117,16 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         pruning.put("experimental", true);
         pruning.put("retainHeights", proofPruningSettings.retainHeights());
         pruning.put("intervalSeconds", proofPruningSettings.intervalSeconds());
+        if (proofPruningSettings.l1StableAnchorFloor()) {
+            pruning.put("l1StableAnchorFloor", true);
+            pruning.put("lastStableAnchorHeight", proofPruningLastStableAnchorHeight);
+            if (proofPruningLastStableAnchorHeight <= 0) {
+                // Why the floor keeps retainFrom at 0 (nothing is pruned).
+                String reason = l1StableAnchorFloorReason();
+                pruning.put("floorBlockedReason", reason != null ? reason
+                        : "no L1-stable anchor confirmation has been observed yet");
+            }
+        }
         pruning.put("degraded", proofPruningDegraded.get());
         if (proofPruningFailure != null) {
             pruning.put("failure", proofPruningFailure);
@@ -4074,8 +4150,19 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                 if (currentLedger == null) {
                     throw new IllegalStateException("App-chain ledger is unavailable");
                 }
-                long retainFrom = proofPruningSettings.retainFrom(currentLedger.tipHeight());
+                long stableAnchorHeight = proofPruningSettings.l1StableAnchorFloor()
+                        ? stableAnchoredHeight() : 0L;
+                proofPruningLastStableAnchorHeight = stableAnchorHeight;
+                long retainFrom = proofPruningSettings.retainFrom(
+                        currentLedger.tipHeight(), stableAnchorHeight);
                 if (retainFrom == 0) {
+                    return new long[]{retainFrom, 0};
+                }
+                // The anchor floor can sit below an earlier tip-derived watermark (it was
+                // enabled later, or this node's stable view restarted behind it). The
+                // watermark never moves back, so that pass is a no-op, never a failure.
+                if (proofPruningSettings.l1StableAnchorFloor()
+                        && retainFrom <= currentLedger.mpfProofPruneWatermark()) {
                     return new long[]{retainFrom, 0};
                 }
                 return new long[]{retainFrom,
@@ -4519,16 +4606,48 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                     ledgerStore.tipHeight() + 1, observerProfileDigest);
             configureLedgerIntegration(ledgerStore, chainEngine, observerProfileDigest, observationIdentityContext);
             chainEngine.setEnvelopeRelay(this::relay);
+            // ADR-059 D8b: consensus-committed (profile flag), never a node-local switch.
+            boolean anchorHandoff = consensusProfile.membershipAnchorHandoff();
+            MembershipHandoffGate handoffGate = null;
+            if (anchorHandoff) {
+                if (!governedMode()) {
+                    throw new IllegalArgumentException(GovernedMembership.HANDOFF_SETTING
+                            + "=true requires membership.mode=governed");
+                }
+                // Without a script anchor to carry the set, or a gate to finalize it, every
+                // committed change would stay pending forever and freeze membership.
+                String unsupported = membershipHandoffUnsupportedReason();
+                if (unsupported != null) {
+                    throw new IllegalStateException("App-chain '" + config.chainId() + "': "
+                            + GovernedMembership.HANDOFF_SETTING + "=true " + unsupported);
+                }
+                handoffGate = membershipHandoffGate();
+                if (handoffGate == null || handoffGate == MembershipHandoffGate.NONE) {
+                    throw new IllegalStateException("App-chain '" + config.chainId() + "': "
+                            + GovernedMembership.HANDOFF_SETTING + "=true needs a membership handoff gate "
+                            + "that observes L1-stable anchor outputs, and none is installed (the "
+                            + "framework ships none). Without one every governed change would stay "
+                            + "pending forever; create the chain without the setting or run it with a "
+                            + "capability that provides the gate");
+                }
+            }
             if (governedMode()) {
                 GovernedMembership governed = new GovernedMembership(
                         group,
                         config.proposerKeyHex(),
                         GovernedMembership.approvalWindowBlocks(config),
                         MemberGroup.maxByzantineMembers(config),
+                        anchorHandoff,
                         log);
                 governed.restore(ledgerStore);
                 governed.setEpochGuard(effect -> observationSettings.admitsMembership(
                         effect.members(), effect.threshold()));
+                if (anchorHandoff) {
+                    governed.setHandoffGate(handoffGate);
+                    log.warn("App-chain '{}' governed membership changes wait for an L1-stable anchor "
+                            + "handoff ({}=true)", config.chainId(), GovernedMembership.HANDOFF_SETTING);
+                }
+                this.governedMembership = governed;
                 chainEngine.setGovernance(governed);
                 log.info("App-chain '{}' membership mode: governed (approval = {} identical "
                         + "member commands on {})", config.chainId(), group.threshold(),
@@ -4583,9 +4702,10 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                     proofPruningSettings.intervalSeconds(),
                     proofPruningSettings.intervalSeconds(), TimeUnit.SECONDS);
             log.warn("App-chain '{}' experimental MPF proof pruning enabled "
-                            + "(retainHeights={}, intervalSeconds={})",
+                            + "(retainHeights={}, intervalSeconds={}, l1StableAnchorFloor={})",
                     config.chainId(), proofPruningSettings.retainHeights(),
-                    proofPruningSettings.intervalSeconds());
+                    proofPruningSettings.intervalSeconds(),
+                    proofPruningSettings.l1StableAnchorFloor());
         }
         exec.scheduleWithFixedDelay(() -> {
             pool.sweepExpired();
@@ -5778,6 +5898,7 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
 
         AppChainEngine currentEngine = engine;
         engine = null;
+        governedMembership = null;
         CompletableFuture<Void> engineQuiescent = CompletableFuture.completedFuture(null);
         if (currentEngine != null) {
             closeResource("engine", currentEngine::close, cleanupFailures);
@@ -6126,6 +6247,57 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
     protected AppChainEngine.L1Ref stableL1Ref() { return null; }
     protected AppChainEngine.L1Ref l1TipPoint() { return null; }
     protected long stableAnchoredHeight() { return 0; }
+
+    /**
+     * The deterministic finalizer for {@code membership.anchor-handoff} (ADR-059 D8b): the
+     * {@code membership-handoff-gate} contribution named by the consensus-committed
+     * {@code membership.anchor-handoff-gate}, created for this chain. Fails startup when
+     * that gate is not registered; the framework ships none.
+     */
+    protected MembershipHandoffGate membershipHandoffGate() {
+        String gateId = consensusProfile.membershipHandoffGate();
+        if (gateId.isEmpty()) {
+            return MembershipHandoffGate.NONE;
+        }
+        MembershipHandoffGateProvider provider = pluginProviders.find(
+                MembershipHandoffGateProvider.class, gateId).orElse(null);
+        if (provider == null) {
+            throw new PluginActivationException("App-chain '" + config.chainId() + "': "
+                    + AppChainConsensusProfile.MEMBERSHIP_HANDOFF_GATE_SETTING + "=" + gateId
+                    + " names no registered membership handoff gate (registered: "
+                    + pluginProviders.names(MembershipHandoffGateProvider.class) + "). Without it every "
+                    + "governed change would stay pending forever", null);
+        }
+        return Objects.requireNonNull(provider.create(config.chainId(), config.pluginSettings()),
+                "MembershipHandoffGateProvider.create returned null");
+    }
+
+    /**
+     * Why this runtime cannot carry a {@code membership.anchor-handoff} change on a script
+     * anchor (completing "{@code membership.anchor-handoff=true ...}"), or null when it can.
+     * The framework core has no L1 anchor; the Cardano runtime overrides it.
+     */
+    protected String membershipHandoffUnsupportedReason() {
+        return "requires the Cardano script-anchor runtime (anchor.mode=script with L1 access)";
+    }
+
+    /**
+     * Why {@code state.proof-pruning.l1-stable-anchor-floor} finds no L1-stable anchor, for
+     * the proof-pruning status, or null when no specific cause is known.
+     */
+    protected String l1StableAnchorFloorReason() {
+        return l1AnchoredGateUnreachableReason();
+    }
+
+    /**
+     * The committed governed change awaiting its L1 anchor handoff, read by the script-anchor
+     * service as the anchor's next member set (ADR-059 D8h §2). Empty unless
+     * {@code membership.anchor-handoff=true} and a change is pending.
+     */
+    protected final Optional<MembershipHandoff> pendingMembershipHandoff() {
+        GovernedMembership governed = governedMembership;
+        return governed == null ? Optional.empty() : governed.pendingHandoff();
+    }
     protected String l1AnchoredGateUnreachableReason() {
         return "l1.stability-depth is 0, so no anchor ever becomes stability-deep";
     }

@@ -30,10 +30,12 @@ import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserver;
 import org.yanoproject.x.framework.api.appchain.l1view.L1EpochStateProvider;
 import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
+import org.yanoproject.x.framework.api.appchain.state.StateProofEnvelope;
 import org.yanoproject.x.framework.cardano.api.effects.AppChainEffectContext;
 import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 import org.yanoproject.x.framework.cardano.api.events.AppChainAnchoredEvent;
 import org.yanoproject.x.framework.runtime.appchain.AppChainEngine;
+import org.yanoproject.x.framework.api.appchain.membership.MembershipHandoff;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerStore;
 
@@ -200,6 +202,19 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
     }
 
 
+    private volatile L1UtxoViewFilter utxoViewFilter = L1UtxoViewFilter.NONE;
+
+
+    /**
+     * Wire the node's flattened global configuration so the script anchor can check the
+     * configured UTxO storage filter ({@code yano.filters.utxo.*}) against what co-signing
+     * needs (ADR-059 review P2-1). Optional: without it the view is treated as unfiltered.
+     */
+    public void wireL1UtxoFilter(Map<String, ?> nodeGlobals) {
+        this.utxoViewFilter = L1UtxoViewFilter.fromGlobals(nodeGlobals);
+    }
+
+
     /**
      * Wire the node's canonical chain state and this chain's body-retention registration (app-layer ADR-038). The
      * registration is held across stop and start, and released on {@link #close()}.
@@ -306,6 +321,11 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
             public void registerBridgeDiffusionHandler(
                     BridgeDiffusionHandler handler) {
                 AppChainSubsystem.this.registerBridgeDiffusionHandler(handler);
+            }
+
+            @Override
+            public Optional<StateProofEnvelope> stateProofAtHeight(long height, byte[] key) {
+                return AppChainSubsystem.this.stateProofEnvelopeAtHeight(height, key);
             }
         };
     }
@@ -1251,6 +1271,16 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
                 this.anchorService.setCompletionGate(this::l1Reconciled);
             }
         }
+        // ADR-059 anchor profile (v2, pinned identity) and membership handoff: chain-wide
+        // settings every member reads. Invalid values and a pin on a non-script anchor fail
+        // startup instead of degrading to an unpinned or v1 anchor.
+        AnchorProfileSettings anchorProfile = AnchorProfileSettings.from(config.pluginSettings(), protocolMagic);
+        boolean membershipHandoff = MembershipHandoff.selected(config.pluginSettings());
+        if (anchorProfile.pinned() != null && config.anchor() != null && !anchorScriptMode) {
+            throw new IllegalStateException("App-chain '" + config.chainId()
+                    + "': a pinned anchor identity requires anchor.mode=script");
+        }
+        ScriptAnchorService createdScriptService = null;
         // Script anchors (008.4): EVERY ledger member runs the co-sign
         // verifier (zero follower config — sign requests are verified
         // against this node's own ledger + L1 view); the node with
@@ -1273,7 +1303,7 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
                         utxoStateSupplier,
                         h -> ledgerStore.block(h).orElse(null),
                         ledgerStore::tipHeight,
-                        new AnchorScriptArtifacts(scriptConfig),
+                        new AnchorScriptArtifacts(scriptConfig, anchorProfile),
                         signer,
                         group::members,
                         group::threshold,
@@ -1300,12 +1330,72 @@ public final class AppChainSubsystem extends AppLedgerRuntime {
                 });
                 scriptService.setConfirmationListener(this::publishConfirmedAnchor);
                 scriptService.setCompletionGate(this::l1Reconciled);
-                this.scriptAnchorService = scriptService;
+                scriptService.wireAnchorProfile(anchorProfile);
+                scriptService.wireMembershipHandoff(membershipHandoff, this::pendingMembershipHandoff);
+                createdScriptService = scriptService;
             } catch (Exception e) {
                 log.warn("Script-anchor service unavailable (errorType={})",
                         e.getClass().getName());
             }
         }
+        if (createdScriptService != null) {
+            // An anchor-profile.version (or validator) switch on an existing thread fails
+            // startup with its cause instead of refusing every advance (review P3).
+            createdScriptService.verifyPersistedScriptHash();
+            // Fails startup closed on any pinned-identity mismatch (ADR-059 D8b).
+            createdScriptService.installPinnedIdentity();
+            // Co-signing resolves every body input locally: a filtered UTxO store must admit
+            // the anchor thread and the leader's wallet (review P2-1).
+            createdScriptService.checkUtxoViewFilter(utxoViewFilter);
+            this.scriptAnchorService = createdScriptService;
+        } else if (anchorProfile.pinned() != null && txSubmitter != null && utxoStateSupplier != null) {
+            throw new IllegalStateException("App-chain '" + config.chainId()
+                    + "': the pinned script anchor could not be started");
+        }
+        if (membershipHandoff && createdScriptService == null) {
+            throw new IllegalStateException("App-chain '" + config.chainId() + "': "
+                    + MembershipHandoff.SETTING + "=true requires a running script anchor, which "
+                    + "could not be started");
+        }
+    }
+
+    /**
+     * {@code membership.anchor-handoff} needs a script anchor to carry the pending set: an
+     * explicit non-script anchor mode or a node without L1 transaction access cannot.
+     */
+    @Override
+    protected String membershipHandoffUnsupportedReason() {
+        if (config.anchor() != null && !config.anchor().scriptMode()) {
+            return "requires anchor.mode=script (this chain anchors in metadata mode)";
+        }
+        if (txSubmitter == null || utxoStateSupplier == null) {
+            return "requires L1 access for the script anchor, and this node has none";
+        }
+        return null;
+    }
+
+    /**
+     * Why the L1-stable anchor floor finds no stable anchor (proof-pruning status): no
+     * stability depth or anchor service, no stable L1 point yet, no confirmation yet,
+     * confirmations without an L1 inclusion block (legacy metadata journal entries), or a
+     * confirmation journal whose bounded window holds only anchors newer than the stable point.
+     */
+    @Override
+    protected String l1StableAnchorFloorReason() {
+        String unreachable = l1AnchoredGateUnreachableReason();
+        if (unreachable != null) {
+            return unreachable;
+        }
+        AppChainEngine.L1Ref stable = stableL1Ref();
+        if (stable == null) {
+            return "this node has not yet followed l1.stability-depth L1 blocks, so it has no "
+                    + "L1-stable point";
+        }
+        AppLedgerStore currentLedger = ledger;
+        if (currentLedger == null) {
+            return null;
+        }
+        return AnchorService.stableAnchorAbsenceReason(currentLedger, stable.slot());
     }
 
     @Override

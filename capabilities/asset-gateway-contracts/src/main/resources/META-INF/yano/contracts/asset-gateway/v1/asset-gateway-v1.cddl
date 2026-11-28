@@ -1,0 +1,86 @@
+; ADR-059 asset gateway contracts, version 1.
+; Encoding: the strict subset of RFC 8949 §4.2.1 deterministic CBOR used by every
+; contract here — definite-length arrays, byte strings, text strings and unsigned
+; integers in preferred (shortest) form. No maps and no tags. A decoder accepts a value
+; only when re-encoding it reproduces the exact input bytes.
+
+hash32        = bytes .size 32
+policy_id     = bytes .size 28 / bytes .size 0      ; empty only for ADA
+asset_name    = bytes .size (0 .. 32)               ; empty when policy_id is empty
+u64           = 0 .. 18446744073709551615
+u128          = bytes .size 16                      ; big-endian; CBOR ints stop at 2^64-1
+positive_u64  = 1 .. 18446744073709551615
+
+; ADA is [h'', h'']. Order: bytewise order of this encoding (length-first for names).
+asset_id      = [policy_id, asset_name]
+
+; Sorted strictly ascending by asset_id encoding, no zero quantities, at most 16 entries.
+asset_value   = [0*16 [policy_id, asset_name, positive_u64]]
+
+claim_kind    = 0      ; USER_WITHDRAWAL
+              / 1      ; SWEEP_UNATTRIBUTED
+              / 2      ; SWEEP_OPERATIONAL
+              / 3      ; MIGRATE (M4b)
+
+claim_leaf_v1 = [
+  version: 1,
+  claim_id: hash32,
+  vault_id: hash32,
+  kind: claim_kind,
+  value: asset_value,
+  vault_lovelace: u64,
+  recipient: bytes .size (1 .. 128),
+  reserved_height: 0 .. 9223372036854775807,
+  reserved_at_ms: 0 .. 9223372036854775807,
+]
+
+exit_leaf_v1 = [
+  version: 1,
+  holder_key_hash: bytes .size 28,
+  vault_id: hash32,
+  amount: u64,
+  vault_lovelace: u64,
+]
+
+; Domain status leaf at the consumer's pinned status key (D8a). Exit proves it
+; and reads exit_delay_ms from it; EnterExitMode trigger (c) proves PAUSED/HALTED.
+domain_status = 0      ; ACTIVE
+              / 1      ; PAUSED
+              / 2      ; HALTED
+
+domain_status_v1 = [
+  version: 1,
+  status: domain_status,
+  since_height: uint,
+  since_ms: uint,          ; POSIX ms of the status change
+  exit_delay_ms: uint,     ; the vault enforces [floor, ceiling] script parameters
+]
+
+vault_counters = [
+  credited: u128, paid: u128, available: u128, reserved: u128,
+  lovelace_credited: u128, lovelace_paid: u128,
+  lovelace_available: u128, lovelace_reserved: u128,
+]
+
+; Identifiers: blake2b-256(tag || CBOR(fields)), tags are ASCII and end in NUL.
+; domain_id  tag "yano-asset-gateway-domain-v1\0"
+;   fields [address_network_id: 0..15, network_magic: uint, chain_id: tstr,
+;           genesis_id: hash32, application_id: tstr, profile_id: tstr,
+;           profile_version: uint]
+; vault_id   tag "yano-asset-gateway-vault-v1\0"   fields [domain_id, asset_id, vault_ordinal: uint]
+; deposit_id tag "yano-asset-gateway-deposit-v1\0" fields [vault_id, tx_id: hash32, output_index: uint]
+; claim_id   tag "yano-asset-gateway-claim-v1\0"
+;   fields [domain_id, vault_id, kind, withdrawal_key: bytes .size (1..64),
+;           recipient: bytes .size (1..128), value: asset_value, vault_lovelace: u64,
+;           sequence: uint]
+; intent_id  tag "yano-asset-gateway-intent-v1\0"  preimage tag || exact signed envelope bytes
+; escape nullifier: blake2b-256("escape\0" || vault_id(32 raw bytes) || holder_id(1..64 raw bytes)),
+;   a raw concatenation (no CBOR framing), reproduced by the vault script
+; forced request id: blake2b-256("forced\0" || outpoint), outpoint = CBOR transaction_input
+;   [transaction_id: hash32, index: uint] of the minting tx's first (smallest) spent input,
+;   reproduced by the ForcedInboxValidator minting policy
+; SWEEP_UNATTRIBUTED claims (SweepCommitment): withdrawal_key = the same outpoint CBOR of the swept UTxO,
+;   and the claim commits to that UTxO's FULL value: for a token vault, value = every native asset of the
+;   output (the vault asset among them) and vault_lovelace = its lovelace; for the ADA vault, value = its
+;   lovelace as the ADA entry plus every native asset, and vault_lovelace = 0. The vault script rebuilds
+;   claim_id and the leaf from the spent input's outpoint and value (vectors id.claim.sweep-*).

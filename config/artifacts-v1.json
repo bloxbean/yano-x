@@ -19,6 +19,64 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":capabilities:asset-gateway-contracts",
+      "directory": "capabilities/asset-gateway-contracts",
+      "artifactId": "yano-x-asset-gateway-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":capabilities:cardano-wallet-auth",
+      "directory": "capabilities/cardano-wallet-auth",
+      "artifactId": "yano-x-cardano-wallet-auth",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":capabilities:asset-gateway-cardano-support",
+      "directory": "capabilities/asset-gateway-cardano-support",
+      "artifactId": "yano-x-asset-gateway-cardano-support",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":capabilities:asset-gateway-cardano",
+      "directory": "capabilities/asset-gateway-cardano",
+      "artifactId": "yano-x-asset-gateway-cardano",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "org.yanoproject.x.asset-gateway.cardano",
+      "bundleArtifactId": "yano-x-asset-gateway-cardano-bundle",
+      "publishToCentral": false
+    },
+    {
+      "modulePath": ":capabilities:asset-gateway-onchain",
+      "directory": "capabilities/asset-gateway-onchain",
+      "artifactId": "yano-x-asset-gateway-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:asset-payments:contracts",
+      "directory": "ledgers/asset-payments/contracts",
+      "artifactId": "yano-x-asset-payments-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:asset-payments:ledger",
+      "directory": "ledgers/asset-payments/ledger",
+      "artifactId": "yano-x-asset-payments-ledger",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "org.yanoproject.x.asset-payments",
+      "bundleArtifactId": "yano-x-asset-payments-ledger-bundle",
+      "publishToCentral": false
+    },
+    {
       "modulePath": ":capabilities:authenticated-map-validators",
       "directory": "capabilities/authenticated-map-validators",
       "artifactId": "yano-x-authenticated-map-validators",

@@ -104,6 +104,7 @@ state:
     enabled: false
     retain-heights: 10000
     interval-seconds: 3600
+    l1-stable-anchor-floor: false
 ```
 
 When enabled, the node retains every root in the configured contiguous height horizon, advances
@@ -112,6 +113,20 @@ compacts the MPF column family. A failure disables further pruning for that runt
 is reported under `stateCommitment.proofPruning`; consensus continues. Cardano History is
 append-only, so a recent retained root still proves facts from older epochs even when the node no
 longer generates a proof against an older anchor height. Already-issued proofs remain verifiable.
+
+`l1-stable-anchor-floor: true` (ADR-059 framework addition 2) also keeps every proof from the
+latest L1-stable anchor height onward:
+`retainFrom = min(tip-derived retention, latest L1-stable anchor height)`. The L1-stable anchor
+height is the highest app height covered by an anchor confirmed at least `l1.stability-depth` L1
+blocks below this node's tip, the same frontier the `L1_ANCHORED` effect gate uses. Until such an
+anchor exists, nothing is pruned. Applications that serve claim proofs against the anchor that L1
+still references, such as the ADR-059 asset gateway, set it so a rolled-back anchor advance never
+leaves the restored anchor without proofs. The floor also clamps operator pruning through
+`AppChainGateway.pruneStateProofsBefore`: a request above the L1-stable anchor height prunes only
+up to it, and nothing while no anchor is L1-stable. While the floor keeps everything, the status
+carries `floorBlockedReason` (for example `l1.stability-depth` is 0, the node has no anchor service
+or no stable L1 point yet, legacy metadata journal entries without an L1 inclusion block, or a
+256-entry confirmation journal holding only anchors newer than the stable point).
 
 ## MPF proof verification in a Cardano validator
 

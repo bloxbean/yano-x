@@ -1,0 +1,110 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Julc-authored Cardano validators for the ADR-059 asset gateway (anchored-claim-vault-v1)'
+
+dependencies {
+    compileOnly "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    compileOnly "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    compileOnly project(':sdk:proof-onchain')
+
+    testImplementation "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-testkit:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-vm-java:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-cardano-client-lib:${libs.versions.julc.get()}"
+    testImplementation project(':sdk:proof-onchain')
+    testImplementation project(':sdk:client')
+    testImplementation project(':capabilities:asset-gateway-contracts')
+    testImplementation libs.cardano.client.crypto
+    testImplementation libs.cardano.client.mpf
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+// Julc compiles from source: the validators plus the proof-onchain libraries they call.
+tasks.register('prepareJulcTestSources', Sync) {
+    from sourceSets.main.java
+    from project(':sdk:proof-onchain').sourceSets.main.java
+    into layout.buildDirectory.dir('generated/julc-test-sources')
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('prepareJulcTestSources')
+}
+
+tasks.withType(Test).configureEach {
+    maxHeapSize = '2g'
+    def regeneratePlutus = System.getProperty('yano.regenerate.plutus')
+    if (regeneratePlutus != null) {
+        systemProperty 'yano.regenerate.plutus', regeneratePlutus
+    }
+}
+
+// The Aiken shard backend (ADR-059 D8c, r23). aiken/plutus.json and META-INF/plutus/AssetShardValidatorAiken.plutus.json
+// are what ships: the ordinary build never runs the Aiken compiler, and AikenShardArtifactTest checks on every build
+// that the envelope is the blueprint's validator. With the pinned toolchain installed, this task runs the module's
+// Aiken tests and rebuilds the blueprint, failing if it differs from the committed one:
+//   ./gradlew :capabilities:asset-gateway-onchain:verifyAikenShard [-Paiken=/path/to/aiken-v1.1.21]
+def aikenProject = layout.projectDirectory.dir('aiken').asFile
+def aikenBinary = providers.gradleProperty('aiken').orElse(providers.environmentVariable('AIKEN')).orElse('aiken')
+tasks.register('verifyAikenShard') {
+    group = 'verification'
+    description = 'Runs aiken check on the Aiken shard backend and fails if aiken build drifts from aiken/plutus.json'
+    def binary = aikenBinary
+    def directory = aikenProject
+    doLast {
+        def run = { List<String> command ->
+            def process = new ProcessBuilder(command).directory(directory).redirectErrorStream(true).start()
+            def output = process.inputStream.text
+            if (process.waitFor() != 0) {
+                throw new GradleException("${command.join(' ')} failed:\n${output}")
+            }
+            output
+        }
+        def version = run([binary.get(), '--version']).trim()
+        if (!version.startsWith('aiken v1.1.21')) {
+            throw new GradleException("The Aiken shard is pinned to aiken v1.1.21, not '${version}' (set -Paiken=...)")
+        }
+        run([binary.get(), 'check', '-D'])
+        run([binary.get(), 'build', '-D', '-o', 'build/verify-plutus.json'])
+        def rebuilt = new File(directory, 'build/verify-plutus.json')
+        if (rebuilt.bytes != new File(directory, 'plutus.json').bytes) {
+            throw new GradleException('aiken build differs from the committed aiken/plutus.json; regenerate the '
+                    + 'blueprint and META-INF/plutus/AssetShardValidatorAiken.plutus.json (see README.md)')
+        }
+        logger.lifecycle('Aiken shard verified: {}; aiken check passed and the blueprint is reproducible', version)
+    }
+}
+
+// Ship the Aiken authoring inputs with the source artifact, as framework/cardano-onchain does.
+tasks.named('sourceJar') {
+    from('aiken') {
+        into 'aiken'
+        exclude 'build/**'
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Gateway Validators'
+                description = 'Vault, nullifier shard, exit-mode and forced-inbox validators for the ADR-059 asset gateway, authored with Julc'
+            }
+        }
+    }
+}

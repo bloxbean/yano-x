@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
   "defaultBundleIds": [
+    "org.yanoproject.x.asset-gateway.cardano",
+    "org.yanoproject.x.asset-payments",
     "org.yanoproject.x.authenticated-map-validators",
     "org.yanoproject.x.cardano-history",
     "org.yanoproject.x.composite",

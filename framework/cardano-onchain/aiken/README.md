@@ -15,6 +15,18 @@ cannot prove that it is UTF-8 or reject an embedded NUL. The public/off-chain
 `AnchorDatumV1` codec enforces canonical UTF-8 and rejects NUL before encoding
 or after decoding.
 
+## Anchor v2 (opt-in)
+
+`validators/anchor_v2.ak` is the ADR-059 anchor v2 validator
+(ABI: `framework/cardano-api/src/main/cddl/appchain/anchor-v2.cddl`). Its datum is
+the v1 datum with version 2 and an appended `updated_at_ms`. It allows a pure
+heartbeat at the same height and binds `updated_at_ms` to the validity upper bound
+within a `max_window_ms` window (second parameter). It reuses the v1
+`anchor_thread` policy. A chain selects it with `anchor-profile.version: 2`; the
+runtime then loads `META-INF/plutus/AnchorValidatorV2.plutus.json`
+(`artifacts/anchor-validator-v2.plutus.json`). Adding it left every v1 blueprint
+entry and hash unchanged.
+
 ## Using it
 
 Point the anchor config at the checked-in artifacts (script hash and address
@@ -51,6 +63,7 @@ UPLC) in one more CBOR byte-string layer, matching the Cardano text-envelope
 | script | checked size |
 |---|---:|
 | anchor validator (spend) | 1929 B |
+| anchor validator v2 (spend) | 2285 B |
 | thread policy (mint) | 362 B |
 
 Values are the checked artifact JSON `sizeBytes` fields. They are identity and

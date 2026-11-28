@@ -4,7 +4,9 @@ import org.yanoproject.api.utxo.UtxoState;
 import org.yanoproject.x.framework.api.appchain.AppQueryResult;
 import org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler;
 import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
+import org.yanoproject.x.framework.api.appchain.state.StateProofEnvelope;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -63,4 +65,17 @@ public interface AppChainEffectContext {
      * per chain; last registration wins).
      */
     void registerBridgeDiffusionHandler(BridgeDiffusionHandler handler);
+
+    /**
+     * ADR-059 D8b, D9: the profile-tagged state proof of {@code key} against
+     * the committed root of finalized height {@code height}, while this node
+     * still retains it; empty otherwise. With the L1-stable anchor proof
+     * floor ({@code state.proof-pruning.l1-stable-anchor-floor}) every height
+     * from the latest L1-stable anchor's onward is retained, so an exit
+     * relayer that references the live anchor, which is never older, can
+     * prove claims against its root.
+     */
+    default Optional<StateProofEnvelope> stateProofAtHeight(long height, byte[] key) {
+        return Optional.empty();
+    }
 }

@@ -536,6 +536,18 @@ public interface AppChainGateway {
     void setThreshold(int threshold);
 
     /**
+     * Submit this member's approval to cancel the pending {@code membership.anchor-handoff}
+     * change (ADR-059 D8b). The cancel names the pending change's committed height and takes
+     * effect when the current threshold of members approves the identical command; it then
+     * clears exactly that change. Returns the committed height being cancelled.
+     *
+     * @throws IllegalStateException when no handoff is pending on this node
+     */
+    default long cancelPendingMembershipHandoff() {
+        throw new UnsupportedOperationException("Membership anchor handoff is unavailable");
+    }
+
+    /**
      * Re-adopt the static config as a new membership epoch (escape hatch when a
      * persisted rotation must yield to a config change). History is preserved,
      * so previously finalized blocks keep verifying.

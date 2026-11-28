@@ -1,0 +1,90 @@
+dependencies {
+    api project(':capabilities:asset-gateway-contracts')
+    // Host-provided Cardano model and address classes; bundles that embed this library exclude them.
+    compileOnly libs.yaci.core
+    compileOnly libs.cardano.client.address
+    compileOnly libs.cardano.client.common
+    compileOnly libs.cardano.client.crypto
+    // The vault and shard transaction builder and the shard mirror (D2, D9); host-provided like the rest of CCL.
+    compileOnly libs.cardano.client.core
+    compileOnly libs.cardano.client.mpf
+    compileOnly libs.cbor
+    // The bounded MPF proof form that node proofs are normalized to (D8b, D9); host-provided with the framework API.
+    compileOnly project(':sdk:proof-contracts')
+
+    testImplementation libs.yaci.core
+    testImplementation libs.cardano.client.core
+    testImplementation libs.cardano.client.mpf
+    testImplementation libs.cbor
+    testImplementation project(':sdk:proof-contracts')
+    // The built transactions are evaluated against the compiled, parameterized validators (julc VM).
+    testImplementation project(':capabilities:asset-gateway-onchain')
+    testImplementation libs.julc.vm.java
+    testImplementation libs.julc.cardano.client.lib
+    testImplementation "org.julclang:julc-core:${libs.versions.julc.get()}"
+    // Yano-normalized state proofs for the Exit builder tests.
+    testImplementation project(':sdk:client')
+    testImplementation libs.jackson.databind
+    testImplementation libs.cardano.client.address
+    testImplementation libs.cardano.client.common
+    testImplementation libs.cardano.client.crypto
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+// The nullifier shard's two backend templates (ADR-059 D8c, r23), copied from the on-chain module's committed
+// artifacts so ShardBackend derives either shard script at runtime without a UPLC toolchain.
+tasks.named('processResources', ProcessResources) {
+    from(rootProject.file('capabilities/asset-gateway-onchain/src/main/resources/META-INF/plutus')) {
+        include 'AssetShardValidator.plutus.json', 'AssetShardValidatorAiken.plutus.json'
+        into 'META-INF/yano/asset-gateway/shard-templates'
+    }
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.register('verifyAssetGatewayCardanoSupportArtifact') {
+    group = 'verification'
+    description = 'Verifies the support library carries no plugin manifest, service file or host class'
+    dependsOn tasks.named('jar')
+    doLast {
+        def archive = tasks.named('jar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(archive).withCloseable { jar ->
+            def offending = jar.entries().collect { it.name }.findAll { name ->
+                name.startsWith('META-INF/services/') || name.startsWith('META-INF/yano/plugins/')
+                        || name.startsWith('org/yanoproject/x/framework/') || name.startsWith('com/bloxbean/')
+            }
+            if (!offending.isEmpty()) {
+                throw new GradleException("Asset-gateway Cardano support must stay a pure library: ${offending}")
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyAssetGatewayCardanoSupportArtifact')
+}
+
+tasks.withType(Test).configureEach {
+    maxHeapSize = '2g'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Gateway Cardano Support'
+                description = 'Protocol-neutral Cardano helpers for the asset gateway: valid-transaction filter, datum preflight, observer identity, output values, the Settle, Exit and Accept transaction builders, node state proofs, the shard mirror and the co-sign body checks (ADR-059 D2, D8f, D8h, D9)'
+            }
+        }
+    }
+}

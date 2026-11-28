@@ -1,0 +1,175 @@
+plugins {
+    id 'com.gradleup.shadow'
+}
+
+dependencies {
+    compileOnly project(':framework:api')
+    // The asset-settlement executor's context-aware factory surface (AppChainEffectContext, ADR-059 D9).
+    compileOnly project(':framework:cardano-api')
+    // Embed only this repository's code (as ledgers/eutxo does): cbor, CCL, yaci, BouncyCastle, Jackson and
+    // Guava come from the host, which loads plugins parent-first, so bundled copies would be dead weight.
+    implementation(project(':capabilities:asset-gateway-cardano-support')) {
+        transitive = false
+    }
+    implementation(project(':capabilities:asset-gateway-contracts')) {
+        transitive = false
+    }
+    compileOnly libs.yaci.core
+    compileOnly libs.cardano.client.address
+    compileOnly libs.cardano.client.common
+    compileOnly libs.cardano.client.crypto
+    compileOnly libs.cardano.client.core
+    compileOnly libs.cardano.client.mpf
+    compileOnly libs.cbor
+    // The settlement tasks log a failing pass; SLF4J is host-provided.
+    compileOnly libs.slf4j.api
+
+    testImplementation project(':framework:api')
+    testImplementation project(':framework:cardano-api')
+    testImplementation libs.cardano.client.mpf
+    testImplementation libs.yaci.core
+    testImplementation libs.cardano.client.address
+    testImplementation libs.cardano.client.common
+    testImplementation libs.cardano.client.crypto
+    testImplementation libs.cardano.client.core
+    testImplementation libs.cbor
+    // The settlement tasks' transactions are evaluated against the compiled, parameterized validators (julc VM).
+    testImplementation project(':capabilities:asset-gateway-onchain')
+    testImplementation libs.julc.vm.java
+    testImplementation libs.julc.cardano.client.lib
+    testImplementation "org.julclang:julc-core:${libs.versions.julc.get()}"
+    testImplementation libs.slf4j.api
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+// The membership-handoff-gate seam: the bundle's real manifest through the host's catalog parser, registry,
+// kind binding and facade, selected by a running app chain (ADR-059 D8b, framework addition 4).
+dependencies {
+    integrationTestImplementation rootProject.ext.yanoModule('yano-runtime')
+    integrationTestImplementation project(':framework:cardano')
+    integrationTestImplementation sourceSets.test.output
+}
+tasks.named('check') { dependsOn tasks.named('integrationTest') }
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.named('shadowJar') {
+    archiveBaseName.set(rootProject.ext.artifactByPath[project.path].artifactId.toString())
+    archiveClassifier.set('bundle')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+    mergeServiceFiles()
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
+    exclude 'com/bloxbean/cardano/yaci/**'
+    exclude 'com/bloxbean/cardano/client/**'
+    exclude 'co/nstant/in/cbor/**'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
+}
+
+tasks.register('verifyAssetGatewayCardanoArtifactBoundaries') {
+    group = 'verification'
+    description = 'Verifies the gateway bundle embeds its contracts and support code but no host or Cardano classes'
+    dependsOn tasks.named('jar'), tasks.named('shadowJar')
+    inputs.files(tasks.named('jar').flatMap { it.archiveFile },
+            tasks.named('shadowJar').flatMap { it.archiveFile })
+
+    doLast {
+        def entries = { File archive ->
+            new java.util.zip.ZipFile(archive).withCloseable { zip ->
+                zip.entries().collect { entry -> entry.name }.toSet()
+            }
+        }
+        def thinEntries = entries(tasks.named('jar').get().archiveFile.get().asFile)
+        def bundleEntries = entries(tasks.named('shadowJar').get().archiveFile.get().asFile)
+        def forbiddenPrefixes = [
+                'org/yanoproject/api/',
+                'org/yanoproject/x/framework/api/',
+                'org/yanoproject/x/framework/cardano/api/',
+                'com/bloxbean/cardano/yaci/',
+                'com/bloxbean/cardano/client/',
+                'co/nstant/in/cbor/',
+                'org/julclang/',
+                'org/zeroj/',
+                'org/bouncycastle/',
+                'com/fasterxml/',
+                'com/google/',
+                'META-INF/versions/',
+                'META-INF/services/java.security.Provider'
+        ]
+        def forbidden = bundleEntries.findAll { entry ->
+            forbiddenPrefixes.any { prefix -> entry.startsWith(prefix) }
+        }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException(
+                    'Asset-gateway bundle embeds host, Cardano, Julc, ZeroJ or third-party classes: '
+                            + forbidden.toList().sort().take(10))
+        }
+        def contractClass = 'org/yanoproject/x/assets/contracts/AssetDepositClaimV1.class'
+        def supportClass = 'org/yanoproject/x/assets/cardano/support/settlement/PayoutTxBuilder.class'
+        def providerClasses = ['AssetVaultDepositObserverProvider', 'AssetVaultPayoutObserverProvider',
+                               'AssetAnchorObserverProvider', 'AssetShardBootstrapObserverProvider',
+                               'AnchorHandoffGateProvider', 'AssetSettlementExecutorFactory'].collect {
+            "org/yanoproject/x/assets/cardano/gateway/${it}.class".toString()
+        }
+        if (thinEntries.contains(contractClass) || !bundleEntries.contains(contractClass)
+                || thinEntries.contains(supportClass) || !bundleEntries.contains(supportClass)
+                || providerClasses.any { !thinEntries.contains(it) || !bundleEntries.contains(it) }) {
+            throw new GradleException('Asset-gateway thin/bundle class boundary is incomplete')
+        }
+        def services = ['META-INF/services/org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider',
+                        'META-INF/services/org.yanoproject.x.framework.api.appchain.membership.MembershipHandoffGateProvider',
+                        'META-INF/services/org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory']
+        if (!services.every { bundleEntries.contains(it) }) {
+            throw new GradleException('Asset-gateway bundle service registrations are missing')
+        }
+        def manifests = bundleEntries.findAll { it.startsWith('META-INF/yano/plugins/') && it.endsWith('.json') }
+        if (manifests != ['META-INF/yano/plugins/org.yanoproject.x.asset-gateway.cardano.json'] as Set) {
+            throw new GradleException("Asset-gateway bundle manifests are not isolated: ${manifests}")
+        }
+    }
+}
+
+tasks.register('verifyAssetGatewayCardanoDependencyGraph') {
+    group = 'verification'
+    description = 'Verifies the gateway runtime graph contains no Julc or ZeroJ implementation'
+
+    doLast {
+        def forbidden = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
+                .collect { component -> component.id.displayName }
+                .findAll { identity ->
+                    def lower = identity.toLowerCase(java.util.Locale.ROOT)
+                    lower.contains('julc') || lower.contains('zeroj')
+                }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException(
+                    "Asset-gateway runtime dependency boundary is violated: ${forbidden.sort()}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyAssetGatewayCardanoArtifactBoundaries'),
+            tasks.named('verifyAssetGatewayCardanoDependencyGraph')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Asset Gateway Cardano'
+                description = 'Optional Cardano asset-gateway runtime bundle: vault deposit, payout, anchor and shard-bootstrap observers, the anchor handoff gate, and the asset-settlement executor with its Accept batcher and exit relayer (ADR-059 D5, D8b, D8c, D8f, D9, D10)'
+            }
+        }
+    }
+}

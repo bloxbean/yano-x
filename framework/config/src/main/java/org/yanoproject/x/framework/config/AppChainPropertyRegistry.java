@@ -51,6 +51,8 @@ public final class AppChainPropertyRegistry {
             dynamic("consensus.", OWNER_CORE, "Consensus fault bounds and view changes"),
             dynamicFull("block-time.", OWNER_CORE, "Certified block-time bounds (consensus profile)"),
             dynamicFull("topics.", OWNER_CORE, "Topic registry genesis seed (ADR app-layer/039)"),
+            dynamicFull(AppChainConfigParser.ANCHOR_PROFILE_PREFIX, OWNER_CORE,
+                    "Chain-wide script-anchor profile: v2 and pinned identity (ADR-059)"),
             dynamic("observers.", "extension/observers", "L1/external observers"),
             dynamic("transport.", "yano-core/transport", "App-message transport"),
             dynamicFull("effects.result.", "yano-core/effects",
@@ -302,6 +304,10 @@ public final class AppChainPropertyRegistry {
                 PropertyType.LONG, "3600", 1L, null, PropertyScope.NODE_LOCAL,
                 ChangePolicy.RESTART_REQUIRED,
                 "Interval between experimental MPF pruning passes"));
+        definitions.add(plain(AppChainPropertyKeys.STATE_PROOF_PRUNING_L1_STABLE_ANCHOR_FLOOR,
+                PropertyType.BOOLEAN, "false", PropertyScope.NODE_LOCAL,
+                ChangePolicy.RESTART_REQUIRED, true,
+                "Keep proofs from the latest L1-stable anchor height (ADR-059 framework addition 2)"));
         definitions.add(plain(AppChainPropertyKeys.ANCHOR_ENABLED, PropertyType.BOOLEAN,
                 "false", PropertyScope.CONSENSUS_SHARED, ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Enable Cardano L1 anchoring"));
@@ -419,6 +425,43 @@ public final class AppChainPropertyRegistry {
                 PropertyType.LONG, "5000", 1L,
                 AppChainConsensusProfile.MAX_BLOCK_MAX_FORWARD_SKEW_MS, Set.of(),
                 "Maximum ms a fresh proposal's timestamp may lead the voter's clock (ADR app-layer/039 D12)"));
+        definitions.add(coreParsed(AppChainConsensusProfile.BLOCK_MAX_BACKWARD_SKEW_SETTING,
+                PropertyType.LONG, "0", 0L,
+                AppChainConsensusProfile.MAX_BLOCK_MAX_BACKWARD_SKEW_MS, Set.of(),
+                "Opt-in: maximum ms a fresh proposal's timestamp may trail the voter's clock; 0 disables, "
+                        + "otherwise at least 1000 (ADR-059 framework addition 8)"));
+        definitions.add(coreParsed(AppChainConsensusProfile.MEMBERSHIP_ANCHOR_HANDOFF_SETTING,
+                PropertyType.BOOLEAN, "false", null, null, Set.of(),
+                "Opt-in: governed membership changes activate only after an L1-stable script anchor "
+                        + "carries the new set; consensus-committed (ADR-059 D8b)"));
+        definitions.add(coreParsed(AppChainConsensusProfile.MEMBERSHIP_HANDOFF_GATE_SETTING,
+                PropertyType.STRING, null, null, null, Set.of(),
+                "Id of the registered membership-handoff-gate contribution; required with "
+                        + "membership.anchor-handoff=true; consensus-committed (ADR-059 D8b)"));
+        definitions.add(coreParsed("anchor-profile.version", PropertyType.INTEGER, "1", 1L, 2L,
+                Set.of(), "Script-anchor ABI: 1, or 2 for heartbeats and a bounded updatedAtMs (ADR-059)"));
+        definitions.add(coreParsed("anchor-profile.max-window-ms", PropertyType.LONG, "600000", 1L,
+                null, Set.of(), "Anchor v2 validator parameter: maximum validity window in ms"));
+        definitions.add(coreParsed("anchor-profile.slot-zero", PropertyType.LONG, null, 0L, null,
+                Set.of(), "Anchor v2 slot-to-time origin slot (required off mainnet/preprod/preview)"));
+        definitions.add(coreParsed("anchor-profile.slot-zero-time-ms", PropertyType.LONG, null, 0L,
+                null, Set.of(), "Anchor v2 POSIX ms of the origin slot"));
+        definitions.add(coreParsed("anchor-profile.slot-length-ms", PropertyType.LONG, null, 1L,
+                60_000L, Set.of(), "Anchor v2 slot length in ms"));
+        definitions.add(coreParsed("anchor-profile.pinned.thread-policy-id", PropertyType.STRING,
+                null, null, null, Set.of(), "Pinned anchor thread policy id (hex, 28 bytes)"));
+        definitions.add(coreParsed("anchor-profile.pinned.thread-asset-name", PropertyType.STRING,
+                null, null, null, Set.of(), "Pinned anchor thread asset name (hex, 0..32 bytes)"));
+        definitions.add(coreParsed("anchor-profile.pinned.script-hash", PropertyType.STRING,
+                null, null, null, Set.of(), "Pinned anchor validator script hash (hex, 28 bytes)"));
+        definitions.add(coreParsed("anchor-profile.pinned.genesis-id", PropertyType.STRING,
+                null, null, null, Set.of(), "Pinned chain genesis id (hex, 32 bytes)"));
+        definitions.add(coreParsed("anchor-profile.pinned.application-id", PropertyType.STRING,
+                null, null, null, Set.of(), "Pinned application (state-machine) id"));
+        definitions.add(coreParsed("anchor-profile.pinned.commitment-profile", PropertyType.STRING,
+                null, null, null, Set.of(), "Pinned commitment profile, e.g. mpf-blake2b256-v1"));
+        definitions.add(coreParsed("anchor-profile.pinned.format-fingerprint", PropertyType.STRING,
+                null, null, null, Set.of(), "Pinned commitment format fingerprint (hex, 32 bytes)"));
         definitions.add(coreParsed(TopicChainSettings.MODE, PropertyType.STRING, "disabled", null, null,
                 Set.of("disabled", "enabled"),
                 "Enable the topic registry at genesis; requires membership.mode=governed (ADR app-layer/039 D1)"));

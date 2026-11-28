@@ -1,0 +1,680 @@
+package org.yanoproject.x.assets.cardano.gateway;
+
+import com.bloxbean.cardano.yaci.core.model.Block;
+import com.bloxbean.cardano.yaci.core.model.TransactionBody;
+import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
+import com.bloxbean.cardano.yaci.core.model.Witnesses;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
+import org.yanoproject.x.assets.contracts.AssetAccounts;
+import org.yanoproject.x.assets.contracts.AssetId;
+import org.yanoproject.x.assets.contracts.AssetValue;
+import org.yanoproject.x.assets.contracts.BalanceExitObservationV1;
+import org.yanoproject.x.assets.contracts.ClaimKind;
+import org.yanoproject.x.assets.contracts.ClaimLeafV1;
+import org.yanoproject.x.assets.contracts.DomainStatusV1;
+import org.yanoproject.x.assets.contracts.CardanoAddresses;
+import org.yanoproject.x.assets.contracts.GatewayIds;
+import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.PayoutClaimV1;
+import org.yanoproject.x.assets.contracts.PayoutConfirmation;
+import org.yanoproject.x.assets.contracts.PayoutObservationV1;
+import org.yanoproject.x.assets.contracts.SettlementRecords;
+import org.yanoproject.x.assets.contracts.SweepPaidV1;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.api.appchain.l1view.L1ObserverConsensusIdentity;
+
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.yanoproject.x.assets.cardano.gateway.SettlementFixtures.*;
+
+/**
+ * ADR-059 D10 and D8h §4 through the {@code asset-vault-payout-v1} observer: thread authentication, the r15/r16
+ * discriminator (Settle, Exit, SweepExit, BalanceExit), look-alikes that never emit or halt (I2, I18), and the
+ * consumer side through {@link PayoutConfirmation}, including the PAID_MISMATCH halt and a re-payment after a
+ * rolled-back payout.
+ */
+class AssetVaultPayoutObserverTest {
+    static final String OBSERVER = "payouts";
+    final AssetVaultPayoutObserver observer = new AssetVaultPayoutObserver(OBSERVER, shardSettings());
+
+    List<L1Observation> observe(Block block) {
+        return observer.observe(SLOT, BLOCK_HASH, block);
+    }
+
+    List<L1Observation> observe(TransactionBody tx, Witnesses witnesses) {
+        return observe(block(List.of(), List.of(tx), List.of(witnesses)));
+    }
+
+    static PayoutClaimV1 claim(L1Observation observation) {
+        return PayoutClaimV1.decode(observation.claim());
+    }
+
+    /** A USDM Settle (or Exit) paying two claims on shard 3: payouts 0..1, continuation 2, shard output 3. */
+    static TransactionBody settle(int hashByte, Hash32 first, Hash32 second) {
+        return tx(hashByte, List.of(),
+                output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                output(BOB, null, lovelace(1_500_000), usdm(25)),
+                output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                output(USDM_SHARD, shardDatum(3, filled(32, 0x99)), lovelace(1_200_000),
+                        shardToken(USDM_SHARD_POLICY, 3)));
+    }
+
+    static Witnesses settleWitnesses(Hash32 first, Hash32 second) {
+        return spends(settleRedeemer(3, first, second), followRedeemer(), shardRedeemer(first, second));
+    }
+
+    @Test
+    void aSettleIsObservedWithItsClaimsFromTheContinuationAndItsPayoutSummaries() {
+        Hash32 first = claimOnShard(1, 3);
+        Hash32 second = claimOnShard(2, 3);
+        List<L1Observation> observations = observe(settle(0x31, first, second), settleWitnesses(first, second));
+
+        assertThat(observations).singleElement().satisfies(observation -> {
+            assertThat(observation.observerId()).isEqualTo(OBSERVER);
+            assertThat(observation.eventOrdinal()).isEqualTo(3);
+            assertThat(observation.transactionAnchor().transactionHash()).isEqualTo(filled(32, 0x31));
+        });
+        PayoutObservationV1 payout = (PayoutObservationV1) claim(observations.getFirst());
+        assertThat(payout.domainId()).isEqualTo(DOMAIN);
+        assertThat(payout.vaultId()).isEqualTo(USDM_ID);
+        assertThat(payout.shardIndex()).isEqualTo(3);
+        assertThat(payout.source()).isEqualTo(PayoutObservationV1.Source.CONTINUATION);
+        assertThat(payout.claimIds()).containsExactly(first, second);
+        assertThat(payout.payouts()).containsExactly(
+                new PayoutClaimV1.Payout(raw(ALICE), BigInteger.valueOf(100), BigInteger.valueOf(1_800_000)),
+                new PayoutClaimV1.Payout(raw(BOB), BigInteger.valueOf(25), BigInteger.valueOf(1_500_000)));
+        assertThat(payout.continuation()).hasValueSatisfying(continuation -> {
+            assertThat(continuation.outputIndex()).isEqualTo(2);
+            assertThat(continuation.registeredQuantity()).isEqualTo(BigInteger.valueOf(875));
+            assertThat(continuation.lovelace()).isEqualTo(BigInteger.valueOf(5_000_000));
+            assertThat(continuation.otherAssetCount()).isZero();
+        });
+    }
+
+    @Test
+    void anExitIsReadTheSameWayAndAnAdaPayoutReportsLovelaceAsItsQuantity() {
+        Hash32 claimId = claimOnShard(4, 7);
+        byte[] exit = constr(1, list(constr(0, constr(0, bytes(claimId.bytes())), emptyProof())), emptyProof(),
+                integer(7));
+        TransactionBody tx = tx(0x32, List.of(),
+                output(ALICE, null, lovelace(5_100_000)),
+                output(ADA_VAULT, continuation(claimId), lovelace(20_000_000)),
+                output(ADA_SHARD, shardDatum(7, filled(32, 0x98)), lovelace(1_200_000),
+                        shardToken(ADA_SHARD_POLICY, 7)));
+        PayoutObservationV1 payout = (PayoutObservationV1) claim(observe(tx, spends(exit, shardRedeemer(claimId)))
+                .getFirst());
+        assertThat(payout.vaultId()).isEqualTo(ADA_ID);
+        assertThat(payout.claimIds()).containsExactly(claimId);
+        assertThat(payout.payouts().getFirst().quantity()).isEqualTo(BigInteger.valueOf(5_100_000));
+        assertThat(payout.payouts().getFirst().lovelace()).isEqualTo(BigInteger.valueOf(5_100_000));
+    }
+
+    @Test
+    void aSweepExitReadsOutputZerosSweepPaidAndCarriesNoContinuation() {
+        Hash32 claimId = claimOnShard(5, 9);
+        TransactionBody tx = tx(0x33, List.of(),
+                output(ALICE, new SweepPaidV1(claimId).encode(), lovelace(2_300_000), usdm(7)),
+                output(USDM_SHARD, shardDatum(9, filled(32, 0x97)), lovelace(1_200_000),
+                        shardToken(USDM_SHARD_POLICY, 9)));
+        byte[] sweep = constr(2, bytes(claimId.bytes()), bytes(raw(ALICE)), integer(1), integer(1), list(),
+                emptyProof(), emptyProof(), integer(0), integer(9));
+        PayoutObservationV1 payout = (PayoutObservationV1) claim(observe(tx, spends(sweep, shardRedeemer(claimId)))
+                .getFirst());
+        assertThat(payout.source()).isEqualTo(PayoutObservationV1.Source.SWEEP_PAID);
+        assertThat(payout.claimIds()).containsExactly(claimId);
+        assertThat(payout.continuation()).isEmpty();
+        assertThat(payout.payouts().getFirst().quantity()).isEqualTo(BigInteger.valueOf(7));
+    }
+
+    @Test
+    void aBalanceExitHasItsOwnObservationThatRecordsTheEscapeNullifier() {
+        byte[] holder = filled(28, 0x44);
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        int shard = nullifier.bytes()[31] & 0x0f;
+        TransactionBody tx = tx(0x34, List.of(),
+                output(ALICE, null, lovelace(1_000_000), usdm(40)),
+                output(USDM_VAULT, continuation(nullifier), lovelace(3_000_000), usdm(60)),
+                output(USDM_SHARD, shardDatum(shard, filled(32, 0x96)), lovelace(1_200_000),
+                        shardToken(USDM_SHARD_POLICY, shard)));
+        List<L1Observation> observations = observe(tx, spends(balanceExitRedeemer(holder, shard),
+                shardRedeemer(nullifier)));
+
+        BalanceExitObservationV1 exit = (BalanceExitObservationV1) claim(observations.getFirst());
+        assertThat(exit.escapeNullifier()).isEqualTo(nullifier);
+        assertThat(exit.holderId()).isEqualTo(holder);
+        assertThat(exit.payout()).isEqualTo(new PayoutClaimV1.Payout(raw(ALICE), BigInteger.valueOf(40),
+                BigInteger.valueOf(1_000_000)));
+        assertThat(exit.continuation().outputIndex()).isEqualTo(1);
+
+        // A BalanceExit-shaped redeemer whose holder does not derive the listed id is not bound to this transaction:
+        // it is read as a payout of the continuation's id, never as a balance exit.
+        assertThat(observe(tx, spends(balanceExitRedeemer(filled(28, 0x45), shard), shardRedeemer(nullifier))))
+                .singleElement().satisfies(observation -> assertThat(claim(observation))
+                        .isInstanceOfSatisfying(PayoutObservationV1.class,
+                                payout -> assertThat(payout.claimIds()).containsExactly(nullifier)));
+    }
+
+    @Test
+    void lookAlikesWithoutAnAuthenticShardThreadOutputAreIgnored() {
+        Hash32 first = claimOnShard(1, 3);
+        Hash32 second = claimOnShard(2, 3);
+        Witnesses witnesses = settleWitnesses(first, second);
+        List<TransactionBody> lookAlikes = List.of(
+                // A7: a continuation and payouts, but no shard output.
+                tx(0x40, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875))),
+                // A token-less output at the shard address.
+                tx(0x41, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                        output(USDM_SHARD, shardDatum(3, filled(32, 1)), lovelace(1_200_000))),
+                // A token of another policy (the ADA vault's thread) at USDM's shard address.
+                tx(0x42, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                        output(USDM_SHARD, shardDatum(3, filled(32, 1)), lovelace(1_200_000),
+                                shardToken(ADA_SHARD_POLICY, 3))),
+                // The real thread token, but at another address.
+                tx(0x43, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                        output(BOB, shardDatum(3, filled(32, 1)), lovelace(1_200_000),
+                                shardToken(USDM_SHARD_POLICY, 3))),
+                // Two outputs at the shard address.
+                tx(0x44, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                        output(USDM_SHARD, shardDatum(3, filled(32, 1)), lovelace(1_200_000),
+                                shardToken(USDM_SHARD_POLICY, 3)),
+                        output(USDM_SHARD, null, lovelace(1_200_000))),
+                // The bootstrap mint is never a payout (D8h §4).
+                tx(0x45, List.of(shardToken(USDM_SHARD_POLICY, 3)),
+                        output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                        output(USDM_SHARD, shardDatum(3, filled(32, 1)), lovelace(1_200_000),
+                                shardToken(USDM_SHARD_POLICY, 3))),
+                // Two tokens of the policy in the shard output.
+                tx(0x46, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                        output(USDM_SHARD, shardDatum(3, filled(32, 1)), lovelace(1_200_000),
+                                shardToken(USDM_SHARD_POLICY, 3), shardToken(USDM_SHARD_POLICY, 4))),
+                // A SweepPaidV1 on output 0 of a transaction with no thread token.
+                tx(0x47, List.of(), output(ALICE, new SweepPaidV1(first).encode(), lovelace(2_000_000), usdm(7))));
+        for (TransactionBody lookAlike : lookAlikes) {
+            assertThat(observe(lookAlike, witnesses)).as(lookAlike.getTxHash()).isEmpty();
+        }
+    }
+
+    @Test
+    void shapesNoValidVaultSpendProducesAreSkipped() {
+        Hash32 first = claimOnShard(1, 3);
+        Hash32 second = claimOnShard(2, 3);
+        Witnesses witnesses = settleWitnesses(first, second);
+        TransactionOutput shard = output(USDM_SHARD, shardDatum(3, filled(32, 1)), lovelace(1_200_000),
+                shardToken(USDM_SHARD_POLICY, 3));
+        List<TransactionBody> malformed = List.of(
+                // A4: a malformed continuation datum.
+                tx(0x50, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(USDM_VAULT, constr(1, bytes(new byte[3])), lovelace(5_000_000), usdm(875)), shard),
+                // The continuation at the wrong index (it lists two ids but sits at output 1).
+                tx(0x51, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)), shard),
+                // Two outputs at the vault address.
+                tx(0x52, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)),
+                        output(BOB, null, lovelace(1_500_000), usdm(25)),
+                        output(USDM_VAULT, continuation(first, second), lovelace(5_000_000), usdm(875)),
+                        output(USDM_VAULT, null, lovelace(1_000_000)), shard),
+                // An empty continuation (an Accept never spends a shard).
+                tx(0x53, List.of(), output(USDM_VAULT, continuation(), lovelace(5_000_000), usdm(875)), shard),
+                // No vault output and no SweepPaidV1 on output 0.
+                tx(0x54, List.of(), output(ALICE, null, lovelace(1_800_000), usdm(100)), shard));
+        for (TransactionBody tx : malformed) {
+            assertThat(observe(tx, witnesses)).as(tx.getTxHash()).isEmpty();
+        }
+        // Without a readable witness set the discriminator is unknown, so nothing is guessed.
+        assertThat(observe(block(List.of(), List.of(settle(0x55, first, second)), List.of()))).isEmpty();
+    }
+
+    @Test
+    void aPhaseTwoInvalidPayoutIsNeverObservedAndObservationIsDeterministic() {
+        Hash32 first = claimOnShard(1, 3);
+        Hash32 second = claimOnShard(2, 3);
+        Block block = block(List.of(0), List.of(settle(0x56, first, second), settle(0x57, first, second)),
+                List.of(settleWitnesses(first, second), settleWitnesses(first, second)));
+        List<L1Observation> observations = observe(block);
+        assertThat(observations).singleElement().satisfies(observation -> assertThat(
+                observation.transactionAnchor().transactionHash()).isEqualTo(filled(32, 0x57)));
+        assertThat(observe(block)).isEqualTo(observations);
+        assertThat(new AssetVaultPayoutObserver(OBSERVER, shardSettings()).observe(SLOT, BLOCK_HASH, block))
+                .isEqualTo(observations);
+        assertThat(observer.observe(SLOT, null, block)).isEmpty();
+        assertThat(observer.observe(SLOT, BLOCK_HASH, null)).isEmpty();
+    }
+
+    @Test
+    void realBlockBytesCarryTheRedeemersTheDiscriminatorReads() {
+        byte[] holder = filled(28, 0x46);
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        int shard = nullifier.bytes()[31] & 0x0f;
+        Hash32 first = claimOnShard(1, 3);
+        L1BlockBytes.Tx settleTx = new L1BlockBytes.Tx(1, List.of(
+                new L1BlockBytes.Output(raw(ALICE), 1_800_000, Map.of(USDM, 100L), null),
+                new L1BlockBytes.Output(raw(USDM_VAULT), 5_000_000, Map.of(USDM, 875L), continuation(first)),
+                new L1BlockBytes.Output(raw(USDM_SHARD), 1_200_000, Map.of(shardAsset(3), 1L),
+                        shardDatum(3, filled(32, 1)))),
+                Map.of(), List.of(settleRedeemer(3, first), shardRedeemer(first)));
+        L1BlockBytes.Tx exitTx = new L1BlockBytes.Tx(2, List.of(
+                new L1BlockBytes.Output(raw(ALICE), 1_000_000, Map.of(USDM, 40L), null),
+                new L1BlockBytes.Output(raw(USDM_VAULT), 3_000_000, Map.of(USDM, 60L), continuation(nullifier)),
+                new L1BlockBytes.Output(raw(USDM_SHARD), 1_200_000, Map.of(shardAsset(shard), 1L),
+                        shardDatum(shard, filled(32, 2)))),
+                Map.of(), List.of(balanceExitRedeemer(holder, shard), shardRedeemer(nullifier)));
+        Block block = L1BlockBytes.parse(L1BlockBytes.block(91, SLOT, List.of(settleTx, exitTx), List.of()));
+
+        List<L1Observation> observations = observe(block);
+        assertThat(observations).hasSize(2);
+        assertThat(claim(observations.get(0))).isInstanceOfSatisfying(PayoutObservationV1.class,
+                payout -> assertThat(payout.claimIds()).containsExactly(first));
+        assertThat(claim(observations.get(1))).isInstanceOfSatisfying(BalanceExitObservationV1.class,
+                exit -> assertThat(exit.escapeNullifier()).isEqualTo(nullifier));
+    }
+
+    // ------------------------------------------------------------------ review regressions, through real bytes
+
+    List<L1Observation> observeBytes(L1BlockBytes.Tx... transactions) {
+        return observe(L1BlockBytes.parse(L1BlockBytes.block(91, SLOT, List.of(transactions), List.of())));
+    }
+
+    /** A USDM pointer address with a key payment credential on the test network, naturals written as given. */
+    static byte[] pointer(byte[] keyHash, String naturalsHex) {
+        return concat(new byte[] {0x40}, keyHash, HexFormat.of().parseHex(naturalsHex));
+    }
+
+    static byte[] concat(byte[]... parts) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (byte[] part : parts) out.writeBytes(part);
+        return out.toByteArray();
+    }
+
+    /** A reserved USDM claim of 100 (vault lovelace 1.5 ADA) to {@code recipient}, as the ledger writes it. */
+    static ClaimLeafV1 reserveTo(Consumer consumer, byte[] recipient, long sequence) {
+        AssetValue value = AssetValue.single(USDM, BigInteger.valueOf(100));
+        Hash32 claimId = GatewayIds.claimId(DOMAIN, USDM_ID, ClaimKind.USER_WITHDRAWAL, new byte[] {1}, recipient,
+                value, BigInteger.valueOf(1_500_000), sequence);
+        ClaimLeafV1 leaf = new ClaimLeafV1(claimId, USDM_ID, ClaimKind.USER_WITHDRAWAL, value,
+                BigInteger.valueOf(1_500_000), recipient, 3, 1_000);
+        consumer.accounts.credit(USDM_ID, ALICE_KEY, ALICE_KEY, BigInteger.valueOf(100), BigInteger.valueOf(1_500_000));
+        consumer.accounts.reserve(USDM_ID, ALICE_KEY, BigInteger.valueOf(100), BigInteger.valueOf(1_500_000));
+        consumer.confirmation.writeReserved(consumer.store, leaf);
+        return leaf;
+    }
+
+    /** A one-claim USDM payout of {@code leaf} to {@code recipient}: payout 0, continuation 1, shard output 2. */
+    static L1BlockBytes.Tx payoutTx(int seed, ClaimLeafV1 leaf, byte[] recipient, List<byte[]> redeemers) {
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+        return new L1BlockBytes.Tx(seed, List.of(
+                new L1BlockBytes.Output(recipient, 1_800_000, Map.of(USDM, 100L), null),
+                new L1BlockBytes.Output(raw(USDM_VAULT), 5_000_000, Map.of(USDM, 875L), continuation(leaf.claimId())),
+                new L1BlockBytes.Output(raw(USDM_SHARD), 1_200_000, Map.of(shardAsset(shard), 1L),
+                        shardDatum(shard, filled(32, 1)))),
+                Map.of(), redeemers);
+    }
+
+    static void assertPaidWithoutHalt(Consumer consumer, List<L1Observation> observations, ClaimLeafV1 leaf) {
+        assertThat(consumer.apply(observations, 10)).singleElement().satisfies(result -> {
+            assertThat(result.halted()).isFalse();
+            assertThat(result.claims()).singleElement().satisfies(claim ->
+                    assertThat(claim.outcome()).isEqualTo(PayoutConfirmation.Outcome.PAID));
+        });
+        assertThat(consumer.status(leaf.claimId())).isEqualTo(SettlementRecords.ClaimStatus.PAID);
+        assertThat(consumer.confirmation.domainStatus(consumer.store)).isEmpty();
+    }
+
+    @Test
+    void aPayoutToAPaddedPointerIsReportedAsTheScriptsRebuildAndConfirmsTheCanonicalClaim() {
+        // The claim names (5, 1, 2) canonically; the output writes the slot 80 05, which the ledger reads as 5 and
+        // the vault script rebuilds as 05, so the Exit is valid on L1.
+        byte[] canonical = pointer(ALICE_KEY, "050102");
+        byte[] padded = pointer(ALICE_KEY, "8005" + "01" + "02");
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, canonical, 1);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+
+        List<L1Observation> observations = observeBytes(payoutTx(1, leaf, padded,
+                List.of(settleRedeemer(shard, leaf.claimId()), shardRedeemer(leaf.claimId()))));
+
+        assertThat(observations).singleElement().satisfies(observation -> assertThat(
+                ((PayoutObservationV1) claim(observation)).payouts().getFirst().recipient()).isEqualTo(canonical));
+        assertPaidWithoutHalt(consumer, observations, leaf);
+    }
+
+    @Test
+    void aPointerPaddedPastTheAddressBoundStillConfirmsItsCanonicalClaim() {
+        // M4S1-F1: 100 leading 0x80 digits make the raw output address 132 bytes, over the 128-byte recipient bound,
+        // but it rebuilds to the canonical 32-byte pointer the claim names. The bound applies to the rebuild.
+        byte[] canonical = pointer(ALICE_KEY, "050102");
+        byte[] padded = pointer(ALICE_KEY, "80".repeat(100) + "05" + "01" + "02");
+        assertThat(padded.length).isGreaterThan(GatewayIds.MAX_ADDRESS_BYTES);
+        assertThat(CardanoAddresses.scriptRebuiltForm(padded)).isEqualTo(canonical);
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, canonical, 2);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+
+        List<L1Observation> observations = observeBytes(payoutTx(2, leaf, padded,
+                List.of(settleRedeemer(shard, leaf.claimId()), shardRedeemer(leaf.claimId()))));
+
+        assertThat(observations).singleElement().satisfies(observation -> assertThat(
+                ((PayoutObservationV1) claim(observation)).payouts().getFirst().recipient()).isEqualTo(canonical));
+        assertPaidWithoutHalt(consumer, observations, leaf);
+    }
+
+    /** A USDM BalanceExit of {@code holder}: payout 0 to Alice, continuation 1 listing its nullifier, shard 2. */
+    static L1BlockBytes.Tx balanceExitTx(int seed, byte[] holder, List<byte[]> redeemers) {
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        int shard = nullifier.bytes()[31] & 0x0f;
+        return new L1BlockBytes.Tx(seed, List.of(
+                new L1BlockBytes.Output(raw(ALICE), 1_000_000, Map.of(USDM, 40L), null),
+                new L1BlockBytes.Output(raw(USDM_VAULT), 3_000_000, Map.of(USDM, 60L), continuation(nullifier)),
+                new L1BlockBytes.Output(raw(USDM_SHARD), 1_200_000, Map.of(shardAsset(shard), 1L),
+                        shardDatum(shard, filled(32, 2)))),
+                Map.of(), redeemers);
+    }
+
+    /** The BalanceExit redeemer with {@code trailing} fields after the seven the validator reads. */
+    static byte[] balanceExitRedeemerWith(byte[] holder, int shard, byte[]... trailing) {
+        List<byte[]> fields = new ArrayList<>(List.of(bytes(holder), bytes(ALICE_KEY), integer(40),
+                integer(1_000_000), bytes(raw(ALICE)), emptyProof(), integer(shard)));
+        fields.addAll(List.of(trailing));
+        return constr(7, fields.toArray(byte[][]::new));
+    }
+
+    void assertRecordedBalanceExit(List<L1Observation> observations, byte[] holder) {
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        assertThat(observations).singleElement().satisfies(observation -> assertThat(claim(observation))
+                .isInstanceOfSatisfying(BalanceExitObservationV1.class, exit -> {
+                    assertThat(exit.escapeNullifier()).isEqualTo(nullifier);
+                    assertThat(exit.holderId()).isEqualTo(holder);
+                }));
+        Consumer consumer = new Consumer();
+        assertThat(consumer.apply(observations, 10)).singleElement().satisfies(result -> {
+            assertThat(result.halted()).isFalse();
+            assertThat(result.disposition()).isEqualTo(PayoutConfirmation.Disposition.RECORDED);
+        });
+        assertThat(consumer.confirmation.domainStatus(consumer.store)).isEmpty();
+    }
+
+    @Test
+    void aBalanceExitRedeemerWithAnEighthFieldIsStillABalanceExit() {
+        byte[] holder = filled(28, 0x46);
+        int shard = GatewayIds.escapeNullifier(USDM_ID, holder).bytes()[31] & 0x0f;
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        assertRecordedBalanceExit(observeBytes(balanceExitTx(2, holder,
+                List.of(balanceExitRedeemerWith(holder, shard, integer(0)), shardRedeemer(nullifier)))), holder);
+    }
+
+    @Test
+    void aBalanceExitRedeemerWithAFieldNestedPastTheDecodeBoundIsStillABalanceExit() {
+        byte[] holder = filled(28, 0x46);
+        int shard = GatewayIds.escapeNullifier(USDM_ID, holder).bytes()[31] & 0x0f;
+        Hash32 nullifier = GatewayIds.escapeNullifier(USDM_ID, holder);
+        byte[] deep = integer(0);
+        for (int depth = 0; depth < 70; depth++) deep = list(deep);
+        assertRecordedBalanceExit(observeBytes(balanceExitTx(3, holder,
+                List.of(balanceExitRedeemerWith(holder, shard, deep), shardRedeemer(nullifier)))), holder);
+    }
+
+    @Test
+    void twoVaultInputsCarryingTheSameBalanceExitRedeemerAreOneBalanceExit() {
+        byte[] holder = filled(28, 0x46);
+        int shard = GatewayIds.escapeNullifier(USDM_ID, holder).bytes()[31] & 0x0f;
+        byte[] redeemer = balanceExitRedeemer(holder, shard);
+        assertRecordedBalanceExit(observeBytes(balanceExitTx(4, holder, List.of(redeemer, redeemer,
+                shardRedeemer(GatewayIds.escapeNullifier(USDM_ID, holder))))), holder);
+    }
+
+    @Test
+    void aConstructorSevenShardRedeemerNeverSuppressesAGenuinePayout() {
+        // The shard validator does not check its own redeemer's constructor: an Exit whose shard input carries a
+        // constructor-7 redeemer, even one of full BalanceExit shape, still pays its claim.
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, raw(ALICE), 1);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+        byte[] exit = constr(1, list(constr(0, constr(0, bytes(leaf.claimId().bytes())), emptyProof())), emptyProof(),
+                integer(shard));
+        byte[] insertsAsConstr7 = constr(7, list(constr(0, bytes(leaf.claimId().bytes()), list())));
+        byte[] balanceExitShaped = balanceExitRedeemer(filled(28, 0x47), shard);
+        int seed = 5;
+        for (byte[] shardRedeemer : List.of(insertsAsConstr7, balanceExitShaped)) {
+            List<L1Observation> observations = observeBytes(payoutTx(seed++, leaf, raw(ALICE),
+                    List.of(exit, shardRedeemer)));
+            assertThat(observations).singleElement().satisfies(observation -> assertThat(claim(observation))
+                    .isInstanceOfSatisfying(PayoutObservationV1.class,
+                            payout -> assertThat(payout.claimIds()).containsExactly(leaf.claimId())));
+            if (shardRedeemer == insertsAsConstr7) {
+                assertPaidWithoutHalt(consumer, observations, leaf);
+            } else {
+                assertThat(consumer.apply(observations, 11).getFirst().claims().getFirst().reason())
+                        .isEqualTo(PayoutConfirmation.Reason.ALREADY_PAID);
+            }
+        }
+    }
+
+    @Test
+    void anAuthenticatedTransactionWithoutSpendRedeemersIsNotObserved() {
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = reserveTo(consumer, raw(ALICE), 1);
+        assertThat(observeBytes(payoutTx(9, leaf, raw(ALICE), List.of()))).isEmpty();
+    }
+
+    static AssetId shardAsset(int shard) {
+        return AssetId.of(HexFormat.of().parseHex(USDM_SHARD_POLICY), new byte[] {(byte) shard});
+    }
+
+    @Test
+    void settingsAreValidatedAndEveryValueFeedsTheConsensusIdentity() {
+        L1ObserverConsensusIdentity identity = observer.consensusIdentity();
+        assertThat(identity.claimSchema()).isEqualTo(PayoutClaimV1.CLAIM_SCHEMA);
+        Map<String, String> otherPolicy = new TreeMap<>(shardSettings());
+        otherPolicy.put("vaults.1.shard-policy-id", "a3".repeat(28));
+        byte[] otherShard = shardHash("a3".repeat(28), USDM_HASH);
+        otherPolicy.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(otherShard));
+        otherPolicy.put("vaults.1.shard-address", enterprise(otherShard));
+        assertThat(new AssetVaultPayoutObserver(OBSERVER, otherPolicy).consensusIdentity().canonicalIdentityBytes())
+                .isNotEqualTo(identity.canonicalIdentityBytes());
+
+        Map<String, String> wrongShardAddress = new TreeMap<>(shardSettings());
+        wrongShardAddress.put("vaults.1.shard-address", USDM_VAULT);
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, wrongShardAddress))
+                .isInstanceOf(IllegalArgumentException.class);
+        Map<String, String> sharedPolicy = new TreeMap<>(shardSettings());
+        sharedPolicy.put("vaults.1.shard-policy-id", ADA_SHARD_POLICY);
+        byte[] sharedShard = shardHash(ADA_SHARD_POLICY, USDM_HASH);
+        sharedPolicy.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(sharedShard));
+        sharedPolicy.put("vaults.1.shard-address", enterprise(sharedShard));
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, sharedPolicy))
+                .hasMessageContaining("own shard thread policy");
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, sharedPolicy))
+                .isInstanceOf(IllegalArgumentException.class);
+        Map<String, String> unknown = new TreeMap<>(shardSettings());
+        unknown.put("vaults.1.shard-root", "00");
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, unknown))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new AssetVaultPayoutObserverProvider().type()).isEqualTo("asset-vault-payout-v1");
+    }
+
+    /** ADR-059 r23: the backend is part of the identity, and the shard pin must be that backend's shard. */
+    @Test
+    void theShardBackendFeedsTheIdentityAndMustMatchTheShardPins() {
+        byte[] julcIdentity = observer.consensusIdentity().canonicalIdentityBytes();
+        Map<String, String> explicitJulc = new TreeMap<>(shardSettings());
+        explicitJulc.put("shard-backend", "julc");
+        assertThat(new AssetVaultPayoutObserver(OBSERVER, explicitJulc).consensusIdentity().canonicalIdentityBytes())
+                .isEqualTo(julcIdentity);
+
+        // The julc pins under shard-backend=aiken: startup fails rather than watching the wrong shard address.
+        Map<String, String> mismatched = new TreeMap<>(shardSettings());
+        mismatched.put("shard-backend", "aiken");
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, mismatched))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("shard-backend");
+        assertThatThrownBy(() -> new AssetShardBootstrapObserver(OBSERVER, mismatched))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("shard-backend");
+
+        // The Aiken pins under shard-backend=aiken: a valid configuration with its own identity.
+        Map<String, String> aiken = new TreeMap<>(shardSettings());
+        aiken.put("shard-backend", "aiken");
+        byte[] adaShard = ShardBackend.AIKEN.derive(HexFormat.of().parseHex(ADA_SHARD_POLICY), ADA_HASH, 0)
+                .scriptHash();
+        byte[] usdmShard = ShardBackend.AIKEN.derive(HexFormat.of().parseHex(USDM_SHARD_POLICY), USDM_HASH, 0)
+                .scriptHash();
+        aiken.put("vaults.0.shard-script-hash", HexFormat.of().formatHex(adaShard));
+        aiken.put("vaults.0.shard-address", enterprise(adaShard));
+        aiken.put("vaults.1.shard-script-hash", HexFormat.of().formatHex(usdmShard));
+        aiken.put("vaults.1.shard-address", enterprise(usdmShard));
+        byte[] aikenIdentity = new AssetVaultPayoutObserver(OBSERVER, aiken).consensusIdentity()
+                .canonicalIdentityBytes();
+        assertThat(aikenIdentity).isNotEqualTo(julcIdentity);
+        assertThat(new AssetShardBootstrapObserver(OBSERVER, aiken).consensusIdentity().canonicalIdentityBytes())
+                .isNotEqualTo(new AssetShardBootstrapObserver(OBSERVER, shardSettings()).consensusIdentity()
+                        .canonicalIdentityBytes());
+
+        Map<String, String> unknown = new TreeMap<>(shardSettings());
+        unknown.put("shard-backend", "plutarch");
+        assertThatThrownBy(() -> new AssetVaultPayoutObserver(OBSERVER, unknown))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ------------------------------------------------------------------ end to end with PayoutConfirmation
+
+    /** The consumer: a staged store, the registry, and PayoutConfirmation over canonical-order observations. */
+    static final class Consumer {
+        final TreeMap<String, byte[]> state = new TreeMap<>();
+        final AssetAccounts.Store store = new AssetAccounts.Store() {
+            @Override public Optional<byte[]> get(byte[] key) {
+                return Optional.ofNullable(state.get(HexFormat.of().formatHex(key)));
+            }
+            @Override public void put(byte[] key, byte[] value) {
+                state.put(HexFormat.of().formatHex(key), value);
+            }
+            @Override public void delete(byte[] key) {
+                state.remove(HexFormat.of().formatHex(key));
+            }
+        };
+        final byte[] prefix = "ap/".getBytes(StandardCharsets.US_ASCII);
+        final PayoutConfirmation confirmation = new PayoutConfirmation(prefix, OBSERVER, DOMAIN, 86_400_000L,
+                id -> Map.of(ADA_ID, new PayoutConfirmation.VaultBinding(ADA_ID, AssetId.ADA),
+                        USDM_ID, new PayoutConfirmation.VaultBinding(USDM_ID, USDM)).entrySet().stream()
+                        .filter(entry -> entry.getKey().equals(id)).map(Map.Entry::getValue).findFirst());
+        final AssetAccounts accounts = new AssetAccounts(prefix, store);
+
+        ClaimLeafV1 reserve(String recipient, long amount, long vaultLovelace, long sequence) {
+            AssetValue value = AssetValue.single(USDM, BigInteger.valueOf(amount));
+            byte[] recipientBytes = raw(recipient);
+            Hash32 claimId = GatewayIds.claimId(DOMAIN, USDM_ID, ClaimKind.USER_WITHDRAWAL, new byte[] {1},
+                    recipientBytes, value, BigInteger.valueOf(vaultLovelace), sequence);
+            ClaimLeafV1 leaf = new ClaimLeafV1(claimId, USDM_ID, ClaimKind.USER_WITHDRAWAL, value,
+                    BigInteger.valueOf(vaultLovelace), recipientBytes, 3, 1_000);
+            accounts.credit(USDM_ID, ALICE_KEY, ALICE_KEY, BigInteger.valueOf(amount),
+                    BigInteger.valueOf(vaultLovelace));
+            accounts.reserve(USDM_ID, ALICE_KEY, BigInteger.valueOf(amount), BigInteger.valueOf(vaultLovelace));
+            confirmation.writeReserved(store, leaf);
+            return leaf;
+        }
+
+        List<PayoutConfirmation.Result> apply(List<L1Observation> observations, long height) {
+            List<L1Observation> ordered = new ArrayList<>(observations);
+            ordered.sort(L1Observation.CANONICAL_ORDER);
+            List<PayoutConfirmation.Result> results = new ArrayList<>();
+            for (L1Observation observation : ordered) {
+                results.add(confirmation.apply(store, new PayoutConfirmation.ObservedPayout(observation.observerId(),
+                        observation.transactionAnchor().transactionHash(), observation.eventOrdinal(),
+                        observation.slot(), observation.blockHash(), observation.claim()), height, 1_000_000));
+            }
+            return results;
+        }
+
+        SettlementRecords.ClaimStatus status(Hash32 claimId) {
+            return confirmation.claimStatus(store, claimId).orElseThrow().status();
+        }
+    }
+
+    /** A USDM Settle for real claims whose ids route to {@code shard}, built from their leaves. */
+    static TransactionBody settleOf(int hashByte, int shard, List<ClaimLeafV1> leaves, List<String> recipients) {
+        List<TransactionOutput> outputs = new ArrayList<>();
+        for (int i = 0; i < leaves.size(); i++) {
+            outputs.add(output(recipients.get(i), null, lovelace(2_000_000),
+                    usdm(leaves.get(i).value().quantityOf(USDM).longValueExact())));
+        }
+        outputs.add(output(USDM_VAULT, continuation(leaves.stream().map(ClaimLeafV1::claimId)
+                .toArray(Hash32[]::new)), lovelace(5_000_000), usdm(1)));
+        outputs.add(output(USDM_SHARD, shardDatum(shard, filled(32, 3)), lovelace(1_200_000),
+                shardToken(USDM_SHARD_POLICY, shard)));
+        return tx(hashByte, List.of(), outputs.toArray(TransactionOutput[]::new));
+    }
+
+    static Witnesses witnessesFor(int shard, List<ClaimLeafV1> leaves) {
+        Hash32[] ids = leaves.stream().map(ClaimLeafV1::claimId).toArray(Hash32[]::new);
+        return spends(settleRedeemer(shard, ids), shardRedeemer(ids));
+    }
+
+    @Test
+    void anObservedSettleConfirmsItsReservedClaimsAndARePaymentAfterRollbackIsANoOp() {
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = consumer.reserve(ALICE, 100, 1_500_000, 1);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+
+        List<L1Observation> first = observe(settleOf(0x61, shard, List.of(leaf), List.of(ALICE)),
+                witnessesFor(shard, List.of(leaf)));
+        assertThat(consumer.apply(first, 10)).singleElement().satisfies(result ->
+                assertThat(result.claims().getFirst().outcome()).isEqualTo(PayoutConfirmation.Outcome.PAID));
+        assertThat(consumer.status(leaf.claimId())).isEqualTo(SettlementRecords.ClaimStatus.PAID);
+        assertThat(consumer.accounts.counters(USDM_ID).paid()).isEqualTo(BigInteger.valueOf(100));
+        // Redelivery (rescan, restart) is a duplicate.
+        assertThat(consumer.apply(first, 11).getFirst().disposition())
+                .isEqualTo(PayoutConfirmation.Disposition.DUPLICATE);
+
+        // L1 rolled the payout back and someone paid the anchored leaf again: one payout on L1, a no-op here.
+        List<L1Observation> again = observe(settleOf(0x62, shard, List.of(leaf), List.of(ALICE)),
+                witnessesFor(shard, List.of(leaf)));
+        assertThat(consumer.apply(again, 12).getFirst().claims().getFirst().reason())
+                .isEqualTo(PayoutConfirmation.Reason.ALREADY_PAID);
+        assertThat(consumer.accounts.counters(USDM_ID).paid()).isEqualTo(BigInteger.valueOf(100));
+        assertThat(consumer.confirmation.domainStatus(consumer.store)).isEmpty();
+        consumer.accounts.checkInvariant(USDM_ID);
+    }
+
+    @Test
+    void aThreadAuthenticatedPayoutToTheWrongRecipientHaltsButALookAlikeNeverDoes() {
+        Consumer consumer = new Consumer();
+        ClaimLeafV1 leaf = consumer.reserve(ALICE, 100, 0, 2);
+        int shard = leaf.claimId().bytes()[31] & 0x0f;
+        TransactionBody stolen = settleOf(0x63, shard, List.of(leaf), List.of(BOB));
+
+        // The same body without its shard output is a look-alike: nothing is observed, nothing halts (I2).
+        TransactionBody lookAlike = tx(0x64, List.of(), stolen.getOutputs().subList(0, 2)
+                .toArray(TransactionOutput[]::new));
+        assertThat(observe(lookAlike, witnessesFor(shard, List.of(leaf)))).isEmpty();
+
+        List<PayoutConfirmation.Result> results = consumer.apply(observe(stolen, witnessesFor(shard, List.of(leaf))),
+                13);
+        assertThat(results.getFirst().halted()).isTrue();
+        assertThat(results.getFirst().claims().getFirst().reason()).isEqualTo(PayoutConfirmation.Reason.RECIPIENT);
+        assertThat(consumer.status(leaf.claimId())).isEqualTo(SettlementRecords.ClaimStatus.PAID_MISMATCH);
+        assertThat(consumer.confirmation.domainStatus(consumer.store).orElseThrow().status())
+                .isEqualTo(DomainStatusV1.Status.HALTED);
+        assertThat(Arrays.equals(raw(BOB), leaf.recipient())).isFalse();
+    }
+}

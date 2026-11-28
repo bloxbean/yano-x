@@ -1,0 +1,21 @@
+// Gradle init script for the ADR-059 M4 devnet tool: writes the runtime classpath GatewayDevnet needs (the gateway,
+// asset-payments and framework modules, julc, and cardano-client-lib's Blockfrost backend) to -DcpOut.
+allprojects {
+    if (path == ':ledgers:asset-payments:ledger') {
+        tasks.register('gatewayDevnetClasspath') {
+            dependsOn 'testClasses', ':capabilities:asset-gateway-cardano-support:testClasses',
+                    ':framework:cardano:classes'
+            doLast {
+                def files = new LinkedHashSet<File>()
+                files.addAll(sourceSets.test.runtimeClasspath.files)
+                files.addAll(project(':capabilities:asset-gateway-cardano-support').sourceSets.test.runtimeClasspath.files)
+                files.addAll(project(':framework:cardano').sourceSets.main.runtimeClasspath.files)
+                def bf = configurations.detachedConfiguration(
+                        dependencies.create('com.bloxbean.cardano:cardano-client-backend-blockfrost:0.8.0-pre7'))
+                files.addAll(bf.files)
+                def keep = files.findAll { f -> !(f.path =~ /test-classes|classes\/java\/test|resources\/test|reload4j|log4j/) }
+                new File(System.getProperty('cpOut')).text = keep.join(File.pathSeparator)
+            }
+        }
+    }
+}
