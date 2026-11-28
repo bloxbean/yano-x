@@ -24,6 +24,8 @@ dependencies {
     compileOnly libs.cardano.client.common
     compileOnly libs.cardano.client.quicktx
     compileOnly libs.jackson.databind
+    // The host provides SLF4J (parent-first), as it does for the gateway capability.
+    compileOnly libs.slf4j.api
 
     testImplementation project(':framework:api')
     testImplementation rootProject.ext.yanoModule('yano-runtime')
@@ -42,6 +44,7 @@ dependencies {
     testImplementation libs.cardano.client.quicktx
     testImplementation libs.jackson.databind
     testImplementation libs.cbor
+    testImplementation libs.slf4j.api
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine
     testRuntimeOnly libs.junit.platform.launcher

@@ -23,7 +23,10 @@ public final class PaymentsRecords {
     private PaymentsRecords() {
     }
 
-    /** Registry status (D14). M3 sets it at genesis only; governed changes come later. */
+    /**
+     * Registry status (D14). Genesis sets it; only a governed {@code ASSET_STATUS} command ({@link PaymentsGovernanceV1})
+     * changes it. {@code WIND_DOWN} allows withdrawals and settlement only; {@code RETIRED} is terminal.
+     */
     public enum AssetStatus {
         ACTIVE(0), DEPOSITS_PAUSED(1), TRANSFERS_PAUSED(2), WIND_DOWN(3), RETIRED(4);
 

@@ -79,6 +79,10 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *                                   with its own fee wallet and assembly, any other node with its own wallet
  * exit-relayer.interval-ms (60000)  how often the relayer looks for eligible claims
  * exit-relayer.fee-wallet.key-file  a relaying non-owner only: the 32-byte Ed25519 seed (hex) of its fee wallet
+ * reconciliation.interval-ms        every node: how often it reconciles each vault's L1 custody with the committed
+ *   (300000)                        liabilities (D15), read-only; 0 disables it; at least 1000 otherwise
+ * reconciliation.report-file        optional: a node-local file (put it under the node's data directory) that each
+ *                                   pass replaces with the full report as JSON
  * </pre>
  */
 record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> pins, Map<Hash32, ScriptRefs> scriptRefs,
@@ -101,9 +105,12 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
      *                          {@code Accept})
      * @param relayerSeed       a relaying non-owner's own fee-wallet seed; the owner relays with its fee wallet
      * @param relayerAcceptDelayMs how old a deposit's L1 output must be before a relaying non-owner proves it
+     * @param reconciliationIntervalMs the reconciliation pace (D15), 0 when disabled
+     * @param reconciliationReport     where each reconciliation pass writes its JSON report, if anywhere
      */
     record Tasks(long acceptIntervalMs, int acceptBatch, int acceptProvedBatch, boolean exitRelayer,
-                 long exitRelayIntervalMs, Optional<byte[]> relayerSeed, long relayerAcceptDelayMs) {
+                 long exitRelayIntervalMs, Optional<byte[]> relayerSeed, long relayerAcceptDelayMs,
+                 long reconciliationIntervalMs, Optional<Path> reconciliationReport) {
     }
 
     /** The reference-script outputs of one vault. */
@@ -220,7 +227,10 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                         "exit-relayer.interval-ms"),
                 relayerSeed,
                 bounded(optional(config, "accept.relayer-delay-ms", Long.toString(3 * acceptInterval)), 0,
-                        7 * 86_400_000L, "accept.relayer-delay-ms"));
+                        7 * 86_400_000L, "accept.relayer-delay-ms"),
+                reconciliationInterval(config),
+                Optional.ofNullable(config.get("reconciliation.report-file")).map(String::trim)
+                        .filter(value -> !value.isEmpty()).map(Path::of));
         Optional<Path> ttlFile = Optional.ofNullable(config.get("pending-ttl-file")).map(String::trim)
                 .filter(value -> !value.isEmpty()).map(Path::of);
         return new AssetSettlementSettings(vaults, pins, refs, owner,
@@ -231,6 +241,15 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 BigInteger.valueOf(bounded(optional(config, "max-supplement-per-payout", "0"), 0, 100_000_000L,
                         "max-supplement-per-payout")),
                 stability, tasks, ttlFile);
+    }
+
+    private static long reconciliationInterval(Map<String, String> config) {
+        long interval = bounded(optional(config, "reconciliation.interval-ms", "300000"), 0, 86_400_000L,
+                "reconciliation.interval-ms");
+        if (interval > 0 && interval < 1_000) {
+            throw new IllegalArgumentException("reconciliation.interval-ms is 0 (off) or at least 1000");
+        }
+        return interval;
     }
 
     Optional<VaultPins> vault(Hash32 vaultId) {

@@ -3,14 +3,16 @@ package org.yanoproject.x.assets.cardano.gateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * The periodic settlement tasks of one chain on this node (ADR-059 D8f, D9): the owner's {@code Accept} batcher and
- * the exit relayer. One daemon thread runs them with a fixed delay between passes; each pass takes the node's
+ * The periodic settlement tasks of one chain on this node (ADR-059 D8f, D9, D15): the owner's {@code Accept} batcher,
+ * the exit relayer and the reconciliation. One daemon thread runs them with a fixed delay between passes; each pass takes the node's
  * assembly lock itself. The executor product that owns them stops them on close, within a bounded wait.
  */
 final class SettlementTasks implements AutoCloseable {
@@ -35,10 +37,16 @@ final class SettlementTasks implements AutoCloseable {
      * {@link InternalError} is rethrown; a {@link StackOverflowError} of one pass is logged like any other failure.
      */
     void every(long intervalMs, String name, Callable<String> pass) {
+        AtomicReference<String> previous = new AtomicReference<>();
         scheduler.scheduleWithFixedDelay(() -> {
             try {
                 String outcome = pass.call();
-                LOG.debug("{} on {}: {}", name, chainId, outcome);
+                // A changed outcome is news for the operator; the same outcome again stays at DEBUG (D15a).
+                if (!Objects.equals(previous.getAndSet(outcome), outcome)) {
+                    LOG.info("{} on {}: {}", name, chainId, outcome);
+                } else {
+                    LOG.debug("{} on {}: {}", name, chainId, outcome);
+                }
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
             } catch (OutOfMemoryError | InternalError fatal) {
