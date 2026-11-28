@@ -891,6 +891,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                         SettlementQueries.decodeSequence(request))).orElse(new byte[0]);
                 case SettlementQueries.DEPOSIT -> store.get(depositRecordKey(Hash32.of(request)))
                         .orElse(new byte[0]);
+                case SettlementQueries.REGISTRY -> store.get(AssetPaymentsContract.registryKey(Hash32.of(request)))
+                        .orElse(new byte[0]);
                 default -> throw new AppQueryException(AppQueryException.Code.UNSUPPORTED,
                         "unknown asset-payments query " + path);
             };

@@ -3,6 +3,7 @@ package org.yanoproject.x.assetpayments.ledger;
 import org.junit.jupiter.api.Test;
 import org.yanoproject.x.assetpayments.contracts.PaymentsBodies;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords;
+import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.Cip113WiringClaimV1;
 import org.yanoproject.x.assets.contracts.DepositAdmission;
 import org.yanoproject.x.assets.contracts.DepositRecordV1;
@@ -144,6 +145,44 @@ class AssetPaymentsCip113Test {
         ledger.block(T0 + 1_000, wiring(0xa2, new Cip113WiringClaimV1.Fields(D, ISSUANCE, T, TP)),
                 deposit(0x24, datum(0x13), List.of(outpoint(0x13)), 0L, List.of(outpoint(0xa2)), 70));
         assertThat(ledger.balance(USDM_VAULT, alice)).isEqualTo(BigInteger.valueOf(70));
+    }
+
+    @Test
+    void anAssetHoldStopsCreditAndTheRegistryQueryShowsTheLabel() {
+        PaymentsHarness ledger = new PaymentsHarness(settings());
+        ledger.block(T0, register(alice));
+        AssetAccounts.Store store = new AssetAccounts.Store() {
+            @Override
+            public Optional<byte[]> get(byte[] key) {
+                return ledger.get(key);
+            }
+
+            @Override
+            public void put(byte[] key, byte[] value) {
+                ledger.state.put(HexFormat.of().formatHex(key), value.clone());
+            }
+
+            @Override
+            public void delete(byte[] key) {
+                ledger.state.remove(HexFormat.of().formatHex(key));
+            }
+        };
+        assertThat(Cip113Governance.hold(store, PaymentsHarness.ADA_VAULT))
+                .isEqualTo(Cip113Governance.Result.NOT_CIP113);
+        assertThat(Cip113Governance.hold(store, USDM_VAULT)).isEqualTo(Cip113Governance.Result.APPLIED);
+        PaymentsRecords.RegistryEntryV1 held = PaymentsRecords.RegistryEntryV1.decode(ledger.query(
+                org.yanoproject.x.assets.contracts.SettlementQueries.REGISTRY, USDM_VAULT.bytes()));
+        assertThat(held.status()).isEqualTo(PaymentsRecords.AssetStatus.ISSUER_HOLD);
+        assertThat(held.trustLabels()).contains(PaymentsRecords.TrustLabel.ISSUER_CONTROLLED);
+        ProgrammableDepositDatumV1 datum = datum(0x14);
+        ledger.block(T0 + 1_000, deposit(0x25, datum, List.of(outpoint(0x14)), 0L, List.of(outpoint(0xa0)), 30));
+        assertThat(ledger.balance(USDM_VAULT, alice)).isZero();
+        assertThat(ledger.depositRecord(datum.depositId(USDM_VAULT)).orElseThrow().reason())
+                .isEqualTo(DepositAdmission.Reason.ASSET_HELD);
+        assertThat(Cip113Governance.resume(store, USDM_VAULT)).isEqualTo(Cip113Governance.Result.APPLIED);
+        ledger.block(T0 + 2_000, deposit(0x26, datum(0x15), List.of(outpoint(0x15)), 0L, List.of(outpoint(0xa0)),
+                30));
+        assertThat(ledger.balance(USDM_VAULT, alice)).isEqualTo(BigInteger.valueOf(30));
     }
 
     // ------------------------------------------------------------------

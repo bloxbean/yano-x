@@ -31,6 +31,13 @@ public final class SettlementQueries {
     public static final String CLAIM_COUNT = "asset-gateway/claim-count";
     public static final String CLAIM_BY_SEQUENCE = "asset-gateway/claim-by-sequence";
     public static final String DEPOSIT = "asset-gateway/deposit";
+    /**
+     * ADR-061 D14: a vault's registry entry by its 32-byte {@code VaultId}, with its custody kind, its CIP-113 pins
+     * and so its trust labels ({@code ISSUER_CONTROLLED} for a CIP-113 asset); empty for an unknown vault.
+     */
+    public static final String REGISTRY = "asset-gateway/registry";
+    /** ADR-061 D6: a CIP-113 vault output's {@code vault-output/<outpoint>} record, by the outpoint's CBOR. */
+    public static final String VAULT_OUTPUT = "asset-gateway/vault-output";
 
     private SettlementQueries() {
     }
