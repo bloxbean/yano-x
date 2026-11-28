@@ -1,6 +1,7 @@
 package org.yanoproject.x.assets.cardano.gateway;
 
 import org.yanoproject.x.assets.cardano.support.VaultAddresses;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend;
 import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.GatewayIds;
@@ -37,6 +38,10 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * vaults.N.shard-policy-id     56 lowercase hex: ShardThreadPolicy(seed) of this vault
  * vaults.N.shard-script-hash   56 lowercase hex: the shard-backend's shard validator(shardPolicyId, vaultScriptHash)
  * vaults.N.shard-address       canonical bech32 enterprise script address of the shard hash
+ * vaults.N.custody             native (default) | cip113 (ADR-061)
+ * vaults.N.cip113.plb-hash     56 hex, for cip113: the pinned deployment's base script
+ * vaults.N.cip113.exit-delegate-hash  56 hex, for cip113: the exit delegate e the custody script h takes
+ * programmable-backend         julc | aiken, default julc: the custody backend of every CIP-113 vault (ADR-061 D3)
  * min-stability-depth          1..100000, default 1
  * </pre>
  *
@@ -47,19 +52,23 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * members with different backends have different consensus identities.
  */
 record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend, List<Vault> vaults,
-                               int minStabilityDepth) {
+                               int minStabilityDepth, ProgrammableBackend programmableBackend) {
     /** The nullifier-shard backend setting (ADR-059 r23). */
     static final String SHARD_BACKEND = "shard-backend";
+    /** The CIP-113 custody backend setting (ADR-061 D3). */
+    static final String PROGRAMMABLE_BACKEND = "programmable-backend";
     private static final Set<String> VAULT_KEYS = Set.of("asset", "ordinal", "script-hash", "address", "vault-id",
-            "shard-policy-id", "shard-script-hash", "shard-address", "custody", "cip113.plb-hash");
+            "shard-policy-id", "shard-script-hash", "shard-address", "custody", "cip113.plb-hash",
+            "cip113.exit-delegate-hash");
 
     /** One vault and its nullifier shard thread. */
     record Vault(int index, Hash32 vaultId, AssetId asset, byte[] scriptHash, String address, byte[] shardPolicyId,
-                 byte[] shardScriptHash, String shardAddress, Optional<byte[]> plbHash) {
+                 byte[] shardScriptHash, String shardAddress, Optional<byte[]> plbHash,
+                 Optional<byte[]> exitDelegateHash) {
         Vault(int index, Hash32 vaultId, AssetId asset, byte[] scriptHash, String address, byte[] shardPolicyId,
               byte[] shardScriptHash, String shardAddress) {
             this(index, vaultId, asset, scriptHash, address, shardPolicyId, shardScriptHash, shardAddress,
-                    Optional.empty());
+                    Optional.empty(), Optional.empty());
         }
 
         /** ADR-061: a CIP-113 vault, whose address is its smart wallet and whose shard is the binding variant. */
@@ -69,7 +78,12 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
 
         Vault {
             Objects.requireNonNull(plbHash, "plb hash");
+            Objects.requireNonNull(exitDelegateHash, "exit delegate hash");
+            if (plbHash.isPresent() != exitDelegateHash.isPresent()) {
+                throw new IllegalArgumentException("a CIP-113 vault pins both its PLB hash and its exit delegate");
+            }
             plbHash = plbHash.map(byte[]::clone);
+            exitDelegateHash = exitDelegateHash.map(byte[]::clone);
             scriptHash = scriptHash.clone();
             shardPolicyId = shardPolicyId.clone();
             shardScriptHash = shardScriptHash.clone();
@@ -110,6 +124,7 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
     static AssetVaultShardSettings parse(Map<String, String> settings) {
         DomainSettings domain = DomainSettings.parse(settings);
         ShardBackend backend = ShardBackend.parse(settings.get(SHARD_BACKEND));
+        ProgrammableBackend programmableBackend = ProgrammableBackend.parse(settings.get(PROGRAMMABLE_BACKEND));
         List<Vault> vaults = new ArrayList<>();
         Set<AssetId> assets = new HashSet<>();
         Set<String> addresses = new HashSet<>();
@@ -125,10 +140,13 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
             byte[] scriptHash = hex(required(settings, prefix + "script-hash"), 28, prefix + "script-hash");
             String custody = optional(settings, prefix + "custody", "native");
             Optional<byte[]> plb = Optional.empty();
+            Optional<byte[]> exitDelegate = Optional.empty();
             String address;
             if (custody.equals("cip113")) {
                 // ADR-061 D4: the observer reads the continuation at the full vault smart-wallet address.
                 plb = Optional.of(hex(required(settings, prefix + "cip113.plb-hash"), 28, prefix + "cip113.plb-hash"));
+                exitDelegate = Optional.of(hex(required(settings, prefix + "cip113.exit-delegate-hash"), 28,
+                        prefix + "cip113.exit-delegate-hash"));
                 address = required(settings, prefix + "address");
                 byte[] expected = org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend
                         .smartWallet(plb.get(), scriptHash, domain.addressNetworkId());
@@ -165,7 +183,7 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
                 throw new IllegalArgumentException(prefix + "vault-id differs from the derived VaultId " + vaultId);
             }
             vaults.add(new Vault(index, vaultId, asset, scriptHash, address, shardPolicy, shardHash, shardAddress,
-                    plb));
+                    plb, exitDelegate));
         }
         if (vaults.isEmpty()) throw new IllegalArgumentException("at least one vault (vaults.0.*) is required");
         for (String key : settings.keySet()) {
@@ -184,7 +202,7 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
         }
         int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 1, 100_000,
                 "min-stability-depth");
-        return new AssetVaultShardSettings(domain, backend, vaults, minDepth);
+        return new AssetVaultShardSettings(domain, backend, vaults, minDepth, programmableBackend);
     }
 
     /** Every consensus-relevant value in a fixed order and normalized form. */
@@ -204,7 +222,14 @@ record AssetVaultShardSettings(DomainSettings domain, ShardBackend shardBackend,
             vault.plbHash().ifPresent(plb -> {
                 fields.put(prefix + "custody", "cip113");
                 fields.put(prefix + "cip113.plb-hash", HexFormat.of().formatHex(plb));
+                fields.put(prefix + "cip113.exit-delegate-hash",
+                        HexFormat.of().formatHex(vault.exitDelegateHash().orElseThrow()));
             });
+        }
+        // ADR-061 D3: the custody backend determines h and e, so it is part of the identity of a CIP-113 domain; a
+        // native domain's identity bytes are unchanged.
+        if (vaults.stream().anyMatch(Vault::programmable)) {
+            fields.put(PROGRAMMABLE_BACKEND, programmableBackend.id());
         }
         fields.put("min-stability-depth", String.valueOf(minStabilityDepth));
         List<String> out = new ArrayList<>();

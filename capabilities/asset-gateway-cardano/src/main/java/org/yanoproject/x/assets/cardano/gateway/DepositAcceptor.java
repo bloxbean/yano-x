@@ -6,6 +6,8 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import org.yanoproject.x.assets.cardano.support.settlement.AcceptTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.GatewayPlutus;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableSettlement;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableVaultTxAssembler;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.StateProof;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
@@ -123,8 +125,23 @@ final class DepositAcceptor {
         if (anchor.isEmpty()) return "no live anchor";
         Optional<ResolvedOutput> exitMode = node.l1().exitMode(pins);
         if (exitMode.isEmpty() || !normal(exitMode.get())) return "exit mode: acceptance by proof is M4a";
-        Optional<ResolvedOutput> vaultRef = node.l1().resolve(node.settings().scriptRefs().get(pins.vaultId()).vault());
+        AssetSettlementSettings.ScriptRefs refs = node.settings().scriptRefs().get(pins.vaultId());
+        Optional<ResolvedOutput> vaultRef = node.l1().resolve(refs.vault());
         if (vaultRef.isEmpty()) return "no vault reference script";
+        // ADR-061: a CIP-113 vault's Accept runs the deployment's scripts too, under the live wiring.
+        List<ResolvedOutput> scriptRefs = List.of(vaultRef.get());
+        ProgrammableSettlement.Cip113 cip113 = null;
+        if (pins.cip113()) {
+            Optional<List<ResolvedOutput>> all = Cip113Runtime.referenceScripts(pins, node.l1(), refs, false);
+            if (all.isEmpty()) return "no CIP-113 reference scripts";
+            scriptRefs = all.get();
+            try {
+                cip113 = Cip113Runtime.context(pins, node.l1(), node.committed()).orElse(null);
+            } catch (ProgrammableVaultTxAssembler.Drift drift) {
+                return "CIP-113 wiring drift: " + drift.getMessage();
+            }
+            if (cip113 == null) return "the live CIP-113 params UTxO is unavailable";
+        }
         long now = node.clock().getAsLong();
         Set<ResolvedOutput.Outpoint> held = assembly.held(node.l1());
         List<ResolvedOutput> deposits = creditedDeposits(pins, anchor.get().datum().height(), held, now);
@@ -137,13 +154,17 @@ final class DepositAcceptor {
         // The co-signed Accept, the everyday path; a relayer that is not the owner only proves (Fable P2-2).
         String roundNote = "proved only";
         if (cosign != null) {
-            AcceptTxBuilder.Context context = context(pins, anchor.get(), exitMode.get(), vaultRef.get(), funding, pp);
+            AcceptTxBuilder.Context context = context(pins, anchor.get(), exitMode.get(), scriptRefs, funding, pp);
+            ProgrammableSettlement.Cip113 programmable = cip113;
             AssetSettlementExecutor.SignerMemory memory = signerMemory.getOrDefault(pins.vaultId(),
                     AssetSettlementExecutor.SignerMemory.NONE);
             List<byte[]> signerKeys = AssetSettlementExecutor.signers(memberPublicKey, anchor.get(), memory);
+            List<byte[]> required = signerKeys.stream().map(Blake2bUtil::blake2bHash224).toList();
             Attempt cosigned = build(deposits, node.settings().tasks().acceptBatch(),
-                    batch -> AcceptTxBuilder.cosigned(context, batch,
-                            signerKeys.stream().map(Blake2bUtil::blake2bHash224).toList(), node.evaluator()));
+                    batch -> programmable != null
+                            ? ProgrammableSettlement.acceptCosigned(context, programmable, batch, required,
+                            node.evaluator())
+                            : AcceptTxBuilder.cosigned(context, batch, required, node.evaluator()));
             roundNote = "no co-signed Accept: " + cosigned.failure();
             if (cosigned.built() != null) {
                 Set<String> requested = new LinkedHashSet<>();
@@ -165,10 +186,10 @@ final class DepositAcceptor {
 
         // The proved fallback: anyone may submit it; the script checks every proof against the anchored root. Its
         // validity interval starts from now, after the co-sign round's wait (Codex P2-4).
+        if (pins.cip113()) return roundNote + "; a proved CIP-113 Accept is not built by this release";
         Optional<StateProof.Source> proofs = node.anchoredProofs(anchor.get());
         if (proofs.isEmpty()) return roundNote + "; the live anchor has no anchored height";
-        AcceptTxBuilder.Context provedContext = context(pins, anchor.get(), exitMode.get(), vaultRef.get(), funding,
-                pp);
+        AcceptTxBuilder.Context provedContext = context(pins, anchor.get(), exitMode.get(), scriptRefs, funding, pp);
         Attempt proved = build(deposits, node.settings().tasks().acceptProvedBatch(),
                 batch -> AcceptTxBuilder.proved(provedContext, batch, proofs.get(), node.evaluator()));
         if (proved.built() == null) return roundNote + "; no proved Accept: " + proved.failure();
@@ -177,9 +198,10 @@ final class DepositAcceptor {
 
     /** The build context, its validity interval from this node's clock now: one validity window from the tip. */
     private AcceptTxBuilder.Context context(VaultPins pins, NodeL1View.Anchored anchor, ResolvedOutput exitMode,
-                                            ResolvedOutput vaultRef, List<ResolvedOutput> funding, ProtocolParams pp) {
+                                            List<ResolvedOutput> scriptRefs, List<ResolvedOutput> funding,
+                                            ProtocolParams pp) {
         long slot = node.settings().slots().slotAt(node.clock().getAsLong());
-        return new AcceptTxBuilder.Context(pins, anchor.output(), exitMode, List.of(vaultRef),
+        return new AcceptTxBuilder.Context(pins, anchor.output(), exitMode, scriptRefs,
                 new PayoutTxBuilder.Funding(funding, wallet.address()), Math.max(0, slot - 60),
                 slot + node.settings().validityWindowSlots(), pp);
     }
@@ -199,15 +221,22 @@ final class DepositAcceptor {
         NodeL1View.Window window = node.l1().window(pins.vaultAddress(), from);
         scanFrom.put(pins.vaultId(), window.more() ? from + NodeL1View.MAX_PAGES : 1);
         List<ResolvedOutput> credited = new ArrayList<>();
+        Set<Hash32> ids = new java.util.HashSet<>();
         for (ResolvedOutput out : window.outputs()) {
-            if (held.contains(out.outpoint()) || !AcceptTxBuilder.depositShaped(out, pins)) continue;
-            Hash32 depositId = AcceptTxBuilder.depositId(pins, out.outpoint());
-            Optional<DepositRecordV1> record = node.committed().deposit(depositId);
+            if (held.contains(out.outpoint())) continue;
+            // ADR-061 D6, D10 rule 8: a CIP-113 deposit is looked up by its origin-keyed DepositId and accepted at
+            // whichever live outpoint carries it; a native one by its outpoint.
+            Optional<Hash32> id = pins.cip113() ? ProgrammableSettlement.depositId(pins, out)
+                    : AcceptTxBuilder.depositShaped(out, pins)
+                    ? Optional.of(AcceptTxBuilder.depositId(pins, out.outpoint())) : Optional.empty();
+            if (id.isEmpty() || !ids.add(id.get())) continue;
+            Optional<DepositRecordV1> record = node.committed().deposit(id.get());
+            boolean sameOutput = pins.cip113() || (record.isPresent()
+                    && record.get().txId().equals(out.outpoint().txId())
+                    && record.get().outputIndex() == out.outpoint().index());
             if (record.isPresent() && record.get().status() == DepositRecordV1.Status.CREDITED
                     && record.get().vaultId().equals(pins.vaultId()) && record.get().height() <= anchorHeight
-                    && record.get().txId().equals(out.outpoint().txId())
-                    && record.get().outputIndex() == out.outpoint().index()
-                    && node.timeOf(record.get().slot()) <= youngest) {
+                    && sameOutput && node.timeOf(record.get().slot()) <= youngest) {
                 credited.add(out);
             }
         }

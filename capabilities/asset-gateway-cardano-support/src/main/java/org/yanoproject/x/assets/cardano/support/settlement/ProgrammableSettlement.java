@@ -196,6 +196,19 @@ public final class ProgrammableSettlement {
                 deployment.networkId()).map(datum -> datum.depositId(pins.vaultId()));
     }
 
+    /**
+     * The origin-keyed {@code DepositId} of any deposit-shaped output at the vault smart wallet, whatever else it holds
+     * (the reconciliation counts a copy holding a foreign token apart, D14(a)). Empty for any other output.
+     */
+    public static Optional<Hash32> depositIdOf(VaultPins pins, ResolvedOutput utxo) {
+        if (pins.programmable().isEmpty() || !utxo.sameAddress(pins.vaultAddress()) || utxo.inlineDatum().isEmpty()) {
+            return Optional.empty();
+        }
+        ProgrammableVaultTxAssembler.Deployment deployment = pins.programmable().get().deployment();
+        return ProgrammableDepositDatumV1.depositShaped(utxo.inlineDatum().get(), deployment.plbHash(),
+                deployment.networkId()).map(datum -> datum.depositId(pins.vaultId()));
+    }
+
     private static ProgrammableVaultTxAssembler.Assembled assemble(VaultPins pins, Cip113 cip113,
                                                                    ProgrammableVaultTxAssembler.Plan plan,
                                                                    ProtocolParams pp, TransactionEvaluator evaluator) {

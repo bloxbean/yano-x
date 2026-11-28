@@ -108,7 +108,23 @@ class Cip113ObserversTest {
         settings.put("vaults.0.custody", "cip113");
         settings.put("vaults.0.cip113.plb-hash", HexFormat.of().formatHex(PLB));
         settings.put("vaults.0.cip113.params-policy", HexFormat.of().formatHex(PARAMS_POLICY));
+        settings.put("vaults.0.cip113.exit-delegate-hash", HexFormat.of().formatHex(filled(0x5e)));
         return settings;
+    }
+
+    /** Codex P2-7, Fable P2-3: the custody backend and e are part of a CIP-113 observer's consensus identity. */
+    @Test
+    void theCustodyBackendAndTheExitDelegateArePartOfTheIdentity() {
+        Map<String, String> settings = depositSettings();
+        List<String> julc = AssetVaultDepositSettings.parse(settings).identityFields();
+        assertThat(julc).contains("programmable-backend=julc")
+                .anyMatch(field -> field.endsWith(".cip113.exit-delegate-hash=" + "5e".repeat(28)));
+        settings.put("programmable-backend", "aiken");
+        assertThat(AssetVaultDepositSettings.parse(settings).identityFields()).contains("programmable-backend=aiken")
+                .isNotEqualTo(julc);
+        settings.remove("vaults.0.cip113.exit-delegate-hash");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> AssetVaultDepositSettings.parse(settings))
+                .hasMessageContaining("exit-delegate-hash");
     }
 
     @Test
@@ -160,6 +176,7 @@ class Cip113ObserversTest {
         settings.put("vaults.0.address", vaultWallet());
         settings.put("vaults.0.custody", "cip113");
         settings.put("vaults.0.cip113.plb-hash", HexFormat.of().formatHex(PLB));
+        settings.put("vaults.0.cip113.exit-delegate-hash", HexFormat.of().formatHex(filled(0x5e)));
         settings.put("vaults.0.shard-policy-id", HexFormat.of().formatHex(shardPolicy));
         settings.put("vaults.0.shard-script-hash", HexFormat.of().formatHex(shard.scriptHash()));
         settings.put("vaults.0.shard-address", new Address(shard.address()).toBech32());

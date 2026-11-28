@@ -81,9 +81,29 @@ identity bytes.
   from the custody script's own reward redeemer; its `shard-script-hash` is the shard binding variant
   (`ShardBackend.deriveProgrammable`).
 
-The CIP-113 transactions themselves are laid out by `ProgrammableVaultTxAssembler` (support library); the user
-deposit by `ProgrammableDepositBuilder`; members check co-signed ones with `ProgrammableBodyCheck`.
-`qa/harness/asset-gateway/Cip113Devnet.java` runs a deposit, an `Accept` and a `Settle` on Yaci DevKit.
+Every CIP-113 observer also pins `vaults.N.cip113.exit-delegate-hash` (the exit delegate `e`) and, once per domain,
+`programmable-backend` (`julc` by default, or `aiken`); both are part of its consensus identity.
+
+The `asset-settlement` executor runs CIP-113 vaults too. Beside the payout observer's settings, such a vault takes
+`vaults.N.cip113.params-policy`, `cip113.registry-node-policy`, `cip113.max-inline-datum-bytes` (1024),
+`cip113.params-address` and `cip113.registry-address` (where the live protocol-params UTxO and the registry nodes
+sit), `cip113.reference-scripts` (the PLB, dispatcher, transfer-delegate and hook reference-script UTxOs) and
+`cip113.substandard`, and the domain's `exit-key-prefix` (`ap/x/`). At startup the selected backend's `h` and `e`
+for the vault's parameters must be the pinned `script-hash` and `exit-delegate-hash`, and `max-settle-batch` and
+`max-exit-batch` must fit the continuation's 29-id cap, or startup fails.
+
+- The owner's `Settle` and co-signed `Accept` are built by `ProgrammableSettlement` through
+  `ProgrammableVaultTxAssembler`, under the live params UTxO and the approved tuple of its dispatcher read from
+  committed state. Deposits are found by their origin-keyed `DepositId`, so a re-created output is still accepted.
+- Members check a CIP-113 request whole with `ProgrammableBodyCheck` (`checkSettle`, `checkAccept`), and refuse a
+  `Settle` while the asset is in `ISSUER_HOLD`.
+- The reconciliation counts only spendable custody (`VaultReconciliation.reconcileProgrammable`).
+- Not yet in this release: the proved CIP-113 `Accept`, the relayer's CIP-113 `Exit`, live reward-balance reads
+  (the runtime withdraws zero, and a positive balance makes the transaction fail on L1 until it is rebuilt), and an
+  adapter for any substandard other than the Yano X test substandard (`yano-x-test`).
+
+The user deposit is built by `ProgrammableDepositBuilder`. `qa/harness/asset-gateway/Cip113Devnet.java` runs a
+deposit, an `Accept` and a `Settle` on Yaci DevKit.
 
 ## `Accept` and the exit relayer
 

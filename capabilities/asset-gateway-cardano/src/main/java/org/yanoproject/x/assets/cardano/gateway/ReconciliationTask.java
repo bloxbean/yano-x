@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yanoproject.x.assets.cardano.support.settlement.ExitRelayer;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableSettlement;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.ShardMirror;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
@@ -120,7 +121,13 @@ final class ReconciliationTask {
             Map<Hash32, Optional<DepositRecordV1>> records = new HashMap<>();
             for (ResolvedOutput out : outputs.get()) {
                 if (PayoutTxBuilder.accepted(out, pins)) continue;
-                Hash32 depositId = GatewayIds.depositId(pins.vaultId(), out.outpoint().txId(), out.outpoint().index());
+                // ADR-061 D6: a CIP-113 deposit's record is keyed by its origin, and only deposit-shaped outputs
+                // carry one.
+                Optional<Hash32> id = pins.cip113() ? ProgrammableSettlement.depositIdOf(pins, out)
+                        : Optional.of(GatewayIds.depositId(pins.vaultId(), out.outpoint().txId(),
+                        out.outpoint().index()));
+                if (id.isEmpty()) continue;
+                Hash32 depositId = id.get();
                 Optional<Optional<DepositRecordV1>> record = committed.depositLookup(depositId);
                 if (record.isEmpty()) return unavailable(pins, "a committed deposit record is unavailable");
                 records.put(depositId, record.get());
@@ -145,10 +152,15 @@ final class ReconciliationTask {
             }
             List<ClaimLeafV1> reserved = index.get().reserved(pins.vaultId()).stream()
                     .map(ExitRelayer.Candidate::leaf).toList();
-            return VaultReconciliation.reconcile(VaultReconciliation.Vault.of(pins),
-                    new VaultReconciliation.Consensus(before.get().height(), before.get().counters(),
-                            id -> records.getOrDefault(id, Optional.empty()), reserved, ahead),
-                    new VaultReconciliation.L1Scan(pointBefore, outputs.get(), true));
+            VaultReconciliation.Consensus consensus = new VaultReconciliation.Consensus(before.get().height(),
+                    before.get().counters(), id -> records.getOrDefault(id, Optional.empty()), reserved, ahead);
+            VaultReconciliation.L1Scan scan = new VaultReconciliation.L1Scan(pointBefore, outputs.get(), true);
+            if (pins.cip113()) {
+                var deployment = pins.programmable().orElseThrow().deployment();
+                return VaultReconciliation.reconcileProgrammable(VaultReconciliation.Vault.of(pins), consensus, scan,
+                        deployment.plbHash(), deployment.networkId());
+            }
+            return VaultReconciliation.reconcile(VaultReconciliation.Vault.of(pins), consensus, scan);
         }
         return unavailable(pins, "committed state or the L1 view kept moving during the scan");
     }

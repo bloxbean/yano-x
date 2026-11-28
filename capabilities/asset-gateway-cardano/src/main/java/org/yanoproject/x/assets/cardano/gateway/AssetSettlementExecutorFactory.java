@@ -12,6 +12,7 @@ import org.yanoproject.api.TxEvaluationGateway;
 import org.yanoproject.api.model.TxEvaluationResult;
 import org.yanoproject.x.assets.cardano.support.settlement.AcceptBodyCheck;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBodyCheck;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
@@ -195,6 +196,7 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             VaultPins pins = spentVault(tx, settings.pins(), l1).orElse(settings.pins().getFirst());
             SettleBodyCheck.Tip tip = new SettleBodyCheck.Tip(settings.slots().slotAt(clock.getAsLong()),
                     settings.slots().slotLengthMs());
+            if (pins.cip113()) return cip113BodyCheck(tx, pins, l1, committed, memberKeyHash, params, tip);
             if (AcceptBodyCheck.isAcceptRequest(tx)) {
                 return AcceptBodyCheck.check(tx, pins, memberKeyHash, l1::resolve, committed,
                         PayoutTxBuilder.costModels(params), tip);
@@ -202,6 +204,37 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             return SettleBodyCheck.check(tx, pins, memberKeyHash, l1::resolve, committed,
                     PayoutTxBuilder.costModels(params), tip);
         };
+    }
+
+    /**
+     * ADR-061 D13: a CIP-113 vault's co-sign request, checked whole by {@link ProgrammableBodyCheck} against this
+     * member's own live wiring, registry, anchor and committed state (deposits by origin, the asset's hold).
+     */
+    static SettleBodyCheck.Outcome cip113BodyCheck(byte[] tx, VaultPins pins, NodeL1View l1, CommittedClaims committed,
+                                                   byte[] memberKeyHash,
+                                                   com.bloxbean.cardano.client.api.model.ProtocolParams params,
+                                                   SettleBodyCheck.Tip tip) {
+        Optional<ProgrammableBodyCheck.View> view;
+        try {
+            view = Cip113Runtime.memberView(pins, l1, committed, Transaction.deserialize(tx));
+        } catch (org.yanoproject.x.assets.cardano.support.settlement.ProgrammableVaultTxAssembler.Drift drift) {
+            return new SettleBodyCheck.Refused(new SettleBodyCheck.Refusal(SettleBodyCheck.Refusal.Kind.HAZARD,
+                    "CIP-113 wiring drift: " + drift.getMessage()));
+        } catch (Exception malformed) {
+            return new SettleBodyCheck.Refused(new SettleBodyCheck.Refusal(SettleBodyCheck.Refusal.Kind.HAZARD,
+                    "the request does not decode"));
+        }
+        if (view.isEmpty()) {
+            return new SettleBodyCheck.Refused(new SettleBodyCheck.Refusal(
+                    SettleBodyCheck.Refusal.Kind.UNRESOLVED_INPUT, "the live CIP-113 params, anchor or exit-mode"
+                    + " thread is not in my UTxO view"));
+        }
+        if (ProgrammableBodyCheck.isAcceptRequest(tx, pins.vaultScriptHash())) {
+            return ProgrammableBodyCheck.checkAccept(tx, pins, view.get(), memberKeyHash, l1::resolve, committed,
+                    PayoutTxBuilder.costModels(params), tip);
+        }
+        return ProgrammableBodyCheck.checkSettle(tx, pins, view.get(), memberKeyHash, l1::resolve, committed,
+                committed::held, PayoutTxBuilder.costModels(params), tip);
     }
 
     /** The first configured vault with an input of {@code tx} at its address, resolved in this node's own view. */

@@ -125,6 +125,8 @@ class AssetSettlementExecutorTest {
     /** This node's wall clock, which the tests move. */
     long now = NOW;
     int maxTxSize = 16_384;
+    /** The per-transaction memory limit; a CIP-113 transaction runs about three times as many scripts. */
+    String maxTxExMem = "16500000";
     /** Transactions the fake evaluator prices over the per-transaction memory limit. */
     java.util.function.Predicate<Transaction> overBudget = tx -> false;
 
@@ -245,6 +247,10 @@ class AssetSettlementExecutorTest {
         final Map<Hash32, ClaimLeafV1> leaves = new LinkedHashMap<>();
         final Map<Hash32, SettlementRecords.ClaimStatusV1> status = new HashMap<>();
         DomainStatusV1 domain = new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 0, 0, 86_400_000L);
+        /** ADR-061: committed deposit records, a CIP-113 vault's hold, and the approved wiring tuple. */
+        final Map<Hash32, org.yanoproject.x.assets.contracts.DepositRecordV1> deposits = new HashMap<>();
+        Optional<Boolean> held = Optional.empty();
+        org.yanoproject.x.assets.contracts.Cip113Wiring.ApprovedTuple approved;
 
         void reserve(ClaimLeafV1 leaf) {
             leaves.put(leaf.claimId(), leaf);
@@ -272,6 +278,12 @@ class AssetSettlementExecutorTest {
                 case SettlementQueries.CLAIM_COUNT -> SettlementQueries.encodeCount(leaves.size());
                 case SettlementQueries.CLAIM_BY_SEQUENCE -> new ArrayList<>(leaves.keySet())
                         .get((int) SettlementQueries.decodeSequence(request)).bytes();
+                case SettlementQueries.DEPOSIT -> Optional.ofNullable(deposits.get(Hash32.of(request)))
+                        .map(org.yanoproject.x.assets.contracts.DepositRecordV1::encode).orElse(new byte[0]);
+                case SettlementQueries.VAULT_HOLD -> held.map(SettlementQueries::encodeHold).orElse(new byte[0]);
+                case SettlementQueries.CIP113_WIRING -> approved != null
+                        && Arrays.equals(approved.fields().dispatcher(), request)
+                        ? SettlementQueries.encodeWiring(approved) : new byte[0];
                 default -> throw new IllegalArgumentException(path);
             };
         }
@@ -331,8 +343,8 @@ class AssetSettlementExecutorTest {
                     long payouts = overBudget.test(tx) ? 3 : Math.max(1, tx.getBody().getOutputs().size() - 3);
                     List<TxEvaluationResult> out = new ArrayList<>();
                     for (var redeemer : tx.getWitnessSet().getRedeemers()) {
-                        out.add(new TxEvaluationResult("spend", redeemer.getIndex().intValue(), 3_000_000L * payouts,
-                                900_000_000L));
+                        out.add(new TxEvaluationResult(redeemer.getTag().name().toLowerCase(java.util.Locale.ROOT),
+                                redeemer.getIndex().intValue(), 3_000_000L * payouts, 900_000_000L));
                     }
                     return out;
                 }
@@ -362,7 +374,7 @@ class AssetSettlementExecutorTest {
         pp.setMaxTxSize(maxTxSize);
         pp.setPriceMem(new java.math.BigDecimal("0.0577"));
         pp.setPriceStep(new java.math.BigDecimal("0.0000721"));
-        pp.setMaxTxExMem("16500000");
+        pp.setMaxTxExMem(maxTxExMem);
         pp.setMaxTxExSteps("10000000000");
         pp.setCollateralPercent(new java.math.BigDecimal(150));
         pp.setCoinsPerUtxoSize("4310");
@@ -1223,4 +1235,256 @@ class AssetSettlementExecutorTest {
         Files.writeString(temp.resolve("fee.skey"), HexFormat.of().formatHex(OWNER_SEED));
         assertThatThrownBy(() -> executor(owner, config)).hasMessageContaining("member key");
     }
+
+    // ------------------------------------------------------------------ ADR-061: a CIP-113 vault in the runtime
+
+    /**
+     * Codex P1-1, Fable: the executor starts with a CIP-113 vault, its pins carrying the custody kind, and runs a
+     * co-signed {@code Accept} (deposits by their origin-keyed id) and a {@code Settle} end to end in process: the owner
+     * builds through the CIP-113 assembler, every member checks with {@code ProgrammableBodyCheck}, and the members
+     * refuse a held asset's {@code Settle}. A pinned {@code h} or {@code e} that is not the selected backend's fails
+     * startup.
+     */
+    @org.junit.jupiter.api.Nested
+    class Cip113Vault {
+        final byte[] plb = filled(28, 0x3b);
+        final byte[] paramsPolicy = filled(28, 0x3c);
+        final byte[] registryPolicy = filled(28, 0x3d);
+        final byte[] dispatcher = filled(28, 0xd0);
+        final byte[] issuance = filled(28, 0xd1);
+        final byte[] transfer = filled(28, 0xd2);
+        final byte[] thirdParty = filled(28, 0xd3);
+        final byte[] hook = filled(28, 0xd4);
+        final String paramsAddress = enterprise(filled(28, 0x3e));
+        final String registryAddress = enterprise(filled(28, 0x3f));
+        org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend.Custody custody;
+        byte[] shardHash;
+
+        /** The custody scripts of this vault's parameters, as the executor derives them from {@link #cip113}. */
+        void derive(Map<String, String> config) {
+            var anchor = AssetSettlementSettings.pinnedAnchor(AssetAnchorSettings.parse(anchorOnly(config)));
+            var parameters = new org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend.Parameters(
+                    DOMAIN, USDM, 0, 0, anchor, HexFormat.of().parseHex(SHARD_POLICY),
+                    HexFormat.of().parseHex(EXIT_POLICY), EXIT_HASH, "ap/claim/".getBytes(),
+                    "ap/deposit/".getBytes(), "ap/x/".getBytes(), "ap/domain-status".getBytes(), 16, 8,
+                    BigInteger.valueOf(2_000_000), 6 * 3_600_000L, 30 * 86_400_000L, 604_800_000L, plb, 1024);
+            custody = org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend.JULC.derive(parameters);
+            shardHash = ShardBackend.JULC.deriveProgrammable(HexFormat.of().parseHex(SHARD_POLICY),
+                    custody.custodyHash(), 0).scriptHash();
+        }
+
+        Map<String, String> anchorOnly(Map<String, String> config) {
+            Map<String, String> anchor = new LinkedHashMap<>();
+            config.forEach((key, value) -> {
+                if (key.startsWith("anchor.")) anchor.put(key, value);
+            });
+            return anchor;
+        }
+
+        String wallet() {
+            return new com.bloxbean.cardano.client.address.Address(custody.smartWallet()).toBech32();
+        }
+
+        String keyWallet(byte[] key) {
+            return new com.bloxbean.cardano.client.address.Address(org.yanoproject.x.assets.cardano.support.settlement
+                    .ProgrammableBackend.keySmartWallet(plb, key, 0)).toBech32();
+        }
+
+        Map<String, String> cip113(boolean owner) throws Exception {
+            Map<String, String> config = config(owner);
+            if (custody == null) derive(config);
+            config.put("programmable-backend", "julc");
+            config.put("vaults.0.custody", "cip113");
+            config.put("vaults.0.script-hash", HexFormat.of().formatHex(custody.custodyHash()));
+            config.put("vaults.0.address", wallet());
+            config.put("vaults.0.shard-script-hash", HexFormat.of().formatHex(shardHash));
+            config.put("vaults.0.shard-address", enterprise(shardHash));
+            config.put("vaults.0.cip113.plb-hash", HexFormat.of().formatHex(plb));
+            config.put("vaults.0.cip113.exit-delegate-hash", HexFormat.of().formatHex(custody.exitDelegateHash()));
+            config.put("vaults.0.cip113.params-policy", HexFormat.of().formatHex(paramsPolicy));
+            config.put("vaults.0.cip113.registry-node-policy", HexFormat.of().formatHex(registryPolicy));
+            config.put("vaults.0.cip113.params-address", paramsAddress);
+            config.put("vaults.0.cip113.registry-address", registryAddress);
+            config.put("vaults.0.cip113.reference-scripts", "66".repeat(32) + "#0," + "66".repeat(32) + "#1,"
+                    + "66".repeat(32) + "#2," + "66".repeat(32) + "#3");
+            config.put("vaults.0.cip113.substandard", "yano-x-test");
+            return config;
+        }
+
+        static PlutusData credential(byte[] hash) {
+            return ConstrPlutusData.of(1, BytesPlutusData.of(hash));
+        }
+
+        /** The CIP-113 world: custody at the smart wallet, the params UTxO, the registry and the reference scripts. */
+        void world() throws Exception {
+            maxTxExMem = "60000000";
+            derive(config(false));
+            seed(500);
+            l1.remove("61".repeat(32) + "#0");
+            put(utxo("61".repeat(32), 0, wallet(), 50_000_000, asset("f0".repeat(28), "5553444d", 100_000),
+                    HexFormat.of().parseHex("d87a8180"), null));
+            for (int shard = 0; shard < 16; shard++) {
+                put(utxo("62".repeat(32), shard, enterprise(shardHash), 2_000_000,
+                        asset(SHARD_POLICY, String.format("%02x", shard), 1),
+                        serialize(ConstrPlutusData.of(0, BigIntPlutusData.of(1), BigIntPlutusData.of(shard),
+                                BytesPlutusData.of(new byte[32]))), null));
+            }
+            put(utxo("67".repeat(32), 0, paramsAddress, 3_000_000,
+                    asset(HexFormat.of().formatHex(paramsPolicy), HexFormat.of().formatHex("ProtocolParams".getBytes()),
+                            1), serialize(ConstrPlutusData.of(0, credential(dispatcher), credential(issuance),
+                            credential(transfer), credential(thirdParty), credential(filled(28, 0xc9)),
+                            ConstrPlutusData.of(1))), null));
+            PlutusData none = ConstrPlutusData.of(0, BytesPlutusData.of(new byte[0]));
+            put(utxo("68".repeat(32), 0, registryAddress, 3_000_000, asset(HexFormat.of().formatHex(registryPolicy),
+                    "", 1), serialize(ConstrPlutusData.of(0, BytesPlutusData.of(new byte[0]),
+                    BytesPlutusData.of(USDM.policyId()), none, none, none, none, BytesPlutusData.of(new byte[0]))),
+                    null));
+            put(utxo("68".repeat(32), 1, registryAddress, 3_000_000, asset(HexFormat.of().formatHex(registryPolicy),
+                    "f0".repeat(28), 1), serialize(ConstrPlutusData.of(0, BytesPlutusData.of(USDM.policyId()),
+                    BytesPlutusData.of(filled(30, 0xff)), none, credential(hook), none, none,
+                    BytesPlutusData.of(new byte[0]))), null));
+            String feeAddress = AddressProvider.getEntAddress(Credential.fromKey(Blake2bUtil.blake2bHash224(
+                    publicKey(FEE_SEED))), Networks.testnet()).getAddress();
+            put(utxo("65".repeat(32), 0, feeAddress, 30_000_000, List.of(), null,
+                    HexFormat.of().formatHex(custody.custodyHash())));
+            put(utxo("65".repeat(32), 1, feeAddress, 30_000_000, List.of(), null, HexFormat.of().formatHex(shardHash)));
+            int index = 0;
+            for (byte[] script : List.of(plb, dispatcher, transfer, hook)) {
+                put(utxo("66".repeat(32), index++, feeAddress, 30_000_000, List.of(), null,
+                        HexFormat.of().formatHex(script)));
+            }
+            put(utxo("60".repeat(32), 1, feeAddress, 70_000_000, List.of(), null, null));
+        }
+
+        void wire(Node... nodes) {
+            var fields = new org.yanoproject.x.assets.contracts.Cip113WiringClaimV1.Fields(dispatcher, issuance,
+                    transfer, thirdParty);
+            for (Node node : nodes) {
+                node.ledger.approved = new org.yanoproject.x.assets.contracts.Cip113Wiring.ApprovedTuple(fields,
+                        transfer, thirdParty, new byte[28]);
+                node.ledger.held = Optional.of(false);
+            }
+        }
+
+        ClaimLeafV1 claim(int shard, int seed) {
+            byte[] id = Blake2bUtil.blake2bHash256(("cip113-claim-" + seed).getBytes());
+            id[31] = (byte) ((id[31] & 0xf0) | shard);
+            return new ClaimLeafV1(Hash32.of(id), VAULT, ClaimKind.USER_WITHDRAWAL, AssetValue.single(USDM,
+                    BigInteger.valueOf(100 + seed)), BigInteger.valueOf(1_500_000),
+                    org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend.keySmartWallet(plb,
+                            filled(28, 0x80 + seed), 0), 400, NOW - 86_400_000L);
+        }
+
+        @Test
+        void theExecutorSettlesACip113VaultThatEveryMemberVerified() throws Exception {
+            world();
+            Node owner = new Node(OWNER_SEED);
+            Node member = new Node(MEMBER_SEED);
+            wire(owner, member);
+            AppEffectExecutor executor = executor(owner, cip113(true));
+            executor(member, cip113(false));
+            List<ClaimLeafV1> claims = List.of(claim(3, 1), claim(3, 2));
+            for (ClaimLeafV1 leaf : claims) {
+                owner.ledger.reserve(leaf);
+                member.ledger.reserve(leaf);
+            }
+            pump(owner, member);
+            PendingEffect effect = effect(new SettlementBatchV1(VAULT, 3,
+                    claims.stream().map(ClaimLeafV1::claimId).toList()));
+            EffectExecution first = executor.execute(attempt(1, new byte[0]), effect);
+            assertThat(first).as(((AssetSettlementExecutor) executor).lastOutcome())
+                    .isInstanceOf(EffectExecution.Submitted.class);
+            Transaction tx = Transaction.deserialize(submitted.getLast());
+            // The custody script h is withdrawn with Settle; the vault input carries PLB's BaseSpendRedeemer.
+            String hKey = HexFormat.of().formatHex(custody.custodyHash());
+            assertThat(tx.getBody().getWithdrawals()).anyMatch(w -> HexFormat.of().formatHex(
+                    new com.bloxbean.cardano.client.address.Address(w.getRewardAddress()).getBytes()).endsWith(hKey));
+            assertThat(tx.getBody().getWithdrawals()).hasSize(4);
+            for (int i = 0; i < claims.size(); i++) {
+                assertThat(new com.bloxbean.cardano.client.address.Address(tx.getBody().getOutputs().get(i)
+                        .getAddress()).getBytes()).isEqualTo(claims.get(i).recipient());
+            }
+            assertThat(tx.getBody().getOutputs().get(2).getAddress()).isEqualTo(wallet());
+            assertThat(tx.getWitnessSet().getVkeyWitnesses()).hasSize(3);
+            assertThat(((AssetCosignService) member.handler).lastRefusal()).isEmpty();
+        }
+
+        @Test
+        void theAcceptorAcceptsAMovedCip113DepositByItsOrigin() throws Exception {
+            world();
+            Node owner = new Node(OWNER_SEED);
+            Node member = new Node(MEMBER_SEED);
+            wire(owner, member);
+            AppEffectExecutor executor = executor(owner, cip113(true));
+            executor(member, cip113(false));
+            // A credited deposit, re-created by a no-op re-spend at another outpoint than the record keeps.
+            byte[] alice = filled(28, 0xa7);
+            org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1 datum =
+                    new org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1(filled(28, 0xb5),
+                            org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend.keySmartWallet(plb,
+                                    alice, 0), alice, Hash32.of(filled(32, 0x30)), 0, 0);
+            put(utxo("69".repeat(32), 2, wallet(), 2_500_000, asset("f0".repeat(28), "5553444d", 600),
+                    datum.encode(), null));
+            Hash32 id = datum.depositId(VAULT);
+            var record = new org.yanoproject.x.assets.contracts.DepositRecordV1(id, VAULT, Hash32.of(filled(32, 0x31)),
+                    0, 1_000, 450, org.yanoproject.x.assets.contracts.VaultOutputShape.DEPOSIT,
+                    org.yanoproject.x.assets.contracts.DepositRecordV1.Status.CREDITED,
+                    org.yanoproject.x.assets.contracts.DepositAdmission.Reason.NONE, filled(28, 0xb5),
+                    BigInteger.valueOf(600), BigInteger.valueOf(2_500_000), 0, Hash32.of(filled(32, 0x5e)),
+                    BigInteger.valueOf(600), BigInteger.valueOf(2_500_000));
+            owner.ledger.deposits.put(id, record);
+            member.ledger.deposits.put(id, record);
+            pump(owner, member);
+            DepositAcceptor acceptor = ((AssetSettlementExecutor) executor).acceptor().orElseThrow();
+            String outcome = acceptor.runOnce();
+            assertThat(outcome).startsWith("accepted (co-signed) 1 deposits");
+            Transaction tx = Transaction.deserialize(submitted.getLast());
+            assertThat(tx.getBody().getInputs()).anyMatch(in -> in.getTransactionId().equals("69".repeat(32))
+                    && in.getIndex() == 2);
+            assertThat(tx.getBody().getOutputs().getFirst().getAddress()).isEqualTo(wallet());
+            assertThat(((AssetCosignService) member.handler).lastRefusal()).isEmpty();
+        }
+
+        /** D14, Q8: a held asset's Settle is not built, and a member refuses to co-sign one. */
+        @Test
+        void aHeldAssetIsNotSettledAndMembersRefuseIt() throws Exception {
+            world();
+            Node owner = new Node(OWNER_SEED);
+            Node member = new Node(MEMBER_SEED);
+            wire(owner, member);
+            AppEffectExecutor executor = executor(owner, cip113(true));
+            executor(member, cip113(false));
+            ClaimLeafV1 leaf = claim(4, 3);
+            owner.ledger.reserve(leaf);
+            member.ledger.reserve(leaf);
+            pump(owner, member);
+            PendingEffect effect = effect(new SettlementBatchV1(VAULT, 4, List.of(leaf.claimId())));
+            owner.ledger.held = Optional.of(true);
+            assertThat(executor.execute(attempt(1, new byte[0]), effect)).isInstanceOf(EffectExecution.Retry.class);
+            assertThat(((AssetSettlementExecutor) executor).lastOutcome()).contains("ISSUER_HOLD");
+            // An owner that does not see the hold yet builds it; the member, which does, refuses.
+            owner.ledger.held = Optional.of(false);
+            member.ledger.held = Optional.of(true);
+            assertThat(executor.execute(attempt(2, new byte[0]), effect)).isInstanceOf(EffectExecution.Failed.class);
+            assertThat(((AssetCosignService) member.handler).lastRefusal()).hasValueSatisfying(refusal ->
+                    assertThat(refusal.detail()).contains("ISSUER_HOLD"));
+        }
+
+        /** Codex P2-7, Fable P2-3: a pinned h or e that is not the selected backend's fails startup. */
+        @Test
+        void aMismatchedBackendOrCustodyHashFailsStartup() throws Exception {
+            world();
+            Node owner = new Node(OWNER_SEED);
+            Map<String, String> aiken = cip113(true);
+            aiken.put("programmable-backend", "aiken");
+            assertThatThrownBy(() -> executor(owner, aiken)).hasMessageContaining("aiken");
+            Map<String, String> wrongE = cip113(true);
+            wrongE.put("vaults.0.cip113.exit-delegate-hash", "5e".repeat(28));
+            assertThatThrownBy(() -> executor(owner, wrongE)).hasMessageContaining("exit-delegate-hash");
+            Map<String, String> tooLarge = cip113(true);
+            tooLarge.put("max-settle-batch", "30");
+            assertThatThrownBy(() -> executor(owner, tooLarge)).isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
 }

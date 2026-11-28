@@ -58,6 +58,19 @@ final class CommittedClaims implements SettleBodyCheck.Committed, AcceptBodyChec
         return record.isEmpty() ? Optional.empty() : Optional.of(record);
     }
 
+    /**
+     * ADR-061 D14: whether a CIP-113 vault's asset is in {@code ISSUER_HOLD}; empty when unknown or unavailable, which
+     * the members read as a reason to refuse a {@code Settle}.
+     */
+    Optional<Boolean> held(Hash32 vaultId) {
+        return payload(SettlementQueries.VAULT_HOLD, vaultId.bytes()).flatMap(SettlementQueries::decodeHold);
+    }
+
+    /** ADR-061 D10 rule 6: the approved tuple whose dispatcher a vault transaction uses, from committed state. */
+    Optional<org.yanoproject.x.assets.contracts.Cip113Wiring.ApprovedTuple> approvedForDispatcher(byte[] dispatcher) {
+        return payload(SettlementQueries.CIP113_WIRING, dispatcher).flatMap(SettlementQueries::decodeWiring);
+    }
+
     /** The vault's I4 counters with the committed height they were read at (D15); empty when unavailable. */
     Optional<SettlementQueries.CountersView> counters(Hash32 vaultId) {
         return payload(SettlementQueries.VAULT_COUNTERS, vaultId.bytes()).flatMap(SettlementQueries::decodeCounters);

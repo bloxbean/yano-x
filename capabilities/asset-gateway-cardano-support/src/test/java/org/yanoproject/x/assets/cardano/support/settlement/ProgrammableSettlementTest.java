@@ -218,6 +218,49 @@ class ProgrammableSettlementTest {
                 p.maxPauseMs(), p.plbHash(), p.maxInlineDatumBytes());
     }
 
+    /**
+     * Codex P1-4: the runtime reconciliation of a CIP-113 vault counts only spendable custody; a top-up holding the
+     * asset and a copied credited datum carrying a foreign token are unavailable, and the shortfall is flagged.
+     */
+    @Test
+    void theRuntimeReconciliationOfACip113VaultCountsOnlySpendableCustody() throws Exception {
+        ProgrammableWorld world = new ProgrammableWorld();
+        VaultPins pins = world.pins();
+        ProgrammableDepositDatumV1 datum = new ProgrammableDepositDatumV1(filled(28, 0xb5), world.keyWallet(
+                filled(28, 0xa7)), filled(28, 0xa7), outpoint(0x30, 0).txId(), 0, 0);
+        Hash32 id = datum.depositId(world.vaultId());
+        java.util.TreeMap<AssetId, BigInteger> mixed = ProgrammableWorld.assets(TOKEN, 300);
+        mixed.put(AssetId.of(filled(28, 0x99), new byte[] {1}), BigInteger.ONE);
+        List<ResolvedOutput> outputs = List.of(
+                new ResolvedOutput(outpoint(0x61, 0), world.vaultWallet(), BigInteger.valueOf(5_000_000),
+                        ProgrammableWorld.assets(TOKEN, 1_000), Optional.of(new byte[] {(byte) 0xd8, 0x7a,
+                        (byte) 0x81, (byte) 0x80}), Optional.empty()),
+                new ResolvedOutput(outpoint(0x61, 1), world.vaultWallet(), BigInteger.valueOf(2_000_000),
+                        ProgrammableWorld.assets(TOKEN, 700), Optional.of(new byte[] {(byte) 0xd8, 0x7b, (byte) 0x80}),
+                        Optional.empty()),
+                new ResolvedOutput(outpoint(0x61, 2), world.vaultWallet(), BigInteger.valueOf(2_500_000),
+                        ProgrammableWorld.assets(TOKEN, 500), Optional.of(datum.encode()), Optional.empty()),
+                new ResolvedOutput(outpoint(0x61, 3), world.vaultWallet(), BigInteger.valueOf(2_500_000), mixed,
+                        Optional.of(datum.encode()), Optional.empty()));
+        assertThat(ProgrammableSettlement.depositIdOf(pins, outputs.get(3))).contains(id);
+        assertThat(ProgrammableSettlement.depositId(pins, outputs.get(3))).isEmpty();
+        DepositRecordV1 credited = record(world, id, DepositRecordV1.Status.CREDITED, 900);
+        org.yanoproject.x.assets.contracts.AssetAccounts.VaultCounters counters =
+                new org.yanoproject.x.assets.contracts.AssetAccounts.VaultCounters(BigInteger.valueOf(2_500),
+                        BigInteger.ZERO, BigInteger.valueOf(2_500), BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO,
+                        BigInteger.ZERO, BigInteger.ZERO);
+        VaultReconciliation.Report report = VaultReconciliation.reconcileProgrammable(VaultReconciliation.Vault.of(
+                pins), new VaultReconciliation.Consensus(900, counters, depositId -> depositId.equals(id)
+                ? Optional.of(credited) : Optional.empty(), List.of(), java.util.Set.of()),
+                new VaultReconciliation.L1Scan(Optional.of(new VaultReconciliation.L1Point(1, "ab".repeat(32))),
+                        outputs, true), world.plb, 0);
+        VaultReconciliation.Unit unit = report.units().getFirst();
+        assertThat(unit.accepted()).isEqualTo(BigInteger.valueOf(1_500));
+        assertThat(unit.unattributed()).isEqualTo(BigInteger.valueOf(1_000));
+        assertThat(unit.difference()).isEqualTo(BigInteger.valueOf(-1_000));
+        assertThat(report.verdict()).isEqualTo(VaultReconciliation.Verdict.DISCREPANCY);
+    }
+
     // ------------------------------------------------------------------ fixtures
 
     record Settle(PayoutTxBuilder.Built built, List<ClaimLeafV1> claims) {

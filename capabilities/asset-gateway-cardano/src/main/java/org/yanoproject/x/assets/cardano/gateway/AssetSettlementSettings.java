@@ -2,6 +2,8 @@ package org.yanoproject.x.assets.cardano.gateway;
 
 import com.bloxbean.cardano.client.address.Address;
 import org.yanoproject.x.assets.cardano.support.settlement.AcceptTxBuilder;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableVaultTxAssembler;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
 import org.yanoproject.x.assets.contracts.Hash32;
@@ -83,7 +85,28 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  *   (300000)                        liabilities (D15), read-only; 0 disables it; at least 1000 otherwise
  * reconciliation.report-file        optional: a node-local file (put it under the node's data directory) that each
  *                                   pass replaces with the full report as JSON
+ * exit-key-prefix (ap/x/)           ASCII, the custody scripts' exit key prefix (a CIP-113 vault's parameter)
  * </pre>
+ *
+ * <p><b>CIP-113 vaults (ADR-061).</b> A vault with {@code vaults.N.custody = cip113} also takes, beside the payout
+ * observer's {@code cip113.plb-hash}, {@code cip113.exit-delegate-hash} and {@code programmable-backend}:
+ * <pre>
+ * vaults.N.cip113.params-policy          56 hex: the deployment's params policy
+ * vaults.N.cip113.registry-node-policy   56 hex: the deployment's registry node policy
+ * vaults.N.cip113.max-inline-datum-bytes the deployment's bound (1024)
+ * vaults.N.cip113.params-address         bech32: where the live protocol-params UTxO sits
+ * vaults.N.cip113.registry-address       bech32: where the registry nodes sit
+ * vaults.N.cip113.reference-scripts      comma-separated txhash#index of the reference scripts a vault transaction
+ *                                        runs besides h and the shard (PLB, the dispatcher, the transfer delegate,
+ *                                        the hook)
+ * vaults.N.cip113.substandard            the asset's substandard, whose adapter builds the hook redeemer
+ *                                        ({@code yano-x-test} in this release)
+ * </pre>
+ * At startup the selected backend's {@code h} and {@code e} for the vault's parameters (the domain, the asset, the
+ * anchor, the shard policy, the exit-mode thread, the key prefixes, the profile and the deployment) must equal the
+ * pinned {@code script-hash} and {@code cip113.exit-delegate-hash} ({@code ProgrammableBackend.requireDerived}), and
+ * {@code max-settle-batch} and {@code max-exit-batch} must fit the continuation's id cap (D4, V16: 29 at 1,024 bytes),
+ * or startup fails.
  */
 record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> pins, Map<Hash32, ScriptRefs> scriptRefs,
                                boolean owner, Duration roundTimeout, Optional<byte[]> feeWalletSeed,
@@ -96,7 +119,12 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
      */
     static final long MAX_VALIDITY_WINDOW_MS = 600_000;
 
-    private static final Set<String> VAULT_EXTRAS = Set.of("script-ref", "shard-script-ref");
+    private static final Set<String> VAULT_EXTRAS = Set.of("script-ref", "shard-script-ref", "cip113.params-policy",
+            "cip113.registry-node-policy", "cip113.max-inline-datum-bytes", "cip113.params-address",
+            "cip113.registry-address", "cip113.reference-scripts", "cip113.substandard");
+    /** The custody scripts' exit delay bounds (ADR-059 D8e), fixed parameters of a CIP-113 vault's h and e. */
+    static final long EXIT_DELAY_FLOOR_MS = 6L * 3_600_000;
+    static final long EXIT_DELAY_CEILING_MS = 30L * 24 * 3_600_000;
 
     /**
      * The periodic tasks: the owner's {@code Accept} batching (D8f) and the permissionless exit relayer (D9).
@@ -133,7 +161,8 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
         Map<String, String> anchorSettings = new LinkedHashMap<>();
         Map<Integer, Map<String, String>> extras = new LinkedHashMap<>();
         config.forEach((key, value) -> {
-            if (key.startsWith("domain.") || key.equals(AssetVaultShardSettings.SHARD_BACKEND)) {
+            if (key.startsWith("domain.") || key.equals(AssetVaultShardSettings.SHARD_BACKEND)
+                    || key.equals(AssetVaultShardSettings.PROGRAMMABLE_BACKEND)) {
                 shardSettings.put(key, value);
             } else if (key.startsWith("anchor.")) {
                 anchorSettings.put(key, value);
@@ -161,19 +190,61 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
         byte[] depositPrefix = optional(config, "deposit-key-prefix", "ap/deposit/")
                 .getBytes(StandardCharsets.US_ASCII);
         byte[] statusKey = optional(config, "domain-status-key", "ap/domain-status").getBytes(StandardCharsets.US_ASCII);
-        VaultPins.Anchor pinnedAnchor = new VaultPins.Anchor(anchor.threadPolicyId(), anchor.threadAssetName(),
-                anchor.scriptHash(), anchor.genesisId(), anchor.applicationId().getBytes(StandardCharsets.UTF_8),
-                anchor.commitmentProfile().getBytes(StandardCharsets.US_ASCII), anchor.formatFingerprint());
+        byte[] exitPrefix = optional(config, "exit-key-prefix", "ap/x/").getBytes(StandardCharsets.US_ASCII);
+        VaultPins.Anchor pinnedAnchor = pinnedAnchor(anchor);
         List<VaultPins> pins = new ArrayList<>();
         Map<Hash32, ScriptRefs> refs = new LinkedHashMap<>();
         int network = vaults.domain().addressNetworkId();
         for (AssetVaultShardSettings.Vault vault : vaults.vaults()) {
-            pins.add(new VaultPins(vault.vaultId(), vault.asset(), network, vault.scriptHash(),
-                    new Address(vault.address()).getBytes(), vault.shardPolicyId(), vault.shardScriptHash(),
-                    new Address(vault.shardAddress()).getBytes(), pinnedAnchor, exitPolicy, exitHash, claimPrefix,
-                    depositPrefix, statusKey, floor, maxSettle, maxExit, maxPause, vaults.shardBackend()));
             Map<String, String> extra = extras.getOrDefault(vault.index(), Map.of());
             String prefix = "vaults." + vault.index() + ".";
+            Optional<VaultPins.Programmable> programmable = Optional.empty();
+            if (vault.programmable()) {
+                ProgrammableVaultTxAssembler.Deployment deployment = new ProgrammableVaultTxAssembler.Deployment(
+                        vault.plbHash().orElseThrow(), hex(required(extra, "cip113.params-policy"), 28,
+                        prefix + "cip113.params-policy"), hex(required(extra, "cip113.registry-node-policy"), 28,
+                        prefix + "cip113.registry-node-policy"), network,
+                        (int) bounded(optional(extra, "cip113.max-inline-datum-bytes", "1024"), 40, 65_536,
+                                prefix + "cip113.max-inline-datum-bytes"));
+                ProgrammableBackend.Parameters parameters = new ProgrammableBackend.Parameters(
+                        vaults.domain().domainId(), vault.asset(), 0, network, pinnedAnchor, vault.shardPolicyId(),
+                        exitPolicy, exitHash, claimPrefix, depositPrefix, exitPrefix, statusKey, maxSettle, maxExit,
+                        floor, EXIT_DELAY_FLOOR_MS, EXIT_DELAY_CEILING_MS, maxPause, deployment.plbHash(),
+                        deployment.maxInlineDatumBytes());
+                // D3: the selected backend's h and e for these parameters must be the pinned ones.
+                try {
+                    vaults.programmableBackend().requireDerived(parameters, vault.scriptHash(),
+                            vault.exitDelegateHash().orElseThrow());
+                } catch (IllegalArgumentException mismatch) {
+                    throw new IllegalArgumentException(prefix + mismatch.getMessage()
+                            + " (check programmable-backend and the vault's parameters)", mismatch);
+                }
+                // D4, V16: every continuation the profile's batches create fits the id cap.
+                if (maxSettle > parameters.maxContinuationIds() || maxExit > parameters.maxContinuationIds()) {
+                    throw new IllegalArgumentException(prefix + "max-settle-batch and max-exit-batch must be at most "
+                            + parameters.maxContinuationIds() + ", the continuation id cap of a CIP-113 vault (D4)");
+                }
+                List<ResolvedOutput.Outpoint> scripts = new ArrayList<>();
+                for (String ref : required(extra, "cip113.reference-scripts").split(",")) {
+                    if (!ref.isBlank()) scripts.add(outpoint(ref.trim(), prefix + "cip113.reference-scripts"));
+                }
+                programmable = Optional.of(new VaultPins.Programmable(deployment,
+                        vault.exitDelegateHash().orElseThrow(), vaults.programmableBackend(),
+                        new Address(required(extra, "cip113.params-address")).getBytes(),
+                        new Address(required(extra, "cip113.registry-address")).getBytes(), scripts,
+                        required(extra, "cip113.substandard")));
+            } else {
+                for (String key : extra.keySet()) {
+                    if (key.startsWith("cip113.")) {
+                        throw new IllegalArgumentException(prefix + key + " needs " + prefix + "custody = cip113");
+                    }
+                }
+            }
+            pins.add(new VaultPins(vault.vaultId(), vault.asset(), network, vault.scriptHash(),
+                    L1Tx.addressBytes(vault.address()), vault.shardPolicyId(), vault.shardScriptHash(),
+                    new Address(vault.shardAddress()).getBytes(), pinnedAnchor, exitPolicy, exitHash, claimPrefix,
+                    depositPrefix, statusKey, floor, maxSettle, maxExit, maxPause, vaults.shardBackend(),
+                    programmable));
             refs.put(vault.vaultId(), new ScriptRefs(outpoint(required(extra, "script-ref"), prefix + "script-ref"),
                     outpoint(required(extra, "shard-script-ref"), prefix + "shard-script-ref")));
         }
@@ -241,6 +312,13 @@ record AssetSettlementSettings(AssetVaultShardSettings vaults, List<VaultPins> p
                 BigInteger.valueOf(bounded(optional(config, "max-supplement-per-payout", "0"), 0, 100_000_000L,
                         "max-supplement-per-payout")),
                 stability, tasks, ttlFile);
+    }
+
+    /** The pinned anchor identity of the vault scripts' parameters (D8b), from {@code anchor.*}. */
+    static VaultPins.Anchor pinnedAnchor(AssetAnchorSettings anchor) {
+        return new VaultPins.Anchor(anchor.threadPolicyId(), anchor.threadAssetName(), anchor.scriptHash(),
+                anchor.genesisId(), anchor.applicationId().getBytes(StandardCharsets.UTF_8),
+                anchor.commitmentProfile().getBytes(StandardCharsets.US_ASCII), anchor.formatFingerprint());
     }
 
     private static long reconciliationInterval(Map<String, String> config) {
