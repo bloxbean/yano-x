@@ -221,7 +221,8 @@ public record ProgrammableDepositClaimV1(Hash32 vaultId, Hash32 txId, long outpu
                 if (spent > 1) throw AssetCbor.malformed("origin_spent");
                 deposit = Optional.of(new Deposit(new ProgrammableDepositDatumV1(AssetCbor.bytes(datum.get(0), 28, 28),
                         AssetCbor.bytes(datum.get(1), 1, 64), AssetCbor.bytes(datum.get(2), 28, 28),
-                        hash(datum.get(3)), AssetCbor.uintLong(datum.get(4)), AssetCbor.uintLong(datum.get(5))),
+                        hash(datum.get(3)), AssetCbor.uint(datum.get(4), Quantities.MAX_U64),
+                        AssetCbor.uint(datum.get(5), Quantities.MAX_U64)),
                         spent == 1));
             }
             List<DataItem> wdrl = AssetCbor.array(items.get(12), 1, 2).getDataItems();

@@ -280,22 +280,27 @@ public final class ProgrammableDepositAdmission {
         if (version.isEmpty() || version.get().fields().isEmpty()) return ActionClass.UNKNOWN;
         Cip113WiringClaimV1.Fields fields = version.get().fields().get();
         Optional<Cip113Wiring.ApprovedTuple> tuple = wiring.approved(store, fields);
-        byte[] thirdParty = tuple.map(Cip113Wiring.ApprovedTuple::thirdPartyDelegate).orElse(fields.thirdParty());
+        // The observer reports script withdrawals only, so a field that is a key credential never matches one: a key
+        // issuance logic, for example, never classifies a transaction as ISSUANCE (it is UNKNOWN, never credited).
+        byte[] thirdPartyField = fields.scriptHash(3).orElse(null);
+        byte[] thirdParty = tuple.map(Cip113Wiring.ApprovedTuple::thirdPartyDelegate).orElse(thirdPartyField);
         byte[] unfracking = tuple.map(Cip113Wiring.ApprovedTuple::unfrackingDelegate).orElse(null);
+        byte[] dispatcherField = fields.scriptHash(0).orElse(null);
+        byte[] issuanceField = fields.scriptHash(1).orElse(null);
         Optional<Long> dispatcher = Optional.empty();
         boolean dispatched = false;
         boolean issuance = false;
         for (ProgrammableDepositClaimV1.Withdrawal w : claim.withdrawals().get()) {
             byte[] hash = w.scriptHash();
-            if (Arrays.equals(hash, thirdParty) || Arrays.equals(hash, fields.thirdParty())) {
+            if (Arrays.equals(hash, thirdParty) || Arrays.equals(hash, thirdPartyField)) {
                 return ActionClass.THIRD_PARTY;
             }
             if (unfracking != null && Arrays.equals(hash, unfracking)) return ActionClass.UNFRACKING;
-            if (Arrays.equals(hash, fields.dispatcher())) {
+            if (Arrays.equals(hash, dispatcherField)) {
                 dispatched = true;
                 dispatcher = w.redeemerConstructor();
             }
-            if (Arrays.equals(hash, fields.issuanceLogic())) issuance = true;
+            if (Arrays.equals(hash, issuanceField)) issuance = true;
         }
         if (dispatched) {
             if (dispatcher.isEmpty()) return ActionClass.UNKNOWN;

@@ -358,6 +358,124 @@ class ProgrammableDepositAdmissionTest {
         assertThat(report.shortfallFlagged()).isTrue();
     }
 
+    // ------------------------------------------------------------------ review fixes (r5)
+
+    /** Codex P1-3: the params validator accepts a key in field 1; the tuple keeps the kinds, the dispatcher decodes. */
+    @Test
+    void aKeyIssuanceLogicKeepsItsKindAndNeverClassifiesAsIssuance() {
+        byte[] datum = paramsDatum(new int[] {1, 0, 1, 1});
+        Cip113WiringClaimV1.Fields fields = Cip113WiringClaimV1.Fields.ofDatum(datum).orElseThrow();
+        assertThat(fields.keys()).isEqualTo(0b0010);
+        assertThat(fields.script(1)).isFalse();
+        assertThat(fields).isNotEqualTo(V0);
+        assertThat(Cip113WiringClaimV1.dispatcherOf(datum)).hasValueSatisfying(d -> assertThat(d).isEqualTo(D));
+        // A key dispatcher is no dispatcher; a datum that does not decode never throws.
+        assertThat(Cip113WiringClaimV1.dispatcherOf(paramsDatum(new int[] {0, 1, 1, 1}))).isEmpty();
+        assertThat(Cip113WiringClaimV1.dispatcherOf(new byte[] {0x01})).isEmpty();
+        // The kinds survive the claim encoding and the recorded version.
+        Cip113WiringClaimV1 claim = new Cip113WiringClaimV1(outpoint(0xa7, 0).txId(), 0, 300, 1, Hash32.of(BLOCK),
+                Optional.of(fields));
+        assertThat(Cip113WiringClaimV1.decode(claim.encode())).isEqualTo(claim);
+        recordWiring(outpoint(0xa7, 0), 300, 1, Optional.of(fields));
+        assertThat(wiring.version(store, outpoint(0xa7, 0)).orElseThrow().fields()).contains(fields);
+        // Approved with a key issuance logic, an issuance whose withdrawal has that hash is still not ISSUANCE.
+        assertThat(wiring.rewire(store, outpoint(0xa7, 0), T, TP, new byte[28]))
+                .isEqualTo(Cip113Wiring.Result.APPROVED);
+        ProgrammableDepositDatumV1 d = datum(outpoint(0x57, 0), 0);
+        Tx keyed = new Tx(0x67, List.of(outpoint(0x57, 0)), List.of(withdrawal(ISSUANCE, null)), true,
+                List.of(outpoint(0xa7, 0)));
+        assertThat(admit(keyed.deposit(d, 0, 7)).actionClass())
+                .isEqualTo(ProgrammableDepositAdmission.ActionClass.UNKNOWN);
+    }
+
+    /** Codex P1-5: the vaults of one deployment never disagree about its version 0. */
+    @Test
+    void aSecondGenesisWithOtherPinsIsRejectedAndTheSamePinsChangeNothing() {
+        String before = store.snapshot();
+        wiring.genesis(store, new Cip113Wiring.Version(PARAMS0, 100, 0, Optional.of(V0)),
+                new Cip113Wiring.ApprovedTuple(V0, T, TP, new byte[28]));
+        assertThat(store.snapshot()).isEqualTo(before);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> wiring.genesis(store,
+                new Cip113Wiring.Version(outpoint(0xa9, 0), 100, 0, Optional.of(V0)),
+                new Cip113Wiring.ApprovedTuple(V0, T, TP, new byte[28]))).isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> wiring.genesis(store,
+                new Cip113Wiring.Version(PARAMS0, 100, 0, Optional.of(V0)),
+                new Cip113Wiring.ApprovedTuple(V0, filled(0xd9, 28), TP, new byte[28])))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(wiring.approvedForDispatcher(store, D)).hasValueSatisfying(tuple ->
+                assertThat(tuple.transferDelegate()).isEqualTo(T));
+        assertThat(wiring.approvedForDispatcher(store, filled(0x01, 28))).isEmpty();
+    }
+
+    /** Codex P2-13, Fable P3-3: an index at 2^63 stays exact through decoding, the claim and the DepositId. */
+    @Test
+    void anIndexAtTwoToTheSixtyThirdIsKeptExactly() {
+        BigInteger big = BigInteger.ONE.shiftLeft(63);
+        ProgrammableDepositDatumV1 datum = new ProgrammableDepositDatumV1(ALICE, smartWallet(ALICE), ALICE,
+                outpoint(0x1d, 0).txId(), big, big.add(BigInteger.ONE));
+        ProgrammableDepositDatumV1 decoded = ProgrammableDepositDatumV1.depositShaped(datum.encode(), PLB, 0)
+                .orElseThrow();
+        assertThat(decoded.originIndex()).isEqualTo(big);
+        assertThat(decoded.outputIndex()).isEqualTo(big.add(BigInteger.ONE));
+        assertThat(decoded).isEqualTo(datum);
+        // Never origin-valid: no input or output has such an index.
+        assertThat(decoded.originSpent(List.of(new ProgrammableDepositDatumV1.Outpoint(outpoint(0x1d, 0).txId(),
+                Long.MAX_VALUE)), Long.MAX_VALUE)).isFalse();
+        // The DepositId hashes the exact value, not a clamped one.
+        Hash32 id = decoded.depositId(VAULT);
+        assertThat(id).isEqualTo(GatewayIds.programmableDepositId(VAULT, outpoint(0x1d, 0).txId(), big,
+                big.add(BigInteger.ONE)));
+        assertThat(id).isNotEqualTo(GatewayIds.programmableDepositId(VAULT, outpoint(0x1d, 0).txId(), Long.MAX_VALUE,
+                Long.MAX_VALUE));
+        // And the claim carries it exactly.
+        byte[] claim = transfer(0xc9, List.of(outpoint(0x99, 0))).deposit(decoded, 0, 5);
+        assertThat(ProgrammableDepositClaimV1.decode(claim).deposit().orElseThrow().datum()).isEqualTo(datum);
+        // The largest uint64 is accepted, one more is not deposit-shaped.
+        BigInteger max = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+        ProgrammableDepositDatumV1 top = new ProgrammableDepositDatumV1(ALICE, smartWallet(ALICE), ALICE,
+                outpoint(0x1d, 0).txId(), max, max);
+        assertThat(ProgrammableDepositDatumV1.depositShaped(top.encode(), PLB, 0)).contains(top);
+    }
+
+    /** Codex P1-4, Fable P2-2: a top-up holding the asset is not accepted custody, so it is never backing. */
+    @Test
+    void aTopUpHoldingTheAssetIsUnavailableNeverBacking() {
+        List<ProgrammableReconciliation.LiveOutput> live = List.of(
+                new ProgrammableReconciliation.LiveOutput(outpoint(0xd1, 0), ProgrammableDepositClaimV1.Shape.TOP_UP,
+                        Optional.empty(), BigInteger.valueOf(700), BigInteger.valueOf(2_000_000), 0),
+                new ProgrammableReconciliation.LiveOutput(outpoint(0xd2, 0), ProgrammableDepositClaimV1.Shape.TOP_UP,
+                        Optional.empty(), BigInteger.ZERO, BigInteger.valueOf(2_000_000), 1),
+                new ProgrammableReconciliation.LiveOutput(outpoint(0xd3, 0), ProgrammableDepositClaimV1.Shape.TOP_UP,
+                        Optional.empty(), BigInteger.ZERO, BigInteger.valueOf(2_000_000), 0),
+                new ProgrammableReconciliation.LiveOutput(outpoint(0xd4, 0),
+                        ProgrammableDepositClaimV1.Shape.CONTINUATION, Optional.empty(), BigInteger.valueOf(200),
+                        BigInteger.valueOf(5_000_000), 1),
+                new ProgrammableReconciliation.LiveOutput(outpoint(0xd5, 0),
+                        ProgrammableDepositClaimV1.Shape.CONTINUATION, Optional.empty(), BigInteger.valueOf(100),
+                        BigInteger.valueOf(5_000_000), 0));
+        ProgrammableReconciliation.Report report = ProgrammableReconciliation.reconcile(live,
+                depositId -> Optional.empty(), BigInteger.valueOf(1_000));
+        assertThat(report.backing()).isEqualTo(BigInteger.valueOf(100));
+        assertThat(report.unavailable()).isEqualTo(BigInteger.valueOf(900));
+        assertThat(report.shortfall()).isEqualTo(BigInteger.valueOf(900));
+        assertThat(report.shortfallFlagged()).isTrue();
+    }
+
+    /** A params datum whose fields 0 to 3 have the given credential constructors (0 key, 1 script). */
+    static byte[] paramsDatum(int[] kinds) {
+        byte[][] hashes = {D, ISSUANCE, T, TP};
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        out.writeBytes(new byte[] {(byte) 0xd8, 0x79, (byte) 0x86});
+        for (int i = 0; i < 4; i++) {
+            out.writeBytes(new byte[] {(byte) 0xd8, (byte) (0x79 + kinds[i]), (byte) 0x81, 0x58, 0x1c});
+            out.writeBytes(hashes[i]);
+        }
+        out.writeBytes(new byte[] {(byte) 0xd8, 0x7a, (byte) 0x81, 0x58, 0x1c});
+        out.writeBytes(filled(0xc9, 28));
+        out.writeBytes(new byte[] {(byte) 0xd8, 0x7a, (byte) 0x80});
+        return out.toByteArray();
+    }
+
     // ------------------------------------------------------------------ fixtures
 
     /** One creating transaction: its inputs, withdrawals (null = OVERFLOW), mint flag and reference inputs. */

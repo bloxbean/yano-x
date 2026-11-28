@@ -34,6 +34,7 @@ public final class Cip113Wiring {
     private static final byte[] VERSION_SEGMENT = "w/v/".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] HEAD_SEGMENT = "w/head".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] APPROVED_SEGMENT = "w/a/".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] DISPATCHER_SEGMENT = "w/d/".getBytes(StandardCharsets.US_ASCII);
 
     /** A recorded wiring version. */
     public record Version(ProgrammableDepositDatumV1.Outpoint outpoint, long slot, long txIndex,
@@ -64,10 +65,8 @@ public final class Cip113Wiring {
             List<DataItem> items = AssetCbor.decodeArray(bytes, 5, 6).getDataItems();
             Optional<Cip113WiringClaimV1.Fields> fields = Optional.empty();
             if (items.size() == 6) {
-                byte[] key = AssetCbor.bytes(items.get(5), 112, 112);
-                fields = Optional.of(new Cip113WiringClaimV1.Fields(Arrays.copyOfRange(key, 0, 28),
-                        Arrays.copyOfRange(key, 28, 56), Arrays.copyOfRange(key, 56, 84),
-                        Arrays.copyOfRange(key, 84, 112)));
+                fields = Optional.of(Cip113WiringClaimV1.Fields.ofKey(AssetCbor.bytes(items.get(5),
+                        Cip113WiringClaimV1.Fields.KEY_BYTES, Cip113WiringClaimV1.Fields.KEY_BYTES)));
             }
             return new Version(new ProgrammableDepositDatumV1.Outpoint(Hash32.of(AssetCbor.bytes(items.get(1), 32, 32)),
                     AssetCbor.uintLong(items.get(2))), AssetCbor.uintLong(items.get(3)), AssetCbor.uintLong(items.get(4)),
@@ -129,14 +128,60 @@ public final class Cip113Wiring {
         this.observerId = Objects.requireNonNull(observerId, "observer id");
     }
 
-    /** Genesis: version 0 (the params outpoint live at registration) and its approved tuple. */
+    /**
+     * Genesis: version 0 (the params outpoint live at registration) and its approved tuple. Several vaults of one
+     * deployment share its wiring, so a repeated genesis with the same pins changes nothing, and one whose version 0
+     * or tuple differs from what an earlier vault pinned is rejected: two vaults of one deployment never disagree
+     * about its wiring.
+     */
     public void genesis(AssetAccounts.Store store, Version version0, ApprovedTuple tuple) {
         if (version0.fields().isEmpty() || !version0.fields().get().equals(tuple.fields())) {
             throw new IllegalArgumentException("version 0 must carry the approved tuple's fields");
         }
+        Optional<byte[]> head = store.get(key(HEAD_SEGMENT));
+        if (head.isPresent()) {
+            boolean same = Arrays.equals(head.get(), version0.encode())
+                    && store.get(approvedKey(tuple.fields())).map(d -> Arrays.equals(d, tuple.encodeDelegates()))
+                    .orElse(false);
+            if (!same) {
+                throw new IllegalArgumentException("the vaults of one CIP-113 deployment pin different wiring"
+                        + " version 0 or delegate hashes");
+            }
+            return;
+        }
         store.put(versionKey(version0.outpoint()), version0.encode());
         store.put(key(HEAD_SEGMENT), version0.encode());
+        approve(store, tuple);
+    }
+
+    /** Adds {@code tuple} to the approved set, and makes it the tuple of its dispatcher. */
+    private void approve(AssetAccounts.Store store, ApprovedTuple tuple) {
         store.put(approvedKey(tuple.fields()), tuple.encodeDelegates());
+        Array byDispatcher = new Array();
+        byDispatcher.add(AssetCbor.bstr(tuple.fields().key()));
+        byDispatcher.add(AssetCbor.bstr(tuple.encodeDelegates()));
+        store.put(key(DISPATCHER_SEGMENT, tuple.fields().dispatcher()), AssetCbor.encode(byDispatcher));
+    }
+
+    /**
+     * The approved tuple a vault transaction uses for {@code dispatcher} (D10 rule 6): builders and members need only
+     * the dispatcher and its transfer delegate to be approved. The most recently approved tuple with that dispatcher
+     * names its delegates; empty when no approved tuple has it.
+     */
+    public Optional<ApprovedTuple> approvedForDispatcher(AssetAccounts.Store store, byte[] dispatcher) {
+        if (dispatcher == null || dispatcher.length != 28) return Optional.empty();
+        return store.get(key(DISPATCHER_SEGMENT, dispatcher)).map(bytes -> {
+            List<DataItem> items = AssetCbor.decodeArray(bytes, 2).getDataItems();
+            Cip113WiringClaimV1.Fields fields = Cip113WiringClaimV1.Fields.ofKey(AssetCbor.bytes(items.get(0),
+                    Cip113WiringClaimV1.Fields.KEY_BYTES, Cip113WiringClaimV1.Fields.KEY_BYTES));
+            return decodeTuple(fields, AssetCbor.bytes(items.get(1), 1, 128));
+        });
+    }
+
+    private static ApprovedTuple decodeTuple(Cip113WiringClaimV1.Fields fields, byte[] delegates) {
+        List<DataItem> items = AssetCbor.decodeArray(delegates, 3).getDataItems();
+        return new ApprovedTuple(fields, AssetCbor.bytes(items.get(0), 28, 28), AssetCbor.bytes(items.get(1), 28, 28),
+                AssetCbor.bytes(items.get(2), 28, 28));
     }
 
     /**
@@ -180,11 +225,7 @@ public final class Cip113Wiring {
 
     /** The approved tuple with exactly {@code fields}, if any. */
     public Optional<ApprovedTuple> approved(AssetAccounts.Store store, Cip113WiringClaimV1.Fields fields) {
-        return store.get(approvedKey(fields)).map(bytes -> {
-            List<DataItem> items = AssetCbor.decodeArray(bytes, 3).getDataItems();
-            return new ApprovedTuple(fields, AssetCbor.bytes(items.get(0), 28, 28), AssetCbor.bytes(items.get(1), 28, 28),
-                    AssetCbor.bytes(items.get(2), 28, 28));
-        });
+        return store.get(approvedKey(fields)).map(bytes -> decodeTuple(fields, bytes));
     }
 
     /** The approved tuple of {@code version}: present exactly when its fields are in the approved set. */
@@ -222,7 +263,7 @@ public final class Cip113Wiring {
         if (named.get().fields().isEmpty()) return Result.REJECTED_UNDECODABLE;
         ApprovedTuple tuple = new ApprovedTuple(named.get().fields().get(), transferDelegate, thirdPartyDelegate,
                 unfrackingDelegate);
-        store.put(approvedKey(tuple.fields()), tuple.encodeDelegates());
+        approve(store, tuple);
         return Result.APPROVED;
     }
 

@@ -25,9 +25,13 @@ import java.util.Optional;
  * pinned deployment ({@link CardanoAddresses#payableSmartWallet}). It judges the decoded Plutus Data, so any
  * encoding the ledger accepts (definite or indefinite lists, any constructor form) gives the same answer, and it
  * never throws.
+ *
+ * <p>The two indexes are kept as the exact unsigned 64-bit values of the datum, through the claim encoding and the
+ * {@code DepositId} hash, as the custody scripts read them: an index at or above 2^63 is deposit-shaped, names no
+ * input or output, so it is never origin-valid, and its {@code DepositId} is the one the scripts compute.
  */
 public record ProgrammableDepositDatumV1(byte[] beneficiary, byte[] refundAddress, byte[] refundKeyHash,
-                                         Hash32 originTxId, long originIndex, long outputIndex) {
+                                         Hash32 originTxId, BigInteger originIndex, BigInteger outputIndex) {
     public static final int HASH28 = 28;
 
     /** The shape of an inline datum at a CIP-113 vault, as admission and the custody scripts classify it. */
@@ -47,12 +51,18 @@ public record ProgrammableDepositDatumV1(byte[] beneficiary, byte[] refundAddres
         }
         requireLength(refundKeyHash, HASH28, "refund key hash");
         Objects.requireNonNull(originTxId, "origin tx id");
-        if (originIndex < 0 || outputIndex < 0) {
-            throw new IllegalArgumentException("origin and output indexes are unsigned");
-        }
+        Quantities.requireU64(originIndex, "origin index");
+        Quantities.requireU64(outputIndex, "output index");
         beneficiary = beneficiary.clone();
         refundAddress = refundAddress.clone();
         refundKeyHash = refundKeyHash.clone();
+    }
+
+    /** A datum whose indexes fit a {@code long}, as a transaction's own indexes always do. */
+    public ProgrammableDepositDatumV1(byte[] beneficiary, byte[] refundAddress, byte[] refundKeyHash,
+                                      Hash32 originTxId, long originIndex, long outputIndex) {
+        this(beneficiary, refundAddress, refundKeyHash, originTxId, BigInteger.valueOf(originIndex),
+                BigInteger.valueOf(outputIndex));
     }
 
     /** The deposit-shaped datum, or empty for any other datum. Total: never throws. */
@@ -78,11 +88,10 @@ public record ProgrammableDepositDatumV1(byte[] beneficiary, byte[] refundAddres
                 || !(origin.fields().get(2) instanceof BigInteger outputIndex) || !uint64(outputIndex)) {
             return Optional.empty();
         }
-        // An index at or above 2^63 cannot name an input or an output; it is deposit-shaped but never origin-valid.
-        long origin0 = originIndex.bitLength() > 63 ? Long.MAX_VALUE : originIndex.longValue();
-        long output0 = outputIndex.bitLength() > 63 ? Long.MAX_VALUE : outputIndex.longValue();
+        // An index at or above 2^63 cannot name an input or an output; it is deposit-shaped but never origin-valid,
+        // and it is kept exactly, so its DepositId is the custody scripts'.
         return Optional.of(new ProgrammableDepositDatumV1(beneficiary, refund, refundKey, Hash32.of(originTx),
-                origin0, output0));
+                originIndex, outputIndex));
     }
 
     /** The shape of {@code inlineDatum} (null for none). */
@@ -104,9 +113,9 @@ public record ProgrammableDepositDatumV1(byte[] beneficiary, byte[] refundAddres
 
     /** True when the origin is {@code inputs}' member and {@code createdAt} is the output's own index (D6 rule 1). */
     public boolean originSpent(List<Outpoint> inputs, long createdAt) {
-        if (outputIndex != createdAt) return false;
+        if (!outputIndex.equals(BigInteger.valueOf(createdAt))) return false;
         for (Outpoint input : inputs) {
-            if (input.txId().equals(originTxId) && input.index() == originIndex) return true;
+            if (input.txId().equals(originTxId) && originIndex.equals(BigInteger.valueOf(input.index()))) return true;
         }
         return false;
     }
@@ -141,6 +150,16 @@ public record ProgrammableDepositDatumV1(byte[] beneficiary, byte[] refundAddres
             out.write(value.length);
         }
         out.writeBytes(value);
+    }
+
+    static byte[] cborUInt(BigInteger n) {
+        if (n.bitLength() <= 63) return cborUInt(n.longValue());
+        byte[] out = new byte[9];
+        out[0] = 0x1b;
+        byte[] magnitude = n.toByteArray();
+        int length = Math.min(8, magnitude.length);
+        System.arraycopy(magnitude, magnitude.length - length, out, 9 - length, length);
+        return out;
     }
 
     static byte[] cborUInt(long n) {
@@ -181,8 +200,8 @@ public record ProgrammableDepositDatumV1(byte[] beneficiary, byte[] refundAddres
     public boolean equals(Object other) {
         return other instanceof ProgrammableDepositDatumV1 that && Arrays.equals(beneficiary, that.beneficiary)
                 && Arrays.equals(refundAddress, that.refundAddress) && Arrays.equals(refundKeyHash, that.refundKeyHash)
-                && originTxId.equals(that.originTxId) && originIndex == that.originIndex
-                && outputIndex == that.outputIndex;
+                && originTxId.equals(that.originTxId) && originIndex.equals(that.originIndex)
+                && outputIndex.equals(that.outputIndex);
     }
 
     @Override

@@ -10,7 +10,8 @@ import java.util.function.Function;
 
 /**
  * ADR-061 D6 and D14(a): the L1 side of a CIP-113 vault's reconciliation. It counts as backing only the live outputs
- * that a vault action can spend: accepted custody (a clean continuation or floor top-up) and deposit-shaped outputs
+ * that a vault action can spend: accepted custody (a continuation holding only the asset and lovelace, or a floor
+ * top-up holding only lovelace, the custody scripts' V10 predicate) and deposit-shaped outputs
  * that hold only the asset and lovelace and whose {@code DepositId} is {@code CREDITED}. Everything else is reported
  * apart and never counts as backing:
  *
@@ -67,9 +68,15 @@ public final class ProgrammableReconciliation {
         Set<Hash32> counted = new HashSet<>();
         for (LiveOutput out : outputs) {
             switch (out.shape()) {
-                case CONTINUATION, TOP_UP -> {
+                // V10, as the custody scripts read accepted custody: a continuation holding only the asset and
+                // lovelace, or a floor top-up holding lovelace alone. Anything else of either shape cannot be spent as
+                // custody, so what it holds of the asset is unavailable, never backing.
+                case CONTINUATION -> {
                     if (out.clean()) backing = backing.add(out.asset());
                     else unavailable = unavailable.add(out.asset());
+                }
+                case TOP_UP -> {
+                    if (!out.clean() || out.asset().signum() != 0) unavailable = unavailable.add(out.asset());
                 }
                 case DEPOSIT -> {
                     Hash32 id = out.depositId().orElseThrow();

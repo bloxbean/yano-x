@@ -79,6 +79,15 @@ public final class GatewayIds {
      */
     public static Hash32 programmableDepositId(Hash32 vaultId, Hash32 originTxId, long originIndex,
                                                long outputIndex) {
+        return programmableDepositId(vaultId, originTxId, BigInteger.valueOf(originIndex),
+                BigInteger.valueOf(outputIndex));
+    }
+
+    /** The same id over the datum's exact unsigned 64-bit indexes (ADR-061 D6), as the custody scripts hash them. */
+    public static Hash32 programmableDepositId(Hash32 vaultId, Hash32 originTxId, BigInteger originIndex,
+                                               BigInteger outputIndex) {
+        Quantities.requireU64(originIndex, "origin index");
+        Quantities.requireU64(outputIndex, "output index");
         Array origin = new Array();
         origin.add(AssetCbor.bstr(originTxId.bytes()));
         origin.add(AssetCbor.uint(originIndex));
