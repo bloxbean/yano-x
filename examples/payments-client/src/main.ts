@@ -315,14 +315,17 @@ function review(title: string, fields: [string, string][], bytesHex: string): Pr
   dialog.showModal();
   return new Promise((resolve, reject) => {
     const done = (approved: boolean) => {
-      dialog.close();
       $('review-sign').onclick = null;
       $('review-cancel').onclick = null;
+      dialog.oncancel = null;
+      if (dialog.open) dialog.close();
       if (approved) resolve();
       else reject(new Error('cancelled'));
     };
     $('review-sign').onclick = () => done(true);
     $('review-cancel').onclick = () => done(false);
+    // Escape closes a modal dialog without a click; treat it as a cancel.
+    dialog.oncancel = () => done(false);
   });
 }
 
