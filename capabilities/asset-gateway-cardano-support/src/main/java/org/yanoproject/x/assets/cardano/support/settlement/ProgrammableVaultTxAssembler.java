@@ -53,7 +53,7 @@ import java.util.TreeMap;
  *       other script input its own redeemer, at its sorted position;</li>
  *   <li>reference inputs sorted the same way; {@code params_idx} is the live params UTxO's position and each proof's
  *       {@code node_idx} its registry node's;</li>
- *   <li>withdrawals in ledger order (script credentials before key credentials, bytewise within each):
+ *   <li>withdrawals in ledger order (script credentials, bytewise; a key-credential hook is refused):
  *       the dispatcher with {@code TransferAct}, the transfer delegate with {@code TransferRedeemer{proofs}}, one hook
  *       per distinct credential, and the caller's custody withdrawals ({@code h}, and {@code e} for the EXIT-only
  *       actions); {@code wdrl_idx} is the dispatcher's position once every entry is present, and each reward
@@ -114,41 +114,56 @@ public final class ProgrammableVaultTxAssembler {
     }
 
     /**
-     * The live params UTxO from the builder's own L1 view, authenticated by the params token, and the approved tuple
-     * whose dispatcher it names.
+     * The live params UTxO from the builder's own L1 view, authenticated by the params token, its dispatcher, the
+     * approved tuple with that dispatcher, and the params datum's four fields when they decode ({@code fields}). A
+     * vault transaction uses only the dispatcher and the tuple's transfer delegate (D10 rule 6), so it is built from
+     * the dispatcher alone, which decodes whatever fields 1 to 3 hold; the user's deposit needs the exact fields.
      */
-    public record LiveWiring(ResolvedOutput params, Cip113WiringClaimV1.Fields fields, Cip113Wiring.ApprovedTuple tuple) {
+    public record LiveWiring(ResolvedOutput params, byte[] dispatcher, Optional<Cip113WiringClaimV1.Fields> fields,
+                             Cip113Wiring.ApprovedTuple tuple) {
         public LiveWiring {
             Objects.requireNonNull(params, "params");
+            dispatcher = hash28(dispatcher, "dispatcher");
             Objects.requireNonNull(fields, "fields");
             Objects.requireNonNull(tuple, "tuple");
+            if (!Arrays.equals(tuple.fields().dispatcher(), dispatcher) || !tuple.fields().script(0)) {
+                throw new IllegalArgumentException("the tuple does not name this dispatcher");
+            }
         }
 
         /**
          * Resolves the live wiring: {@code params} must carry the {@code ProtocolParams} token of the pinned params
-         * policy and decode, and one of {@code approved} must name its dispatcher.
+         * policy and name a script dispatcher, and one of {@code approved} must name that dispatcher.
          *
          * @throws Drift when the dispatcher is in no approved tuple, or the UTxO is not the params UTxO
          */
         public static LiveWiring of(Deployment deployment, ResolvedOutput params,
                                     List<Cip113Wiring.ApprovedTuple> approved) {
+            return of(deployment, params, dispatcher -> approved.stream()
+                    .filter(tuple -> Arrays.equals(tuple.fields().dispatcher(), dispatcher)
+                            && tuple.fields().script(0)).findFirst());
+        }
+
+        /** {@link #of(Deployment, ResolvedOutput, List)} with the approved tuple of a dispatcher looked up. */
+        public static LiveWiring of(Deployment deployment, ResolvedOutput params,
+                                    java.util.function.Function<byte[], Optional<Cip113Wiring.ApprovedTuple>>
+                                            approvedFor) {
             AssetId token = AssetId.of(deployment.paramsPolicy(), PROTOCOL_PARAMS_NAME);
             if (!BigInteger.ONE.equals(params.quantityOf(token))) {
                 throw new Drift("the referenced UTxO does not carry the protocol-params token");
             }
-            Cip113WiringClaimV1.Fields fields = params.inlineDatum().flatMap(Cip113WiringClaimV1.Fields::ofDatum)
-                    .orElseThrow(() -> new Drift("the protocol-params datum does not decode"));
-            for (Cip113Wiring.ApprovedTuple tuple : approved) {
-                if (Arrays.equals(tuple.fields().dispatcher(), fields.dispatcher())) {
-                    return new LiveWiring(params, fields, tuple);
-                }
-            }
-            throw new Drift("the live dispatcher " + HexFormat.of().formatHex(fields.dispatcher())
-                    + " is in no approved wiring tuple; assembly waits for ASSET_REWIRE");
+            byte[] datum = params.inlineDatum().orElseThrow(() -> new Drift("the protocol-params UTxO has no datum"));
+            byte[] dispatcher = Cip113WiringClaimV1.dispatcherOf(datum)
+                    .orElseThrow(() -> new Drift("the protocol-params datum names no script dispatcher"));
+            Cip113Wiring.ApprovedTuple tuple = approvedFor.apply(dispatcher).orElseThrow(() -> new Drift(
+                    "the live dispatcher " + HexFormat.of().formatHex(dispatcher)
+                            + " is in no approved wiring tuple; assembly waits for ASSET_REWIRE"));
+            return new LiveWiring(params, dispatcher, Cip113WiringClaimV1.Fields.ofDatum(datum), tuple);
         }
 
+        @Override
         public byte[] dispatcher() {
-            return fields.dispatcher();
+            return dispatcher.clone();
         }
 
         public byte[] transferDelegate() {
@@ -168,7 +183,7 @@ public final class ProgrammableVaultTxAssembler {
         }
     }
 
-    /** A builder's live view of reward balances, by script credential. */
+    /** A builder's live view of reward balances, by script credential (the only kind the assembler withdraws). */
     @FunctionalInterface
     public interface RewardBalances {
         BigInteger balance(byte[] scriptHash);
@@ -224,6 +239,15 @@ public final class ProgrammableVaultTxAssembler {
         for (ResolvedOutput input : plan.plbInputs()) values.add(policyMap(input.assets()));
         Cip113Requirements requirements = Cip113Requirements.of(values, wiring.dispatcher(),
                 wiring.transferDelegate(), l1, adapter);
+        // A hook keyed by a verification key would need that key's signature and a reward balance by key credential,
+        // neither of which the gateway has (D12 requirement 2): such a policy is refused before anything is built.
+        for (Cip113Requirements.Hook hook : requirements.hooks()) {
+            if (!hook.credential().script()) {
+                throw new PayoutTxBuilder.BuildException("the transfer hook of policy "
+                        + HexFormat.of().formatHex(hook.policies().getFirst())
+                        + " is a key credential, which Yano X does not assemble");
+            }
+        }
 
         // Reference inputs: the caller's, the live params UTxO, the requirements' nodes and adapter state.
         Map<ResolvedOutput.Outpoint, ResolvedOutput> references = new TreeMap<>();
@@ -249,7 +273,7 @@ public final class ProgrammableVaultTxAssembler {
         withdrawals.put(scriptKey(wiring.dispatcher()), constr(0));
         withdrawals.put(scriptKey(wiring.transferDelegate()), constr(0, GatewayPlutus.list(proofs)));
         for (Cip113Requirements.Hook hook : requirements.hooks()) {
-            String key = (hook.credential().script() ? "0" : "1") + HexFormat.of().formatHex(hook.credential().hash());
+            String key = scriptKey(hook.credential().hash());
             try {
                 withdrawals.put(key, PlutusData.deserialize(hook.redeemer()));
             } catch (Exception undecodable) {
@@ -269,13 +293,12 @@ public final class ProgrammableVaultTxAssembler {
         BigInteger withdrawn = BigInteger.ZERO;
         for (String key : withdrawalOrder) {
             byte[] hash = HexFormat.of().parseHex(key.substring(1));
-            boolean script = key.charAt(0) == '0';
-            BigInteger amount = script ? Objects.requireNonNull(balances.balance(hash), "reward balance")
-                    : BigInteger.ZERO;
+            // Every withdrawal is a script credential (key hooks are refused above), read by its script hash.
+            BigInteger amount = Objects.requireNonNull(balances.balance(hash), "reward balance");
             if (amount.signum() < 0) throw new IllegalArgumentException("a reward balance is never negative");
             amounts.put(key, amount);
             withdrawn = withdrawn.add(amount);
-            Credential credential = script ? Credential.fromScript(hash) : Credential.fromKey(hash);
+            Credential credential = Credential.fromScript(hash);
             bodyWithdrawals.add(new Withdrawal(AddressProvider.getRewardAddress(credential, network).toBech32(),
                     amount));
         }
@@ -292,7 +315,14 @@ public final class ProgrammableVaultTxAssembler {
             spent.put(spend.input().outpoint(), spend.input());
             spendRedeemers.put(spend.input().outpoint(), spend.redeemer());
         }
-        for (ResolvedOutput input : plan.funding().inputs()) spent.put(input.outpoint(), input);
+        for (ResolvedOutput input : plan.funding().inputs()) {
+            // As the native builder: the funding pays fees, collateral and supplements in lovelace, and a token on it
+            // would have to leave through the change output, which the balance never accounts for.
+            if (!input.assets().isEmpty()) throw new PayoutTxBuilder.BuildException("funding inputs hold lovelace only");
+            if (spent.put(input.outpoint(), input) != null) {
+                throw new PayoutTxBuilder.BuildException("funding input is also spent");
+            }
+        }
         List<ResolvedOutput.Outpoint> inputOrder = new ArrayList<>(spent.keySet());
 
         ExUnits placeholder = ExUnits.builder().mem(new BigInteger(pp.getMaxTxExMem()))

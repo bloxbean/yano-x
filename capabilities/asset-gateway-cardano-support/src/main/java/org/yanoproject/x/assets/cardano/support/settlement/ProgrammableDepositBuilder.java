@@ -9,6 +9,7 @@ import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.CardanoAddresses;
 import org.yanoproject.x.assets.contracts.Cip113Requirements;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositClaimV1;
 import org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1;
 
 import java.math.BigInteger;
@@ -33,6 +34,13 @@ import java.util.TreeMap;
  *   <li>The owner key authorizes the smart-wallet inputs as a required signer.</li>
  *   <li>After balancing, the builder re-checks that the deposit sits at {@code output_index} and that the origin is
  *       still an input.</li>
+ *   <li>The live params datum's four fields must equal an approved tuple <b>exactly</b>, not only its dispatcher:
+ *       admission classifies the deposit with the fields of the params UTxO it referenced, so any other fields would
+ *       make it {@code UNCREDITED(WIRING_UNPINNED)} ({@link ProgrammableVaultTxAssembler.Drift} instead).</li>
+ *   <li>The final transaction stays within what the deposit observer reports in full: at most
+ *       {@value ProgrammableDepositClaimV1#MAX_REFERENCE_INPUTS} distinct reference inputs and
+ *       {@value ProgrammableDepositClaimV1#MAX_WITHDRAWALS} script withdrawals; above that the observer reports
+ *       {@code OVERFLOW} and admission could not classify it, so the builder refuses.</li>
  * </ul>
  */
 public final class ProgrammableDepositBuilder {
@@ -66,6 +74,10 @@ public final class ProgrammableDepositBuilder {
                               ProgrammableVaultTxAssembler.LiveWiring wiring, ProgrammableVaultTxAssembler.L1 l1,
                               Cip113Requirements.Adapter adapter, ProgrammableVaultTxAssembler.RewardBalances balances,
                               Hash32 vaultId, Request request, ProtocolParams pp, TransactionEvaluator evaluator) {
+        if (wiring.fields().isEmpty() || !wiring.fields().get().equals(wiring.tuple().fields())) {
+            throw new ProgrammableVaultTxAssembler.Drift("the live protocol params are not exactly an approved wiring"
+                    + " tuple; a deposit now would be UNCREDITED(WIRING_UNPINNED)");
+        }
         byte[] wallet = ProgrammableBackend.keySmartWallet(deployment.plbHash(), request.ownerKeyHash(),
                 deployment.networkId());
         TreeMap<ResolvedOutput.Outpoint, ResolvedOutput> inputs = new TreeMap<>();
@@ -118,6 +130,16 @@ public final class ProgrammableDepositBuilder {
         TransactionInput originInput = PayoutTxBuilder.input(origin.outpoint());
         if (!assembled.transaction().getBody().getInputs().contains(originInput)) {
             throw new PayoutTxBuilder.BuildException("the origin input is no longer spent after balancing");
+        }
+        // The observer's claim limits (D6): what admission can classify.
+        if (assembled.indexes().referenceOrder().size() > ProgrammableDepositClaimV1.MAX_REFERENCE_INPUTS) {
+            throw new PayoutTxBuilder.BuildException("the deposit references more than "
+                    + ProgrammableDepositClaimV1.MAX_REFERENCE_INPUTS + " outputs, past what the observer reports");
+        }
+        if (assembled.indexes().withdrawalOrder().size() > ProgrammableDepositClaimV1.MAX_WITHDRAWALS) {
+            throw new PayoutTxBuilder.BuildException("the deposit has more than "
+                    + ProgrammableDepositClaimV1.MAX_WITHDRAWALS + " script withdrawals, past what the observer"
+                    + " reports");
         }
         return new Built(assembled, datum, datum.depositId(vaultId));
     }

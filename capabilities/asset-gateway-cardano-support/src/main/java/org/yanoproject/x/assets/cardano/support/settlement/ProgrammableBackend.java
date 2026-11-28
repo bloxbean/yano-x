@@ -80,6 +80,16 @@ public enum ProgrammableBackend {
             if (addressNetworkId < 0 || addressNetworkId > 15) throw new IllegalArgumentException("network id");
             if (plbHash == null || plbHash.length != 28) throw new IllegalArgumentException("PLB hash is 28 bytes");
             if (maxInlineDatumBytes < 40) throw new IllegalArgumentException("maxInlineDatumBytes too small");
+            // A Plutus Data byte string is one CBOR chunk of at most 64 bytes in the applied scripts' encoding; a
+            // longer parameter would apply as a different program from the one the scripts were derived for.
+            for (byte[] value : new byte[][] {anchor.threadAssetName(), anchor.genesisId(), anchor.applicationId(),
+                    anchor.commitmentProfile(), anchor.formatFingerprint(), shardPolicyId, exitModePolicyId,
+                    exitModeScriptHash, claimKeyPrefix, depositKeyPrefix, exitKeyPrefix, domainStatusKey}) {
+                if (value == null || value.length > MAX_PARAMETER_BYTES) {
+                    throw new IllegalArgumentException("a custody byte parameter is at most " + MAX_PARAMETER_BYTES
+                            + " bytes");
+                }
+            }
             shardPolicyId = shardPolicyId.clone();
             exitModePolicyId = exitModePolicyId.clone();
             exitModeScriptHash = exitModeScriptHash.clone();
@@ -89,6 +99,9 @@ public enum ProgrammableBackend {
             domainStatusKey = domainStatusKey.clone();
             plbHash = plbHash.clone();
         }
+
+        /** The longest byte parameter: one Plutus Data byte-string chunk. */
+        public static final int MAX_PARAMETER_BYTES = 64;
 
         /** V16: the continuation id cap {@code floor((maxInlineDatumBytes - 6) / 34)}, at most 64. */
         public int maxContinuationIds() {
