@@ -28,8 +28,12 @@ preprod or mainnet node.
    `ledgers/asset-payments/ledger/src/test/resources/asset-payments/intent-vectors-v1.json`.
 2. It asks the node's `intents/encode` route to encode the same intent, and
    refuses to sign if the two encodings differ.
-3. It shows a review dialog with the fields that matter: action, asset, amount,
-   recipient and expiry. The exact bytes are under a disclosure.
+3. It shows a review dialog with the fields that matter: action, the amount in
+   display units and in base units, the full asset id (`policyId.assetName`
+   hex), the recipient, the account, the chain id, genesis id and network of the
+   intent domain, and the expiry. The base units and asset id are what the
+   ledger executes, so a node that lies about a ticker or decimals shows up here.
+   The exact bytes are under a disclosure.
    Wallets show a `signData` payload as hex, not as a Cardano transaction. Check
    the fields in this dialog before you approve.
 4. The wallet signs (`signData(address, envelopeHex)`). Before submitting, the
@@ -49,8 +53,30 @@ preprod or mainnet node.
 
 Session keys are WebCrypto Ed25519 keys with a non-extractable private key. They
 are kept in this browser profile's IndexedDB. A grant allows only `TRANSFER`,
-within its per-payment and total limits, until its expiry or until the owner
-revokes it. A session can never withdraw.
+within its per-payment and total limits, until its expiry (at most 24 hours in
+this client) or until the owner revokes it. A session can never withdraw. The
+client deletes a local key once its grant has expired, was rejected or revoked,
+or its authorizing intent expired unexecuted.
+
+## How a deposit is checked
+
+The domain API builds the unsigned deposit, but the client doesn't trust it. Before
+the wallet's `signTx`, `src/lib/deposit.ts` decodes the CBOR and refuses it
+unless:
+
+- every input is one of the wallet's own `getUtxos()` UTxOs;
+- exactly one output pays the vault address from the vault registry the client
+  read at startup from the configured node, not the build response;
+- that output carries the exact `DepositDatumV1` the client computes itself
+  (beneficiary account, refund address and refund key hash), and exactly the
+  vault's asset in the requested quantity;
+- every other output pays the wallet's change address, with no datum or script;
+- the body has only inputs, outputs, fee, TTL and validity start: no
+  certificates, withdrawals, mints, collateral or required signers;
+- the fee is at most `maxDepositFeeLovelace` and a TTL is set.
+
+The client computes the transaction id itself. The review shows the decoded
+values, not the API's summary.
 
 ## Payments domain API
 
@@ -108,17 +134,21 @@ PAYMENTS_NODE_URL=http://localhost:7470 npm run dev   # http://localhost:5174
 ```
 
 The dev server proxies `/api` to `PAYMENTS_NODE_URL`, so the node needs no CORS
-setup. Configuration lives in `public/payments-client.json`, and URL parameters
-override it:
+setup. Configuration lives in the deployed `public/payments-client.json`. A built
+client reads the node and the DevKit SDK only from that file. Only the dev
+server (`npm run dev`) honours the `node` and `devkit` URL parameters, because a
+link that sets them could point the page at another node or load a script next
+to the stored session keys.
 
 | Key | URL parameter | Meaning |
 |---|---|---|
-| `nodeUrl` | `node` | Node API base. The default is `/api/v1` (proxied). |
+| `nodeUrl` | `node` (dev server only) | Node API base. The default is `/api/v1` (proxied). |
 | `chainId` | `chain` | Chain id. If empty, the first hosted payments chain is used. |
-| `apiKey` | | Topic-scoped submit key, when the node requires one (`yano.app-chain.api.keys=key=asset-payments.intents`) |
-| `devkitWalletSdkUrl` | `devkit` | Loads Yaci DevKit's wallet SDK. Devnet only. |
+| `apiKey` | | Topic-scoped submit key, when the node requires one (`yano.app-chain.api.keys=key=asset-payments.intents`). It is sent only to `nodeUrl`'s origin, including on chain discovery, and never to a node a URL parameter chose. |
+| `devkitWalletSdkUrl` | `devkit` (dev server only) | Loads Yaci DevKit's wallet SDK. Devnet only. |
 | `explorerTxUrl` | | L1 explorer link template, with `{tx}` |
 | `networkLabel` | | Display label only |
+| `maxDepositFeeLovelace` | | The highest deposit fee the client lets a wallet sign. The default is `2000000`. |
 
 ### Devnet with Yaci DevKit
 
@@ -143,7 +173,9 @@ override it:
    configured but no observer runs, so withdrawals reserve and stay `RESERVED`.
    Paying them needs the full gateway deployment (`qa/harness/asset-gateway`).
 3. Open
-   `http://localhost:5174/?devkit=http://localhost:10000/wallet-sdk.js`.
+   `http://localhost:5174/?devkit=http://localhost:10000/wallet-sdk.js` on the dev
+   server. For a built client, set `devkitWalletSdkUrl` in `payments-client.json`
+   instead.
    The DevKit wallet uses its active account. To act as another account, switch
    accounts on the wallet page (or
    `PUT /api/v1/wallet/active-account {"accountId": "1"}`) and connect again.
@@ -192,9 +224,10 @@ rejection, hardware and mobile behave.
 
 Known quirk: Yaci DevKit 0.12.0's wallet backend (`/api/v1/wallet/sign-data`)
 puts the payload in the protected `address` header and signs the address as the
-payload. The client detects this from the wallet's own output, retries once with
-the arguments swapped, and checks the result like any other signature. Any
-other mismatch is refused, and nothing is submitted.
+payload. For the DevKit wallet (`window.cardano.yacidevkit`) only, the client
+detects this from the wallet's own output, retries once with the arguments
+swapped, and checks the result like any other signature. Any other mismatch is
+refused, and nothing is submitted.
 
 A wallet without `signData` gets an "Unsupported wallet" message. The client has
 no weaker fallback. Script addresses and Byron addresses have no key a CIP-30
@@ -202,13 +235,18 @@ wallet signs with, so they can't own an account.
 
 ## Limits of this client
 
-- Proofs: **Verify** fetches the native proof at the view's height. It checks
-  that the proof's value and root are the ones shown, and asks the node's
-  `proof/verify` route to verify it. For an independent check, verify the proof
+- Proofs: **Verify** fetches the native proof of the shown key at the view's
+  committed height, from a route the client builds itself. It requires the
+  proof's key, value, height and state root to be the view's, and asks the
+  node's `proof/verify` route to verify it against the view's root. A proof at
+  another height isn't verified. For an independent check, verify the proof
   yourself with `sdk/proof-verifier`, against a root you trust (for example the
   L1 anchor), rather than against the node that served it.
 - The account view sums reserved amounts from up to 8 pages of 64 matching
   claims, at most 2,048 claims scanned per page. `reservedFrom.complete` says
-  whether that covered every claim.
+  whether that covered every claim; the client labels an incomplete total
+  "(partial)".
 - No owner rotation UI. `ROTATE_OWNER` needs two wallets to sign the same
-  envelope; the encoder and the API support it.
+  envelope; the encoder and the API support it. After a rotation, connect the new
+  owner's wallet and enter the account id under **Use this account**. The client
+  acts for it only if the account's committed owner is the connected credential.

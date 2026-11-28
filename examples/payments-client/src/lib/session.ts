@@ -18,6 +18,22 @@ export interface StoredSession {
   createdAtMs: number;
 }
 
+/** The longest validity this client grants a session key: a stolen browser key is bounded in time too. */
+export const MAX_SESSION_VALIDITY_MS = 24 * 3_600_000;
+
+/**
+ * Whether a local session key can be deleted: it has expired, or its grant is no longer committed although its
+ * AUTHORIZE_SESSION intent has a receipt (rejected, or accepted and since revoked or replaced), or that intent can no
+ * longer execute (its envelope expired without a receipt). A key whose intent is still pending is kept.
+ */
+export function isStale(session: StoredSession, committedGrants: Set<string>, receiptFound: boolean | undefined,
+                        nowMs: number, maxIntentTtlMs: number): boolean {
+  if (session.notAfterMs <= nowMs) return true;
+  if (committedGrants.has(session.grantId)) return false;
+  if (receiptFound === true) return true;
+  return session.createdAtMs + maxIntentTtlMs + 60_000 < nowMs;
+}
+
 export async function ed25519Supported(): Promise<boolean> {
   try {
     await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);

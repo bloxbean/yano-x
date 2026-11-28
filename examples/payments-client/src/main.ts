@@ -4,16 +4,18 @@
  * payments domain API, and submits through the node's ordinary message route. L1 deposits are built by the domain
  * API, signed with signTx and submitted by the wallet.
  */
-import { ApiError, discoverChain, PaymentsApi, type AccountView, type GrantView, type Info, type ProofRef,
-  type VaultView } from './lib/api';
+import { ApiError, discoverChain, PaymentsApi, type AccountView, type Committed, type GrantView, type Info,
+  type ProofRef, type VaultView } from './lib/api';
 import { formatUnits, toBaseUnits } from './lib/amounts';
 import { addressToBech32 } from './lib/bech32';
 import { loadConfig, loadScript, type ClientConfig } from './lib/config';
+import { depositDatum, verifyDeposit } from './lib/deposit';
 import { fromHex, randomBytes, toHex } from './lib/hex';
-import { bodyFromJson, credentialFromAddress, encodeEnvelope, INTENT_TOPIC, intentId, ownerMessage,
+import { bodyFromJson, credentialFromAddress, encodeEnvelope, INTENT_TOPIC, intentId, ownerMessage, PAYMENT_KEY,
   sessionMessage, type Action, type Authorizer, type Credential } from './lib/intents';
-import { deleteSession, ed25519Supported, generateSessionKey, listSessions, saveSession, signWithSession,
-  type StoredSession } from './lib/session';
+import { proofMismatch, type Fact } from './lib/proof';
+import { deleteSession, ed25519Supported, generateSessionKey, isStale, listSessions, MAX_SESSION_VALIDITY_MS,
+  saveSession, signWithSession, type StoredSession } from './lib/session';
 import { assembleSignedTx } from './lib/tx';
 import { addressBytes, connectWallet, installedWallets, signEnvelope, UnsupportedWalletError,
   type ConnectedWallet } from './lib/wallet';
@@ -22,6 +24,9 @@ let config: ClientConfig;
 let api: PaymentsApi;
 let info: Info;
 let wallet: ConnectedWallet | null = null;
+/** The connected wallet's credential. */
+let credential: Credential | null = null;
+/** The account acted for: the credential's own account, or an existing one it owns after an owner rotation. */
 let account: Credential | null = null;
 let view: AccountView | null = null;
 let grants: GrantView[] = [];
@@ -34,7 +39,7 @@ interface Activity {
   notAfterMs: number;
   status: string;
   outcome?: string;
-  proof?: ProofRef;
+  fact?: Fact;
   verified?: string;
 }
 
@@ -63,6 +68,23 @@ function message(error: unknown): string {
 
 function vaultLabel(vault: VaultView): string {
   return vault.ticker || (vault.asset.ada ? 'ADA' : short(vault.asset.unit, 8));
+}
+
+/** The full AssetId the ledger uses (policy id and asset name hex), independent of the node's ticker. */
+function assetIdText(vault: VaultView): string {
+  return vault.asset.ada ? 'lovelace (ADA)' : `${vault.asset.policyId}.${vault.asset.assetName}`;
+}
+
+/** A view's fact for the proof check: its key and value, with the height and root the view was read at. */
+function factOf(ref: ProofRef, committed: Committed): Fact {
+  return { keyHex: ref.keyHex, valueHex: ref.valueHex, height: committed.height, stateRoot: committed.stateRoot };
+}
+
+/** Whether the connected credential owns the account acted for (always, until the account is registered). */
+function ownsAccount(): boolean {
+  if (!view?.registered || !view.owner || !credential) return true;
+  return view.owner.keyHash === credential.keyHash
+    && view.owner.credentialKind === (credential.kind === PAYMENT_KEY ? 'PAYMENT_KEY' : 'STAKE_KEY');
 }
 
 function decimalsOf(vaultId: string): number {
@@ -152,11 +174,13 @@ function showWalletError(text: string): void {
 async function connect(descriptor: ReturnType<typeof installedWallets>[number]): Promise<void> {
   showWalletError('');
   wallet = null;
+  credential = null;
   account = null;
   try {
     wallet = await connectWallet(descriptor, info.intentDomain.addressNetworkId,
       $<HTMLInputElement>('use-stake-key').checked);
-    account = credentialFromAddress(wallet.signingAddress);
+    credential = credentialFromAddress(wallet.signingAddress);
+    account = credential;
   } catch (error) {
     wallet = null;
     showWalletError(error instanceof UnsupportedWalletError ? `Unsupported wallet: ${error.message}`
@@ -165,13 +189,39 @@ async function connect(descriptor: ReturnType<typeof installedWallets>[number]):
     return;
   }
   $<HTMLInputElement>('withdraw-to').value = addressToBech32(wallet.changeAddress);
+  const choose = h('input', { placeholder: 'existing account id (after an owner rotation)',
+    'data-testid': 'account-choose', class: 'mono' }) as HTMLInputElement;
+  const use = h('button', { class: 'secondary', 'data-testid': 'account-use' }, 'Use this account') as HTMLButtonElement;
+  use.addEventListener('click', () => guarded(use, () => chooseAccount(choose.value)));
   $('wallet-info').replaceChildren(h('dl', {},
     h('dt', {}, 'Wallet'), h('dd', {}, wallet.name),
     h('dt', {}, 'Signing address'), h('dd', { class: 'mono', 'data-testid': 'signing-address' },
       addressToBech32(wallet.signingAddress)),
-    h('dt', {}, 'Credential'), h('dd', {}, `${account.kind === 0 ? 'payment key' : 'stake key'} `
-      + short(account.keyHash)),
-    h('dt', {}, 'Account id'), h('dd', { class: 'mono', 'data-testid': 'account-id' }, account.accountId)));
+    h('dt', {}, 'Credential'), h('dd', {}, `${credential.kind === PAYMENT_KEY ? 'payment key' : 'stake key'} `
+      + short(credential.keyHash)),
+    h('dt', {}, 'Account id'), h('dd', { class: 'mono', 'data-testid': 'account-id' }, account.accountId)),
+  h('div', { class: 'row' }, choose, use));
+  await refresh();
+}
+
+/**
+ * Acts for an existing account instead of the credential's own: after ROTATE_OWNER the account keeps its id while a
+ * new credential owns it. The account's committed owner must be the connected credential.
+ */
+async function chooseAccount(text: string): Promise<void> {
+  if (!credential) throw new Error('connect a wallet first');
+  const id = text.trim().toLowerCase() || credential.accountId;
+  if (!/^[0-9a-f]{56}$/.test(id)) throw new Error('an account id is 28 bytes of hex');
+  if (id !== credential.accountId) {
+    const chosen = await api.account(id);
+    const kind = credential.kind === PAYMENT_KEY ? 'PAYMENT_KEY' : 'STAKE_KEY';
+    if (!chosen.registered || chosen.owner?.keyHash !== credential.keyHash || chosen.owner?.credentialKind !== kind) {
+      throw new Error(`account ${short(id)} is not owned by this wallet's ${kind === 'PAYMENT_KEY' ? 'payment' : 'stake'}`
+        + ' key at the committed height');
+    }
+  }
+  account = { ...credential, accountId: id };
+  $('account-id').textContent = id;
   await refresh();
 }
 
@@ -184,7 +234,7 @@ async function refresh(): Promise<void> {
     $('chain-badge').textContent = $('chain-badge').textContent!.replace(/height \d+/, `height ${info.committed.height}`);
     view = await api.account(account.accountId);
     grants = view.registered ? (await api.sessions(account.accountId)).grants : [];
-    localSessions = await listSessions(info.chainId, account.accountId);
+    localSessions = await pruneSessions(await listSessions(info.chainId, account.accountId));
     renderAccount();
     renderSessions();
     if (view.registered) await renderWithdrawals();
@@ -194,39 +244,63 @@ async function refresh(): Promise<void> {
   updateSections();
 }
 
+/** Deletes local session keys that can never pay again (expired, rejected, revoked or never executed). */
+async function pruneSessions(sessions: StoredSession[]): Promise<StoredSession[]> {
+  const committed = new Set(grants.map((grant) => grant.grantId));
+  const kept: StoredSession[] = [];
+  for (const session of sessions) {
+    let receiptFound: boolean | undefined;
+    if (!committed.has(session.grantId) && session.notAfterMs > Date.now()) {
+      // The grant id is the AUTHORIZE_SESSION intent id: its receipt says whether that intent was decided.
+      receiptFound = await api.receipt(session.grantId).then((receipt) => receipt.found, () => undefined);
+    }
+    if (isStale(session, committed, receiptFound, Date.now(), info.maxIntentTtlMs)) await deleteSession(session.id);
+    else kept.push(session);
+  }
+  return kept;
+}
+
 function renderAccount(): void {
   if (!view) return;
+  const owned = ownsAccount();
   $('account-info').replaceChildren(h('p', { 'data-testid': 'registration' }, view.registered
     ? `Registered (owner ${view.owner?.credentialKind}). State at height ${view.committed.height}.`
-    : 'Not registered yet. Register once; deposits to an unregistered account are not credited.'));
+    : 'Not registered yet. Register once; deposits to an unregistered account are not credited.'),
+  ...(owned ? [] : [h('p', { class: 'error', 'data-testid': 'not-owner' }, 'This account is owned by another '
+    + 'credential now (owner rotation). Connect its owner, or choose an account this wallet owns.')]));
   ($('register') as HTMLButtonElement).disabled = view.registered;
+  const partial = view.reservedFrom?.complete === false;
   const table = $('balances');
   table.replaceChildren(h('tr', {}, h('th', {}, 'Asset'), h('th', {}, 'Available'), h('th', {}, 'Reserved'),
     h('th', {}, 'Min-ADA credit'), h('th', {}, 'Proof')));
   for (const balance of view.balances) {
     const cell = h('td', {});
     const button = h('button', { class: 'secondary' }, 'Verify');
-    button.addEventListener('click', () => verify(balance.proof, view!.committed.stateRoot, cell));
+    const fact = factOf(balance.proof, view.committed);
+    button.addEventListener('click', () => verify(fact, cell));
     cell.append(button);
     table.append(h('tr', { 'data-testid': `balance-${balance.vaultId}` },
       h('td', {}, balance.ticker || (balance.asset.ada ? 'ADA' : short(balance.asset.unit, 8))),
       h('td', { 'data-testid': 'available' }, formatUnits(balance.available, balance.decimals)),
-      h('td', { 'data-testid': 'reserved' }, formatUnits(balance.reserved, balance.decimals)),
+      h('td', { 'data-testid': 'reserved', title: partial ? 'not every claim was scanned' : '' },
+        formatUnits(balance.reserved, balance.decimals) + (partial ? ' (partial)' : '')),
       h('td', {}, formatUnits(balance.minAdaCredit, 6)),
       cell));
   }
 }
 
-/** Fetches the native proof at the view's height and checks it binds the shown value and root. */
-async function verify(ref: ProofRef, viewRoot: string, cell: HTMLElement): Promise<string> {
+/**
+ * Fetches the native proof of a shown fact and checks it is for exactly that key, value, height and root, and that
+ * the node's verifier accepts it against the view's root.
+ */
+async function verify(fact: Fact, cell: HTMLElement): Promise<string> {
   cell.textContent = 'verifying...';
   try {
-    const { proof, verification } = await api.proof(ref);
-    const valueMatches = (proof.valueHex ?? null) === ref.valueHex;
-    const rootMatches = proof.committedHeight !== ref.height || proof.stateRoot === viewRoot;
-    const verdict = verification.valid === true && valueMatches && rootMatches
-      ? `verified at height ${proof.committedHeight} (root ${short(String(proof.stateRoot), 6)})`
-      : `NOT verified (valid=${verification.valid}, value ${valueMatches ? 'matches' : 'differs'})`;
+    const { proof, verification } = await api.proof(fact);
+    const mismatch = proofMismatch(fact, proof);
+    const verdict = verification.valid === true && mismatch === null
+      ? `verified at height ${fact.height} (root ${short(fact.stateRoot, 6)})`
+      : `NOT verified (${mismatch ?? 'the verifier refused the proof'})`;
     cell.textContent = verdict;
     cell.className = verdict.startsWith('verified') ? 'ok' : 'bad';
     return verdict;
@@ -301,7 +375,7 @@ function updateSections(): void {
     section.classList.toggle('disabled', !wallet);
   }
   for (const section of document.querySelectorAll<HTMLElement>('.needs-account')) {
-    section.classList.toggle('disabled', !wallet || !view?.registered);
+    section.classList.toggle('disabled', !wallet || !view?.registered || !ownsAccount());
   }
 }
 
@@ -336,6 +410,7 @@ function review(title: string, fields: [string, string][], bytesHex: string): Pr
 async function runIntent(action: Action, bodyJson: Record<string, unknown>, fields: [string, string][],
                          session?: StoredSession): Promise<string> {
   if (!wallet || !account) throw new Error('connect a wallet first');
+  if (!ownsAccount()) throw new Error('this wallet does not own the account');
   const body = bodyFromJson(action, bodyJson);
   const notAfterMs = Date.now() + Math.max(30_000, Math.min(300_000, info.maxIntentTtlMs - 60_000));
   const nonce = toHex(randomBytes(16));
@@ -355,7 +430,11 @@ async function runIntent(action: Action, bodyJson: Record<string, unknown>, fiel
     wrapped = sessionMessage(envelope, signature);
     prepare = { kind: 'SESSION', envelopeHex: toHex(envelope), signatureHex: toHex(signature) };
   } else {
-    await review(action.replace('_', ' ').toLowerCase(), [...fields,
+    const domain = info.intentDomain;
+    await review(action.replace('_', ' ').toLowerCase(), [...fields, ['Account', account.accountId],
+      ['Chain (intent domain)', `${domain.chainId}, application ${domain.applicationId}`],
+      ['Genesis id', domain.genesisId],
+      ['Network', `magic ${domain.networkMagic}, address network id ${domain.addressNetworkId}`],
       ['Expires', new Date(notAfterMs).toLocaleTimeString()], ['Intent id', id]], toHex(envelope));
     const signed = await signEnvelope(wallet, envelope);
     wrapped = ownerMessage(fromHex(signed.signature), fromHex(signed.key));
@@ -381,7 +460,7 @@ async function pollActivity(): Promise<void> {
         entry.status = 'final';
         entry.outcome = receipt.receipt.outcome === 'ACCEPTED' ? `ACCEPTED at height ${receipt.receipt.height}`
           : `REJECTED ${receipt.receipt.reason}`;
-        entry.proof = receipt.proof;
+        entry.fact = factOf(receipt.proof, receipt.committed);
         changed = true;
         await onFinal(entry, receipt.receipt.outcome === 'ACCEPTED');
       } else if (Date.now() > entry.notAfterMs + 30_000) {
@@ -411,13 +490,13 @@ function renderActivity(): void {
     h('th', {}, 'Receipt'), h('th', {}, 'Proof')));
   for (const entry of activity) {
     const proofCell = h('td', {});
-    if (entry.proof) {
+    if (entry.fact) {
       if (entry.verified) {
         proofCell.textContent = entry.verified;
       } else {
         const button = h('button', { class: 'secondary' }, 'Verify');
         button.addEventListener('click', async () => {
-          entry.verified = await verify(entry.proof!, '', proofCell);
+          entry.verified = await verify(entry.fact!, proofCell);
         });
         proofCell.append(button);
       }
@@ -451,31 +530,52 @@ async function register(): Promise<void> {
 
 async function deposit(): Promise<void> {
   const vault = vaultById($<HTMLSelectElement>('deposit-vault').value);
-  const quantity = toBaseUnits($<HTMLInputElement>('deposit-amount').value, vault.decimals);
+  // An ADA amount is converted at lovelace's 6 decimals, whatever the registry's display metadata says.
+  const quantity = toBaseUnits($<HTMLInputElement>('deposit-amount').value, vault.asset.ada ? 6 : vault.decimals);
+  const lovelace = vault.asset.ada ? 0n : BigInt($<HTMLInputElement>('deposit-lovelace').value.trim() || '0');
   const status = $('deposit-status');
   status.textContent = 'reading your UTxOs...';
   const utxos = await wallet!.api.getUtxos();
   if (!utxos || utxos.length === 0) throw new Error('the wallet reports no UTxOs');
   status.textContent = 'building the unsigned deposit...';
   const built = await api.buildDeposit({ vaultId: vault.vaultId, quantity: quantity.toString(),
-    lovelace: vault.asset.ada ? '0' : $<HTMLInputElement>('deposit-lovelace').value.trim(),
-    changeAddress: toHex(wallet!.changeAddress), utxos, beneficiaryAccount: account!.accountId });
-  await review('L1 deposit', [['Deposit', `${formatUnits(built.quantity, vault.decimals)} ${vaultLabel(vault)}`],
-    ['Lovelace in the output', formatUnits(built.outputLovelace, 6) + ' ADA'], ['To vault', vault.address],
-    ['Credited to', account!.accountId], ['Fee', formatUnits(built.fee, 6) + ' ADA'],
-    ['Transaction id', built.transactionId]], built.unsignedTxCborHex);
+    lovelace: lovelace.toString(), changeAddress: toHex(wallet!.changeAddress), utxos,
+    beneficiaryAccount: account!.accountId });
+  // The node built the transaction; this client decides what it does. The vault address is the registry's, read from
+  // the configured node at startup, and the datum is recomputed here.
+  const refund = credentialFromAddress(wallet!.changeAddress);
+  if (refund.kind !== PAYMENT_KEY) throw new Error('the change address has no payment key');
+  const decoded = verifyDeposit(built.unsignedTxCborHex, {
+    walletUtxos: utxos, changeAddress: wallet!.changeAddress, vaultAddress: addressBytes(vault.address),
+    asset: vault.asset, quantity, lovelace, datum: depositDatum(account!.accountId, wallet!.changeAddress,
+      refund.keyHash), maxFee: BigInt(config.maxDepositFeeLovelace)
+  });
+  if (decoded.transactionId !== built.transactionId || decoded.outputIndex !== built.outputIndex) {
+    throw new Error("the node's summary does not match the transaction it built; refusing to sign");
+  }
+  const amount = vault.asset.ada ? `${formatUnits(decoded.quantity, 6)} ADA`
+    : `${formatUnits(decoded.quantity, vault.decimals)} ${vaultLabel(vault)}`;
+  await review('L1 deposit (decoded from the transaction)', [['Deposit', amount],
+    ['Amount (base units)', decoded.quantity.toString()], ['Asset id', assetIdText(vault)],
+    ['Lovelace in the vault output', formatUnits(decoded.outputLovelace, 6) + ' ADA'],
+    ['To vault', addressToBech32(addressBytes(vault.address))], ['Credited to (datum)', account!.accountId],
+    ['Refund address (datum)', addressToBech32(wallet!.changeAddress)],
+    ['Inputs', `${decoded.inputs.length}, all from this wallet`],
+    ['Change back to you', formatUnits(decoded.change, 6) + ' ADA'],
+    ['Fee', formatUnits(decoded.fee, 6) + ' ADA'], ['Valid until slot', decoded.ttl.toString()],
+    ['Transaction id', decoded.transactionId]], built.unsignedTxCborHex);
   status.textContent = 'waiting for the wallet to sign (signTx)...';
   const witnessSet = await wallet!.api.signTx(built.unsignedTxCborHex, false);
   const signed = toHex(assembleSignedTx(fromHex(built.unsignedTxCborHex), fromHex(witnessSet)));
   status.textContent = 'submitting...';
   const txId = wallet!.api.submitTx ? await wallet!.api.submitTx(signed) : await api.submitTx(signed);
-  status.replaceChildren(h('span', { 'data-testid': 'deposit-tx' }, `Submitted ${txId || built.transactionId}. `),
+  status.replaceChildren(h('span', { 'data-testid': 'deposit-tx' }, `Submitted ${txId || decoded.transactionId}. `),
     h('span', { id: 'deposit-state', 'data-testid': 'deposit-state' },
       'waiting for L1 stability and the next app-ledger block...'));
   const deadline = Date.now() + 10 * 60_000;
   const poll = async () => {
     try {
-      const record = await api.deposit(vault.vaultId, built.transactionId, built.outputIndex);
+      const record = await api.deposit(vault.vaultId, decoded.transactionId, decoded.outputIndex);
       if (record.found && record.deposit) {
         $('deposit-state').textContent = record.deposit.status === 'CREDITED'
           ? `CREDITED ${formatUnits(record.deposit.creditedAmount, vault.decimals)} ${vaultLabel(vault)}`
@@ -498,7 +598,7 @@ async function transfer(): Promise<void> {
   const amount = toBaseUnits($<HTMLInputElement>('transfer-amount').value, vault.decimals);
   await runIntent('TRANSFER', { asset: { policyId: vault.asset.policyId, assetName: vault.asset.assetName },
     toAccount: to, amount: amount.toString() }, [['Send', `${formatUnits(amount, vault.decimals)} ${vaultLabel(vault)}`],
-    ['To account', to]]);
+    ['Amount (base units)', amount.toString()], ['Asset id', assetIdText(vault)], ['To account', to]]);
 }
 
 async function authorizeSession(): Promise<void> {
@@ -507,6 +607,9 @@ async function authorizeSession(): Promise<void> {
   const total = toBaseUnits($<HTMLInputElement>('session-total').value, vault.decimals);
   const minutes = Number($<HTMLInputElement>('session-minutes').value);
   if (!Number.isFinite(minutes) || minutes <= 0) throw new Error('validity must be a positive number of minutes');
+  if (minutes * 60_000 > MAX_SESSION_VALIDITY_MS) {
+    throw new Error(`a session is valid for at most ${MAX_SESSION_VALIDITY_MS / 60_000} minutes`);
+  }
   const recipientText = $<HTMLInputElement>('session-recipient').value.trim();
   const recipients = recipientText ? [recipientAccount(recipientText)] : [];
   const key = await generateSessionKey();
@@ -515,13 +618,19 @@ async function authorizeSession(): Promise<void> {
     limits: [{ vaultId: vault.vaultId, perPayment: per.toString(), cumulative: total.toString() }], recipients,
     notAfterMs }, [['Session key', toHex(key.publicKey)], ['May do', 'TRANSFER only (never withdraw)'],
     ['Limit', `${formatUnits(per, vault.decimals)} per payment, ${formatUnits(total, vault.decimals)} in total `
-      + vaultLabel(vault)], ['Recipients', recipients.length ? recipients.join(', ') : 'any registered account'],
+      + vaultLabel(vault)], ['Limit (base units)', `${per} per payment, ${total} in total`],
+    ['Vault id', vault.vaultId], ['Asset id', assetIdText(vault)],
+    ['Recipients', recipients.length ? recipients.join(', ') : 'any registered account'],
     ['Valid until', new Date(notAfterMs).toLocaleString()]]);
-  await saveSession({ id: `${info.chainId}/${account!.accountId}/${grantId}`, chainId: info.chainId,
+  const stored = await saveSession({ id: `${info.chainId}/${account!.accountId}/${grantId}`, chainId: info.chainId,
     accountId: account!.accountId, grantId, publicKeyHex: toHex(key.publicKey), privateKey: key.privateKey,
     notAfterMs, createdAtMs: Date.now() });
   localSessions = await listSessions(info.chainId, account!.accountId);
   renderSessions();
+  if (!stored) {
+    showActionError('This browser could not store the session key (IndexedDB is unavailable). It works until this '
+      + 'tab closes; revoke the grant afterwards.');
+  }
 }
 
 async function sessionPay(session: StoredSession, vaultId: string, toText: string, amountText: string): Promise<void> {
@@ -530,7 +639,8 @@ async function sessionPay(session: StoredSession, vaultId: string, toText: strin
   const amount = toBaseUnits(amountText, vault.decimals);
   await runIntent('TRANSFER', { asset: { policyId: vault.asset.policyId, assetName: vault.asset.assetName },
     toAccount: to, amount: amount.toString() }, [['Send', `${formatUnits(amount, vault.decimals)} ${vaultLabel(vault)}`],
-    ['To account', to], ['Signed by', `session ${short(session.grantId)}`]], session);
+    ['Amount (base units)', amount.toString()], ['To account', to], ['Signed by', `session ${short(session.grantId)}`]],
+  session);
 }
 
 async function revokeSession(grantId: string): Promise<void> {
@@ -551,7 +661,9 @@ async function withdraw(): Promise<void> {
   await runIntent('REQUEST_WITHDRAWAL', { vaultId: vault.vaultId, recipient: toHex(recipient),
     amount: amount.toString(), vaultLovelace: vaultLovelace.toString() },
   [['Withdraw', `${formatUnits(amount, vault.decimals)} ${vaultLabel(vault)}` + (vaultLovelace > 0n
-    ? ` + ${formatUnits(vaultLovelace, 6)} ADA min-ADA credit` : '')], ['To L1 address', addressToBech32(recipient)]]);
+    ? ` + ${formatUnits(vaultLovelace, 6)} ADA min-ADA credit` : '')],
+  ['Amount (base units)', `${amount}` + (vaultLovelace > 0n ? ` + ${vaultLovelace} lovelace` : '')],
+  ['Vault id', vault.vaultId], ['Asset id', assetIdText(vault)], ['To L1 address', addressToBech32(recipient)]]);
 }
 
 function toggleTokenFields(): void {

@@ -57,6 +57,9 @@ export function installedWallets(): WalletDescriptor[] {
 
 export class UnsupportedWalletError extends Error {}
 
+/** The CIP-30 key Yaci DevKit's wallet SDK injects. */
+export const DEVKIT_WALLET = 'yacidevkit';
+
 export interface ConnectedWallet {
   key: string;
   name: string;
@@ -111,8 +114,8 @@ export async function connectWallet(descriptor: WalletDescriptor, expectedNetwor
 /**
  * CIP-30 signData over the exact envelope bytes, checked before anything is submitted: the COSE payload must be the
  * envelope and its protected address the account's signing address. Yaci DevKit 0.12's wallet backend swaps the
- * address and payload arguments; that is detected from its own output and retried once with the arguments swapped,
- * and recorded as a quirk. Any other mismatch is refused.
+ * address and payload arguments; for that wallet only, it is detected from its own output and retried once with the
+ * arguments swapped, and recorded as a quirk. Any other mismatch is refused.
  */
 export async function signEnvelope(wallet: ConnectedWallet, envelope: Uint8Array): Promise<DataSignature> {
   const addressHex = toHex(wallet.signingAddress);
@@ -120,7 +123,8 @@ export async function signEnvelope(wallet: ConnectedWallet, envelope: Uint8Array
   const first = await wallet.api.signData!(addressHex, payloadHex);
   if (signs(first, wallet.signingAddress, envelope)) return first;
   const view = safeParse(first.signature);
-  if (view?.payload && equalBytes(view.payload, wallet.signingAddress)) {
+  // Only the DevKit wallet has the swapped-argument quirk; no other wallet is asked to sign twice.
+  if (wallet.key === DEVKIT_WALLET && view?.payload && equalBytes(view.payload, wallet.signingAddress)) {
     const swapped = await wallet.api.signData!(payloadHex, addressHex);
     if (signs(swapped, wallet.signingAddress, envelope)) {
       if (!wallet.quirks.includes('signData-arguments-swapped')) wallet.quirks.push('signData-arguments-swapped');

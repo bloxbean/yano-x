@@ -2,6 +2,8 @@
  * The payments domain API (/api/v1/plugins/org.yanoproject.x.asset-payments/chains/{chain}/payments/...) and the two
  * host routes the client also needs: the ordinary message SUBMIT route and the native state proof route.
  */
+import { proofPath, type Fact, type NativeProof } from './proof';
+
 export const BUNDLE = 'org.yanoproject.x.asset-payments';
 
 export interface Committed {
@@ -62,6 +64,8 @@ export interface AccountView {
   owner?: { credentialKind: string; keyHash: string };
   balances: Balance[];
   proof: ProofRef;
+  /** Whether the reserved totals covered every claim (the API scans a bounded number of pages). */
+  reservedFrom?: { committedHeight: number; complete: boolean; claimsScanned: number };
 }
 
 export interface GrantView {
@@ -105,8 +109,25 @@ export class ApiError extends Error {
   }
 }
 
+/** The page's own URL, which a relative node URL resolves against (none in unit tests). */
+function pageUrl(): string {
+  return globalThis.location?.href ?? 'http://localhost/';
+}
+
+/** Request headers; the API key goes only to {@code nodeOrigin}, the configured node. */
+export function requestHeaders(url: string, nodeOrigin: string, apiKey: string, json: boolean): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (json) headers['Content-Type'] = 'application/json';
+  if (apiKey && new URL(url, pageUrl()).origin === nodeOrigin) headers['X-API-Key'] = apiKey;
+  return headers;
+}
+
 export class PaymentsApi {
-  constructor(readonly nodeUrl: string, readonly chainId: string, readonly apiKey = '') {}
+  private readonly nodeOrigin: string;
+
+  constructor(readonly nodeUrl: string, readonly chainId: string, private readonly apiKey = '') {
+    this.nodeOrigin = new URL(nodeUrl, pageUrl()).origin;
+  }
 
   private get base(): string {
     return `${this.nodeUrl}/plugins/${BUNDLE}/chains/${encodeURIComponent(this.chainId)}/payments/`;
@@ -137,25 +158,30 @@ export class PaymentsApi {
 
   /** The host's ordinary SUBMIT route: the ledger's admission authorizes the intent again here. */
   async submit(topic: string, bodyHex: string): Promise<{ messageId: string }> {
-    const response = await fetch(`${this.nodeUrl}/app-chain/chains/${encodeURIComponent(this.chainId)}/messages`, {
-      method: 'POST', headers: this.headers(true), body: JSON.stringify({ topic, bodyHex })
+    const url = `${this.nodeUrl}/app-chain/chains/${encodeURIComponent(this.chainId)}/messages`;
+    const response = await fetch(url, {
+      method: 'POST', headers: this.headers(url, true), body: JSON.stringify({ topic, bodyHex })
     });
     return this.json(response);
   }
 
-  /** The native state proof at the height a view was read at, and the node's verifier over it. */
-  async proof(ref: ProofRef): Promise<{ proof: Record<string, unknown>; verification: Record<string, unknown> }> {
-    const proof = await this.json<Record<string, unknown>>(await fetch(`${this.nodeUrl}/${ref.proofPath}`,
-      { headers: this.headers(false) }));
-    const present = proof.presence !== 'ABSENT';
-    const verification = await this.json<Record<string, unknown>>(await fetch(
-      `${this.nodeUrl}/app-chain/chains/${encodeURIComponent(this.chainId)}/proof/verify`, {
-        method: 'POST', headers: this.headers(true), body: JSON.stringify({
-          mode: present ? 'inclusion' : 'exclusion', profile: proof.profile, presence: proof.presence,
-          expectedRootHex: proof.stateRoot, keyHex: proof.key, proofWireHex: proof.proofWireHex,
-          ...(present ? { valueHex: proof.valueHex } : {})
-        })
-      }));
+  /**
+   * The native state proof of a fact at the height its view was read at, fetched from a route built from the fact
+   * itself, and the node's verifier run against the view's own root, key and value (not the proof's).
+   */
+  async proof(fact: Fact): Promise<{ proof: NativeProof & Record<string, unknown>; verification: Record<string, unknown> }> {
+    const proofUrl = `${this.nodeUrl}/${proofPath(this.chainId, fact)}`;
+    const proof = await this.json<NativeProof & Record<string, unknown>>(await fetch(proofUrl,
+      { headers: this.headers(proofUrl, false) }));
+    const present = fact.valueHex !== null;
+    const verifyUrl = `${this.nodeUrl}/app-chain/chains/${encodeURIComponent(this.chainId)}/proof/verify`;
+    const verification = await this.json<Record<string, unknown>>(await fetch(verifyUrl, {
+      method: 'POST', headers: this.headers(verifyUrl, true), body: JSON.stringify({
+        mode: present ? 'inclusion' : 'exclusion', profile: proof.profile, presence: present ? 'PRESENT' : 'ABSENT',
+        expectedRootHex: fact.stateRoot, keyHex: fact.keyHex, proofWireHex: proof.proofWireHex,
+        ...(present ? { valueHex: fact.valueHex } : {})
+      })
+    }));
     return { proof, verification };
   }
 
@@ -171,20 +197,17 @@ export class PaymentsApi {
   }
 
   private async get<T>(path: string): Promise<T> {
-    return this.json<T>(await fetch(this.base + path, { headers: this.headers(false) }));
+    return this.json<T>(await fetch(this.base + path, { headers: this.headers(this.base + path, false) }));
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {
     return this.json<T>(await fetch(this.base + path, {
-      method: 'POST', headers: this.headers(true), body: JSON.stringify(body)
+      method: 'POST', headers: this.headers(this.base + path, true), body: JSON.stringify(body)
     }));
   }
 
-  private headers(json: boolean): Record<string, string> {
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (json) headers['Content-Type'] = 'application/json';
-    if (this.apiKey) headers['X-API-Key'] = this.apiKey;
-    return headers;
+  private headers(url: string, json: boolean): Record<string, string> {
+    return requestHeaders(url, this.nodeOrigin, this.apiKey, json);
   }
 
   private async json<T>(response: Response): Promise<T> {
@@ -206,7 +229,10 @@ export class PaymentsApi {
 
 /** The first hosted chain whose payments/info answers, when no chain id is configured. */
 export async function discoverChain(nodeUrl: string, apiKey: string): Promise<string> {
-  const response = await fetch(`${nodeUrl}/app-chain/chains`);
+  const url = `${nodeUrl}/app-chain/chains`;
+  // A node that requires an API key requires it here too.
+  const response = await fetch(url, { headers: requestHeaders(url, new URL(nodeUrl, pageUrl()).origin, apiKey,
+    false) });
   if (!response.ok) throw new Error(`cannot list the node's app chains (${response.status})`);
   const chains = (await response.json()) as { chainId: string }[];
   for (const chain of chains) {
