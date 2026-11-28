@@ -18,6 +18,8 @@ public final class GatewayIds {
     public static final String DOMAIN_TAG = "yano-asset-gateway-domain-v1\0";
     public static final String VAULT_TAG = "yano-asset-gateway-vault-v1\0";
     public static final String DEPOSIT_TAG = "yano-asset-gateway-deposit-v1\0";
+    /** ADR-061 D6: the tag of a CIP-113 vault's origin-keyed {@code DepositId}. */
+    public static final String PROGRAMMABLE_DEPOSIT_TAG = "deposit-cip113\0";
     public static final String CLAIM_TAG = "yano-asset-gateway-claim-v1\0";
     public static final String INTENT_TAG = "yano-asset-gateway-intent-v1\0";
     public static final String ESCAPE_TAG = "escape\0";
@@ -68,6 +70,23 @@ public final class GatewayIds {
         fields.add(AssetCbor.bstr(txId.bytes()));
         fields.add(AssetCbor.uint(outputIndex));
         return digest(DEPOSIT_TAG, fields);
+    }
+
+    /**
+     * ADR-061 D6: the {@code DepositId} of a CIP-113 vault, computed from the deposit datum's origin:
+     * {@code blake2b-256("deposit-cip113\0" ‖ [vault_id, [origin_tx_id, origin_index], output_index])}. It identifies
+     * the genuine deposit output, survives re-spends that keep the datum, and is never the live outpoint.
+     */
+    public static Hash32 programmableDepositId(Hash32 vaultId, Hash32 originTxId, long originIndex,
+                                               long outputIndex) {
+        Array origin = new Array();
+        origin.add(AssetCbor.bstr(originTxId.bytes()));
+        origin.add(AssetCbor.uint(originIndex));
+        Array fields = new Array();
+        fields.add(AssetCbor.bstr(vaultId.bytes()));
+        fields.add(origin);
+        fields.add(AssetCbor.uint(outputIndex));
+        return digest(PROGRAMMABLE_DEPOSIT_TAG, fields);
     }
 
     /** Fixed at reservation from finalized state only (D7). */
