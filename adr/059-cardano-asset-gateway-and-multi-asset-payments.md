@@ -1741,6 +1741,12 @@ separately (V3).
 - `AccountId` is stable: `blake2b-224("acct\0" ‖ initial credential kind ‖ keyHash)`, fixed at
   `REGISTER_ACCOUNT`. The current owner credential is stored separately, which allows rotation
   (D14a).
+- **Display form.** An `AccountId` is not a Cardano address and cannot be paid on L1. Clients
+  show it as BIP-173 bech32 over its 28 bytes, with HRP `acct` when the intent domain's address
+  network id is 1 and `acct_test` otherwise, and refuse an id with the other network's HRP. The
+  wire format, state keys and APIs keep the raw bytes or hex, and clients still accept hex. The
+  owner credential is shown as its L1 bech32: a payment key as an enterprise address (CIP-19
+  type 6), a stake key as a reward address.
 
 **3. Intent envelope and replay** (A-F7, B-F14)
 

@@ -16,6 +16,7 @@ import org.yanoproject.api.utxo.UtxoState;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -60,6 +61,28 @@ public final class DefaultL1TransactionBuilderService
     @Override
     public long tipSlot() {
         return Math.max(0, tipSlot.getAsLong());
+    }
+
+    @Override
+    public PricingParameters pricingParameters() {
+        ProtocolParams params = protocolParams.get();
+        if (params == null) throw new IllegalStateException("L1 pricing parameters are unavailable");
+        List<String> missing = new java.util.ArrayList<>();
+        if (params.getMinFeeA() == null) missing.add("minFeeA");
+        if (params.getMinFeeB() == null) missing.add("minFeeB");
+        if (params.getCoinsPerUtxoSize() == null) missing.add("coinsPerUtxoSize");
+        if (params.getMaxTxSize() == null) missing.add("maxTxSize");
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("L1 pricing parameters lack " + String.join(", ", missing));
+        }
+        try {
+            OptionalLong maxValueSize = params.getMaxValSize() == null ? OptionalLong.empty()
+                    : OptionalLong.of(Long.parseLong(params.getMaxValSize().trim()));
+            return new PricingParameters(params.getMinFeeA(), params.getMinFeeB(),
+                    Long.parseLong(params.getCoinsPerUtxoSize().trim()), params.getMaxTxSize(), maxValueSize);
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalStateException("L1 pricing parameters are invalid", invalid);
+        }
     }
 
     @Override

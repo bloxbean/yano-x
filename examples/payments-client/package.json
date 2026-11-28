@@ -1,0 +1,39 @@
+{
+  "name": "@bloxbean/yano-x-payments-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference CIP-30 web client for the asset-payments app ledger (issue #109, ADR-059)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "screenshots": "playwright test --config playwright.screenshots.config.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "1.8.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/react-query": "5.104.0",
+    "clsx": "2.1.1",
+    "lucide-react": "1.48.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "24.19.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "27.4.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "4.1.12"
+  }
+}

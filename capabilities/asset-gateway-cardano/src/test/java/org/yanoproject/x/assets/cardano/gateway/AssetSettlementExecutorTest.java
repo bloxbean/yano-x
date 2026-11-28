@@ -505,7 +505,9 @@ class AssetSettlementExecutorTest {
         } finally {
             now = at;
         }
-        assertThat(products).hasSize(1);
+        // The product that owns the tasks first, then one task product per task that runs here (D15a).
+        assertThat(products.getFirst().id()).isEqualTo(AssetSettlementExecutorFactory.SCHEME);
+        assertThat(products.subList(1, products.size())).allMatch(TaskProduct.class::isInstance);
         return products.getFirst();
     }
 
@@ -546,6 +548,12 @@ class AssetSettlementExecutorTest {
 
         assertThat(first).isInstanceOf(EffectExecution.Submitted.class);
         assertThat(submitted).hasSize(1);
+        // Every Settle attempt and its outcome is in the executor snapshot (D15a).
+        assertThat(executor.operationalSnapshot().attempts()).isEqualTo(1);
+        assertThat(executor.operationalSnapshot().successes()).isEqualTo(1);
+        assertThat(executor.operationalSnapshot().readiness())
+                .isEqualTo(org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot
+                        .Readiness.READY);
         Transaction tx = Transaction.deserialize(submitted.getFirst());
         byte[] bodyHash = HexFormat.of().parseHex(TransactionUtil.getTxHash(tx));
         byte[] ref = ((EffectExecution.Submitted) first).externalRef();

@@ -320,12 +320,16 @@ public final class BundleSmoke {
                 registered[0] = handler;
             }
         };
+        // A member's products: the co-sign product, then one task product per task it runs (ADR-059 D15a: the
+        // reconciliation runs on every node by default); none owns an effect type.
         var products = factory.create(CHAIN, config, context);
-        if (products.size() != 1 || !products.getFirst().effectTypes().isEmpty() || registered[0] == null) {
-            throw new AssertionError("a member gets the co-sign service and a product that owns no effect type");
+        if (products.isEmpty() || !"asset-settlement".equals(products.getFirst().id())
+                || products.stream().anyMatch(product -> !product.effectTypes().isEmpty()) || registered[0] == null) {
+            throw new AssertionError("a member gets the co-sign service and products that own no effect type");
         }
         byte[] request = cat(hex("8201"), head(3), new byte[] {1, 2, 3});
         registered[0].onBridgeMessage(message("~bridge/asset-settlement/sign", request, 9));
+        products.getFirst().close(); // stops the member's task timer
 
         // A relaying member (ADR-059 D9): its product still owns no effect type, its timer starts with the host's
         // SLF4J and stops on close; the relayer's proof normalizer resolves the host's proof contracts.
@@ -337,8 +341,8 @@ public final class BundleSmoke {
             relaying.put("exit-relayer.fee-wallet.key-file", key.toString());
             relaying.put("exit-relayer.interval-ms", "1000");
             var relayer = factory.create(CHAIN, relaying, context);
-            if (relayer.size() != 1 || !relayer.getFirst().effectTypes().isEmpty()) {
-                throw new AssertionError("a relaying member gets a product that owns no effect type");
+            if (relayer.isEmpty() || relayer.stream().anyMatch(product -> !product.effectTypes().isEmpty())) {
+                throw new AssertionError("a relaying member gets products that own no effect type");
             }
             relayer.getFirst().close();
             java.nio.file.Files.delete(key);

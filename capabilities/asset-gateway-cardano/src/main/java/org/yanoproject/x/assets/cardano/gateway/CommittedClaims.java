@@ -47,6 +47,23 @@ final class CommittedClaims implements SettleBodyCheck.Committed, AcceptBodyChec
     }
 
     /**
+     * A deposit's committed record for the reconciliation (D15), telling a failed read from an absent record: empty
+     * when the query failed or answered something that does not decode, an empty inner value when there is no record.
+     */
+    Optional<Optional<DepositRecordV1>> depositLookup(Hash32 depositId) {
+        Optional<byte[]> answer = payload(SettlementQueries.DEPOSIT, depositId.bytes());
+        if (answer.isEmpty()) return Optional.empty();
+        if (answer.get().length == 0) return Optional.of(Optional.empty());
+        Optional<DepositRecordV1> record = SettlementQueries.decodeDeposit(depositId, answer.get());
+        return record.isEmpty() ? Optional.empty() : Optional.of(record);
+    }
+
+    /** The vault's I4 counters with the committed height they were read at (D15); empty when unavailable. */
+    Optional<SettlementQueries.CountersView> counters(Hash32 vaultId) {
+        return payload(SettlementQueries.VAULT_COUNTERS, vaultId.bytes()).flatMap(SettlementQueries::decodeCounters);
+    }
+
+    /**
      * Every committed claim, in one walk of the dense claim index: the exit relayer reads it once per pass for every
      * vault (Fable P3-4). Empty when the walk cannot complete, so the relayer relays nothing rather than from a partial
      * view.

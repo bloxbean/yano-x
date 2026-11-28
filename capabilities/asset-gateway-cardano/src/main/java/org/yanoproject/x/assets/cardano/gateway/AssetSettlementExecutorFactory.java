@@ -100,8 +100,21 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
                 context::submitTx, clock, NodeServices.proofsOf(context));
         int network = settings.vaults().domain().addressNetworkId();
         AssetSettlementSettings.Tasks taskSettings = settings.tasks();
+        // D15: every node may reconcile; it only reads its own L1 view and committed state.
+        ReconciliationTask reconciliation = taskSettings.reconciliationIntervalMs() > 0
+                ? new ReconciliationTask(l1, committed, settings.pins(), taskSettings.reconciliationReport(), clock)
+                : null;
         if (!settings.owner()) {
-            if (!taskSettings.exitRelayer()) return List.of(new CosignOnly(cosign, null, null));
+            if (!taskSettings.exitRelayer()) {
+                CosignOnly product = new CosignOnly(cosign, null, null, reconciliation);
+                if (schedule && reconciliation != null) {
+                    SettlementTasks tasks = new SettlementTasks(context.chainId());
+                    tasks.every(taskSettings.reconciliationIntervalMs(), "asset reconciliation",
+                            reconciliation::runOnce);
+                    product.ownTasks(tasks);
+                }
+                return products(product, null, null, reconciliation);
+            }
             // A relaying non-owner assembles alone, with its own fee wallet; it also proves Accepts (Fable P2-2), so
             // custody keeps flowing into the vault while the owner is down.
             FeeWallet wallet = new FeeWallet(taskSettings.relayerSeed().orElseThrow(), network, memberKey,
@@ -111,16 +124,20 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
             ExitRelayTask relayer = new ExitRelayTask(node, assembly, wallet);
             DepositAcceptor acceptor = taskSettings.acceptIntervalMs() > 0
                     ? DepositAcceptor.provedOnly(node, assembly, wallet) : null;
-            CosignOnly product = new CosignOnly(cosign, relayer, acceptor);
+            CosignOnly product = new CosignOnly(cosign, relayer, acceptor, reconciliation);
             if (schedule) {
                 SettlementTasks tasks = new SettlementTasks(context.chainId());
                 tasks.every(taskSettings.exitRelayIntervalMs(), "exit relayer", relayer::runOnce);
                 if (acceptor != null) {
                     tasks.every(taskSettings.acceptIntervalMs(), "proved deposit acceptor", acceptor::runOnce);
                 }
+                if (reconciliation != null) {
+                    tasks.every(taskSettings.reconciliationIntervalMs(), "asset reconciliation",
+                            reconciliation::runOnce);
+                }
                 product.ownTasks(tasks);
             }
-            return List.of(product);
+            return products(product, acceptor, relayer, reconciliation);
         }
         FeeWallet wallet = new FeeWallet(settings.feeWalletSeed().orElseThrow(() ->
                 new IllegalArgumentException("the settlement owner needs fee-wallet.key-file")), network, memberKey,
@@ -133,13 +150,30 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
                 ? new DepositAcceptor(node, cosign, memberKey, assembly, wallet) : null;
         ExitRelayTask relayer = taskSettings.exitRelayer() ? new ExitRelayTask(node, assembly, wallet) : null;
         executor.wire(acceptor, relayer);
-        if (schedule && (acceptor != null || relayer != null)) {
+        if (schedule && (acceptor != null || relayer != null || reconciliation != null)) {
             SettlementTasks tasks = new SettlementTasks(context.chainId());
             if (acceptor != null) tasks.every(taskSettings.acceptIntervalMs(), "deposit acceptor", acceptor::runOnce);
             if (relayer != null) tasks.every(taskSettings.exitRelayIntervalMs(), "exit relayer", relayer::runOnce);
+            if (reconciliation != null) {
+                tasks.every(taskSettings.reconciliationIntervalMs(), "asset reconciliation", reconciliation::runOnce);
+            }
             executor.ownTasks(tasks);
         }
-        return List.of(executor);
+        return products(executor, acceptor, relayer, reconciliation);
+    }
+
+    /**
+     * The chain's products on this node: the one that owns the tasks first, then one {@link TaskProduct} per task
+     * that runs here, whose executor snapshot is that task's status and metrics (D15a).
+     */
+    private static List<AppEffectExecutor> products(AppEffectExecutor owner, DepositAcceptor acceptor,
+                                                    ExitRelayTask relayer, ReconciliationTask reconciliation) {
+        List<AppEffectExecutor> products = new ArrayList<>();
+        products.add(owner);
+        if (acceptor != null) products.add(acceptor.product());
+        if (relayer != null) products.add(relayer.product());
+        if (reconciliation != null) products.add(reconciliation.product());
+        return List.copyOf(products);
     }
 
     /**
@@ -231,19 +265,41 @@ public final class AssetSettlementExecutorFactory implements AppEffectExecutorFa
     }
 
     /**
+     * {@code snapshot} (the {@code Settle} attempts, D15a), {@code DEGRADED} with a {@code CONFIGURATION} failure while
+     * this member's last co-sign refusal was {@code l1-tip-bound} (see {@link #cosignSnapshot}).
+     */
+    static EffectExecutorOperationalSnapshot withCosign(EffectExecutorOperationalSnapshot snapshot,
+                                                        AssetCosignService cosign) {
+        boolean tipBound = cosign.lastRefusal()
+                .map(refusal -> refusal.kind() == SettleBodyCheck.Refusal.Kind.L1_TIP_BOUND).orElse(false);
+        if (!tipBound) return snapshot;
+        return new EffectExecutorOperationalSnapshot(EffectExecutorOperationalSnapshot.Readiness.DEGRADED,
+                snapshot.attempts(), snapshot.successes(), snapshot.retryableFailures(), snapshot.terminalFailures(),
+                snapshot.inFlight(), snapshot.lastSuccessAge(), snapshot.lastFailureAge(),
+                EffectExecutorOperationalSnapshot.FailureCode.CONFIGURATION);
+    }
+
+    /**
      * A member that co-signs but never settles: it owns no effect type. When it relays exits (and proves
-     * {@code Accept}s), it owns their timer and stops it on close.
+     * {@code Accept}s) or reconciles, it owns their timer and stops it on close.
      */
     static final class CosignOnly implements AppEffectExecutor {
         private final AssetCosignService cosign;
         private final ExitRelayTask relayer;
         private final DepositAcceptor acceptor;
+        private final ReconciliationTask reconciliation;
         private volatile AutoCloseable tasks;
 
-        CosignOnly(AssetCosignService cosign, ExitRelayTask relayer, DepositAcceptor acceptor) {
+        CosignOnly(AssetCosignService cosign, ExitRelayTask relayer, DepositAcceptor acceptor,
+                   ReconciliationTask reconciliation) {
             this.cosign = cosign;
             this.relayer = relayer;
             this.acceptor = acceptor;
+            this.reconciliation = reconciliation;
+        }
+
+        Optional<ReconciliationTask> reconciliation() {
+            return Optional.ofNullable(reconciliation);
         }
 
         Optional<ExitRelayTask> relayer() {

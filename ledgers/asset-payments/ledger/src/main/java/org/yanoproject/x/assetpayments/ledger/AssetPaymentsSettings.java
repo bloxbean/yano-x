@@ -60,6 +60,13 @@ import java.util.Set;
  *                                                                         quantity) at 4310 lovelace per byte, the
  *                                                                         payout an executor with the default
  *                                                                         max-supplement-per-payout of 0 can pay
+ * retire-after-wind-down-ms (max(1 h, depth x 60 s))                     D14: how long a vault stays in WIND_DOWN, in
+ *                                                                         block time, before RETIRED is accepted; it
+ *                                                                         covers the L1 stability window (depth x 3
+ *                                                                         mean L1 block intervals of 20 s) and app
+ *                                                                         finality, so a deposit already on L1 when
+ *                                                                         the wind-down began is resolved first; at
+ *                                                                         least depth x 20 s, at most 30 d
  * vaults.N.asset, vaults.N.script-hash, vaults.N.address                  the fixed vault set (I29), N = 0, 1, ...
  *                                                                         contiguous; distinct addresses, no other keys
  * vaults.N.status (ACTIVE), vaults.N.ticker (""), vaults.N.decimals (0), vaults.N.active-from-slot (0)
@@ -75,7 +82,27 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                              String applicationId, String profileId, long profileVersion, Hash32 domainId,
                              String depositObserverId, Optional<String> payoutObserverId, long maxIntentTtlMs,
                              int minStabilityDepth, long exitDelayMs, List<PaymentsRecords.RegistryEntryV1> vaults,
-                             long minAdaPayout, long payoutLovelaceCap, Settlement settlement) {
+                             long minAdaPayout, long payoutLovelaceCap, Settlement settlement,
+                             long retireAfterWindDownMs, DatumBounds depositDatumBounds) {
+    /**
+     * The deposit observer's inline-datum bounds ({@code observers.<deposit-observer-id>.datum.max-bytes} and
+     * {@code datum.max-depth}, defaults 16384 and 16). The observer drops a deposit whose datum exceeds them, so the
+     * payments API never hands out a datum outside them. Node-local: not part of the domain or settings digest.
+     */
+    record DatumBounds(int maxBytes, int maxDepth) {
+        static final DatumBounds DEFAULTS = new DatumBounds(16_384, 16);
+
+        DatumBounds {
+            if (maxBytes < 1 || maxBytes > 65_536 || maxDepth < 1 || maxDepth > 64) {
+                throw new IllegalArgumentException("datum bounds must be 1..65536 bytes and depth 1..64");
+            }
+        }
+
+        boolean admits(byte[] datum, int depth) {
+            return datum.length <= maxBytes && depth <= maxDepth;
+        }
+    }
+
     /** D7 step 4: how reserved claims are batched into {@code asset.settlement.batch} effects. */
     record Settlement(int batchSize, long batchWaitMs, long expiryBlocks, long minQueuedVaultLovelace) {
         Settlement {
@@ -95,6 +122,14 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
     static final long MIN_EXIT_DELAY_MS = 6L * 3_600_000;
     static final long MAX_EXIT_DELAY_MS = 30L * 24 * 3_600_000;
     static final long DEFAULT_EXIT_DELAY_MS = 24L * 3_600_000;
+    /** The mean Cardano L1 block interval; the retirement window is measured in multiples of it per depth. */
+    static final long L1_BLOCK_INTERVAL_MS = 20_000;
+
+    /** D14: the default retirement window, three mean L1 block intervals per depth and never under an hour. */
+    static long defaultRetireAfterWindDownMs(int minStabilityDepth) {
+        return Math.max(3_600_000L, minStabilityDepth * 3 * L1_BLOCK_INTERVAL_MS);
+    }
+
     private static final Set<String> VAULT_SETTINGS = Set.of("asset", "script-hash", "address", "status", "ticker",
             "decimals", "active-from-slot");
 
@@ -129,6 +164,9 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         // Depth 0 would credit deposits from blocks that can still roll back (ADR-059 D5).
         int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 1, 100_000,
                 "min-stability-depth");
+        long retireAfter = bounded(optional(settings, "retire-after-wind-down-ms",
+                        String.valueOf(defaultRetireAfterWindDownMs(minDepth))),
+                minDepth * L1_BLOCK_INTERVAL_MS, MAX_EXIT_DELAY_MS, "retire-after-wind-down-ms");
         long minAdaPayout = bounded(optional(settings, "min-ada-payout", "1000000"), 1, 1_000_000_000_000L,
                 "min-ada-payout");
         long payoutLovelaceCap = bounded(optional(settings, "payout-lovelace-cap", "2000000"), 0,
@@ -192,7 +230,7 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         AssetPaymentsSettings parsed = new AssetPaymentsSettings(chainId, networkId, magic, genesis, applicationId,
                 profileId, profileVersion, domainId, observerId,
                 payoutId.isEmpty() ? Optional.empty() : Optional.of(payoutId), ttl, minDepth, exitDelay, vaults,
-                minAdaPayout, payoutLovelaceCap, settlement);
+                minAdaPayout, payoutLovelaceCap, settlement, retireAfter, datumBounds(all, observerId));
         parsed.checkObserver(all, observerId, OBSERVER_TYPE);
         parsed.payoutObserverId.ifPresent(id -> parsed.checkObserver(all, id, PAYOUT_OBSERVER_TYPE));
         return parsed;
@@ -226,7 +264,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                 "settlement.batch-size=" + settlement.batchSize(),
                 "settlement.batch-wait-ms=" + settlement.batchWaitMs(),
                 "settlement.expiry-blocks=" + settlement.expiryBlocks(),
-                "settlement.min-queued-vault-lovelace=" + settlement.minQueuedVaultLovelace()));
+                "settlement.min-queued-vault-lovelace=" + settlement.minQueuedVaultLovelace(),
+                "retire-after-wind-down-ms=" + retireAfterWindDownMs));
         for (PaymentsRecords.RegistryEntryV1 vault : vaults) fields.add("vault=" + HexFormat.of().formatHex(vault.encode()));
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -242,6 +281,18 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         } catch (IOException impossible) {
             throw new UncheckedIOException(impossible);
         }
+    }
+
+    /** The deposit observer's datum bounds, as {@code AssetVaultDepositSettings} reads them, or the defaults. */
+    static DatumBounds datumBounds(Map<String, String> all, String observerId) {
+        String observer = "observers." + observerId + ".";
+        String bytes = all.get(observer + "datum.max-bytes");
+        String depth = all.get(observer + "datum.max-depth");
+        return new DatumBounds(
+                (int) bounded(bytes == null || bytes.isBlank() ? String.valueOf(DatumBounds.DEFAULTS.maxBytes())
+                        : bytes.trim(), 1, 65_536, observer + "datum.max-bytes"),
+                (int) bounded(depth == null || depth.isBlank() ? String.valueOf(DatumBounds.DEFAULTS.maxDepth())
+                        : depth.trim(), 1, 64, observer + "datum.max-depth"));
     }
 
     /** An observer this ledger reads and this ledger must describe the same domain and vault set. */

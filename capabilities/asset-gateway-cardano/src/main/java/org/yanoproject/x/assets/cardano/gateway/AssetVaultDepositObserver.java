@@ -38,6 +38,9 @@ import java.util.TreeMap;
  * or one that does not decode becomes a {@code MALFORMED} beneficiary, unrepresentable value
  * entries count as other assets, and an output the observer cannot read at all is skipped, the
  * same way on every member.
+ *
+ * <p>Its status counts, node-locally, the blocks it read, the last slot, and the vault outputs it reported by shape,
+ * skipped as clean custody, or could not read (D15a); the ledger's diagnostics count what each became.
  */
 final class AssetVaultDepositObserver implements L1Observer {
     static final String IDENTITY_TAG = "yano-x-asset-vault-deposit-observer-v1";
@@ -45,6 +48,8 @@ final class AssetVaultDepositObserver implements L1Observer {
     private final String observerId;
     private final AssetVaultDepositSettings settings;
     private final Map<String, AssetVaultDepositSettings.Vault> vaultsByAddress;
+    /** Node-local diagnostics only (D15a); never part of an observation. */
+    private final ObserverCounters counters = new ObserverCounters();
 
     AssetVaultDepositObserver(String observerId, Map<String, String> settings) {
         if (observerId == null || observerId.isBlank()) throw new IllegalArgumentException("observer id is required");
@@ -74,6 +79,7 @@ final class AssetVaultDepositObserver implements L1Observer {
     @Override
     public List<L1Observation> observe(long slot, byte[] blockHash, Block block) {
         if (block == null || blockHash == null || blockHash.length != Hash32.BYTES || slot < 0) return List.of();
+        counters.block(slot);
         Hash32 blockId = Hash32.of(blockHash);
         List<L1Observation> observations = new ArrayList<>();
         for (ValidTransactions.Indexed indexed : ValidTransactions.of(block)) {
@@ -90,9 +96,14 @@ final class AssetVaultDepositObserver implements L1Observer {
                 try {
                     claim = claim(vault, txId, index, slot, blockId, output);
                 } catch (RuntimeException unreadable) {
+                    counters.count("unreadable");
                     continue; // deterministic on every member; never a halt (I2)
                 }
-                if (claim == null) continue; // vault custody, not a fact about deposits
+                if (claim == null) {
+                    counters.count("custody");
+                    continue; // vault custody, not a fact about deposits
+                }
+                counters.count(claim.shape().name());
                 observations.add(L1Observation.transaction(observerId, txId.bytes(), index, slot, blockHash,
                         claim.encode()));
             }
@@ -154,6 +165,7 @@ final class AssetVaultDepositObserver implements L1Observer {
                 "domainId", settings.domainId().hex(),
                 "chainId", settings.chainId(),
                 "vaults", settings.vaults().size(),
-                "claimSchema", AssetDepositClaimV1.CLAIM_SCHEMA);
+                "claimSchema", AssetDepositClaimV1.CLAIM_SCHEMA,
+                "observed", counters.snapshot());
     }
 }

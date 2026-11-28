@@ -53,6 +53,8 @@ final class ExitRelayTask {
     private final OwnerAssembly assembly;
     private final FeeWallet wallet;
     private volatile String lastOutcome = "idle";
+    /** The status and metrics of this task (D15a). */
+    private final TaskProduct product = new TaskProduct(TaskProduct.EXIT_RELAY);
 
     ExitRelayTask(NodeServices node, OwnerAssembly assembly, FeeWallet wallet) {
         this.node = Objects.requireNonNull(node, "node");
@@ -64,13 +66,29 @@ final class ExitRelayTask {
         return lastOutcome;
     }
 
+    TaskProduct product() {
+        return product;
+    }
+
+    /** Whether one vault's outcome relayed an {@code Exit}, or found nothing to relay. */
+    static boolean acted(String outcome) {
+        return outcome.startsWith("relayed ") || outcome.contains(", relayed ");
+    }
+
+    static boolean idle(String outcome) {
+        return outcome.equals("no reserved claims") || outcome.equals("no claim is EXIT_ELIGIBLE");
+    }
+
     /**
      * One pass over every vault; returns what happened, per vault. One vault's failure is reported and does not stop
      * the others (Fable P3-2); the committed claim index is walked at most once per pass, for every vault (P3-4).
      */
     String runOnce() throws Exception {
         return assembly.serialized(() -> {
-            if (assembly.warmingUp(node.clock().getAsLong(), node.l1())) return lastOutcome = OwnerAssembly.WARMING_UP;
+            if (assembly.warmingUp(node.clock().getAsLong(), node.l1())) {
+                product.record(TaskProduct.Pass.WAITING);
+                return lastOutcome = OwnerAssembly.WARMING_UP;
+            }
             List<String> outcomes = new ArrayList<>();
             AtomicReference<Optional<CommittedClaims.Index>> index = new AtomicReference<>();
             Supplier<Optional<CommittedClaims.Index>> claims = () -> {
@@ -86,6 +104,7 @@ final class ExitRelayTask {
                     outcomes.add("vault " + pins.vaultId() + " failed: " + failure);
                 }
             }
+            product.record(TaskProduct.worst(outcomes, ExitRelayTask::acted, ExitRelayTask::idle));
             lastOutcome = String.join("; ", outcomes);
             return lastOutcome;
         });
