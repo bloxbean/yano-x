@@ -1,8 +1,8 @@
 # ADR-061 — Custody of CIP-113 programmable tokens in the asset gateway
 
-- **Status:** Proposed (2026-11-28, r3). Design only; no implementation code. Three decisions were
-  taken by the maintainer before drafting (§1.3); the open questions are in §13. r2 and r3 answer
-  two review rounds by Fable and Codex (revision history).
+- **Status:** Proposed (2026-11-28, r4). Design only; no implementation code. Three decisions were
+  taken by the maintainer before drafting (§1.3); the open questions are in §13. r2 to r4 answer
+  three review rounds by Fable and Codex (revision history).
 - **Extends:** ADR-059 r23, the Cardano asset gateway and its custody profile
   `anchored-claim-vault-v1` (PR #111).
 - **Issues:** [#110](https://github.com/bloxbean/yano-x/issues/110) (generic Cardano asset ingress
@@ -550,10 +550,16 @@ be made (D12, onboarding).
 **Deposit-shaped, on chain and off (r3).** An output is **deposit-shaped** exactly when its datum
 is inline, has constructor 0 and four fields, and the fields decode as `ProgrammableDepositDatumV1`
 (a 28-byte hash, bytes of 1–64, a 28-byte hash, and `Constr 0` of a 32-byte hash and two
-naturals). The predicate is total: any other datum is simply not deposit-shaped, and decoding
-never fails a script or throws in the observer. `Accept`, the sweep and the refunds use this one
-predicate on chain, and admission uses it off chain. A constructor-0 datum that fails it is
-`MALFORMED`.
+naturals), **and** *(r4)* its `refund_address` is a key-owned smart wallet of the pinned deployment
+(D7's check: 57 bytes, a base-address header with a script payment part and a key stake part on the
+domain network, and the PLB hash as payment credential). The predicate is total: any other datum
+is simply not deposit-shaped, and decoding never fails a script or throws in the observer. It runs
+on decoded Plutus Data, so it holds for every encoding the ledger accepts (definite or indefinite
+lists, any constructor form). `Accept`, the sweep and the refunds use this one predicate on chain,
+and admission uses the same predicate off chain. A constructor-0 datum that fails it is
+`MALFORMED`: not deposit-shaped on chain either, so it leaves only through the outpoint-keyed
+governed `SWEEP_UNATTRIBUTED` of 059-D8d, to a valid recipient chosen by governance. A bad refund
+address therefore never strands a deposit, and an exit-mode refund never fails on it.
 
 **Creditability.** A deposit output is creditable only if all of these hold:
 1. **Origin binding.** `origin_tx_id#origin_index` is one of the **regular inputs** of the
@@ -561,11 +567,10 @@ predicate on chain, and admission uses it off chain. A constructor-0 datum that 
    (`originSpent`).
 2. **Eligible creation action** (r2, finding 7). The creating transaction is an ordinary transfer
    or a direct issuance (below), never a third-party or unfracking action.
-3. **Approved wiring** (r3). The protocol-params UTxO that the creating transaction referenced is a
-   recorded wiring version that governance has approved (below).
-4. The 059-D5 rules: deposit-shaped, only the vault's asset, a positive quantity, an active asset;
-   and a `refund_address` that is a smart wallet of the pinned deployment with a key-hash owner
-   (D7).
+3. **Approved wiring** (r3; r4). The protocol-params UTxO that the creating transaction referenced is
+   a recorded wiring version whose fields are an approved tuple (below).
+4. The 059-D5 rules: deposit-shaped (which includes the refund address, above), only the vault's
+   asset, a positive quantity, an active asset.
 
 **What the origin binding is for.** Its purpose is to prevent **accidental double credit from
 benign re-spends**.
@@ -591,10 +596,12 @@ never creates a deposit.
 **Raw facts from the observer (r3).** The observer does not classify; it reports bounded facts that
 it reads from the block alone, and admission classifies them. For each transaction that creates an
 output at a CIP-113 vault, `ProgrammableDepositClaimV1` carries:
-- the script credentials among the withdrawals, each with the **outer constructor index** of its
-  reward redeemer (attributable exactly, because each reward redeemer is indexed by its
-  withdrawal's ledger position). At most 16 entries; above that the list is reported as
-  `OVERFLOW`;
+- the script credentials among the withdrawals, **always**, each with an **optional** outer
+  constructor index of its reward redeemer: present when the redeemer is a constructor, absent
+  otherwise (the issuance logic's redeemer, for example, is a map). Redeemers are attributable
+  exactly, because each reward redeemer is indexed by its withdrawal's ledger position. At most 16
+  entries; above that the list is reported as `OVERFLOW`. Admission requires an index only to
+  classify the dispatcher's action;
 - whether the transaction **mints a positive quantity** under the vault asset's policy;
 - the transaction's **reference-input outpoints**, at most 32, or `OVERFLOW`;
 - per output, the decoded origin and `originSpent`.
@@ -603,26 +610,32 @@ The observer's consensus identity pins only the vault addresses and the deployme
 policy**, never a dispatcher or delegate credential: those move with the wiring and live in ledger
 state.
 
-**Versioned wiring (r3).** The `asset-cip113-wiring-v1` observer reports every output that carries
-the params policy's one-shot `ProtocolParams` token: its **outpoint** and the dispatcher,
-issuance-logic, transfer and third-party credentials of its datum (fields 0–3), or `UNDECODABLE`.
-It never throws on a malformed datum.
-- The ledger records each report as the deployment's next **wiring version**, keyed by its
-  outpoint. An `UNDECODABLE` version is unapproved.
-- **Version 0** is pinned at genesis: the params outpoint and fields live at registration, with
-  the delegate hashes (transfer, third party, unfracking) that the reviewed deployment record pairs
-  with that dispatcher. It is approved.
-- A version is **approved** when its fields equal an approved wiring. A change of only the upgrade
-  authority (nomination or promotion) re-creates the params UTxO with the same fields, so the new
-  version is approved at once.
+**Versioned wiring (r3; r4).** The `asset-cip113-wiring-v1` observer reports every output that
+carries the params policy's one-shot `ProtocolParams` token: its **outpoint**, its **L1 position**
+(slot and transaction index in the block), and the dispatcher, issuance-logic, transfer and
+third-party credentials of its datum (fields 0–3), or `UNDECODABLE`. It never throws on a
+malformed datum.
+- **Approval is a set of field tuples, not outpoints.** The ledger keeps the deployment's set of
+  approved tuples `(dispatcher, issuance logic, transfer credential, third-party credential)`, each
+  with the delegate hashes (transfer, third party, unfracking) that the reviewed deployment record
+  pairs with its dispatcher. Genesis seeds the set with the tuple live at registration.
+- The ledger records each report as a **wiring version**, keyed by its outpoint with its fields.
+  The **head** is the version at the highest L1 position. A version is approved exactly when its
+  fields are in the approved set; an `UNDECODABLE` version never is.
+- A change of only the upgrade authority (nomination or promotion) re-creates the params UTxO with
+  identical fields, so the new version is approved **automatically**. A harmless rollover never
+  stalls admission, assembly or an offline exit.
 - **`ASSET_REWIRE(deployment, versionOutpoint, delegateHashes)`** is governed. It must name the
-  **latest** recorded version, and it approves that version's fields with the reviewed delegate
-  hashes. An approval that names an older version is rejected, so a stale approval can never clear
-  a newer suspension.
+  **head**, and it adds the head's fields, with the reviewed delegate hashes, to the approved set.
+  An approval that names an older version is rejected, so a stale approval can never clear a newer
+  suspension.
+- "Latest recorded" is used only by admission and `ASSET_REWIRE`. Builders, members and the SDK use
+  the live params UTxO instead (D10 rule 6).
 
 **Classifying against the referenced version.** Admission finds, among the reported reference
-inputs, the one outpoint that is a recorded wiring version; that is the params UTxO the creating
-transaction used. It classifies against **that version's** credentials:
+inputs, the one outpoint `X` that is a recorded wiring version; that is the params UTxO the
+creating transaction used. It classifies with `X`'s recorded fields, and the deposit is creditable
+only if those fields are in the approved set:
 
 | Class | Condition | Creditable |
 |---|---|---|
@@ -631,11 +644,19 @@ transaction used. It classifies against **that version's** credentials:
 | `ISSUANCE` | No dispatcher withdrawal, the version's issuance logic among the withdrawals, a **positive mint** under the vault asset's policy, and neither of the above | Yes |
 | `UNKNOWN` | Anything else: an `OVERFLOW`, no recorded version among the reference inputs, a version that is not approved, or no matching credentials | No |
 
-**Same-block determinism.** A transaction can reference only a live params UTxO, so a deposit that
-references the old version lands on L1 before the upgrade that spends it. Classifying each deposit
-against the version it referenced therefore gives one result whatever the order of observations
-within a block: a same-block wiring change never retroactively suspends an earlier deposit, and an
-earlier version never admits a later one.
+**Same-block determinism (r4).**
+- **Wiring before deposits.** 059's canonical order sorts the observations of a block by observer
+  id after slot and block hash (`L1Observation.java:228-256`), and `asset-cip113-wiring-v1` sorts
+  before `asset-vault-deposit-v1` (`c` before `v`). Admission relies on this explicitly: every
+  wiring observation of a block is recorded before any deposit observation of that block is
+  admitted. A deposit that references a params outpoint created earlier in the same block therefore
+  finds it recorded.
+- **Each deposit uses its own `X`.** A transaction can reference only a live params UTxO, so a
+  deposit that references the old outpoint lands on L1 before the upgrade that spends it, and one
+  that references the new outpoint lands after it. Classifying each deposit with the fields of the
+  outpoint it referenced gives one result whatever the order of the deposit observations: a
+  same-block wiring change never retroactively suspends an earlier deposit, and an earlier version
+  never admits a later one.
 
 **`DepositId`.** For a CIP-113 vault it is computed from the origin:
 
@@ -668,7 +689,7 @@ shape:
 |---|---|---|
 | `DEPOSIT(DepositId)` | Deposit-shaped and `originSpent`: the one origin-valid attempt of its id | Written once: `CREDITED` if creditable, otherwise `UNCREDITED(reason)`, with reasons such as `INELIGIBLE_ACTION`, `UNKNOWN_ACTION`, `WIRING_UNPINNED`, `ASSET_HELD`, `MIXED_ASSETS`, `ZERO_AMOUNT` |
 | `RECREATED(DepositId)` | Deposit-shaped without `originSpent` | **Never written.** A front-runner could name a victim's future origin, so a record here would block the genuine deposit. |
-| `MALFORMED(reason)` | Constructor 0 that is not deposit-shaped (including a 3-field 059 datum), or a refund address that is not a key-owned smart wallet | Not written |
+| `MALFORMED(reason)` | Constructor 0 that is not deposit-shaped: a 3-field 059 datum, wrong arity or types, or *(r4)* a refund address that is not a key-owned smart wallet. Swept by outpoint (059-D8d). | Not written |
 | `CONTINUATION`, `TOP_UP`, `UNATTRIBUTED` | The other 059-D5 shapes | Not written |
 
 **Suspension is a reason, not a state (r3).** A deposit that references an unapproved wiring
@@ -677,17 +698,24 @@ leaves like any other uncredited deposit (below).
 
 Every output's own record is keyed by its own outpoint, only the one origin-valid attempt of a
 `DepositId` writes `deposit/<DepositId>`, and the class depends only on the version that the
-transaction referenced. So the result never depends on the order of observations within a block.
+transaction referenced. With wiring observations applied first, the result never depends on the
+order of the deposit observations within a block (I48).
 A re-created or copied output never credits and never pre-empts the genuine deposit (I35, I45).
 
 **Unattributed accounting, keyed by `DepositId` (r3).** For deposit-shaped value, the unit of
 accounting is the `DepositId`, never the outpoint:
-- an `UNCREDITED` id is unattributed custody. It is counted **once** in reconciliation's
-  `unattributed` term (059-D15), at the value of its live UTxO, whatever outpoint that UTxO now
-  has; re-created copies of the same id are counted under it, not again;
+- an `UNCREDITED` id is unattributed custody. The consensus `unattributed` counter (059-D15)
+  counts it **once**, at its **recorded** value, whatever outpoint its UTxO now has; re-created
+  copies of the same id are counted under it, not again;
 - a `CREDITED` id is backing for its liability, as in 059;
 - a `RECREATED` output whose id is **absent** is reported as **stranded donor dust**. It is not
   backing, not a liability and not sweepable unattributed custody (below).
+- **Only spendable outputs count on L1 (r4).** Reconciliation counts as custody (059-D15's L1 side)
+  only live outputs that a vault action can spend: accepted custody, and deposit-shaped outputs
+  holding only the asset and lovelace. A deposit-shaped copy that also holds a foreign token cannot
+  be accepted, swept or refunded while its id is credited. It is reported in a separate
+  **unavailable** amount that never counts as backing, even when its id is `CREDITED`. A shortfall
+  hidden in such outputs therefore surfaces.
 
 **How deposit-shaped value leaves (r3).**
 
@@ -698,7 +726,9 @@ accounting is the `DepositId`, never the outpoint:
 | Its id is absent (`RECREATED` donor dust, or a deposit observed after the freeze) | **Not sweepable in v1** | `RefundAbsent` through `e` |
 
 - **A sweep reservation is keyed by `DepositId`**, so a no-op re-spend that moves the UTxO to a new
-  outpoint does not invalidate it. The claim commits the id, the native assets exactly and a
+  outpoint does not invalidate it. The ledger allows **at most one** sweep reservation per
+  `DepositId`, and it commits **at most the recorded value**, so a donor copy carrying more can
+  never drive `unattributed` below zero. The claim commits the id, the native assets exactly and a
   lovelace amount. The script rebuilds the withdrawal key as the `DepositId` from the spent input's
   datum, requires the input's native assets to equal the committed ones and its lovelace to be at
   least the committed lovelace, and pays them to output 0 (D5).
@@ -719,8 +749,9 @@ assembler** (D10), not CCL's transfer builder:
   so the origin is known before balancing.
 - After balancing, it re-checks that the deposit output sits at the datum's `output_index` and that
   the origin input is still spent, and rebuilds otherwise.
-- It references the latest wiring version's params UTxO and refuses to build while that version is
-  unapproved, so a user never makes a deposit that would be `UNCREDITED(WIRING_UNPINNED)`.
+- It references the live params UTxO from its own L1 view, authenticated by the params token, and
+  refuses to build unless that UTxO's fields are an approved tuple, so a user never makes a deposit
+  that would be `UNCREDITED(WIRING_UNPINNED)`.
 
 **Mint deposits.** An issuer may mint directly into the vault with this datum (class `ISSUANCE`).
 Its own inputs supply the origin.
@@ -926,7 +957,8 @@ check (D13) also runs:
   credential share **one** withdrawal. Their adapters must produce one compatible redeemer for it
   (byte-equal); otherwise the transaction cannot be assembled. Reference outpoints are de-duplicated
   (a global state shared by two policies appears once). This is what CCL's materializer does
-  (`Cip113TransactionMaterializer.java:555-568`, `:811`).
+  (one withdrawal per credential: `Cip113TransactionMaterializer.java:811`, `invokeLogicScript`
+  at `:2605`; conflicting redeemers refused: `rejectConflictingRedeemer` at `:617`).
 - **Lovelace-only inputs** (floor top-ups, a lovelace-only payout from them) contribute nothing:
   such a transaction has zero proofs and no hook.
 - **Accepted custody** holds only `A`, so a `Settle` or `Exit` over it needs exactly `[A]` and `A`'s
@@ -945,8 +977,8 @@ insertion order:
    - The shard input gets its `InsertBatch`.
    - Spend redeemer indexes are input positions.
 2. **Reference inputs** are sorted the same way.
-   - `params_idx` is the position of the UTxO holding the params policy's `ProtocolParams` token:
-     the latest recorded wiring version (D6).
+   - `params_idx` is the position of the **live** params UTxO in the builder's own L1 view,
+     authenticated by the params policy's `ProtocolParams` token (r4).
    - Each `node_idx` is the position of that policy's registry node (or covering node).
    - The anchor and the exit-mode thread are found by their tokens, not by index.
 3. **Withdrawals** are ordered as the ledger orders them: script credentials before key
@@ -967,16 +999,24 @@ insertion order:
 5. **Outputs.** Payouts come at positions `0..k−1` (V5), then the continuation at `k` (V7), then the
    shard continuation, then change at the fee wallet.
 6. **Live wiring, fail closed on the fields used (r2, finding 11; scoped in r3, finding E).**
-   - The dispatcher credential is read at build time from the latest wiring version (field 0), and
-     the delegate hashes come from the approval of that dispatcher.
+   - *(r4)* The builder, the members and the SDK reference the **live** params UTxO from their own
+     L1 view, authenticated by the params token, never "the latest recorded version". The
+     dispatcher is its field 0; the delegate hashes come from the approved tuple with that
+     dispatcher.
    - **A vault transaction uses only the dispatcher and its transfer delegate** from the wiring
-     (plus each asset's hook, from the registry node). Assembly checks **only those fields** against
-     an approved wiring. A change to them is protocol-level drift: assembly stops for the
+     (plus each asset's hook, from the registry node). Assembly requires **only those fields** to
+     equal those of an approved tuple. An authority-only rollover keeps them, so it never stalls
+     anything. A change to them is protocol-level drift: assembly stops for the
      deployment, raises the D14 flag, and resumes after `ASSET_REWIRE` (D6).
    - A change to fields a vault transaction does not use, such as the issuance logic or the
      third-party delegate, does **not** block assembly. It suspends deposit admission (D6) and
      raises the flag. In particular, **the SDK never needs `ASSET_REWIRE` to build a transfer-only
      `Exit` or `BalanceExit`** while the dispatcher and transfer delegate are unchanged.
+   - **The SDK offline, in exit mode (r4).** With operators gone, the SDK compares the live params
+     UTxO's dispatcher and transfer delegate with the approved tuples it saved with the holder's
+     proofs (D8g §7 data). If they match, it builds. If the dispatcher really moved, it builds only
+     after an **explicit user override**: the holder accepts the new wiring, which the label says
+     the upgrade authority controls.
    - **Registry-node drift** (a hook or `global_state_cs` that differs from the registration
      baseline) does not stop assembly: the assembler uses the live node and raises the flag. A hook
      only adds constraints, and the body fixes every value movement.
@@ -1087,15 +1127,15 @@ co-signed `Accept`).
 | 2 | The vault inputs are exactly the inputs at the vault smart wallet. No other PLB input. Script inputs are only those and, for `Settle`, the shard input. |
 | 3 | `mint` and certificates are empty, and there are no votes, proposals or treasury donation. The withdrawals are **exactly** the set below. No key-credential withdrawal is allowed. **Amounts (r2):** each equals the live reward balance in the member's own view where its node can read reward balances. A wrong amount only fails on L1. Where the amount goes is not checked: it is not custody (D2, r3). |
 | 3a | The redeemers are **exactly**:<br>- one `BaseSpendRedeemer` per vault input;<br>- the shard's `InsertBatch` (`Settle`);<br>- `TransferAct`;<br>- `TransferRedeemer{proofs}`, equal to what the member's own `Cip113Requirements.of` derives from the resolved vault inputs (D10);<br>- one hook redeemer per distinct hook credential, byte-equal to what the member's own adapters build and merge (D10);<br>- the custody action.<br>Every index matches the sorted lists. A wrong index would only fail on L1, but checking it keeps the request closed. |
-| 3b | The reference inputs are **exactly**:<br>- the pinned anchor and the exit-mode thread;<br>- the protocol params, authenticated by the params policy's `ProtocolParams` token, at the latest recorded wiring version;<br>- one registry node (or covering node) per policy present, authenticated by the registry node policy's token;<br>- global state, for each node that names it;<br>- the adapters' state references;<br>- reference-script UTxOs, each holding a script that the transaction runs. |
+| 3b | The reference inputs are **exactly**:<br>- the pinned anchor and the exit-mode thread;<br>- the **live** params UTxO in the member's own L1 view, authenticated by the params policy's `ProtocolParams` token (r4);<br>- one registry node (or covering node) per policy present, authenticated by the registry node policy's token;<br>- global state, for each node that names it;<br>- the adapters' state references;<br>- reference-script UTxOs, each holding a script that the transaction runs. |
 | 5 | Unchanged (`Settle`). |
 | 6 | Unchanged. |
 | 7 (new) | The only PLB outputs are the payouts (V5, D7) and the continuation (V7, V15, V16). Change goes to the fee wallet's non-PLB address. The only required signers are members. |
 | 8 (new) | **Drift (r2, finding 11; scoped in r3).** **Protocol-level drift in the fields the transaction uses**, meaning a dispatcher or transfer delegate that no approved wiring describes: the member **refuses**, as the assembler fails closed (D10 rule 6). A change to fields the transaction does not use (issuance logic, third-party delegate) does not block signing. **Registry-node drift**, meaning a hook or `global_state_cs` that differs from the registration baseline: the member signs, because a hook only adds constraints and the body fixes every value movement, and it raises the flag (D14, Q4). |
 
 The step-3 withdrawal set is:
-- the dispatcher that the latest wiring version names, which must be an approved one;
-- that dispatcher's approved transfer delegate;
+- the dispatcher that the live params UTxO names, which must belong to an approved tuple (r4);
+- that tuple's transfer delegate;
 - the live hook credentials of the registered policies present, merged by credential (D10);
 - `Script(h)`.
 
@@ -1129,8 +1169,12 @@ The substandard's own powers (D12 item 4) are listed with the issuer's name.
 
 **Detection.** Protocol-level drift is a consensus fact; everything else is local and extends
 059-D15. For each CIP-113 vault:
-- **(a) Shortfall per unit.** Reconciliation's 059 equation is unchanged. Deposit-shaped value is
-  counted per `DepositId` (D6). Reward balances are not custody and are never counted.
+- **(a) Shortfall per unit.** Reconciliation's 059 equation is unchanged, except that its L1 side
+  counts only **spendable** live outputs: accepted custody, and deposit-shaped outputs holding only
+  the asset and lovelace (D6, r4). Deposit-shaped copies that also hold a foreign token are reported
+  as **unavailable** and never count as backing, even when their id is `CREDITED`, so a shortfall
+  hidden in them surfaces. Deposit-shaped value is counted per `DepositId`. Reward balances are not
+  custody and are never counted.
 - **(b) Attribution.** Reconciliation lists vault UTxOs spent by a transaction without `h`'s
   withdrawal, which are third-party actions, and burns of `A`. It has L1 data, so it can resolve
   inputs. A shortfall that these explain is **attributed**.
@@ -1200,11 +1244,11 @@ which holds only while the issuer accepts the recipient and the vault (D7).
 | I41 | A member signs a CIP-113 vault transaction only after resolving every input and reference input, and only when it finds exactly the withdrawals, redeemers and reference inputs that D13 lists, derived from the resolved inputs (D10). | D10, D13 |
 | I42 | A payout confirmation or a balance exit of a CIP-113 vault is accepted only from a shard-authenticated transaction. Outputs re-created by third-party actions never confirm a claim or redeem an exit leaf. | D4, 059-D10 |
 | I43 | *(r2; reworded in r3)* Every withdrawal amount in a vault or deposit transaction equals its credential's live reward balance, so a positive balance never halts a vault. Reward balances are not custody: they are never counted in liabilities, custody or reconciliation, and no script constrains where they go. | D2, D10 |
-| I44 | *(r2; r3)* Only an ordinary transfer, or a direct issuance with a positive mint of the asset's policy, that referenced an **approved** wiring version creates a deposit credit. Third-party, unfracking and unclassifiable transactions never do. An approval names the latest recorded version, so a stale one never clears a newer suspension. Assembly and signing fail closed when a wiring field they use moves, and only then. | D6, D10, D13 |
+| I44 | *(r2; r3; r4)* Only an ordinary transfer, or a direct issuance with a positive mint of the asset's policy, that referenced a params outpoint whose recorded fields are an **approved tuple**, creates a deposit credit. Third-party, unfracking and unclassifiable transactions never do. `ASSET_REWIRE` names the head version, so a stale approval never clears a newer suspension. Builders, members and the SDK check the live params UTxO, and fail closed only when a field they use (the dispatcher or transfer delegate) is in no approved tuple; an authority-only rollover never stalls them. | D6, D10, D13 |
 | I45 | *(r2; r3)* Every output at the vault smart wallet gets exactly one record, keyed by its outpoint. Only the single origin-valid attempt of a `DepositId` writes `deposit/<DepositId>`, once; a `RECREATED` output never writes it. Value of a `CREDITED` id is never swept, and a sweep is reserved only for an `UNCREDITED` id, by `DepositId`. Deposit-shaped value is counted once per `DepositId`. | D5, D6 |
 | I46 | *(new in r2)* Exactly one action applies to a vault transaction across `h` and `e`: `e`'s redeemer mirrors `h`'s, and `e` alone authorizes nothing. | D2 |
 | I47 | *(new in r2)* A recipient refused by the issuer never marks the vault frozen and never blocks the other claims of its batch. Attributed issuer events lead to `ASSET_HOLD` only, never to the domain `PAUSE`. | D7, D14 |
-| I48 | *(new in r3)* Admission's result for a block is independent of the order of its observations: each deposit is classified against the wiring version its own transaction referenced, and every record is keyed by its own outpoint or its unique origin-valid attempt. | D6 |
+| I48 | *(r3; reworded in r4)* Admission's result for a block is deterministic. Its wiring observations are recorded before its deposit observations, which 059's canonical order by observer id already guarantees. Each deposit is classified with the recorded fields of the params outpoint its own transaction referenced, against the approved set, and every record is keyed by its own outpoint or its unique origin-valid attempt, so the order of the deposit observations does not matter. | D6 |
 
 ## 7. Compatibility
 
@@ -1328,9 +1372,11 @@ CIP-113 core's cost.
 - a certificate or a mint in a vault transaction;
 - *(r3)* positive withdrawal amounts on `h`, `e` and the dispatcher, sent to change: **pass**;
   a one-input `SweepExit` and a `RefundUncredited` with a positive amount: **pass**;
-- *(r3)* the total deposit-shaped predicate: a constructor-0 datum with 3 or 5 fields, wrong field
-  types or an indefinite encoding is not deposit-shaped, in `Accept`, the sweep and both refunds,
-  and never fails decoding;
+- *(r3; r4)* the total deposit-shaped predicate: a constructor-0 datum with 3 or 5 fields, wrong
+  field types, or a refund address that is not a key-owned smart wallet of the pinned deployment is
+  not deposit-shaped, in `Accept`, the sweep and both refunds, and never fails decoding;
+- *(r4)* **encoding parity (positive):** the same datum with definite and with indefinite lists is
+  deposit-shaped in both forms, on chain and in admission;
 - *(r3)* `e` run in `NORMAL` with a correct mirror from `h`: fails on `e`'s own V11 check;
 - *(r3)* a deposit-shaped `SweepExit` whose input's native assets differ from the commitment, or
   whose lovelace is below it: fails; one after a no-op re-spend: passes;
@@ -1360,13 +1406,25 @@ CIP-113 core's cost.
 - *(r2)* the wiring observer: an authentic protocol-params output with changed fields, an
   authority-only change (same fields, approved at once), *(r3)* an undecodable datum (unapproved,
   no exception), and a look-alike without the token;
-- *(r3)* a wiring change in the same block as a deposit that referenced the old version: the deposit
-  is credited, in every observation order; an `ASSET_REWIRE` naming an older version: rejected;
+- *(r3; r4)* a wiring change in the same block as deposits, **both orderings on L1**: a deposit that
+  referenced the old outpoint (before the upgrade) is credited, and one that referenced the new
+  outpoint (after it) is classified with the new fields, which requires the wiring observation to
+  be recorded first. Each result holds in every order of the deposit observations;
+- *(r4)* two wiring changes in one block: the head is the one at the higher transaction index;
+- *(r4)* an authority-only rollover: the new version is approved automatically, and deposits,
+  assembly and an offline SDK exit continue;
+- an `ASSET_REWIRE` naming an older version: rejected;
 - *(r3)* a sweep reservation for a `CREDITED` or an absent id: rejected; one for an `UNCREDITED`
-  id, then a no-op re-spend of its UTxO: still payable;
+  id, then a no-op re-spend of its UTxO: still payable; *(r4)* a second reservation for the same id,
+  or one committing more than the recorded value: rejected;
+- *(r4)* reconciliation: a copy of a credited datum carrying a foreign token is reported as
+  unavailable, not backing, and the resulting shortfall is flagged;
+- *(r4)* an issuance transaction whose issuance-logic redeemer is a map: reported with no
+  constructor index, and classified `ISSUANCE`;
 - a donated copy of a credited deposit's datum;
 - a 3-field 059 datum;
-- a refund address that is not a smart wallet;
+- *(r4)* a refund address that is not a key-owned smart wallet: `MALFORMED`, not deposit-shaped
+  on chain, swept by outpoint to a valid recipient;
 - a payout to smart wallets;
 - a look-alike continuation from a third-party transaction: ignored;
 - a balance exit read from the custody's reward redeemer;
@@ -1395,7 +1453,8 @@ section of `BUDGETS.md`.
 3. **Vault bootstrap.** Register the `h` and `e` stake credentials, bootstrap the 16 shard threads,
    and have the issuer admit the vault where required. Start the chain with the CIP-113 vault in
    genesis.
-4. **Deposit.** Alice deposits through the CCL-built transfer. She is credited exactly once across a
+4. **Deposit.** Alice deposits through the D6 deposit builder (Yano X's assembler). She is credited
+   exactly once across a
    restart and a rescan.
 5. **Pay.**
    - Alice transfers to Bob in the ledger.
@@ -1628,3 +1687,27 @@ under the devnet's protocol version.
   - **H** (Fable P3s): `e` checks V11 itself; the mirrored redeemer bytes are measured; a total
     on-chain deposit-shaped predicate shared by `Accept`, the sweep and the refunds; undecodable
     wiring is unapproved; the `ISSUANCE` class requires a positive mint of the asset's policy.
+- **r4** (2026-11-28): Responds to the confirmation passes on r3: Fable (APPROVED, with two P2 and
+  four P3 text fixes) and Codex (6 of 9 r2 findings resolved, 3 partial, and new findings N1–N6).
+  - **Wiring versions** (Fable P2-1; Codex N1, N2, partials 4 and 7): approval is a set of field
+    tuples. Builders, members and the SDK reference the live params UTxO and require only the
+    fields they use (the dispatcher and transfer delegate) to match an approved tuple; authority-only
+    rollovers are approved automatically; the offline SDK compares against saved tuples, with an
+    explicit user override if the dispatcher moved. "Latest recorded" remains only for admission and
+    `ASSET_REWIRE`: wiring reports carry their L1 position, the head is chosen by position, wiring
+    observations are applied before deposits (059's canonical order by observer id), and a deposit
+    is classified with the recorded fields of the outpoint it referenced. I44 and I48 reworded
+    (Fable P3-3); P4 tests both orderings.
+  - **Issuance raw fact** (Codex N3): withdrawal credentials always reported; the redeemer
+    constructor index is optional and needed only for the dispatcher.
+  - **Refund address** (Codex N4, Fable P3-5): it is part of the shared on-chain deposit-shaped
+    predicate; a bad one is `MALFORMED`, swept by outpoint to a valid recipient; admission uses the
+    same predicate.
+  - **Spendable reserves** (Codex N5): reconciliation counts only spendable live outputs; mixed
+    copies are reported as unavailable and never count as backing (D6, D14(a), P4).
+  - **Encoding test** (Fable P2-2, Codex N6): the indefinite-encoding negative is replaced by a
+    positive definite/indefinite parity test.
+  - **Drill** (Codex partial 9): step 4 uses the D6 deposit builder.
+  - **Fable P3s:** one sweep reservation per `DepositId`, committing at most the recorded value; the
+    materializer citations corrected (`:811` and `invokeLogicScript` `:2605` for the dedupe,
+    `rejectConflictingRedeemer` `:617`).
