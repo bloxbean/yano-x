@@ -287,7 +287,9 @@ public final class AuthenticatedSnapshotOnChainVerifier {
                 || Builtins.lengthOfByteString(proof.conflictingKeyHash()) != 32
                 || Builtins.lengthOfByteString(proof.conflictingValueHash()) != 32
                 || Builtins.equalsByteString(queryPath, proof.conflictingKeyHash())
-                || !validLeafSuffix(proof.conflictingKeyHash(), cursorEnd, proof.leafSuffix())) {
+                || !samePathPrefix(queryPath, proof.conflictingKeyHash(), cursorEnd)
+                || !validLeafSuffix(proof.conflictingKeyHash(), cursorEnd, proof.leafSuffix())
+                || !notABranch(proof.leafSuffix())) {
             return false;
         }
         byte[] child = missing ? new byte[]{0, 0, 0, 0, 0, 0, 0, 0,
@@ -324,6 +326,40 @@ public final class AuthenticatedSnapshotOnChainVerifier {
             cursorEnd = cursor;
         }
         return valid && cursorEnd == 0 && Builtins.equalsByteString(expectedRoot, child);
+    }
+
+    /**
+     * A conflicting leaf's encoded suffix must not also read as a branch node: a branch is
+     * {@code blake2b-256(prefix ‖ merkle)} with every prefix byte a nibble, and an odd leaf suffix starts
+     * {@code 00 <nibble>} before its raw path bytes. Requiring one raw byte above 15 makes the two shapes
+     * disjoint, so a real branch on the query's own path cannot pass as a conflicting leaf. An honest leaf at
+     * cursor {@code c} fails only if all its {@code (63 - c) / 2} raw path bytes are below 16, with probability
+     * {@code 16^-((63 - c) / 2)}: depth-dependent, and negligible at any reachable depth.
+     */
+    private static boolean notABranch(byte[] encoded) {
+        long length = Builtins.lengthOfByteString(encoded);
+        long index = 2;
+        boolean found = Builtins.indexByteString(encoded, 0) != 0;
+        while (!found && index < length) {
+            if (Builtins.indexByteString(encoded, index) > 15) {
+                found = true;
+            }
+            index += 1;
+        }
+        return found;
+    }
+
+    /**
+     * True when two 32-byte path hashes agree on nibbles {@code [0, nibbles)}. The folds of an absence proof
+     * authenticate only the query's own path above the terminal, so a conflicting leaf must share exactly that
+     * prefix; otherwise its key hash could differ from the query only where nothing is authenticated.
+     */
+    private static boolean samePathPrefix(byte[] left, byte[] right, long nibbles) {
+        long half = nibbles / 2;
+        boolean bytes = Builtins.equalsByteString(Builtins.sliceByteString(0, half, left),
+                Builtins.sliceByteString(0, half, right));
+        return nibbles % 2 == 0 ? bytes
+                : bytes && pathNibble(left, nibbles - 1) == pathNibble(right, nibbles - 1);
     }
 
     private static boolean validLeafSuffix(byte[] pathHash, long cursorEnd, byte[] encoded) {

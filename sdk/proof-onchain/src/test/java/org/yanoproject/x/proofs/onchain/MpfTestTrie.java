@@ -125,6 +125,68 @@ final class MpfTestTrie {
         return child;
     }
 
+    /** A synthetic forgery: a real branch on a present key's own path presented as a conflicting leaf. */
+    record BranchAsLeaf(byte[] root, MpfNormalizedProof inclusion, MpfNormalizedNonMembershipProof forgedAbsence) {
+    }
+
+    /** {@link #branchReadAsLeaf(int)} at cursor 1. */
+    static BranchAsLeaf branchReadAsLeaf() {
+        return branchReadAsLeaf(1);
+    }
+
+    /**
+     * A trie whose root branch (cursor 0, prefix {@code path[0, c-1)}, nibble {@code path[c-1]}) leads to a branch
+     * at odd cursor {@code c} with a {@code 2 + (63 - c) / 2}-nibble prefix starting with nibble 0, under which the
+     * victim key's leaf sits. That branch, {@code blake2b-256(prefix ‖ merkle)}, has exactly the shape of an odd
+     * leaf {@code blake2b-256(00 n raw ‖ valueHash)}: a conflicting key hash sharing the path above {@code c} and
+     * carrying the prefix's nibbles as raw bytes makes it a "conflicting leaf" that proves the present victim
+     * absent, unless the verifier requires a raw byte above 15. (A real trie needs about 2^70 partial-collision
+     * grinding for such a long shared prefix.)
+     */
+    static BranchAsLeaf branchReadAsLeaf(int c) {
+        if (c % 2 == 0 || c < 1 || c > 61) throw new IllegalArgumentException("odd cursor 1..61");
+        int length = 2 + (63 - c) / 2;
+        byte[] key = null;
+        byte[] path = null;
+        for (int i = 0; ; i++) {
+            key = key("victim/" + c + "/", i);
+            path = MpfNormalizedProof.nibbles(Blake2bUtil.blake2bHash256(key));
+            if (path[c] == 0 && path[c + 1] != 0) break;
+        }
+        byte[] prefix = Arrays.copyOfRange(path, c, c + length);
+        byte[] leafSuffix = MpfNormalizedProof.encodeLeafSuffix(Arrays.copyOfRange(path, c + length + 1, 64));
+        byte[] leaf = hash(leafSuffix, Blake2bUtil.blake2bHash256(key));
+        List<byte[]> lower = MpfNormalizedProof.sparseNeighbors(path[c + length], (path[c + length] + 1) % 16,
+                Blake2bUtil.blake2bHash256(new byte[] {1}));
+        byte[] branchMerkle = merkle(path[c + length], leaf, lower);
+        byte[] branch = hash(prefix, branchMerkle);
+        List<byte[]> upper = MpfNormalizedProof.sparseNeighbors(path[c - 1], (path[c - 1] + 1) % 16,
+                Blake2bUtil.blake2bHash256(new byte[] {2}));
+        byte[] rootPrefix = Arrays.copyOfRange(path, 0, c - 1);
+        byte[] root = hash(rootPrefix, merkle(path[c - 1], branch, upper));
+        MpfNormalizedProof.FoldStep top = new MpfNormalizedProof.FoldStep(0, rootPrefix, path[c - 1], upper,
+                new byte[0]);
+        MpfNormalizedProof inclusion = new MpfNormalizedProof(root, key, key, leafSuffix, List.of(
+                new MpfNormalizedProof.FoldStep(c, prefix, path[c + length], lower, new byte[0]), top), 42);
+        byte[] keyHash = Blake2bUtil.blake2bHash256(key);
+        byte[] conflicting = new byte[32];
+        System.arraycopy(keyHash, 0, conflicting, 0, (c - 1) / 2);
+        conflicting[(c - 1) / 2] = (byte) ((path[c - 1] << 4) | prefix[1]);
+        System.arraycopy(prefix, 2, conflicting, (c + 1) / 2, length - 2);
+        MpfNormalizedNonMembershipProof forged = new MpfNormalizedNonMembershipProof(root, key, c, prefix,
+                conflicting, branchMerkle, List.of(top), 42);
+        return new BranchAsLeaf(root, inclusion, forged);
+    }
+
+    private static byte[] merkle(int nibble, byte[] child, List<byte[]> neighbors) {
+        byte[] merkle = child;
+        for (int level = 0; level < 4; level++) {
+            byte[] sibling = neighbors.get(3 - level);
+            merkle = ((nibble >> level) & 1) == 0 ? hash(merkle, sibling) : hash(sibling, merkle);
+        }
+        return merkle;
+    }
+
     static byte[] hash(byte[] left, byte[] right) {
         byte[] joined = Arrays.copyOf(left, left.length + right.length);
         System.arraycopy(right, 0, joined, left.length, right.length);
@@ -135,6 +197,13 @@ final class MpfTestTrie {
     static long leafCursor(byte[] leafSuffix) {
         long nibbles = (leafSuffix[0] & 0xff) == 0 ? 1 + (leafSuffix.length - 2) * 2L : (leafSuffix.length - 1) * 2L;
         return MpfNormalizedProof.PATH_NIBBLES - nibbles;
+    }
+
+    /** A copy of {@code hash} with path nibble {@code index} changed. */
+    static byte[] flipNibble(byte[] hash, long index) {
+        byte[] result = hash.clone();
+        result[(int) (index / 2)] ^= (byte) (index % 2 == 0 ? 0x10 : 0x01);
+        return result;
     }
 
     private static final class MapNodeStore implements NodeStore {

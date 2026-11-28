@@ -400,10 +400,15 @@ public final class ProofVerifier {
         }
     }
 
-    /** Raw MPF exclusion verification. */
+    /**
+     * Raw MPF exclusion verification. Besides the MPF check, a terminal
+     * {@code Leaf} at an odd cursor must not read as a branch, and a terminal
+     * {@code Fork} at an odd cursor must not read as the key's own leaf
+     * ({@link MpfProofWirePreflight#acceptsExclusion}).
+     */
     public static boolean verifyExclusion(byte[] expectedRoot, byte[] key, byte[] proofWire) {
         if (!validInputs(expectedRoot, key, null, proofWire)
-                || !MpfProofWirePreflight.accepts(proofWire)) {
+                || !MpfProofWirePreflight.acceptsExclusion(proofWire, key)) {
             return false;
         }
         try {

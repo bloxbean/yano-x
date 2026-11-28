@@ -1,5 +1,7 @@
 package org.yanoproject.x.eutxo.client;
 
+import org.yanoproject.x.client.ProofVerifier;
+
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 
@@ -152,11 +154,15 @@ public final class NullifierShardMirror {
                 .verifyProofWire(expectedRoot, claimId, claimId, true, proofWire);
     }
 
-    /** Verify a served non-membership proof (unsettled id) against a shard root. */
+    /**
+     * Verify a served non-membership proof (unsettled id) against a shard root,
+     * through {@link ProofVerifier#verifyExclusion}: the wire preflight, the
+     * terminal-leaf rule (a branch on the id's path never passes as the
+     * conflicting leaf) and the MPF check.
+     */
     public static boolean verifyAbsence(
             byte[] expectedRoot, byte[] claimId, byte[] proofWire) {
-        return new MpfTrie(new InMemoryNodeStore())
-                .verifyProofWire(expectedRoot, claimId, null, false, proofWire);
+        return ProofVerifier.verifyExclusion(expectedRoot, claimId, proofWire);
     }
 
     private static int checkShard(int shard) {

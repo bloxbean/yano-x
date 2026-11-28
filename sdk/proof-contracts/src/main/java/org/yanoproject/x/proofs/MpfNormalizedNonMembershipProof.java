@@ -64,9 +64,14 @@ public record MpfNormalizedNonMembershipProof(
                 return false;
             }
             byte[] conflictPath = MpfNormalizedProof.nibbles(conflictingKeyHash);
+            // The folds authenticate only the query's path above the terminal, so the conflicting leaf must share
+            // that exact prefix and differ from the query below it.
+            if (!Arrays.equals(conflictPath, 0, terminalCursor, queryPath, 0, terminalCursor)) {
+                return false;
+            }
             byte[] expectedSuffix = MpfNormalizedProof.encodeLeafSuffix(
                     Arrays.copyOfRange(conflictPath, terminalCursor, conflictPath.length));
-            if (!Arrays.equals(expectedSuffix, conflictingLeafSuffix)) {
+            if (!Arrays.equals(expectedSuffix, conflictingLeafSuffix) || readsAsBranch(conflictingLeafSuffix)) {
                 return false;
             }
             child = MpfNormalizedProof.commitLeaf(conflictingLeafSuffix,
@@ -94,6 +99,24 @@ public record MpfNormalizedNonMembershipProof(
             cursorEnd = cursor;
         }
         return cursorEnd == 0 && Arrays.equals(stateRoot, child);
+    }
+
+    /**
+     * True when an odd leaf suffix ({@code 00 <nibble> <raw bytes>}) has only nibble-valued raw bytes, so its
+     * hash could equally be a branch node {@code blake2b-256(prefix ‖ merkle)}; such a "leaf" is never accepted
+     * as a conflicting leaf (the on-chain verifiers apply the same rule). An honest leaf at cursor {@code c} is
+     * refused with probability {@code 16^-((63 - c) / 2)}, depth-dependent and negligible.
+     */
+    static boolean readsAsBranch(byte[] encodedSuffix) {
+        if (encodedSuffix.length == 0 || encodedSuffix[0] != 0) {
+            return false;
+        }
+        for (int i = 2; i < encodedSuffix.length; i++) {
+            if ((encodedSuffix[i] & 0xFF) > 15) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override public byte[] stateRoot() { return stateRoot.clone(); }
