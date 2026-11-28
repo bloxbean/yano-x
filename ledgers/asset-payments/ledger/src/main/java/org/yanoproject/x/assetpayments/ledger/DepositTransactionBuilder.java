@@ -3,6 +3,7 @@ package org.yanoproject.x.assetpayments.ledger;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.MinAdaCalculator;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
@@ -49,7 +50,8 @@ import java.util.Set;
  *
  * <p>The output is a creditable deposit by construction: the deposit shape, exactly the vault's registered asset and
  * nothing else, and a positive quantity (D5). For a token vault the output's lovelace becomes the depositor's min-ADA
- * credit (D11); it is raised to the output's min-UTxO when the request asks for less. Fees use the linear fee rule with
+ * credit (D11); it is raised to the output's min-UTxO when the request asks for less, and an ADA deposit below
+ * its min-UTxO is refused. Fees use the linear fee rule with
  * the protocol parameters given at construction (the node-local bundle configuration), so a fee mismatch makes the
  * wallet or the node refuse the transaction; it never changes what the deposit credits.
  */
@@ -179,19 +181,26 @@ final class DepositTransactionBuilder {
         if (change.getPaymentCredentialHash().isEmpty() || change.isScriptHashInPaymentPart()) {
             throw new IllegalArgumentException("the change address must have a key payment credential");
         }
-        List<Amount> amounts = new ArrayList<>();
-        if (asset.isAda()) {
-            amounts.add(Amount.lovelace(request.quantity()));
-        } else {
-            amounts.add(Amount.lovelace(request.lovelace().max(BigInteger.ONE)));
-            amounts.add(Amount.asset(HEX.formatHex(asset.policyId()) + HEX.formatHex(asset.assetName()),
-                    request.quantity()));
-        }
         PlutusData datum;
         try {
             datum = PlutusData.deserialize(request.datum().encode());
         } catch (Exception impossible) {
             throw new IllegalStateException("the deposit datum does not decode", impossible);
+        }
+        ProtocolParams params = fees.protocolParams();
+        BigInteger minUtxo = minUtxo(params, vault, request.quantity(), datum);
+        List<Amount> amounts = new ArrayList<>();
+        if (asset.isAda()) {
+            if (request.quantity().compareTo(minUtxo) < 0) {
+                throw new IllegalArgumentException("an ADA deposit must be at least the output's min-UTxO of "
+                        + minUtxo + " lovelace");
+            }
+            amounts.add(Amount.lovelace(request.quantity()));
+        } else {
+            // The output's lovelace is the depositor's min-ADA credit (D11); never below the output's min-UTxO.
+            amounts.add(Amount.lovelace(request.lovelace().max(minUtxo)));
+            amounts.add(Amount.asset(HEX.formatHex(asset.policyId()) + HEX.formatHex(asset.assetName()),
+                    request.quantity()));
         }
         // Every supplied UTxO is offered under the change address: they are all the wallet's, and the wallet adds
         // one witness per payment key it spends from, which the fee estimate counts below.
@@ -213,7 +222,6 @@ final class DepositTransactionBuilder {
         for (Utxo utxo : offered) {
             new Address(utxo.getAddress()).getPaymentCredentialHash().map(HEX::formatHex).ifPresent(keys::add);
         }
-        ProtocolParams params = fees.protocolParams();
         ProtocolParamsSupplier paramsSupplier = () -> params;
         Tx tx = new Tx().payToContract(vault.vaultAddress(), amounts, datum).from(change.toBech32());
         QuickTxBuilder.TxContext context = new QuickTxBuilder(supplier, paramsSupplier, NO_SUBMIT).compose(tx)
@@ -267,6 +275,20 @@ final class DepositTransactionBuilder {
                 .map(input -> input.getTransactionId() + "#" + input.getIndex()).toList();
         return new Built(cbor, TransactionUtil.getTxHash(cbor), unsigned.getBody().getFee().longValueExact(), index,
                 value.getCoin(), quantity, inputs, validTo);
+    }
+
+    /** The min-UTxO of the deposit output itself (the vault address, its value and the inline datum). */
+    private static BigInteger minUtxo(ProtocolParams params, RegistryEntryV1 vault, BigInteger quantity,
+                                      PlutusData datum) {
+        AssetId asset = vault.asset();
+        Value value = asset.isAda() ? Value.builder().coin(quantity).build() : Value.builder()
+                .coin(BigInteger.ONE)
+                .multiAssets(List.of(new MultiAsset(HEX.formatHex(asset.policyId()),
+                        List.of(new Asset("0x" + HEX.formatHex(asset.assetName()), quantity)))))
+                .build();
+        TransactionOutput output = TransactionOutput.builder().address(vault.vaultAddress()).value(value)
+                .inlineDatum(datum).build();
+        return new MinAdaCalculator(params).calculateMinAda(output);
     }
 
     static BigInteger tokenQuantity(Value value, AssetId asset) {

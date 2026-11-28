@@ -271,6 +271,26 @@ class AssetPaymentsDomainApiTest {
     }
 
     @Test
+    void theDepositOutputNeverFallsBelowItsMinUtxo() throws Exception {
+        ledger.block(T0, register(alice));
+        List<String> utxos = List.of(
+                cip30Utxo(filled(32, 0x11), 0, alice.address(), 50_000_000, null, 0),
+                cip30Utxo(filled(32, 0x12), 1, alice.address(), 3_000_000, USDM, 1_000));
+        // A token deposit asking for no lovelace still carries the output's min-UTxO, which becomes the credit.
+        JsonNode token = depositVia(USDM_VAULT, 10, 0, utxos);
+        long lovelace = Long.parseLong(token.path("outputLovelace").asText());
+        assertThat(lovelace).isGreaterThan(900_000).isLessThan(2_000_000);
+        assertThat(ledger.minAda(USDM_VAULT, alice)).isEqualTo(BigInteger.valueOf(lovelace));
+        // An ADA deposit below its own min-UTxO is a bad request.
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("vaultId", ADA_VAULT.hex());
+        request.put("quantity", "500000");
+        request.put("changeAddress", HEX.formatHex(alice.address()));
+        request.put("utxos", utxos);
+        assertThat(build(request, 400).path("message").asText()).contains("min-UTxO");
+    }
+
+    @Test
     void depositInstructionsAndTheBuilderRefuseAnUnregisteredBeneficiary() throws Exception {
         Map<String, List<String>> query = Map.of("address", List.of(HEX.formatHex(alice.address())));
         JsonNode refused = call(AssetPaymentsDomainApi.DEPOSIT_INSTRUCTIONS, DomainHttpMethod.GET,
