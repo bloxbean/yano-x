@@ -627,6 +627,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         accounts.reserve(body.vaultId(), accountId, amount, lovelace);
         payouts(state).writeReserved(state, leaf);
         state.put(AssetPaymentsContract.claimIndexKey(sequence), claimId.bytes());
+        state.put(AssetPaymentsContract.intentClaimKey(authorized.intentId()), claimId.bytes());
         state.put(AssetPaymentsContract.claimSequenceKey(), PaymentsRecords.encodeU64s(sequence + 1));
         if (batching && queued(asset, amount, lovelace)) enqueue(state, body.vaultId(), claimId, block.timestamp());
         return Result.accepted().about(asset, amount);

@@ -105,6 +105,15 @@ public final class AssetPaymentsContract {
         return concat(PREFIX, ascii("receipt/"), intentId.bytes());
     }
 
+    /**
+     * The claim an accepted {@code REQUEST_WITHDRAWAL} reserved: {@code intent-claim/<IntentId> -> ClaimId}. A
+     * {@code ClaimId} binds a dense claim sequence, not the intent, so this is the only exact link from a receipt to
+     * its claim when one account withdraws more than once in a block.
+     */
+    public static byte[] intentClaimKey(Hash32 intentId) {
+        return concat(PREFIX, ascii("intent-claim/"), intentId.bytes());
+    }
+
     public static byte[] claimSequenceKey() {
         return concat(PREFIX, ascii("claim-seq"));
     }
