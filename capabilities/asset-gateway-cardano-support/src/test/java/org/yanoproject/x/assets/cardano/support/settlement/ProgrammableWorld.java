@@ -268,9 +268,10 @@ final class ProgrammableWorld {
         return hash;
     }
 
+    /** The exact flat program as a reference script, without re-encoding it. */
     static PlutusV3Script script(byte[] flat) {
-        return JulcScriptAdapter.fromProgram(JulcScriptAdapter.toProgram(HexFormat.of().formatHex(
-                FlatTemplates.cborBytes(FlatTemplates.cborBytes(flat)))));
+        return PlutusV3Script.builder().type("PlutusScriptV3").cborHex(HexFormat.of().formatHex(
+                FlatTemplates.cborBytes(FlatTemplates.cborBytes(flat)))).build();
     }
 
     private static byte[] hash(Program program) {

@@ -5,8 +5,11 @@ import java.io.ByteArrayOutputStream;
 /**
  * Applies byte-string parameters to a compiled Plutus V3 template, without a UPLC toolchain: the result is the flat
  * program {@code [(...((template p1) p2)...) pn]} with every parameter a {@code data} constant ({@code B p}), exactly as
- * {@code Program.applyParams(PlutusData.bytes(p)...)} encodes it. The template's term is copied bit for bit; the walk
- * over it only finds where it ends (ADR-059 r23: the runtime derives the shard script of either backend).
+ * {@code Program.applyParams(PlutusData.bytes(p)...)} encodes it (ADR-059 r23: the runtime derives the shard script of
+ * either backend). The template's term is copied structurally: every bit is copied, except the filler before each
+ * byte string, which is rewritten for the byte string's new position. With an even number of parameters the prefix
+ * of {@code Apply} tags is a whole number of bytes and the copy is bit for bit; with an odd number (the CIP-113 exit
+ * delegate's 27, ADR-061) the byte strings move by half a byte and their fillers change.
  *
  * <p>Flat encoding (Plutus Core spec, appendix C): version {@code 1.1.0} as three naturals, then the term, then a
  * filler {@code 0* 1} to the byte boundary. Term tags are 4 bits; a constant carries its type as a list of 4-bit type
@@ -33,17 +36,16 @@ final class FlatTemplates {
         if (template.length < 4 || template[0] != 1 || template[1] != 1 || template[2] != 0) {
             throw new IllegalArgumentException("not a Plutus 1.1.0 flat program");
         }
-        Reader reader = new Reader(template, 24);
+        Writer writer = new Writer();
+        for (int i = 0; i < 24; i++) writer.bit(bit(template, i));
+        for (int i = 0; i < params.length; i++) writer.bits(0b0011, 4); // Apply
+        Reader reader = new Reader(template, 24, writer);
         reader.term();
-        long termEnd = reader.position;
+        reader.mute();
         reader.filler();
         if (reader.position != 8L * template.length) {
             throw new IllegalArgumentException("trailing bytes after the program");
         }
-        Writer writer = new Writer();
-        for (int i = 0; i < 24; i++) writer.bit(bit(template, i));
-        for (int i = 0; i < params.length; i++) writer.bits(0b0011, 4); // Apply
-        for (long i = 24; i < termEnd; i++) writer.bit(bit(template, i));
         for (byte[] param : params) {
             writer.bits(0b0100, 4); // Constant
             writer.bits(0b1, 1);    // type list: one tag
@@ -83,19 +85,32 @@ final class FlatTemplates {
         return (bytes[(int) (index >>> 3)] >>> (7 - (int) (index & 7))) & 1;
     }
 
-    /** Walks one flat term and reports where it ends. */
+    /** Walks one flat term, copying it to {@code echo} (when given) with each byte string's filler rewritten. */
     private static final class Reader {
         private final byte[] bytes;
+        private final Writer echo;
+        private boolean muted;
         long position;
 
         Reader(byte[] bytes, long position) {
+            this(bytes, position, null);
+        }
+
+        Reader(byte[] bytes, long position, Writer echo) {
             this.bytes = bytes;
             this.position = position;
+            this.echo = echo;
+        }
+
+        void mute() {
+            muted = true;
         }
 
         int bit() {
             if (position >= 8L * bytes.length) throw new IllegalArgumentException("truncated flat program");
-            return FlatTemplates.bit(bytes, position++);
+            int value = FlatTemplates.bit(bytes, position++);
+            if (echo != null && !muted) echo.bit(value);
+            return value;
         }
 
         int bits(int count) {
@@ -117,11 +132,25 @@ final class FlatTemplates {
             }
         }
 
+        /** A filler, then chunks of at most 255 bytes, each after its length byte, and a 0 byte; all byte-aligned. */
         void byteString() {
+            boolean was = muted;
+            muted = true;
             filler();
+            if (echo != null && !was) echo.filler();
             int length;
-            while ((length = bits(8)) != 0) position += 8L * length;
-            if (position > 8L * bytes.length) throw new IllegalArgumentException("truncated byte string");
+            do {
+                length = bits(8);
+                if (position + 8L * length > 8L * bytes.length) {
+                    throw new IllegalArgumentException("truncated byte string");
+                }
+                if (echo != null && !was) {
+                    echo.rawByte(length);
+                    for (int i = 0; i < length; i++) echo.rawByte(bytes[(int) (position / 8) + i] & 0xff);
+                }
+                position += 8L * length;
+            } while (length != 0);
+            muted = was;
         }
 
         void term() {
@@ -224,6 +253,12 @@ final class FlatTemplates {
         void filler() {
             while (used != 7) bit(0);
             bit(1);
+        }
+
+        /** One whole byte at a byte boundary (after a filler). */
+        void rawByte(int value) {
+            if (used != 0) throw new IllegalStateException("unaligned");
+            out.write(value);
         }
 
         void byteString(byte[] value) {

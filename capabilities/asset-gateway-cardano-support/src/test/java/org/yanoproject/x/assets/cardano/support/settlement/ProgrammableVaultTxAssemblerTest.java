@@ -54,6 +54,38 @@ class ProgrammableVaultTxAssemblerTest {
     }
 
     @Test
+    void theDerivedCustodyScriptsAreJulcsParameterApplication() throws Exception {
+        ProgrammableWorld world = new ProgrammableWorld();
+        java.nio.file.Path onchain = java.nio.file.Path.of("../asset-gateway-onchain/src/main/resources/META-INF/plutus");
+        List<org.julclang.core.PlutusData> params = new ArrayList<>();
+        ProgrammableBackend.Parameters p = world.parameters;
+        for (byte[] data : p.delegateData()) {
+            params.add(org.julclang.core.cbor.PlutusDataCborDecoder.decode(data));
+        }
+        org.julclang.core.Program delegate = template(onchain.resolve("ProgrammableVaultExitDelegate.plutus.json"))
+                .applyParams(params.toArray(new org.julclang.core.PlutusData[0]));
+        assertThat(HexFormat.of().formatHex(world.custody.exitDelegateHash()))
+                .isEqualTo(org.julclang.clientlib.JulcScriptAdapter.scriptHash(delegate));
+        params.add(org.julclang.core.PlutusData.bytes(world.custody.exitDelegateHash()));
+        org.julclang.core.Program custody = template(onchain.resolve("ProgrammableVaultValidator.plutus.json"))
+                .applyParams(params.toArray(new org.julclang.core.PlutusData[0]));
+        assertThat(HexFormat.of().formatHex(world.custody.custodyHash()))
+                .isEqualTo(org.julclang.clientlib.JulcScriptAdapter.scriptHash(custody));
+        // The exact derived bytes, published as a reference script, hash to the derived hash.
+        assertThat(HexFormat.of().formatHex(ProgrammableWorld.script(world.custody.exitDelegateFlat()).getScriptHash()))
+                .isEqualTo(HexFormat.of().formatHex(world.custody.exitDelegateHash()));
+        assertThat(HexFormat.of().formatHex(ProgrammableWorld.script(world.custody.custodyFlat()).getScriptHash()))
+                .isEqualTo(HexFormat.of().formatHex(world.custody.custodyHash()));
+    }
+
+    static org.julclang.core.Program template(java.nio.file.Path file) throws Exception {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\"cborHex\"\\s*:\\s*\"([0-9a-fA-F]+)\"")
+                .matcher(java.nio.file.Files.readString(file));
+        assertThat(matcher.find()).isTrue();
+        return org.julclang.clientlib.JulcScriptAdapter.toProgram(matcher.group(1));
+    }
+
+    @Test
     void anAssembledSettlePassesEveryScript() throws Exception {
         ProgrammableWorld world = new ProgrammableWorld();
         ProgrammableVaultTxAssembler.Assembled settle = settle(world, 4, 3);
