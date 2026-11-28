@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -138,7 +139,7 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
             "cip113.exit-delegate-hash", "cip113.substandard", "cip113.substandard-version", "cip113.params-outpoint",
             "cip113.dispatcher", "cip113.issuance-logic", "cip113.transfer", "cip113.third-party",
             "cip113.transfer-delegate", "cip113.third-party-delegate", "cip113.unfracking-delegate",
-            "cip113.baseline-transfer-logic", "cip113.baseline-global-state");
+            "cip113.baseline-transfer-logic", "cip113.baseline-global-state", "cip113.issuance-logic-kind");
 
     AssetPaymentsSettings {
         vaults = List.copyOf(vaults);
@@ -237,6 +238,7 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
             }
         }
         boolean programmable = vaults.stream().anyMatch(vault -> vault.custody().isPresent());
+        requireOneDeployment(vaults);
         Optional<String> wiringId = programmable
                 ? Optional.of(required(settings, "cip113.wiring-observer-id")) : Optional.empty();
         // I48: every wiring observation of a block is recorded before its deposits are admitted, which the
@@ -297,7 +299,53 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                 hex(required(settings, c + "third-party-delegate"), 28, c + "third-party-delegate"),
                 hex(optional(settings, c + "unfracking-delegate", "00".repeat(28)), 28, c + "unfracking-delegate"),
                 hex(required(settings, c + "baseline-transfer-logic"), 28, c + "baseline-transfer-logic"),
-                HexFormat.of().parseHex(optional(settings, c + "baseline-global-state", ""))));
+                HexFormat.of().parseHex(optional(settings, c + "baseline-global-state", "")),
+                switch (optional(settings, c + "issuance-logic-kind", "script")) {
+                    case "script" -> 0;
+                    // The pinned params validator accepts a key credential in field 1 (ADR-061 r5).
+                    case "key" -> 0b0010;
+                    default -> throw new IllegalArgumentException(c + "issuance-logic-kind must be script or key");
+                }));
+    }
+
+    /**
+     * ADR-061 D6, D12 (r5): every CIP-113 vault of a domain is on one deployment, so the one wiring observer's
+     * {@code params-policy} records the wiring of exactly that deployment, and the vaults agree on its wiring version
+     * 0 and delegates, and on one custody backend (the observers' {@code programmable-backend}).
+     */
+    private static void requireOneDeployment(List<PaymentsRecords.RegistryEntryV1> vaults) {
+        PaymentsRecords.Cip113Custody first = null;
+        for (PaymentsRecords.RegistryEntryV1 vault : vaults) {
+            if (vault.custody().isEmpty()) continue;
+            PaymentsRecords.Cip113Custody custody = vault.custody().get();
+            if (first == null) {
+                first = custody;
+                continue;
+            }
+            if (!Arrays.equals(first.paramsPolicy(), custody.paramsPolicy())
+                    || !Arrays.equals(first.plbHash(), custody.plbHash())) {
+                throw new IllegalArgumentException(PREFIX + "every CIP-113 vault of a domain is on one deployment"
+                        + " (one params policy and PLB hash)");
+            }
+            if (!first.backend().equals(custody.backend())) {
+                throw new IllegalArgumentException(PREFIX + "every CIP-113 vault of a domain has one custody backend");
+            }
+            boolean sameWiring0 = first.params0TxId().equals(custody.params0TxId())
+                    && first.params0Index() == custody.params0Index() && first.wiring0().equals(custody.wiring0())
+                    && Arrays.equals(first.transferDelegate(), custody.transferDelegate())
+                    && Arrays.equals(first.thirdPartyDelegate(), custody.thirdPartyDelegate())
+                    && Arrays.equals(first.unfrackingDelegate(), custody.unfrackingDelegate());
+            if (!sameWiring0) {
+                throw new IllegalArgumentException(PREFIX + "the CIP-113 vaults of one deployment pin different"
+                        + " wiring version 0 or delegate hashes");
+            }
+        }
+    }
+
+    /** ADR-061: the params policy of the domain's one CIP-113 deployment, when it has CIP-113 vaults. */
+    Optional<byte[]> cip113ParamsPolicy() {
+        return vaults.stream().flatMap(vault -> vault.custody().stream()).findFirst()
+                .map(PaymentsRecords.Cip113Custody::paramsPolicy);
     }
 
     /** The CIP-113 wiring topic, when a CIP-113 vault is registered. */
@@ -335,6 +383,9 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                 "settlement.expiry-blocks=" + settlement.expiryBlocks(),
                 "settlement.min-queued-vault-lovelace=" + settlement.minQueuedVaultLovelace(),
                 "retire-after-wind-down-ms=" + retireAfterWindDownMs));
+        // ADR-061 (r5): the wiring observer whose observations the ledger records is part of a CIP-113 domain's
+        // configuration; a native domain's digest is unchanged.
+        wiringObserverId.ifPresent(id -> fields.add("cip113.wiring-observer-id=" + id));
         for (PaymentsRecords.RegistryEntryV1 vault : vaults) fields.add("vault=" + HexFormat.of().formatHex(vault.encode()));
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -383,15 +434,31 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         expected.put("min-stability-depth", String.valueOf(minStabilityDepth));
         // ADR-061 D6: the wiring observer pins only the deployment's params policy, never the vaults or the wiring.
         boolean wiring = type.equals(WIRING_OBSERVER_TYPE);
+        if (wiring) {
+            // r5: the wiring observer reports the outputs of exactly this domain's deployment.
+            cip113ParamsPolicy().ifPresent(policy -> expected.put("params-policy", HexFormat.of().formatHex(policy)));
+        }
         for (int index = 0; !wiring && index < vaults.size(); index++) {
             PaymentsRecords.RegistryEntryV1 vault = vaults.get(index);
             expected.put("vaults." + index + ".asset", vault.asset().toString());
             expected.put("vaults." + index + ".script-hash", HexFormat.of().formatHex(vault.scriptHash()));
             expected.put("vaults." + index + ".address", vault.vaultAddress());
+            String v = "vaults." + index + ".";
+            String c = v + "cip113.";
+            vault.custody().ifPresent(custody -> {
+                // ADR-061 D3: the observers pin the same custody: deployment, e and backend.
+                expected.put(v + "custody", "cip113");
+                expected.put(c + "plb-hash", HexFormat.of().formatHex(custody.plbHash()));
+                expected.put(c + "exit-delegate-hash", HexFormat.of().formatHex(custody.exitDelegateHash()));
+                if (type.equals(OBSERVER_TYPE)) {
+                    expected.put(c + "params-policy", HexFormat.of().formatHex(custody.paramsPolicy()));
+                }
+                expected.put("programmable-backend", custody.backend());
+            });
         }
         Map<String, String> defaults = Map.of("domain.application-id", "asset-payments",
                 "domain.profile-id", "anchored-claim-vault-v1", "domain.profile-version", "1",
-                "min-stability-depth", "1");
+                "min-stability-depth", "1", "programmable-backend", "julc");
         expected.forEach((key, value) -> {
             String actual = all.get(observer + key);
             actual = actual == null || actual.isBlank() ? defaults.get(key) : actual.trim();

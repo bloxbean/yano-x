@@ -68,4 +68,27 @@ class PaymentsGovernanceCodecTest {
         assertThatThrownBy(() -> new Proposal(command, 0, 0, key(1), List.of(key(1), key(1))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    /** ADR-061 D14, D6: the CIP-113 governed commands round-trip and fit the command bound. */
+    @Test
+    void theCip113CommandsRoundTrip() {
+        byte[] policy = new byte[28];
+        java.util.Arrays.fill(policy, (byte) 0x1d);
+        List<Command> commands = List.of(
+                new Command(1, new PaymentsGovernanceV1.AssetHold(VAULT, PaymentsGovernanceV1.HoldReason.FREEZE)),
+                new Command(2, new PaymentsGovernanceV1.AssetResume(VAULT)),
+                new Command(3, new PaymentsGovernanceV1.AssetRewire(policy, VAULT, 7, policy, policy, policy)));
+        for (Command command : commands) {
+            byte[] bytes = command.encode();
+            assertThat(bytes.length).isLessThanOrEqualTo(PaymentsGovernanceV1.MAX_COMMAND_BYTES);
+            assertThat(Command.decode(bytes)).isEqualTo(command);
+        }
+        assertThat(HexFormat.of().formatHex(commands.get(1).encode())).isEqualTo("830102" + "8204" + "5820"
+                + VAULT.hex());
+        // An unknown hold reason, or a rewire with the wrong arity, does not decode.
+        assertThatThrownBy(() -> Command.decode(HexFormat.of().parseHex("830102" + "8303" + "5820" + VAULT.hex()
+                + "09"))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Command.decode(HexFormat.of().parseHex("830102" + "8205" + "581c"
+                + "1d".repeat(28)))).isInstanceOf(IllegalArgumentException.class);
+    }
 }

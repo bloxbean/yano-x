@@ -26,7 +26,14 @@ import java.util.Optional;
  *   [0, vault_id, status]   ASSET_STATUS: move one registry entry to a new lifecycle status (D14)
  *   [1]                     PAUSE:  domain status leaf ACTIVE → PAUSED (D8a)
  *   [2]                     RESUME: domain status leaf PAUSED → ACTIVE (D8a)
+ *   [3, vault_id, reason]   ASSET_HOLD: a CIP-113 asset → ISSUER_HOLD after an attributed issuer event (ADR-061 D14)
+ *   [4, vault_id]           ASSET_RESUME: a held CIP-113 asset → ACTIVE (ADR-061 D14)
+ *   [5, params_policy, [tx_id, index], transfer_delegate, third_party_delegate, unfracking_delegate]
+ *                           ASSET_REWIRE: approve the head wiring version of the CIP-113 deployment of
+ *                           {@code params_policy} with the reviewed delegate hashes (ADR-061 D6)
  * </pre>
+ * {@code ASSET_STATUS} never moves an asset into or out of {@code ISSUER_HOLD}: only {@code ASSET_HOLD} and
+ * {@code ASSET_RESUME} do.
  * {@code sequence} must equal the number of governance commands the ledger has decided so far
  * ({@code ap/gov-seq}). Deciding a command, applied or refused, advances it and voids every open proposal, so a
  * command takes effect at most once, a late copy of a decided command is stale, and approvals for an old state never
@@ -57,8 +64,113 @@ public final class PaymentsGovernanceV1 {
     }
 
     /** One governed action. */
-    public sealed interface Action permits AssetStatusChange, Pause, Resume {
+    public sealed interface Action permits AssetStatusChange, Pause, Resume, AssetHold, AssetResume, AssetRewire {
         int code();
+    }
+
+    /** Why members hold a CIP-113 asset (ADR-061 D14 detection): the command records it; it changes no rule. */
+    public enum HoldReason {
+        SHORTFALL(0), FREEZE(1), DRIFT(2), OTHER(3);
+
+        private final int code;
+
+        HoldReason(int code) {
+            this.code = code;
+        }
+
+        public int code() {
+            return code;
+        }
+
+        public static HoldReason fromCode(long code) {
+            for (HoldReason reason : values()) if (reason.code == code) return reason;
+            throw AssetCbor.malformed("unknown hold reason");
+        }
+    }
+
+    /** {@code ASSET_HOLD(VaultId, reason)} (ADR-061 D14). */
+    public record AssetHold(Hash32 vaultId, HoldReason reason) implements Action {
+        public AssetHold {
+            Objects.requireNonNull(vaultId, "vault id");
+            Objects.requireNonNull(reason, "reason");
+        }
+
+        @Override
+        public int code() {
+            return 3;
+        }
+    }
+
+    /** {@code ASSET_RESUME(VaultId)} (ADR-061 D14). */
+    public record AssetResume(Hash32 vaultId) implements Action {
+        public AssetResume {
+            Objects.requireNonNull(vaultId, "vault id");
+        }
+
+        @Override
+        public int code() {
+            return 4;
+        }
+    }
+
+    /**
+     * {@code ASSET_REWIRE(deployment, versionOutpoint, delegateHashes)} (ADR-061 D6): the deployment by its params
+     * policy, the wiring version by its params outpoint (it must be the head), and the reviewed delegate hashes.
+     */
+    public record AssetRewire(byte[] paramsPolicy, Hash32 versionTxId, long versionIndex, byte[] transferDelegate,
+                              byte[] thirdPartyDelegate, byte[] unfrackingDelegate) implements Action {
+        public AssetRewire {
+            paramsPolicy = hash28(paramsPolicy, "params policy");
+            Objects.requireNonNull(versionTxId, "version tx id");
+            if (versionIndex < 0 || versionIndex > 65_535) throw new IllegalArgumentException("version index");
+            transferDelegate = hash28(transferDelegate, "transfer delegate");
+            thirdPartyDelegate = hash28(thirdPartyDelegate, "third-party delegate");
+            unfrackingDelegate = hash28(unfrackingDelegate, "unfracking delegate");
+        }
+
+        @Override
+        public byte[] paramsPolicy() {
+            return paramsPolicy.clone();
+        }
+
+        @Override
+        public byte[] transferDelegate() {
+            return transferDelegate.clone();
+        }
+
+        @Override
+        public byte[] thirdPartyDelegate() {
+            return thirdPartyDelegate.clone();
+        }
+
+        @Override
+        public byte[] unfrackingDelegate() {
+            return unfrackingDelegate.clone();
+        }
+
+        @Override
+        public int code() {
+            return 5;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof AssetRewire that && Arrays.equals(paramsPolicy, that.paramsPolicy)
+                    && versionTxId.equals(that.versionTxId) && versionIndex == that.versionIndex
+                    && Arrays.equals(transferDelegate, that.transferDelegate)
+                    && Arrays.equals(thirdPartyDelegate, that.thirdPartyDelegate)
+                    && Arrays.equals(unfrackingDelegate, that.unfrackingDelegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(paramsPolicy) * 31 + versionTxId.hashCode();
+        }
+
+        private static byte[] hash28(byte[] value, String name) {
+            if (value == null || value.length != 28) throw new IllegalArgumentException(name + " must be 28 bytes");
+            return value.clone();
+        }
     }
 
     /** {@code ASSET_STATUS}: a lifecycle change of one registry entry. */
@@ -102,9 +214,28 @@ public final class PaymentsGovernanceV1 {
             array.add(AssetCbor.uint(sequence));
             Array body = new Array();
             body.add(AssetCbor.uint(action.code()));
-            if (action instanceof AssetStatusChange change) {
-                body.add(AssetCbor.bstr(change.vaultId().bytes()));
-                body.add(AssetCbor.uint(change.status().code()));
+            switch (action) {
+                case AssetStatusChange change -> {
+                    body.add(AssetCbor.bstr(change.vaultId().bytes()));
+                    body.add(AssetCbor.uint(change.status().code()));
+                }
+                case AssetHold hold -> {
+                    body.add(AssetCbor.bstr(hold.vaultId().bytes()));
+                    body.add(AssetCbor.uint(hold.reason().code()));
+                }
+                case AssetResume resume -> body.add(AssetCbor.bstr(resume.vaultId().bytes()));
+                case AssetRewire rewire -> {
+                    body.add(AssetCbor.bstr(rewire.paramsPolicy()));
+                    Array version = new Array();
+                    version.add(AssetCbor.bstr(rewire.versionTxId().bytes()));
+                    version.add(AssetCbor.uint(rewire.versionIndex()));
+                    body.add(version);
+                    body.add(AssetCbor.bstr(rewire.transferDelegate()));
+                    body.add(AssetCbor.bstr(rewire.thirdPartyDelegate()));
+                    body.add(AssetCbor.bstr(rewire.unfrackingDelegate()));
+                }
+                case Pause ignored -> { }
+                case Resume ignored -> { }
             }
             array.add(body);
             return AssetCbor.encode(array);
@@ -117,7 +248,7 @@ public final class PaymentsGovernanceV1 {
             List<DataItem> items = AssetCbor.decodeArray(bytes, 3).getDataItems();
             if (AssetCbor.uintLong(items.get(0)) != VERSION) throw AssetCbor.malformed("governance command version");
             long sequence = AssetCbor.uintLong(items.get(1));
-            List<DataItem> body = AssetCbor.array(items.get(2), 1, 3).getDataItems();
+            List<DataItem> body = AssetCbor.array(items.get(2), 1, 6).getDataItems();
             long code = AssetCbor.uintLong(body.getFirst());
             Action action = switch ((int) Math.min(code, Integer.MAX_VALUE)) {
                 case 0 -> {
@@ -132,6 +263,25 @@ public final class PaymentsGovernanceV1 {
                 case 2 -> {
                     if (body.size() != 1) throw AssetCbor.malformed("RESUME takes no arguments");
                     yield new Resume();
+                }
+                case 3 -> {
+                    if (body.size() != 3) throw AssetCbor.malformed("ASSET_HOLD takes a vault and a reason");
+                    yield new AssetHold(Hash32.of(AssetCbor.bytes(body.get(1), 32, 32)),
+                            HoldReason.fromCode(AssetCbor.uintLong(body.get(2))));
+                }
+                case 4 -> {
+                    if (body.size() != 2) throw AssetCbor.malformed("ASSET_RESUME takes a vault");
+                    yield new AssetResume(Hash32.of(AssetCbor.bytes(body.get(1), 32, 32)));
+                }
+                case 5 -> {
+                    if (body.size() != 6) throw AssetCbor.malformed("ASSET_REWIRE takes six fields");
+                    List<DataItem> version = AssetCbor.array(body.get(2), 2, 2).getDataItems();
+                    long index = AssetCbor.uintLong(version.get(1));
+                    if (index > 65_535) throw AssetCbor.malformed("ASSET_REWIRE version index");
+                    yield new AssetRewire(AssetCbor.bytes(body.get(1), 28, 28),
+                            Hash32.of(AssetCbor.bytes(version.get(0), 32, 32)), index,
+                            AssetCbor.bytes(body.get(3), 28, 28), AssetCbor.bytes(body.get(4), 28, 28),
+                            AssetCbor.bytes(body.get(5), 28, 28));
                 }
                 default -> throw AssetCbor.malformed("unknown governance action");
             };

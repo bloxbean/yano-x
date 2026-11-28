@@ -116,7 +116,10 @@ public final class PaymentsRecords {
      *       transfer and third-party credentials) and that dispatcher's delegate hashes (transfer, third party,
      *       unfracking);</li>
      *   <li>the registry-node baseline (the transfer logic and {@code global_state_cs} at registration), for the
-     *       drift flag only.</li>
+     *       drift flag only;</li>
+     *   <li>{@code wiringKeys}: the bitmap of the wiring-0 fields that are verification-key credentials (bit 1 for a
+     *       key issuance logic, which the pinned params validator accepts), encoded as a 21st element only when it is
+     *       not zero.</li>
      * </ul>
      */
     public record Cip113Custody(byte[] bootstrapTxHash, byte[] paramsPolicy, byte[] plbHash, byte[] registryNodePolicy,
@@ -124,7 +127,26 @@ public final class PaymentsRecords {
                                 int substandardVersion, Hash32 params0TxId, int params0Index, byte[] dispatcher,
                                 byte[] issuanceLogic, byte[] transferCredential, byte[] thirdPartyCredential,
                                 byte[] transferDelegate, byte[] thirdPartyDelegate, byte[] unfrackingDelegate,
-                                byte[] baselineTransferLogic, byte[] baselineGlobalStateCs) {
+                                byte[] baselineTransferLogic, byte[] baselineGlobalStateCs, int wiringKeys) {
+        /** Wiring-0 fields that are all script credentials. */
+        public Cip113Custody(byte[] bootstrapTxHash, byte[] paramsPolicy, byte[] plbHash, byte[] registryNodePolicy,
+                             int maxInlineDatumBytes, String backend, byte[] exitDelegateHash, String substandard,
+                             int substandardVersion, Hash32 params0TxId, int params0Index, byte[] dispatcher,
+                             byte[] issuanceLogic, byte[] transferCredential, byte[] thirdPartyCredential,
+                             byte[] transferDelegate, byte[] thirdPartyDelegate, byte[] unfrackingDelegate,
+                             byte[] baselineTransferLogic, byte[] baselineGlobalStateCs) {
+            this(bootstrapTxHash, paramsPolicy, plbHash, registryNodePolicy, maxInlineDatumBytes, backend,
+                    exitDelegateHash, substandard, substandardVersion, params0TxId, params0Index, dispatcher,
+                    issuanceLogic, transferCredential, thirdPartyCredential, transferDelegate, thirdPartyDelegate,
+                    unfrackingDelegate, baselineTransferLogic, baselineGlobalStateCs, 0);
+        }
+
+        /** Wiring version 0's fields, credential kinds included. */
+        public org.yanoproject.x.assets.contracts.Cip113WiringClaimV1.Fields wiring0() {
+            return new org.yanoproject.x.assets.contracts.Cip113WiringClaimV1.Fields(dispatcher, issuanceLogic,
+                    transferCredential, thirdPartyCredential, wiringKeys);
+        }
+
         public Cip113Custody {
             bootstrapTxHash = fixed(bootstrapTxHash, 32, "bootstrap tx hash");
             paramsPolicy = fixed(paramsPolicy, 28, "params policy");
@@ -144,7 +166,9 @@ public final class PaymentsRecords {
             if (maxInlineDatumBytes < 40 || maxInlineDatumBytes > 65_536 || params0Index < 0
                     || !("julc".equals(backend) || "aiken".equals(backend))
                     || substandard == null || substandard.isEmpty() || substandard.length() > 32
-                    || substandardVersion < 0 || baselineGlobalStateCs.length > 28) {
+                    || substandardVersion < 0 || baselineGlobalStateCs.length > 28
+                    // The dispatcher is a withdrawal script, so it is never a key credential.
+                    || wiringKeys < 0 || wiringKeys > 0b1110) {
                 throw new IllegalArgumentException("invalid CIP-113 custody pins");
             }
         }
@@ -171,11 +195,14 @@ public final class PaymentsRecords {
                     baselineGlobalStateCs)) {
                 array.add(AssetCbor.bstr(value));
             }
+            if (wiringKeys != 0) array.add(AssetCbor.uint(wiringKeys));
             return array;
         }
 
         static Cip113Custody decode(DataItem item) {
-            List<DataItem> f = AssetCbor.array(item, 20, 20).getDataItems();
+            List<DataItem> f = AssetCbor.array(item, 20, 21).getDataItems();
+            long keys = f.size() == 21 ? AssetCbor.uintLong(f.get(20)) : 0;
+            if (f.size() == 21 && (keys == 0 || keys > 0b1110)) throw AssetCbor.malformed("CIP-113 wiring kinds");
             return new Cip113Custody(AssetCbor.bytes(f.get(0), 32, 32), AssetCbor.bytes(f.get(1), 28, 28),
                     AssetCbor.bytes(f.get(2), 28, 28), AssetCbor.bytes(f.get(3), 28, 28),
                     (int) AssetCbor.uintLong(f.get(4)), AssetCbor.text(f.get(5), 8), AssetCbor.bytes(f.get(6), 28, 28),
@@ -185,7 +212,7 @@ public final class PaymentsRecords {
                     AssetCbor.bytes(f.get(13), 28, 28), AssetCbor.bytes(f.get(14), 28, 28),
                     AssetCbor.bytes(f.get(15), 28, 28), AssetCbor.bytes(f.get(16), 28, 28),
                     AssetCbor.bytes(f.get(17), 28, 28), AssetCbor.bytes(f.get(18), 28, 28),
-                    AssetCbor.bytes(f.get(19), 0, 28));
+                    AssetCbor.bytes(f.get(19), 0, 28), (int) keys);
         }
     }
 

@@ -9,8 +9,8 @@ import java.util.Optional;
 
 /**
  * ADR-061 D14 and D6: the state transitions of the governed {@code ASSET_HOLD}, {@code ASSET_RESUME} and
- * {@code ASSET_REWIRE} commands, as deterministic functions of ledger state. This ledger has no governed command
- * path yet (059's governed asset commands are a later milestone); these are what that path applies.
+ * {@code ASSET_REWIRE} commands, as deterministic functions of ledger state. {@link PaymentsGovernance} applies them
+ * once a threshold of members approves the command ({@code PaymentsGovernanceV1}), and records the decision.
  *
  * <ul>
  *   <li>{@code ASSET_HOLD(VaultId, reason)} sets a CIP-113 asset's status to {@code ISSUER_HOLD}; it never touches the
@@ -21,7 +21,7 @@ import java.util.Optional;
  * </ul>
  */
 final class Cip113Governance {
-    enum Result { APPLIED, UNKNOWN_VAULT, NOT_CIP113, NOT_HELD, ALREADY_HELD }
+    enum Result { APPLIED, UNKNOWN_VAULT, NOT_CIP113, NOT_HELD, ALREADY_HELD, RETIRED_IS_FINAL }
 
     private Cip113Governance() {
     }
@@ -31,6 +31,7 @@ final class Cip113Governance {
         if (entry.isEmpty()) return Result.UNKNOWN_VAULT;
         if (entry.get().custody().isEmpty()) return Result.NOT_CIP113;
         if (entry.get().status().held()) return Result.ALREADY_HELD;
+        if (entry.get().status() == PaymentsRecords.AssetStatus.RETIRED) return Result.RETIRED_IS_FINAL;
         state.put(AssetPaymentsContract.registryKey(vaultId),
                 entry.get().withStatus(PaymentsRecords.AssetStatus.ISSUER_HOLD).encode());
         return Result.APPLIED;
