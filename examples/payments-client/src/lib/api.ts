@@ -1,7 +1,10 @@
 /**
- * The payments domain API (/api/v1/plugins/org.yanoproject.x.asset-payments/chains/{chain}/payments/...) and the two
- * host routes the client also needs: the ordinary message SUBMIT route and the native state proof route.
+ * The payments domain API (/api/v1/plugins/org.yanoproject.x.asset-payments/chains/{chain}/payments/...) and the
+ * host routes the client also needs: the ordinary message SUBMIT route, the native state proof route, and the public
+ * read routes the explorer uses (tip, blocks, messages and the SSE stream), whose responses are checked in chain.ts.
  */
+import { parseBlock, parseBlockPage, parseMessage, parseTip, type Block, type BlockPage, type ChainMessage,
+  type Tip } from './chain';
 import { proofPath, type Fact, type NativeProof } from './proof';
 
 export const BUNDLE = 'org.yanoproject.x.asset-payments';
@@ -46,6 +49,9 @@ export interface Info {
   intentDomain: { networkMagic: number; addressNetworkId: number; chainId: string; genesisId: string;
     applicationId: string };
   maxIntentTtlMs: number;
+  /** The observer ids whose ~l1/<id> topics carry deposit and payout observations. */
+  depositObserverId?: string;
+  payoutObserverId?: string;
   withdrawalsEnabled: boolean;
   minAdaPayout: string;
   payoutLovelaceCap: string;
@@ -105,6 +111,15 @@ export interface ReceiptView {
   withdrawals?: WithdrawalView[];
 }
 
+export interface AddressView {
+  addressHex: string;
+  credentialKind: string;
+  keyHash: string;
+  addressNetworkId: number;
+  networkMatches: boolean;
+  accountId: string;
+}
+
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
     super(message);
@@ -135,6 +150,10 @@ export class PaymentsApi {
     return `${this.nodeUrl}/plugins/${BUNDLE}/chains/${encodeURIComponent(this.chainId)}/payments/`;
   }
 
+  private get chainBase(): string {
+    return `${this.nodeUrl}/app-chain/chains/${encodeURIComponent(this.chainId)}/`;
+  }
+
   info = () => this.get<Info>('info');
   account = (accountId: string) => this.get<AccountView>(`accounts/${accountId}`);
   sessions = (accountId: string) => this.get<{ grants: GrantView[]; committed: Committed }>(
@@ -147,8 +166,27 @@ export class PaymentsApi {
     this.get<Record<string, unknown>>(`vaults/${vaultId}/deposit-instructions?address=${addressHex}`
       + `&account=${accountId}`);
   deposit = (vaultId: string, txId: string, index: number) =>
-    this.get<{ found: boolean; deposit?: { status: string; reason: string; creditedAmount: string } }>(
-      `vaults/${vaultId}/deposits/${txId}/${index}`);
+    this.get<{ found: boolean; deposit?: { status: string; reason: string; creditedAmount: string };
+      committed?: Committed; proof?: ProofRef }>(`vaults/${vaultId}/deposits/${txId}/${index}`);
+  /** The account of a raw address (hex), as the ledger derives it. */
+  address = (addressHex: string) => this.get<AddressView>(`addresses/${addressHex}`);
+
+  // ---------------------------------------------------------------- public chain reads (explorer)
+
+  tip = async (): Promise<Tip> => parseTip(await this.chainGet('tip'));
+  /** Block summaries, ascending; without {@code from}, the page ending at the tip. */
+  blocks = async (from: number | null, limit: number): Promise<BlockPage> => parseBlockPage(await this.chainGet(
+    `blocks?limit=${Math.max(1, Math.min(100, Math.floor(limit)))}${from !== null ? `&from=${Math.max(1, Math.floor(from))}` : ''}`));
+  block = async (height: number): Promise<Block> => {
+    if (!Number.isSafeInteger(height) || height < 0) throw new Error('not a block height');
+    return parseBlock(await this.chainGet(`blocks/${height}`));
+  };
+  message = async (messageId: string): Promise<ChainMessage> => {
+    if (!/^[0-9a-f]{64}$/.test(messageId)) throw new Error('a message id is 32 bytes of hex');
+    return parseMessage(await this.chainGet(`messages/${messageId}`));
+  };
+  /** The SSE stream of finalized messages from now on (EventSource cannot send the API key header). */
+  streamUrl = (): string => `${this.chainBase}stream`;
   buildDeposit = (request: Record<string, unknown>) => this.post<{
     unsignedTxCborHex: string; transactionId: string; fee: string; outputIndex: number; depositId: string;
     quantity: string; outputLovelace: string;
@@ -196,6 +234,11 @@ export class PaymentsApi {
     const text = await response.text();
     if (!response.ok) throw new ApiError(response.status, 'L1_SUBMIT', text);
     return text.replace(/"/g, '').trim();
+  }
+
+  private async chainGet(path: string): Promise<unknown> {
+    const url = this.chainBase + path;
+    return this.json<unknown>(await fetch(url, { headers: this.headers(url, false) }));
   }
 
   private async get<T>(path: string): Promise<T> {
