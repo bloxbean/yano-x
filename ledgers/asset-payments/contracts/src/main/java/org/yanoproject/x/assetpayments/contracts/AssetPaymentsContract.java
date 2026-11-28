@@ -33,8 +33,10 @@ import java.util.Set;
  * ap/settle-batch-seq            [next]              the next settlement batch sequence
  * ap/settle-batch/&lt;u64 be&gt;       SettlementBatchV1   an open asset.settlement.batch effect
  * ap/gov-seq                     [next]              governance commands decided so far (PaymentsGovernanceV1)
- * ap/gov-proposals               [* Proposal]        open governance proposals, at most 16
+ * ap/gov-proposals               [* Proposal]        open governance proposals, at most one per proposing member
  * ap/gov-history/&lt;u64 be&gt;       DecisionV1          one write-once record per decided governance command
+ * ap/wind-down/&lt;VaultId&gt;         [height, block_ms]  when the vault last entered WIND_DOWN; present only while
+ *                                                    it is in WIND_DOWN (RETIRED waits out the window from here)
  * </pre>
  *
  * <p>The used-intent queue is FIFO by insertion. Because every accepted intent expires within
@@ -143,6 +145,11 @@ public final class AssetPaymentsContract {
 
     public static byte[] governanceHistoryKey(long sequence) {
         return concat(PREFIX, ascii("gov-history/"), u64(sequence));
+    }
+
+    /** When the vault entered {@code WIND_DOWN}: the deciding block's height and timestamp (D14 retirement). */
+    public static byte[] windDownKey(Hash32 vaultId) {
+        return concat(PREFIX, ascii("wind-down/"), vaultId.bytes());
     }
 
     static byte[] u64(long value) {

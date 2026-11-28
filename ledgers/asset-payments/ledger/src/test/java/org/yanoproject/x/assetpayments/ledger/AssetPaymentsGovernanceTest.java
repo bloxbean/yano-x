@@ -158,20 +158,140 @@ class AssetPaymentsGovernanceTest {
         assertThat(domainStatus().status()).isEqualTo(DomainStatusV1.Status.HALTED);
     }
 
+    /** Two of the three members decide {@code command} in one block at {@code timestamp}; returns the decision. */
+    DecisionV1 decide(long timestamp, Command command) {
+        ledger.block(timestamp, governance(0, command), governance(1, command));
+        return decision(command.sequence()).orElseThrow();
+    }
+
     @Test
     void retiredIsFinalAndNoChangeIsRefused() {
         ledger.block(T0);
-        ledger.block(T0 + 1_000, governance(0, status(0, EURC_VAULT, AssetStatus.ACTIVE)),
-                governance(1, status(0, EURC_VAULT, AssetStatus.ACTIVE)));
-        assertThat(decision(0).orElseThrow().reason()).isEqualTo("NO_CHANGE");
-        // EURC has never held a liability, so it retires at once, and stays retired.
-        ledger.block(T0 + 2_000, governance(0, status(1, EURC_VAULT, AssetStatus.RETIRED)),
-                governance(1, status(1, EURC_VAULT, AssetStatus.RETIRED)));
+        assertThat(decide(T0 + 1_000, status(0, EURC_VAULT, AssetStatus.ACTIVE)).reason()).isEqualTo("NO_CHANGE");
+        // EURC has never held a liability; it still retires only from WIND_DOWN, once the window has passed.
+        decide(T0 + 2_000, status(1, EURC_VAULT, AssetStatus.WIND_DOWN));
+        decide(T0 + 2_000 + RETIRE_WINDOW, status(2, EURC_VAULT, AssetStatus.RETIRED));
         assertThat(registry(EURC_VAULT).status()).isEqualTo(AssetStatus.RETIRED);
-        ledger.block(T0 + 3_000, governance(0, status(2, EURC_VAULT, AssetStatus.ACTIVE)),
-                governance(1, status(2, EURC_VAULT, AssetStatus.ACTIVE)));
-        assertThat(decision(2).orElseThrow().reason()).isEqualTo("RETIRED_IS_FINAL");
+        assertThat(ledger.get(AssetPaymentsContract.windDownKey(EURC_VAULT))).isEmpty();
+        assertThat(decide(T0 + 3_000 + RETIRE_WINDOW, status(3, EURC_VAULT, AssetStatus.ACTIVE)).reason())
+                .isEqualTo("RETIRED_IS_FINAL");
         assertThat(registry(EURC_VAULT).status()).isEqualTo(AssetStatus.RETIRED);
+    }
+
+    /** The default retirement window at depth 1: an hour of block time (D14). */
+    static final long RETIRE_WINDOW = 3_600_000;
+
+    @Test
+    void retirementIsAcceptedOnlyFromWindDownAndOnlyAfterItsWindow() {
+        ledger.block(T0);
+        // Straight from ACTIVE (or any status but WIND_DOWN): refused, so retirement never races a pending deposit.
+        DecisionV1 direct = decide(T0 + 1_000, status(0, EURC_VAULT, AssetStatus.RETIRED));
+        assertThat(direct.reason()).isEqualTo("NOT_WOUND_DOWN");
+        assertThat(decide(T0 + 1_000, status(1, EURC_VAULT, AssetStatus.DEPOSITS_PAUSED)).outcome())
+                .isEqualTo(PaymentsGovernanceV1.Outcome.APPLIED);
+        assertThat(decide(T0 + 1_000, status(2, EURC_VAULT, AssetStatus.RETIRED)).reason()).isEqualTo("NOT_WOUND_DOWN");
+
+        // The wind-down start is recorded with the deciding block's height and time.
+        long start = T0 + 2_000;
+        decide(start, status(3, EURC_VAULT, AssetStatus.WIND_DOWN));
+        assertThat(PaymentsRecords.decodeU64s(ledger.get(AssetPaymentsContract.windDownKey(EURC_VAULT)).orElseThrow(),
+                2)).containsExactly(ledger.height, start);
+        DecisionV1 early = decide(start + RETIRE_WINDOW - 1, status(4, EURC_VAULT, AssetStatus.RETIRED));
+        assertThat(early.reason()).isEqualTo("WIND_DOWN_WINDOW");
+        assertThat(registry(EURC_VAULT).status()).isEqualTo(AssetStatus.WIND_DOWN);
+
+        // Leaving WIND_DOWN clears the record, and a new wind-down starts the window again.
+        decide(start + RETIRE_WINDOW, status(5, EURC_VAULT, AssetStatus.ACTIVE));
+        assertThat(ledger.get(AssetPaymentsContract.windDownKey(EURC_VAULT))).isEmpty();
+        long again = start + RETIRE_WINDOW + 1_000;
+        decide(again, status(6, EURC_VAULT, AssetStatus.WIND_DOWN));
+        assertThat(decide(again + RETIRE_WINDOW / 2, status(7, EURC_VAULT, AssetStatus.RETIRED)).reason())
+                .isEqualTo("WIND_DOWN_WINDOW");
+        DecisionV1 retired = decide(again + RETIRE_WINDOW, status(8, EURC_VAULT, AssetStatus.RETIRED));
+        assertThat(retired.outcome()).isEqualTo(PaymentsGovernanceV1.Outcome.APPLIED);
+        assertThat(retired.from()).isEqualTo(AssetStatus.WIND_DOWN.code());
+        assertThat(registry(EURC_VAULT).status()).isEqualTo(AssetStatus.RETIRED);
+    }
+
+    @Test
+    void theRetirementWindowIsConfiguredAndBoundedByTheStabilityDepth() {
+        assertThat(AssetPaymentsSettings.defaultRetireAfterWindDownMs(1)).isEqualTo(3_600_000);
+        assertThat(AssetPaymentsSettings.defaultRetireAfterWindDownMs(120)).isEqualTo(120 * 60_000);
+        java.util.Map<String, String> tooShort = new java.util.LinkedHashMap<>(AssetPaymentsPayoutTest.settings());
+        tooShort.put("machines.asset-payments.retire-after-wind-down-ms", "19999"); // below depth 1 x 20 s
+        assertThatThrownBy(() -> new PaymentsHarness(tooShort)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("retire-after-wind-down-ms");
+    }
+
+    @Test
+    void aVaultConfiguredInWindDownStartsItsWindowAtGenesis() {
+        java.util.Map<String, String> settings = new java.util.LinkedHashMap<>(AssetPaymentsPayoutTest.settings());
+        settings.put("machines.asset-payments.vaults.2.status", "WIND_DOWN");
+        PaymentsHarness chain = new PaymentsHarness(settings);
+        chain.block(T0);
+        assertThat(PaymentsRecords.decodeU64s(chain.get(AssetPaymentsContract.windDownKey(EURC_VAULT)).orElseThrow(),
+                2)[1]).isEqualTo(T0);
+        Command retire = status(0, EURC_VAULT, AssetStatus.RETIRED);
+        chain.block(T0 + RETIRE_WINDOW - 1, governance(0, retire), governance(1, retire));
+        assertThat(chain.get(AssetPaymentsContract.governanceHistoryKey(0)).map(DecisionV1::decode).orElseThrow()
+                .reason()).isEqualTo("WIND_DOWN_WINDOW");
+    }
+
+    @Test
+    void oneMemberFillingProposalsCannotBlockAPause() {
+        ledger.block(T0);
+        // Member 0 starts a proposal of its own first.
+        Command windDown = status(0, USDM_VAULT, AssetStatus.WIND_DOWN);
+        ledger.block(T0 + 1_000, governance(0, windDown));
+        // Member 1 submits every other distinct command for this sequence: with member 0's, enough to fill the
+        // shared 16-slot table this replaced, which then refused the PAUSE below.
+        List<Command> flood = new java.util.ArrayList<>();
+        for (Hash32 vault : List.of(ADA_VAULT, USDM_VAULT, EURC_VAULT)) {
+            for (AssetStatus to : AssetStatus.values()) {
+                if (!(vault.equals(USDM_VAULT) && to == AssetStatus.WIND_DOWN)) flood.add(status(0, vault, to));
+            }
+        }
+        flood.add(new Command(0, new PaymentsGovernanceV1.Resume()));
+        assertThat(flood.size() + 1).isGreaterThanOrEqualTo(16);
+        for (Command command : flood) ledger.block(T0 + 2_000, governance(1, command));
+        // Each newer command of member 1 replaced its older one: one proposal each, nothing decided.
+        List<PaymentsGovernanceV1.Proposal> open = PaymentsGovernanceV1.decodeProposals(
+                ledger.get(AssetPaymentsContract.governanceProposalsKey()).orElseThrow());
+        assertThat(open).hasSize(2);
+        assertThat(open).anyMatch(proposal -> proposal.proposedBy(MEMBERS.get(0))
+                && proposal.sameCommand(windDown.encode()));
+        assertThat(open).anyMatch(proposal -> proposal.proposedBy(MEMBERS.get(1))
+                && proposal.sameCommand(flood.getLast().encode()));
+        assertThat(sequence()).isZero();
+
+        // A 2-of-3 PAUSE by the other two members still gets a slot and decides.
+        Command pause = new Command(0, new PaymentsGovernanceV1.Pause());
+        ledger.block(T0 + 3_000, governance(2, pause), governance(0, pause));
+        assertThat(decision(0).orElseThrow().outcome()).isEqualTo(PaymentsGovernanceV1.Outcome.APPLIED);
+        assertThat(domainStatus().status()).isEqualTo(DomainStatusV1.Status.PAUSED);
+    }
+
+    @Test
+    void approvingAnotherMembersProposalTakesNoSlotOfTheApprover() {
+        // Three of four members decide, so approvals can be seen pending.
+        List<byte[]> four = List.of(MEMBERS.get(0), MEMBERS.get(1), MEMBERS.get(2), filled(32, 0x74));
+        PaymentsHarness chain = new PaymentsHarness(AssetPaymentsPayoutTest.settings(), profile(1),
+                height -> new org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch(0,
+                        four.stream().map(java.util.HexFormat.of()::formatHex).toList(), 3));
+        chain.block(T0);
+        Command own = status(0, EURC_VAULT, AssetStatus.DEPOSITS_PAUSED);
+        Command pause = new Command(0, new PaymentsGovernanceV1.Pause());
+        chain.block(T0 + 1_000, governance(1, own), governance(0, pause), governance(1, pause));
+        List<PaymentsGovernanceV1.Proposal> open = PaymentsGovernanceV1.decodeProposals(
+                chain.get(AssetPaymentsContract.governanceProposalsKey()).orElseThrow());
+        // Member 1 approved member 0's PAUSE and still holds its own proposal.
+        assertThat(open).hasSize(2);
+        assertThat(open).anyMatch(proposal -> proposal.proposedBy(MEMBERS.get(1)) && proposal.sameCommand(own.encode()));
+        assertThat(open).anyMatch(proposal -> proposal.proposedBy(MEMBERS.get(0))
+                && proposal.sameCommand(pause.encode()) && proposal.approvers().size() == 2);
+        chain.block(T0 + 2_000, governance(2, pause));
+        assertThat(chain.get(AssetPaymentsContract.domainStatusKey()).map(DomainStatusV1::decode).orElseThrow()
+                .status()).isEqualTo(DomainStatusV1.Status.PAUSED);
     }
 
     @Test

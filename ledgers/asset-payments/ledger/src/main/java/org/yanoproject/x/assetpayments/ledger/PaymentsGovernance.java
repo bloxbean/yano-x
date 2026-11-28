@@ -28,7 +28,12 @@ import java.util.Optional;
  * accumulate on the exact command bytes, and the epoch's threshold decides the command.
  *
  * <p><b>Asset lifecycle</b> (D14). {@code ACTIVE}, {@code DEPOSITS_PAUSED}, {@code TRANSFERS_PAUSED} and
- * {@code WIND_DOWN} move freely among each other; {@code RETIRED} is terminal and is refused while the vault has any
+ * {@code WIND_DOWN} move freely among each other; {@code RETIRED} is terminal. It is accepted <b>only from
+ * {@code WIND_DOWN}</b>, and only once the vault has been in {@code WIND_DOWN} for at least
+ * {@code retire-after-wind-down-ms} of block time ({@code ap/wind-down/<VaultId>} records when it entered), a window
+ * that covers the L1 stability depth and app finality. {@code WIND_DOWN} credits no deposit, so a deposit that was
+ * already on L1 but not yet stable when the wind-down began is observed and resolved within the window, before
+ * retirement can be decided: retirement never races a pending deposit. It is then refused while the vault has any
  * liability or unpaid claim: available or reserved value, in the vault's asset or in lovelace (min-ADA credits and
  * claims' {@code vaultLovelace}). A {@code PAID_MISMATCH} claim keeps its value reserved (D10), so it blocks
  * retirement until the incident procedure resolves it. Every finalized deposit is resolved in the block that carries
@@ -45,8 +50,12 @@ import java.util.Optional;
  *
  * <p><b>Replay safety.</b> A command names the number of governance commands decided so far; deciding one, applied
  * or refused, advances that number, writes its {@link DecisionV1} history record and voids every open proposal.
- * Every input that does not count (malformed, from a non-member, stale, a repeated approval, a full proposal table)
- * changes nothing but the deterministic pruning of expired proposals.
+ * Every input that does not count (malformed, from a non-member, stale, a repeated approval) changes nothing but the
+ * deterministic pruning of expired proposals.
+ *
+ * <p><b>Proposal capacity.</b> A member holds at most one open proposal it started; its newer command replaces it
+ * (dropping the approvals the older one had), and approving another member's proposal uses no slot. One member can
+ * therefore never crowd out the others: a {@code PAUSE} started by any member always gets a slot.
  */
 final class PaymentsGovernance {
     /** What one governance message did; node-local diagnostics only. */
@@ -54,10 +63,12 @@ final class PaymentsGovernance {
 
     private final AppChainMembershipView membership;
     private final byte[] domainStatusKey;
+    private final long retireAfterWindDownMs;
 
-    PaymentsGovernance(AppChainMembershipView membership, byte[] domainStatusKey) {
+    PaymentsGovernance(AppChainMembershipView membership, byte[] domainStatusKey, long retireAfterWindDownMs) {
         this.membership = membership;
         this.domainStatusKey = domainStatusKey.clone();
+        this.retireAfterWindDownMs = retireAfterWindDownMs;
     }
 
     Result process(AssetAccounts.Store state, byte[] sender, byte[] body, AppBlock block) {
@@ -94,11 +105,15 @@ final class PaymentsGovernance {
         }
         Proposal proposal;
         if (index < 0) {
+            // The sender's newer command replaces the proposal it started before, so the table holds at most one
+            // proposal per member of the epoch and no member can crowd out the others (D15 PAUSE).
+            live.removeIf(open -> open.proposedBy(sender));
             if (live.size() >= PaymentsGovernanceV1.MAX_OPEN_PROPOSALS) {
+                // Unreachable while an epoch has at most MAX_APPROVERS members; kept as a bound on the record.
                 if (pruned) writeProposals(state, live);
                 return Result.PROPOSALS_FULL;
             }
-            proposal = new Proposal(bytes, epoch.fromHeight(), block.height(), List.of(sender));
+            proposal = new Proposal(bytes, epoch.fromHeight(), block.height(), sender, List.of(sender));
             live.add(proposal);
         } else {
             if (live.get(index).contains(sender)) {
@@ -144,7 +159,7 @@ final class PaymentsGovernance {
         };
     }
 
-    private static DecisionV1 assetStatus(AssetAccounts.Store state, long sequence, byte[] bytes,
+    private DecisionV1 assetStatus(AssetAccounts.Store state, long sequence, byte[] bytes,
                                           PaymentsGovernanceV1.AssetStatusChange change, List<byte[]> approvers,
                                           AppBlock block) {
         Hash32 vaultId = change.vaultId();
@@ -160,6 +175,10 @@ final class PaymentsGovernance {
             refusal = "NO_CHANGE";
         } else if (from == AssetStatus.RETIRED) {
             refusal = "RETIRED_IS_FINAL";
+        } else if (to == AssetStatus.RETIRED && from != AssetStatus.WIND_DOWN) {
+            refusal = "NOT_WOUND_DOWN";
+        } else if (to == AssetStatus.RETIRED && !windDownElapsed(state, vaultId, block.timestamp())) {
+            refusal = "WIND_DOWN_WINDOW";
         } else if (to == AssetStatus.RETIRED) {
             AssetAccounts.VaultCounters counters = new AssetAccounts(AssetPaymentsContract.PREFIX, state)
                     .counters(vaultId);
@@ -179,8 +198,25 @@ final class PaymentsGovernance {
         state.put(AssetPaymentsContract.registryKey(vaultId), new RegistryEntryV1(current.vaultId(), current.asset(),
                 current.scriptHash(), current.vaultAddress(), to, current.activeFromSlot(), current.addedAtHeight(),
                 current.ticker(), current.decimals()).encode());
+        if (to == AssetStatus.WIND_DOWN) {
+            state.put(AssetPaymentsContract.windDownKey(vaultId),
+                    PaymentsRecords.encodeU64s(block.height(), block.timestamp()));
+        } else {
+            state.delete(AssetPaymentsContract.windDownKey(vaultId));
+        }
         return new DecisionV1(sequence, bytes, block.height(), block.timestamp(), approvers, Optional.of(vaultId),
                 from.code(), to.code(), PaymentsGovernanceV1.Outcome.APPLIED, "");
+    }
+
+    /**
+     * Whether the vault has been in {@code WIND_DOWN} for the retirement window. A missing record (never written for a
+     * vault in {@code WIND_DOWN}, which genesis and every governed move write) counts as not elapsed.
+     */
+    private boolean windDownElapsed(AssetAccounts.Store state, Hash32 vaultId, long blockTimeMs) {
+        return state.get(AssetPaymentsContract.windDownKey(vaultId))
+                .map(bytes -> PaymentsRecords.decodeU64s(bytes, 2)[1])
+                .filter(sinceMs -> blockTimeMs - sinceMs >= retireAfterWindDownMs)
+                .isPresent();
     }
 
     private static boolean liabilitiesZero(AssetAccounts.VaultCounters counters) {

@@ -32,8 +32,12 @@ import java.util.Optional;
  * command takes effect at most once, a late copy of a decided command is stale, and approvals for an old state never
  * combine with approvals for a new one.
  *
- * <p><b>Proposals</b> ({@link Proposal}) live in {@code ap/gov-proposals}, at most {@link #MAX_OPEN_PROPOSALS}, each
- * bound to the membership epoch it started in and dropped {@link #APPROVAL_WINDOW_BLOCKS} blocks after it started.
+ * <p><b>Proposals</b> ({@link Proposal}) live in {@code ap/gov-proposals}, each bound to the membership epoch it
+ * started in and dropped {@link #APPROVAL_WINDOW_BLOCKS} blocks after it started. Each member has at most <b>one</b>
+ * open proposal of its own, the one it started: a member's newer command replaces its older proposal, and approving
+ * another member's proposal takes no slot. So the table holds at most one proposal per member of the epoch
+ * ({@link #MAX_OPEN_PROPOSALS}, the membership bound), and no single member can fill it to block the others' commands
+ * (a {@code PAUSE} above all, D15).
  * <b>History</b> ({@link DecisionV1}) is written once per decided command at {@code ap/gov-history/<sequence>} and
  * kept: it names the command, the approvers, the height and block time, the subject, the status before and after,
  * and whether the command was applied or refused (with the reason).
@@ -42,11 +46,12 @@ public final class PaymentsGovernanceV1 {
     public static final String TOPIC = "~governance/asset-payments";
     public static final int VERSION = 1;
     public static final int MAX_COMMAND_BYTES = 256;
-    public static final int MAX_OPEN_PROPOSALS = 16;
-    /** Blocks after its first approval at which an undecided proposal is dropped. */
-    public static final long APPROVAL_WINDOW_BLOCKS = 600;
     /** The membership bound of {@code AppChainConfig.MAX_MEMBERS}, which caps a proposal's approvers. */
     public static final int MAX_APPROVERS = 64;
+    /** One open proposal per proposing member, so the membership bound. */
+    public static final int MAX_OPEN_PROPOSALS = MAX_APPROVERS;
+    /** Blocks after its first approval at which an undecided proposal is dropped. */
+    public static final long APPROVAL_WINDOW_BLOCKS = 600;
 
     private PaymentsGovernanceV1() {
     }
@@ -135,14 +140,21 @@ public final class PaymentsGovernanceV1 {
     }
 
     /**
-     * An open proposal: {@code [command, epoch_from_height, first_height, [* approver(32)]]}, approvers in ascending
-     * byte order.
+     * An open proposal: {@code [command, epoch_from_height, first_height, proposer(32), [* approver(32)]]}, approvers
+     * in ascending byte order. The proposer is the member whose approval started it, and is always an approver.
      */
-    public record Proposal(byte[] command, long epochFromHeight, long firstHeight, List<byte[]> approvers) {
+    public record Proposal(byte[] command, long epochFromHeight, long firstHeight, byte[] proposer,
+                           List<byte[]> approvers) {
         public Proposal {
             Command.decode(command);
             if (epochFromHeight < 0 || firstHeight < 0) throw new IllegalArgumentException("invalid proposal");
+            if (proposer == null || proposer.length != 32) throw new IllegalArgumentException("invalid proposer");
             approvers = sorted(approvers);
+            proposer = proposer.clone();
+            byte[] first = proposer;
+            if (approvers.stream().noneMatch(key -> Arrays.equals(key, first))) {
+                throw new IllegalArgumentException("the proposer approves its own proposal");
+            }
             command = command.clone();
         }
 
@@ -151,12 +163,21 @@ public final class PaymentsGovernanceV1 {
             return command.clone();
         }
 
+        @Override
+        public byte[] proposer() {
+            return proposer.clone();
+        }
+
+        public boolean proposedBy(byte[] member) {
+            return Arrays.equals(proposer, member);
+        }
+
         /** This proposal with one more approver; the same proposal if the key already approved. */
         public Proposal with(byte[] approver) {
             if (contains(approver)) return this;
             List<byte[]> next = new ArrayList<>(approvers);
             next.add(approver.clone());
-            return new Proposal(command, epochFromHeight, firstHeight, next);
+            return new Proposal(command, epochFromHeight, firstHeight, proposer, next);
         }
 
         public boolean contains(byte[] approver) {
@@ -172,6 +193,7 @@ public final class PaymentsGovernanceV1 {
             array.add(AssetCbor.bstr(command));
             array.add(AssetCbor.uint(epochFromHeight));
             array.add(AssetCbor.uint(firstHeight));
+            array.add(AssetCbor.bstr(proposer));
             Array keys = new Array();
             approvers.forEach(key -> keys.add(AssetCbor.bstr(key)));
             array.add(keys);
@@ -179,14 +201,16 @@ public final class PaymentsGovernanceV1 {
         }
 
         static Proposal of(DataItem item) {
-            List<DataItem> fields = AssetCbor.array(item, 4, 4).getDataItems();
+            List<DataItem> fields = AssetCbor.array(item, 5, 5).getDataItems();
             return new Proposal(AssetCbor.bytes(fields.get(0), 1, MAX_COMMAND_BYTES),
-                    AssetCbor.uintLong(fields.get(1)), AssetCbor.uintLong(fields.get(2)), approverKeys(fields.get(3)));
+                    AssetCbor.uintLong(fields.get(1)), AssetCbor.uintLong(fields.get(2)),
+                    AssetCbor.bytes(fields.get(3), 32, 32), approverKeys(fields.get(4)));
         }
     }
 
     public static byte[] encodeProposals(List<Proposal> proposals) {
         if (proposals.size() > MAX_OPEN_PROPOSALS) throw new IllegalArgumentException("too many open proposals");
+        requireOnePerProposer(proposals);
         Array array = new Array();
         proposals.forEach(proposal -> array.add(proposal.item()));
         return AssetCbor.encode(array);
@@ -198,7 +222,22 @@ public final class PaymentsGovernanceV1 {
                 MAX_OPEN_PROPOSALS).getDataItems()) {
             out.add(Proposal.of(item));
         }
+        try {
+            requireOnePerProposer(out);
+        } catch (IllegalArgumentException invalid) {
+            throw AssetCbor.malformed(invalid.getMessage());
+        }
         return List.copyOf(out);
+    }
+
+    private static void requireOnePerProposer(List<Proposal> proposals) {
+        for (int i = 0; i < proposals.size(); i++) {
+            for (int j = i + 1; j < proposals.size(); j++) {
+                if (proposals.get(i).proposedBy(proposals.get(j).proposer)) {
+                    throw new IllegalArgumentException("a member has at most one open proposal");
+                }
+            }
+        }
     }
 
     /** What deciding a command did. The code is the wire value. */

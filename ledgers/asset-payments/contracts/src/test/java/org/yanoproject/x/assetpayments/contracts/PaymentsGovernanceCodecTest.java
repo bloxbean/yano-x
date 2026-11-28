@@ -38,13 +38,23 @@ class PaymentsGovernanceCodecTest {
     @Test
     void proposalsAndDecisionsRoundTripWithSortedDistinctApprovers() {
         byte[] command = new Command(3, new AssetStatusChange(VAULT, AssetStatus.WIND_DOWN)).encode();
-        Proposal proposal = new Proposal(command, 0, 7, List.of(key(0x72))).with(key(0x71)).with(key(0x72));
+        Proposal proposal = new Proposal(command, 0, 7, key(0x72), List.of(key(0x72))).with(key(0x71))
+                .with(key(0x72));
         assertThat(proposal.approvers()).containsExactly(key(0x71), key(0x72));
+        assertThat(proposal.proposer()).isEqualTo(key(0x72));
         List<Proposal> decoded = PaymentsGovernanceV1.decodeProposals(PaymentsGovernanceV1.encodeProposals(
                 List.of(proposal)));
         assertThat(decoded).hasSize(1);
         assertThat(decoded.getFirst().command()).isEqualTo(command);
         assertThat(decoded.getFirst().approvers()).containsExactly(key(0x71), key(0x72));
+        assertThat(decoded.getFirst().proposedBy(key(0x72))).isTrue();
+        // One open proposal per proposing member; the proposer is always an approver.
+        Proposal second = new Proposal(new Command(3, new PaymentsGovernanceV1.Pause()).encode(), 0, 8, key(0x72),
+                List.of(key(0x72)));
+        assertThatThrownBy(() -> PaymentsGovernanceV1.encodeProposals(List.of(proposal, second)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Proposal(command, 0, 7, key(0x73), List.of(key(0x72))))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThat(PaymentsGovernanceV1.decodeProposals(PaymentsGovernanceV1.encodeProposals(List.of()))).isEmpty();
 
         DecisionV1 applied = new DecisionV1(3, command, 9, 1_000, proposal.approvers(), Optional.of(VAULT),
@@ -55,7 +65,7 @@ class PaymentsGovernanceCodecTest {
         assertThat(DecisionV1.decode(refused.encode())).isEqualTo(refused);
         assertThatThrownBy(() -> new DecisionV1(4, command, 9, 1_000, List.of(), Optional.empty(), 1, 2,
                 PaymentsGovernanceV1.Outcome.REFUSED, "X")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Proposal(command, 0, 0, List.of(key(1), key(1))))
+        assertThatThrownBy(() -> new Proposal(command, 0, 0, key(1), List.of(key(1), key(1))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

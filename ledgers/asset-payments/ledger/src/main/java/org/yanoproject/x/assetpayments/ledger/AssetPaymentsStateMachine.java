@@ -136,7 +136,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             throw new IllegalArgumentException("the settlement batch cap is 1..settlement.batch-size");
         }
         this.batchCap = batchCap;
-        this.governance = new PaymentsGovernance(membership, AssetPaymentsContract.domainStatusKey());
+        this.governance = new PaymentsGovernance(membership, AssetPaymentsContract.domainStatusKey(),
+                settings.retireAfterWindDownMs());
     }
 
     @Override
@@ -237,7 +238,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         AppBlock block = context.block();
         diagnostics.begin(block.height());
         AssetAccounts.Store state = StagedStore.over(writer);
-        ensureGenesis(state);
+        ensureGenesis(state, block);
         pruneUsedIntents(state, block.timestamp());
         List<AppMessage> messages = context.messages();
         for (int visible = 0; visible < messages.size(); visible++) {
@@ -304,11 +305,16 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                 height, failure.toString());
     }
 
-    private void ensureGenesis(AssetAccounts.Store state) {
+    private void ensureGenesis(AssetAccounts.Store state, AppBlock block) {
         if (state.get(AssetPaymentsContract.domainKey()).isPresent()) return;
         state.put(AssetPaymentsContract.domainKey(), domainRecord);
         for (RegistryEntryV1 vault : settings.vaults()) {
             state.put(AssetPaymentsContract.registryKey(vault.vaultId()), vault.encode());
+            if (vault.status() == PaymentsRecords.AssetStatus.WIND_DOWN) {
+                // A vault configured in WIND_DOWN starts its retirement window at genesis (D14).
+                state.put(AssetPaymentsContract.windDownKey(vault.vaultId()),
+                        PaymentsRecords.encodeU64s(block.height(), block.timestamp()));
+            }
         }
         state.put(AssetPaymentsContract.domainStatusKey(),
                 new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 0, 0, settings.exitDelayMs()).encode());

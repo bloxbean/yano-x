@@ -133,11 +133,16 @@ final class PaymentsHarness {
     }
 
     static AppStateMachine machine(Map<String, String> settings, Optional<AppChainConsensusProfile> profile) {
+        return machine(settings, profile, MEMBERSHIP);
+    }
+
+    static AppStateMachine machine(Map<String, String> settings, Optional<AppChainConsensusProfile> profile,
+                                   AppChainMembershipView membership) {
         return new AssetPaymentsStateMachineProvider().create(new AppStateMachineContext() {
             @Override public String chainId() { return CHAIN; }
             @Override public Map<String, String> settings() { return settings; }
             @Override public Optional<AppChainConsensusProfile> consensusProfile() { return profile; }
-            @Override public Optional<AppChainMembershipView> membershipView() { return Optional.of(MEMBERSHIP); }
+            @Override public Optional<AppChainMembershipView> membershipView() { return Optional.of(membership); }
         });
     }
 
@@ -247,8 +252,13 @@ final class PaymentsHarness {
     }
 
     PaymentsHarness(Map<String, String> settings, AppChainConsensusProfile profile) {
+        this(settings, profile, MEMBERSHIP);
+    }
+
+    PaymentsHarness(Map<String, String> settings, AppChainConsensusProfile profile,
+                    AppChainMembershipView membership) {
         boolean effects = profile.effectsEnabled();
-        machine = machine(settings, Optional.of(profile));
+        machine = machine(settings, Optional.of(profile), membership);
         machine.init(writer(), null);
         this.effects = !effects ? null : new AppEffectEmitter() {
             @Override

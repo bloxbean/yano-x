@@ -52,10 +52,18 @@ import static org.yanoproject.x.assetpayments.ledger.PaymentsHarness.*;
 class AssetPaymentsLifecycleTest {
     static final IntentEnvelopeV1.Owner OWNER = new IntentEnvelopeV1.Owner();
     static final long EXPIRY = T0 + 600_000;
+    /** The shortest retirement window depth 1 allows (one mean L1 block interval), so intents stay unexpired. */
+    static final long RETIRE_WINDOW = 20_000;
+
+    static Map<String, String> settings() {
+        Map<String, String> settings = new LinkedHashMap<>(AssetPaymentsPayoutTest.settings());
+        settings.put("machines.asset-payments.retire-after-wind-down-ms", String.valueOf(RETIRE_WINDOW));
+        return settings;
+    }
 
     final TestWallet alice = TestWallet.of(1);
     final TestWallet bob = TestWallet.of(2);
-    final PaymentsHarness ledger = new PaymentsHarness(AssetPaymentsPayoutTest.settings());
+    final PaymentsHarness ledger = new PaymentsHarness(settings());
     final AssetPaymentsStateMachineTest l1 = new AssetPaymentsStateMachineTest();
     final AssetPaymentsPayoutTest settlement = new AssetPaymentsPayoutTest();
     long governed;
@@ -191,23 +199,28 @@ class AssetPaymentsLifecycleTest {
     @Test
     void retiredIsRefusedWhileAnythingIsOwedAndReachedOnceEverythingIsPaid() {
         fund(ledger);
-        DecisionV1 owed = govern(T0 + 2_000, USDM_VAULT, AssetStatus.RETIRED);
-        assertThat(owed.outcome()).isEqualTo(PaymentsGovernanceV1.Outcome.REFUSED);
-        assertThat(owed.reason()).isEqualTo("OUTSTANDING_LIABILITIES");
-        assertThat(owed.to()).isEqualTo(AssetStatus.ACTIVE.code());
+        DecisionV1 active = govern(T0 + 2_000, USDM_VAULT, AssetStatus.RETIRED);
+        assertThat(active.outcome()).isEqualTo(PaymentsGovernanceV1.Outcome.REFUSED);
+        assertThat(active.reason()).isEqualTo("NOT_WOUND_DOWN");
+        assertThat(active.to()).isEqualTo(AssetStatus.ACTIVE.code());
 
-        // Wind down first, then withdraw everything, the min-ADA credit included.
+        // Wind down first and wait out the window; then everything owed still blocks it.
         govern(T0 + 3_000, USDM_VAULT, AssetStatus.WIND_DOWN);
+        long woundDown = T0 + 3_000;
+        assertThat(govern(woundDown + RETIRE_WINDOW, USDM_VAULT, AssetStatus.RETIRED).reason())
+                .isEqualTo("OUTSTANDING_LIABILITIES");
+        // Withdraw everything, the min-ADA credit included.
         IntentEnvelopeV1 all = withdrawal(USDM_VAULT, 100, 1_500_000);
-        ledger.block(T0 + 4_000, intent(owner(alice, all)));
+        ledger.block(woundDown + RETIRE_WINDOW + 1_000, intent(owner(alice, all)));
         assertThat(ledger.counters(USDM_VAULT).available()).isZero();
-        assertThat(govern(T0 + 5_000, USDM_VAULT, AssetStatus.RETIRED).reason()).isEqualTo("UNPAID_CLAIMS");
+        assertThat(govern(woundDown + RETIRE_WINDOW + 2_000, USDM_VAULT, AssetStatus.RETIRED).reason())
+                .isEqualTo("UNPAID_CLAIMS");
         assertThat(status(USDM_VAULT)).isEqualTo(AssetStatus.WIND_DOWN);
 
         ClaimLeafV1 leaf = claim(0);
-        ledger.block(T0 + 6_000, settlement.settle(leaf, alice.address(), true));
+        ledger.block(woundDown + RETIRE_WINDOW + 3_000, settlement.settle(leaf, alice.address(), true));
         assertThat(claimStatus(leaf)).isEqualTo(SettlementRecords.ClaimStatus.PAID);
-        DecisionV1 retired = govern(T0 + 7_000, USDM_VAULT, AssetStatus.RETIRED);
+        DecisionV1 retired = govern(woundDown + RETIRE_WINDOW + 4_000, USDM_VAULT, AssetStatus.RETIRED);
         assertThat(retired.outcome()).isEqualTo(PaymentsGovernanceV1.Outcome.APPLIED);
         assertThat(retired.from()).isEqualTo(AssetStatus.WIND_DOWN.code());
         assertThat(status(USDM_VAULT)).isEqualTo(AssetStatus.RETIRED);
@@ -216,7 +229,8 @@ class AssetPaymentsLifecycleTest {
         Message[] late = l1.l1(output(USDM_ADDRESS, alice, lovelace(1_200_000), token(USDM, 4)));
         IntentEnvelopeV1 again = withdrawal(USDM_VAULT, 1, 0);
         IntentEnvelopeV1 ada = transfer(alice, AssetId.ADA, bob, 1_000_000);
-        ledger.block(T0 + 8_000, late[0], intent(owner(alice, again)), intent(owner(alice, ada)));
+        ledger.block(woundDown + RETIRE_WINDOW + 5_000, late[0], intent(owner(alice, again)),
+                intent(owner(alice, ada)));
         assertThat(record(late[0]).reason()).isEqualTo(DepositAdmission.Reason.DEPOSITS_PAUSED);
         assertThat(reason(again)).isEqualTo("ASSET_RETIRED");
         assertThat(ledger.receipt(ada).orElseThrow().outcome()).isEqualTo(PaymentsRecords.Outcome.ACCEPTED);
@@ -232,7 +246,9 @@ class AssetPaymentsLifecycleTest {
         ClaimLeafV1 leaf = claim(0);
         ledger.block(T0 + 3_000, settlement.settle(leaf, bob.address(), true));
         assertThat(claimStatus(leaf)).isEqualTo(SettlementRecords.ClaimStatus.PAID_MISMATCH);
-        assertThat(govern(T0 + 4_000, USDM_VAULT, AssetStatus.RETIRED).reason()).isEqualTo("UNPAID_CLAIMS");
+        govern(T0 + 4_000, USDM_VAULT, AssetStatus.WIND_DOWN);
+        assertThat(govern(T0 + 4_000 + RETIRE_WINDOW, USDM_VAULT, AssetStatus.RETIRED).reason())
+                .isEqualTo("UNPAID_CLAIMS");
     }
 
     // ------------------------------------------------------------------ ledger-level refusals
