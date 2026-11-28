@@ -107,6 +107,16 @@ dialog::backdrop {
   animation: shimmer 1.3s linear infinite;
 }
 
+/* An explorer row that arrived after the list first loaded: it rises in on a fading mint wash. */
+@keyframes row-fresh {
+  from { opacity: 0; transform: translateY(-4px); background-color: rgba(154, 240, 212, 0.45); }
+  30% { opacity: 1; transform: none; }
+  to { background-color: transparent; }
+}
+.row-fresh {
+  animation: row-fresh 1.6s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pulse-dot, .rise, .skeleton { animation: none; }
+  .pulse-dot, .rise, .skeleton, .row-fresh { animation: none; }
 }

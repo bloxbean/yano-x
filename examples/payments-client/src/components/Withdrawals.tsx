@@ -37,7 +37,7 @@ export function WithdrawalsPanel({ onNew }: { onNew: () => void }) {
   );
 }
 
-function ClaimCard({ claim }: { claim: WithdrawalView }) {
+export function ClaimCard({ claim }: { claim: WithdrawalView }) {
   const { info, config } = usePayments();
   const vault = info?.vaults.find((entry) => entry.vaultId === claim.vaultId);
   const decimals = info ? decimalsOf(info, claim.vaultId) : 0;

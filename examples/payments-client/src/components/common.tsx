@@ -94,22 +94,25 @@ export function Stepper({ steps, className }: { steps: Step[]; className?: strin
 
 /**
  * Verifies the native state proof of a shown fact: the proof must be for exactly the view's key, value, height and
- * root, and the node's verifier must accept it against the view's root. The verdict names the height it holds at.
+ * root, and the node's verifier must accept it against the view's root. The verdict names the height it holds at;
+ * compact (an explorer row) shows a short verdict with the full text as its title.
  */
-export function ProofCheck({ fact, label = 'Verify proof' }: { fact: Fact; label?: string }) {
+export function ProofCheck({ fact, label = 'Verify proof', compact }: { fact: Fact; label?: string; compact?: boolean }) {
   const { api } = usePayments();
   const verify = useMutation<Verdict, Error, Fact>({ mutationFn: (target) => verifyFact(api!, target) });
   const verdict = verify.data;
   return (
-    <div className="flex flex-wrap items-center gap-2" aria-live="polite">
-      <Button variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => verify.mutate(fact)} busy={verify.isPending}
-        data-testid="proof-verify" disabled={!api}>
-        {!verify.isPending && <ShieldCheck size={13} />} {verdict ? 'Verify again' : label}
+    <div className={clsx('flex flex-wrap items-center gap-2', compact && 'gap-1.5')} aria-live="polite">
+      <Button variant="ghost" className={compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'}
+        onClick={() => verify.mutate(fact)} busy={verify.isPending} data-testid="proof-verify" disabled={!api}
+        title="Check this record's state proof against the state root at its height">
+        {!verify.isPending && <ShieldCheck size={compact ? 12 : 13} />} {verdict ? (compact ? 'Again' : 'Verify again') : label}
       </Button>
       {verdict && (
         <Badge tone={verdict.ok ? 'accent' : 'rose'} data-testid="proof-verdict" title={verdict.text}
-          className="max-w-full whitespace-normal">
-          {verdict.ok ? <ShieldCheck size={12} /> : <ShieldX size={12} />} {verdict.text}
+          className={compact ? undefined : 'max-w-full whitespace-normal'}>
+          {verdict.ok ? <ShieldCheck size={12} /> : <ShieldX size={12} />}
+          {compact ? (verdict.ok ? 'Verified' : 'Not verified') : verdict.text}
         </Badge>
       )}
     </div>

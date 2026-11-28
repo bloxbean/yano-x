@@ -1,9 +1,11 @@
-import { ChevronDown, Globe2, LogOut, UserRound, Wallet } from 'lucide-react';
+import clsx from 'clsx';
+import { ChevronDown, Compass, Globe2, LogOut, UserRound, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { addressToBech32 } from '../lib/bech32';
 import { short } from '../lib/display';
 import { errorMessage } from '../lib/errors';
 import { PAYMENT_KEY } from '../lib/intents';
+import { explorerHref, type Route } from '../route';
 import { usePayments } from '../state';
 import { Button, Copy, ErrorBox, Facts, inputClass, LiveDot, Logo, Modal } from '../ui';
 import { WalletPicker } from './WalletPicker';
@@ -15,7 +17,28 @@ export function networkLabel(label: string, domain: { addressNetworkId: number; 
     : `Testnet · magic ${domain.networkMagic}`;
 }
 
-export function Header() {
+/** The two views: the wallet and the public explorer. */
+function Nav({ route }: { route: Route }) {
+  const items = [
+    { href: '#/', label: 'Wallet', icon: Wallet, active: route.view === 'wallet', testId: 'nav-wallet' },
+    { href: explorerHref, label: 'Explorer', icon: Compass, active: route.view === 'explorer', testId: 'nav-explorer' },
+  ];
+  return (
+    <nav aria-label="Views" className="flex shrink-0 items-center gap-1 rounded-xl border border-line bg-surface p-0.5">
+      {items.map((item) => (
+        <a key={item.href} href={item.href} aria-current={item.active ? 'page' : undefined} data-testid={item.testId}
+          aria-label={item.label} title={item.label}
+          className={clsx('flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+            item.active ? 'bg-raised text-ink shadow-inner' : 'text-muted hover:text-ink')}>
+          <item.icon size={14} className={item.active ? 'text-accent' : ''} aria-hidden />
+          <span className="hidden sm:inline">{item.label}</span>
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+export function Header({ route }: { route: Route }) {
   const { config, info, bootError, wallet, account, wallets, connect, rescanWallets, walletSdkError } = usePayments();
   const [picker, setPicker] = useState(false);
   const [details, setDetails] = useState(false);
@@ -34,6 +57,7 @@ export function Header() {
             </span>
           </span>
         </a>
+        <Nav route={route} />
         <div className="ml-auto flex min-w-0 items-center gap-2">
           {info && config && (
             <span className="hidden items-center gap-1.5 rounded-full border border-amber/30 bg-amber/10 px-3 py-1 text-[11px] font-medium text-amber md:inline-flex"

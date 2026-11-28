@@ -1,7 +1,8 @@
-import { ArrowDownToLine, Coins, PenLine, Wallet } from 'lucide-react';
+import { ArrowDownToLine, Coins, Compass, PenLine, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import type { Info } from '../lib/api';
 import { assetIdText, vaultLabel, vaultStatus } from '../lib/display';
+import { explorerHref } from '../route';
 import { usePayments } from '../state';
 import { Badge, Button, Card, LiveDot } from '../ui';
 import { WalletPicker } from './WalletPicker';
@@ -34,6 +35,10 @@ export function Welcome({ info }: { info: Info }) {
             <Button onClick={() => { rescanWallets(); setPicker(true); }} data-testid="hero-connect">
               <Wallet size={15} /> Connect wallet
             </Button>
+            <a href={explorerHref} data-testid="hero-explorer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent/50 hover:text-accent-strong">
+              <Compass size={15} /> Explore the chain
+            </a>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">

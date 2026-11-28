@@ -4,10 +4,12 @@ import { Header } from './components/Header';
 import { PendingReview } from './components/ReviewSheet';
 import { Toasts } from './components/Toasts';
 import { Welcome } from './components/Welcome';
+import { Explorer } from './components/explorer/Explorer';
+import { useRoute, type Route } from './route';
 import { PaymentsProvider, usePayments } from './state';
 import { Card, Logo, Skeleton } from './ui';
 
-function Main() {
+function Main({ route }: { route: Route }) {
   const { info, bootError, wallet } = usePayments();
   if (bootError && !info) {
     return (
@@ -27,6 +29,8 @@ function Main() {
       </div>
     );
   }
+  // The explorer is public chain data: it needs no wallet.
+  if (route.view === 'explorer') return <Explorer route={route} />;
   return wallet ? <Dashboard info={info} /> : <Welcome info={info} />;
 }
 
@@ -45,13 +49,14 @@ function Footer() {
 }
 
 export default function App() {
+  const route = useRoute();
   return (
     <PaymentsProvider>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2 focus:text-sm">
         Skip to content</a>
-      <Header />
+      <Header route={route} />
       <main id="main" className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
-        <Main />
+        <Main route={route} />
       </main>
       <Footer />
       <PendingReview />
