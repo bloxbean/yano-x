@@ -35,21 +35,36 @@ import org.julclang.core.Constant;
 import org.julclang.core.PlutusData;
 import org.julclang.core.Program;
 import org.julclang.core.Term;
+import org.yanoproject.x.assets.cardano.support.settlement.AcceptTxBuilder;
+import org.yanoproject.x.assets.cardano.support.settlement.Cip113L1;
 import org.yanoproject.x.assets.cardano.support.settlement.GatewayPlutus;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBodyCheck;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableSettlement;
 import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableDepositBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableVaultTxAssembler;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
+import org.yanoproject.x.assets.cardano.support.settlement.SettleBodyCheck;
 import org.yanoproject.x.assets.cardano.support.settlement.ShardBackend;
+import org.yanoproject.x.assets.cardano.support.settlement.ShardMirror;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
 import org.yanoproject.x.assets.contracts.AssetId;
+import org.yanoproject.x.assets.contracts.AssetValue;
+import org.yanoproject.x.assets.contracts.ClaimKind;
+import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.Cip113Requirements;
 import org.yanoproject.x.assets.contracts.Cip113Wiring;
 import org.yanoproject.x.assets.contracts.Cip113WiringClaimV1;
+import org.yanoproject.x.assets.contracts.DepositAdmission;
+import org.yanoproject.x.assets.contracts.DepositRecordV1;
+import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1;
+import org.yanoproject.x.assets.contracts.SettlementQueries;
+import org.yanoproject.x.assets.contracts.SettlementRecords;
+import org.yanoproject.x.assets.contracts.VaultOutputShape;
 
 import java.io.Reader;
 import java.io.Writer;
@@ -126,8 +141,9 @@ public final class Cip113Devnet {
                 case "accept" -> accept();
                 case "settle" -> settle();
                 case "deregister" -> deregister();
+                case "runtime" -> runtime();
                 case "all" -> { fund(); deploy(); deposit(); accept(); settle(); }
-                default -> throw new IllegalArgumentException("fund | deploy | deposit | accept | settle | all");
+                default -> throw new IllegalArgumentException("fund | deploy | deposit | accept | settle | runtime | all");
             }
         } finally {
             try (Writer out = Files.newBufferedWriter(stateFile)) { STATE.store(out, "ADR-061 devnet drill"); }
@@ -395,6 +411,147 @@ public final class Cip113Devnet {
         ProgrammableVaultTxAssembler.Assembled assembled = ProgrammableVaultTxAssembler.assemble(w.deployment(),
                 wiring(w), txPlan, l1(w), adapter(), hash -> BigInteger.ZERO, pp(), evaluator());
         STATE.setProperty("settle", submitSigned("settle", sign(assembled.transaction(), "payer", "m1", "m2")));
+    }
+
+    /**
+     * ADR-061 C3 through the runtime's own code paths: a deposit by the deposit builder, then the co-signed
+     * {@code Accept} and {@code Settle} that the settlement executor builds ({@code ProgrammableSettlement}), under the
+     * live wiring and registry it reads from L1 ({@code Cip113L1}) and the test substandard's production adapter, each
+     * checked whole by the members' {@code ProgrammableBodyCheck} before the members sign and it is submitted.
+     */
+    static void runtime() throws Exception {
+        World w = world();
+        String fixtures = STATE.getProperty("fixtures");
+        byte[] issuer = new Address(wallet("issuer")).getBytes();
+        VaultPins pins = new VaultPins(w.vaultId(), w.token(), 0, w.custody().custodyHash(), w.custody().smartWallet(),
+                policyId("shard"), w.shard().scriptHash(), w.shard().address(), new VaultPins.Anchor(policyId("anchor"),
+                "drill".getBytes(), filled(28, 0x52), filled(32, 0x33), "asset-payments".getBytes(),
+                "mpf-blake2b256-v1".getBytes(), filled(32, 0x66)), policyId("exit"), filled(28, 0x73),
+                "ap/claim/".getBytes(), "ap/deposit/".getBytes(), "ap/domain-status".getBytes(),
+                BigInteger.valueOf(2_000_000), 16, 8, 7 * 86_400_000L, ShardBackend.JULC,
+                Optional.of(new VaultPins.Programmable(w.deployment(), w.custody().exitDelegateHash(),
+                        ProgrammableBackend.JULC, issuer, issuer, List.of(), Cip113L1.TEST_SUBSTANDARD)));
+        // The runtime's reads of the deployment, from L1. The drill's fixture policies are issuer-key scripts, not
+        // one-shot, so an earlier drill on the same devnet leaves look-alikes at the issuer: read this drill's own.
+        List<ResolvedOutput> atIssuer = at(wallet("issuer")).stream()
+                .filter(out -> out.outpoint().txIdHex().equals(fixtures)).toList();
+        ResolvedOutput params = Cip113L1.params(atIssuer, w.deployment().paramsPolicy()).orElseThrow();
+        ProgrammableVaultTxAssembler.LiveWiring wiring = ProgrammableVaultTxAssembler.LiveWiring.of(w.deployment(),
+                params, List.of(w.tuple()));
+        Map<String, ResolvedOutput> seen = new HashMap<>();
+        ProgrammableVaultTxAssembler.L1 l1 = Cip113L1.l1(atIssuer, w.deployment().registryNodePolicy(), outpoint -> {
+            try {
+                return Optional.of(seen.computeIfAbsent(outpoint.toString(), k -> {
+                    try {
+                        return resolved(outpoint.txIdHex(), outpoint.index());
+                    } catch (Exception missing) {
+                        throw new IllegalStateException(missing);
+                    }
+                }));
+            } catch (RuntimeException missing) {
+                return Optional.empty();
+            }
+        });
+        Cip113Requirements.Adapter adapter = Cip113L1.adapter(Cip113L1.TEST_SUBSTANDARD, w.token().policyId());
+        ProgrammableSettlement.Cip113 cip113 = new ProgrammableSettlement.Cip113(wiring, l1, adapter,
+                hash -> BigInteger.ZERO);
+        ResolvedOutput anchor = resolved(fixtures, 3);
+        ResolvedOutput mode = resolved(fixtures, 4);
+        List<byte[]> members = List.of(keyHash("m1"), keyHash("m2"), keyHash("m3"));
+        ProgrammableBodyCheck.View view = new ProgrammableBodyCheck.View(w.deployment(), wiring, l1, adapter,
+                w.custody().custodyHash(), w.custody().smartWallet(), Optional.of(w.shard().address()),
+                List.of(anchor, mode), members, new Address(wallet("payer")).getBytes(), Optional.empty());
+        java.util.function.Function<ResolvedOutput.Outpoint, Optional<ResolvedOutput>> memberView = outpoint -> {
+            try {
+                return Optional.of(resolved(outpoint.txIdHex(), outpoint.index()));
+            } catch (Exception missing) {
+                return Optional.empty();
+            }
+        };
+        ProtocolParams pp = pp();
+        var costs = PayoutTxBuilder.costModels(pp);
+
+        // 1. A deposit by the deposit builder, from Alice's remaining tokens.
+        ResolvedOutput alice = at(new Address(ProgrammableBackend.keySmartWallet(w.plb(), keyHash("alice"), 0))
+                .toBech32()).stream().filter(out -> out.quantityOf(w.token()).signum() > 0).findFirst().orElseThrow();
+        // The reference scripts each transaction runs: an Accept runs no shard and no e, a Settle no e.
+        List<ResolvedOutput> all = refs();
+        List<ResolvedOutput> acceptRefs = all.subList(0, 5);
+        List<ResolvedOutput> settleRefs = new ArrayList<>(acceptRefs);
+        settleRefs.add(all.get(6));
+        ProgrammableDepositBuilder.Built deposit = ProgrammableDepositBuilder.build(w.deployment(), wiring, l1, adapter,
+                hash -> BigInteger.ZERO, w.vaultId(), new ProgrammableDepositBuilder.Request(List.of(alice),
+                        keyHash("alice"), w.custody().smartWallet(), w.token(), BigInteger.valueOf(300),
+                        BigInteger.valueOf(2_500_000), filled(28, 0xa1), keyHash("alice"), funding(), refs(), slot(),
+                        slot() + 120), pp, evaluator());
+        String depositTx = submitSigned("runtime-deposit", sign(deposit.assembled().transaction(), "payer", "alice"));
+        System.out.println("runtime deposit " + depositTx + " id " + deposit.depositId().hex());
+
+        // 2. The co-signed Accept the acceptor builds, checked whole by a member before it signs.
+        ResolvedOutput deposited = resolved(depositTx, 0);
+        AcceptTxBuilder.Built accept = ProgrammableSettlement.acceptCosigned(new AcceptTxBuilder.Context(pins, anchor,
+                mode, acceptRefs, funding(), slot(), slot() + 120, pp), cip113, List.of(deposited),
+                List.of(keyHash("m1"), keyHash("m2")), evaluator());
+        DepositRecordV1 credited = new DepositRecordV1(deposit.depositId(), w.vaultId(), Hash32.ofHex(depositTx), 0,
+                slot(), 1, VaultOutputShape.DEPOSIT, DepositRecordV1.Status.CREDITED, DepositAdmission.Reason.NONE,
+                filled(28, 0xa1), BigInteger.valueOf(300), deposited.lovelace(), 0, Hash32.of(filled(32, 0x5e)),
+                BigInteger.valueOf(300), deposited.lovelace());
+        SettleBodyCheck.Outcome acceptCheck = ProgrammableBodyCheck.checkAccept(accept.cbor(), pins, view,
+                filled(28, 0x01), memberView, id -> id.equals(deposit.depositId()) ? Optional.of(credited)
+                        : Optional.empty(), costs, new SettleBodyCheck.Tip(slot(), 1_000));
+        System.out.println("member check of the Accept: " + acceptCheck);
+        if (!(acceptCheck instanceof SettleBodyCheck.Signable)) throw new IllegalStateException("Accept refused");
+        String acceptTx = submitSigned("runtime-accept", sign(accept.transaction(), "payer", "m1", "m2"));
+
+        // 3. The co-signed Settle the executor builds from accepted custody, checked whole by a member.
+        byte[] previous = Blake2bUtil.blake2bHash256("drill-claim-1".getBytes());
+        previous[31] = (byte) ((previous[31] & 0xf0) | 4);
+        ShardMirror mirror = ShardMirror.of(4, List.of(Hash32.of(previous)));
+        ResolvedOutput shardIn = resolved(STATE.getProperty("settle"), 2);
+        byte[] id = Blake2bUtil.blake2bHash256("drill-claim-2".getBytes());
+        id[31] = (byte) ((id[31] & 0xf0) | 4);
+        byte[] bobWallet = ProgrammableBackend.keySmartWallet(w.plb(), keyHash("bob"), 0);
+        ClaimLeafV1 claim = new ClaimLeafV1(Hash32.of(id), w.vaultId(), ClaimKind.USER_WITHDRAWAL,
+                AssetValue.single(w.token(), BigInteger.valueOf(120)), BigInteger.valueOf(1_400_000), bobWallet, 1, 1);
+        List<ResolvedOutput> custody = List.of(resolved(acceptTx, 0), resolved(STATE.getProperty("settle"), 1));
+        PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(pins, custody, shardIn, anchor, mode, settleRefs,
+                funding(), slot(), slot() + 120, pp, 8);
+        PayoutTxBuilder.Built settle = ProgrammableSettlement.settle(context, cip113, List.of(claim), mirror,
+                List.of(keyHash("m1"), keyHash("m2")), evaluator());
+        SettleBodyCheck.Committed committed = new SettleBodyCheck.Committed() {
+            @Override
+            public Optional<SettlementQueries.ClaimView> claim(Hash32 claimId) {
+                return claimId.equals(claim.claimId()) ? Optional.of(new SettlementQueries.ClaimView(claim,
+                        SettlementRecords.ClaimStatusV1.reserved(claimId, 1))) : Optional.empty();
+            }
+
+            @Override
+            public Optional<DomainStatusV1> domainStatus() {
+                return Optional.of(new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 0, 0, 86_400_000L));
+            }
+        };
+        SettleBodyCheck.Outcome settleCheck = ProgrammableBodyCheck.checkSettle(settle.cbor(), pins, view,
+                filled(28, 0x01), memberView, committed, vaultId -> Optional.of(false), costs,
+                new SettleBodyCheck.Tip(slot(), 1_000));
+        System.out.println("member check of the Settle: " + settleCheck);
+        if (!(settleCheck instanceof SettleBodyCheck.Signable)) throw new IllegalStateException("Settle refused");
+        // A held asset's Settle is refused by the same member.
+        SettleBodyCheck.Outcome held = ProgrammableBodyCheck.checkSettle(settle.cbor(), pins, view, filled(28, 0x01),
+                memberView, committed, vaultId -> Optional.of(true), costs, new SettleBodyCheck.Tip(slot(), 1_000));
+        System.out.println("member check of the Settle while held: " + held);
+        String settleTx = submitSigned("runtime-settle", sign(settle.transaction(), "payer", "m1", "m2"));
+        ResolvedOutput paid = resolved(settleTx, 0);
+        System.out.println("runtime settle " + settleTx + ": Bob's smart wallet holds " + paid.quantityOf(w.token()));
+        STATE.setProperty("runtime.settle", settleTx);
+    }
+
+    /** Every output at {@code bech32} in the L1 view. */
+    static List<ResolvedOutput> at(String bech32) throws Exception {
+        List<ResolvedOutput> out = new ArrayList<>();
+        for (JsonNode u : JSON.readTree(get(L1 + "addresses/" + bech32 + "/utxos?count=100"))) {
+            out.add(resolved(u.path("tx_hash").asText(), u.path("output_index").asInt()));
+        }
+        return out;
     }
 
     /** I34 on the node: a deregistration of {@code e}'s credential is refused by its publish handler. */
