@@ -9,6 +9,7 @@ import org.yanoproject.api.utxo.model.Utxo;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
+import org.yanoproject.x.assets.cardano.support.settlement.VaultReconciliation;
 import org.yanoproject.x.assets.contracts.AnchorObservationV1;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.GatewayDatums;
@@ -71,6 +72,25 @@ final class NodeL1View {
             return slot < 0 ? OptionalLong.empty() : OptionalLong.of(slot);
         } catch (RuntimeException unavailable) {
             return OptionalLong.empty();
+        }
+    }
+
+    /**
+     * The last L1 block applied to this node's UTxO view, slot <b>and</b> block hash, read under the store's own
+     * exclusion; empty when either is unknown (no view, a disabled store, no applied point yet, a store that does not
+     * name the block hash, or a failed read). The reconciliation (D15) names this point, so a scan whose point cannot
+     * be established is never compared.
+     */
+    Optional<VaultReconciliation.L1Point> appliedPoint() {
+        UtxoState state = view.get();
+        if (!(state instanceof RollbackCapableStore store)) return Optional.empty();
+        try {
+            if (!state.isEnabled()) return Optional.empty();
+            RollbackCapableStore.AppliedPoint point = store.readAtLatestAppliedPoint(applied -> applied);
+            if (point == null || point.slot() < 0 || point.blockHash() == null) return Optional.empty();
+            return Optional.of(new VaultReconciliation.L1Point(point.slot(), point.blockHash()));
+        } catch (RuntimeException unavailable) {
+            return Optional.empty();
         }
     }
 

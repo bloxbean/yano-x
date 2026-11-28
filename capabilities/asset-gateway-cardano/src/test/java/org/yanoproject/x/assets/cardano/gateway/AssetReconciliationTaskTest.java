@@ -83,7 +83,13 @@ class AssetReconciliationTaskTest {
         VaultReconciliation.Report report = task.lastReports().getFirst();
         assertThat(outcome).contains("SURPLUS");
         assertThat(unit(report, USDM.toString()).verdict()).isEqualTo(Verdict.BALANCED);
-        assertThat(unit(report, "lovelace").difference()).isEqualTo(BigInteger.valueOf(100_000_000)); // the floor
+        // 100 ADA of custody against no lovelace liability and the pinned 2 ADA continuation floor.
+        assertThat(unit(report, "lovelace").floor()).isEqualTo(BigInteger.valueOf(2_000_000));
+        assertThat(unit(report, "lovelace").difference()).isEqualTo(BigInteger.valueOf(98_000_000));
+        assertThat(report.l1Point()).hasValueSatisfying(point -> {
+            assertThat(point.slot()).isEqualTo(world.now / 1_000);
+            assertThat(point.blockHash()).isEqualTo(String.format("%064x", world.now / 1_000));
+        });
         assertThat(report.height()).isEqualTo(1_000);
         assertThat(report.outputs()).isEqualTo(2);
 
@@ -137,7 +143,7 @@ class AssetReconciliationTaskTest {
         assertThat(usdm.verdict()).isEqualTo(Verdict.BALANCED);
         assertThat(report.reservedClaims()).isEqualTo(1);
         assertThat(report.oldestReservedAtMs()).hasValue(claim.reservedAtMs());
-        assertThat(report.claimsPaidOnL1()).isEmpty();
+        assertThat(report.claimsPendingOnL1()).isEmpty();
     }
 
     @Test
@@ -161,6 +167,32 @@ class AssetReconciliationTaskTest {
         VaultReconciliation.Report report = task.lastReports().getFirst();
         assertThat(report.verdict()).isEqualTo(Verdict.IN_FLIGHT);
         assertThat(report.notes()).anyMatch(note -> note.contains("[3]"));
+        assertThat(unit(report, USDM.toString()).payoutsInFlight()).isEqualTo(BigInteger.valueOf(108));
+    }
+
+    @Test
+    void anUnknownL1PointIsUnavailableNeverADiscrepancy() throws Exception {
+        node.ledger.counters = counters(250_000, 0, 0, 0); // a shortfall, if the view could be trusted
+        List<AppEffectExecutor> products = products(Map.of());
+        ReconciliationTask task = task(products);
+        // The view names its slot but not the block hash.
+        world.appliedHashUnknown = true;
+        task.runOnce();
+        VaultReconciliation.Report report = task.lastReports().getFirst();
+        assertThat(report.verdict()).isEqualTo(Verdict.UNAVAILABLE);
+        assertThat(report.notes()).anyMatch(note -> note.contains("slot and block hash"));
+        // No applied point at all.
+        world.appliedHashUnknown = false;
+        world.frozenTipSlot = -1L;
+        task.runOnce();
+        assertThat(task.lastReports().getFirst().verdict()).isEqualTo(Verdict.UNAVAILABLE);
+        EffectExecutorOperationalSnapshot snapshot = snapshot(products, TaskProduct.RECONCILIATION);
+        assertThat(snapshot.terminalFailures()).isZero();
+        assertThat(snapshot.retryableFailures()).isEqualTo(2);
+        // Once the point is known again, the shortfall is reported.
+        world.frozenTipSlot = null;
+        task.runOnce();
+        assertThat(task.lastReports().getFirst().verdict()).isEqualTo(Verdict.DISCREPANCY);
     }
 
     @Test

@@ -236,6 +236,8 @@ class AssetSettlementTasksTest {
     boolean pointReadsFail;
     /** Whether the node's UTxO store is disabled. */
     boolean storeDisabled;
+    /** When set, the view names its applied slot but not the block's hash (a store without a delta log). */
+    boolean appliedHashUnknown;
 
     /** The effective TTL file of {@code chain} and the fee wallet of {@code feeSeed} under {@code base}. */
     static Path ttlFileOf(Path base, String chain, byte[] feeSeed) {
@@ -305,6 +307,13 @@ class AssetSettlementTasksTest {
         public long getLatestAppliedSlot() {
             Long frozen = frozenTipSlot;
             return frozen != null ? frozen : now / 1_000;
+        }
+
+        /** The applied point: the tip slot and a block hash derived from it, as a real store's delta log names it. */
+        @Override
+        public AppliedPoint getLatestAppliedPoint() {
+            long slot = getLatestAppliedSlot();
+            return new AppliedPoint(slot, appliedHashUnknown || slot < 0 ? null : String.format("%064x", slot));
         }
 
         @Override

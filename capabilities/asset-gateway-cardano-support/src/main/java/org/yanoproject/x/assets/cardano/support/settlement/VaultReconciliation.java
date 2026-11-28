@@ -4,15 +4,14 @@ import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.DepositRecordV1;
-import org.yanoproject.x.assets.contracts.GatewayDatums;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.SettlementBatchV1;
 import org.yanoproject.x.assets.contracts.VaultOutputShape;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,15 +28,16 @@ import java.util.function.Function;
  * {@link Verdict#DISCREPANCY} so operators raise the alert and the members submit the governed {@code PAUSE} the
  * runbook prescribes (D15 "Incidents").
  *
- * <p><b>Inputs.</b> Every output at the vault address at one L1 point (the scan must be complete); the vault's I4
- * counters at one committed height; the committed record of each deposit-shaped or junk output; the vault's
- * {@code RESERVED} claims; and the shards whose live nullifier root is ahead of the committed {@code PAID} inserts.
+ * <p><b>Inputs.</b> Every output at the vault address at one named L1 point, slot and block hash (the scan must be
+ * complete, and without a point the report is {@link Verdict#UNAVAILABLE}); the vault's I4 counters at one committed
+ * height; the committed record of each deposit-shaped or junk output; the vault's {@code RESERVED} claims; and the
+ * shards whose live nullifier root is ahead of the committed {@code PAID} inserts.
  *
  * <p><b>Classification</b> of each output at the vault address:
  * <ul>
  *   <li><b>accepted custody</b>: the one V10 rule ({@link PayoutTxBuilder#accepted}), a clean continuation or floor
- *       top-up. A continuation's datum names the claims the transaction that created it paid; any of them still
- *       {@code RESERVED} in committed state is a <b>payout in flight</b>: it has left L1 and is still a liability;</li>
+ *       top-up. It is plain custody: anyone can create one at the vault address, so the claim ids a continuation's
+ *       datum names are <b>not</b> evidence that those claims were paid;</li>
  *   <li><b>credited, not yet accepted</b>: a deposit-shaped output whose record is {@code CREDITED}; it backs the
  *       liabilities its credit created until an {@code Accept} merges it (D8f);</li>
  *   <li><b>uncredited</b> (record {@code UNCREDITED}) and <b>unattributed</b> (record {@code UNATTRIBUTED}): value on
@@ -46,24 +46,39 @@ import java.util.function.Function;
  *       {@code depositsInFlight}); a credit, when it comes, adds the same value to both sides.</li>
  * </ul>
  *
- * <p><b>Per unit</b> (the vault asset, and lovelace for a token vault; units never mix):
- * {@code backing = accepted + creditedUnaccepted}, {@code expected = liabilities − payoutsInFlight}, and
- * {@code difference = backing − expected}. Zero is {@link Verdict#BALANCED}; a surplus is
- * {@link Verdict#SURPLUS}, explained by the operator floor (D11), donations, or a confirmed payout that rolled back on
- * L1 and is payable again (D10); a shortfall while a shard is ahead of its committed inserts is
- * {@link Verdict#IN_FLIGHT} (a payout L1 has seen is not yet confirmed); any other shortfall is a
- * {@link Verdict#DISCREPANCY}.
+ * <p><b>Payouts in flight</b> come only from thread-authenticated evidence (D10): a {@code RESERVED} claim whose shard
+ * is ahead of the committed inserts may have been paid on L1, since only a spend of the shard thread (a {@code Settle}
+ * or {@code Exit}) moves its nullifier root. The sum of those claims, per unit, is the most a shortfall can be
+ * explained by.
+ *
+ * <p><b>Per unit</b> (the vault asset, and lovelace; units never mix): {@code backing = accepted + creditedUnaccepted},
+ * {@code expected = liabilities + floor} and {@code difference = backing − expected}. The <b>floor</b> is the profile's
+ * {@code continuationFloor} (D11): operator-owned operational lovelace that every continuation keeps, never a user
+ * liability, counted only in the lovelace unit and only once the vault holds accepted custody (it is bootstrapped). So
+ * a lovelace shortfall smaller than the floor is still a shortfall; it is never absorbed by the floor. Zero is
+ * {@link Verdict#BALANCED}; a surplus is {@link Verdict#SURPLUS}, explained by floor top-ups, donations, or a
+ * confirmed payout that rolled back on L1 and is payable again (D10); a shortfall no larger than the pending payouts
+ * is {@link Verdict#IN_FLIGHT}; any shortfall beyond them is a {@link Verdict#DISCREPANCY}, with the uncovered
+ * remainder named.
  */
 public final class VaultReconciliation {
     private VaultReconciliation() {
     }
 
-    /** The vault under reconciliation. */
-    public record Vault(Hash32 vaultId, AssetId asset, byte[] vaultAddress) {
+    /**
+     * The vault under reconciliation.
+     *
+     * @param continuationFloor the profile's {@code continuationFloor} (D11, V6), expected in lovelace on top of the
+     *                          lovelace liabilities
+     */
+    public record Vault(Hash32 vaultId, AssetId asset, byte[] vaultAddress, BigInteger continuationFloor) {
         public Vault {
             Objects.requireNonNull(vaultId, "vault id");
             Objects.requireNonNull(asset, "asset");
             vaultAddress = Objects.requireNonNull(vaultAddress, "vault address").clone();
+            if (continuationFloor == null || continuationFloor.signum() < 0) {
+                throw new IllegalArgumentException("continuation floor is non-negative");
+            }
         }
 
         @Override
@@ -72,7 +87,7 @@ public final class VaultReconciliation {
         }
 
         public static Vault of(VaultPins pins) {
-            return new Vault(pins.vaultId(), pins.asset(), pins.vaultAddress());
+            return new Vault(pins.vaultId(), pins.asset(), pins.vaultAddress(), pins.continuationFloor());
         }
     }
 
@@ -94,10 +109,23 @@ public final class VaultReconciliation {
         }
     }
 
-    /** Every output at the vault address at one L1 point; {@code complete} only when no page was left unread. */
-    public record L1Scan(OptionalLong slot, List<ResolvedOutput> outputs, boolean complete) {
+    /** A named L1 point: the slot and hash of the last block applied to the view that was scanned. */
+    public record L1Point(long slot, String blockHash) {
+        public L1Point {
+            if (slot < 0) throw new IllegalArgumentException("slot is non-negative");
+            Objects.requireNonNull(blockHash, "block hash");
+            blockHash = blockHash.toLowerCase(java.util.Locale.ROOT);
+            if (!blockHash.matches("[0-9a-f]{64}")) throw new IllegalArgumentException("block hash is 32-byte hex");
+        }
+    }
+
+    /**
+     * Every output at the vault address at one L1 point; {@code complete} only when no page was left unread. Without
+     * a point the scan names no L1 state, and the report is {@link Verdict#UNAVAILABLE}.
+     */
+    public record L1Scan(Optional<L1Point> point, List<ResolvedOutput> outputs, boolean complete) {
         public L1Scan {
-            Objects.requireNonNull(slot, "slot");
+            Objects.requireNonNull(point, "point");
             outputs = List.copyOf(outputs);
         }
     }
@@ -110,18 +138,25 @@ public final class VaultReconciliation {
         }
     }
 
-    /** One unit's figures; every amount is in the unit's base quantity. */
-    public record Unit(String unit, BigInteger liabilities, BigInteger accepted, BigInteger creditedUnaccepted,
-                       BigInteger payoutsInFlight, BigInteger uncredited, BigInteger unattributed,
-                       BigInteger inFlight, BigInteger l1Total, BigInteger difference, Verdict verdict,
-                       String explanation) {
+    /**
+     * One unit's figures; every amount is in the unit's base quantity. {@code pendingPayouts} is the value of the
+     * {@code RESERVED} claims in shards ahead of the committed inserts; {@code payoutsInFlight} is the part of a
+     * shortfall they explain; {@code floor} is the continuation floor expected on top of the liabilities (lovelace
+     * only).
+     */
+    public record Unit(String unit, BigInteger liabilities, BigInteger floor, BigInteger accepted,
+                       BigInteger creditedUnaccepted, BigInteger pendingPayouts, BigInteger payoutsInFlight,
+                       BigInteger uncredited, BigInteger unattributed, BigInteger inFlight, BigInteger l1Total,
+                       BigInteger difference, Verdict verdict, String explanation) {
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("unit", unit);
             map.put("verdict", verdict.name());
             map.put("liabilities", liabilities.toString());
+            map.put("floor", floor.toString());
             map.put("acceptedCustody", accepted.toString());
             map.put("creditedUnaccepted", creditedUnaccepted.toString());
+            map.put("pendingPayouts", pendingPayouts.toString());
             map.put("payoutsInFlight", payoutsInFlight.toString());
             map.put("uncreditedDeposits", uncredited.toString());
             map.put("unattributed", unattributed.toString());
@@ -134,17 +169,18 @@ public final class VaultReconciliation {
     }
 
     /** The report of one vault. */
-    public record Report(Hash32 vaultId, AssetId asset, long height, OptionalLong l1Slot, Verdict verdict,
+    public record Report(Hash32 vaultId, AssetId asset, long height, Optional<L1Point> l1Point, Verdict verdict,
                          List<Unit> units, int outputs, int reservedClaims, OptionalLong oldestReservedAtMs,
-                         List<Hash32> claimsPaidOnL1, List<String> notes) {
+                         List<Hash32> claimsPendingOnL1, List<String> notes) {
         public Report {
+            Objects.requireNonNull(l1Point, "L1 point");
             units = List.copyOf(units);
-            claimsPaidOnL1 = List.copyOf(claimsPaidOnL1);
+            claimsPendingOnL1 = List.copyOf(claimsPendingOnL1);
             notes = List.copyOf(notes);
         }
 
         public static Report unavailable(Hash32 vaultId, AssetId asset, String why) {
-            return new Report(vaultId, asset, -1, OptionalLong.empty(), Verdict.UNAVAILABLE, List.of(), 0, 0,
+            return new Report(vaultId, asset, -1, Optional.empty(), Verdict.UNAVAILABLE, List.of(), 0, 0,
                     OptionalLong.empty(), List.of(), List.of(why));
         }
 
@@ -154,11 +190,12 @@ public final class VaultReconciliation {
             map.put("asset", asset.isAda() ? "lovelace" : asset.toString());
             map.put("verdict", verdict.name());
             map.put("committedHeight", height);
-            map.put("l1Slot", l1Slot.isPresent() ? l1Slot.getAsLong() : -1);
+            map.put("l1Slot", l1Point.map(L1Point::slot).orElse(-1L));
+            map.put("l1BlockHash", l1Point.map(L1Point::blockHash).orElse(""));
             map.put("outputs", outputs);
             map.put("reservedClaims", reservedClaims);
             map.put("oldestReservedAtMs", oldestReservedAtMs.isPresent() ? oldestReservedAtMs.getAsLong() : -1);
-            map.put("claimsPaidOnL1", claimsPaidOnL1.stream().map(Hash32::hex).toList());
+            map.put("claimsPendingOnL1", claimsPendingOnL1.stream().map(Hash32::hex).toList());
             map.put("units", units.stream().map(Unit::toMap).toList());
             map.put("notes", notes);
             return map;
@@ -172,7 +209,7 @@ public final class VaultReconciliation {
         BigInteger uncredited = BigInteger.ZERO;
         BigInteger unattributed = BigInteger.ZERO;
         BigInteger inFlight = BigInteger.ZERO;
-        BigInteger payouts = BigInteger.ZERO;
+        BigInteger pending = BigInteger.ZERO;
     }
 
     public static Report reconcile(Vault vault, Consensus consensus, L1Scan scan) {
@@ -180,16 +217,20 @@ public final class VaultReconciliation {
         Objects.requireNonNull(consensus, "consensus");
         Objects.requireNonNull(scan, "scan");
         if (!scan.complete()) return Report.unavailable(vault.vaultId(), vault.asset(), "the L1 scan is incomplete");
+        if (scan.point().isEmpty()) {
+            return Report.unavailable(vault.vaultId(), vault.asset(),
+                    "the L1 view names no applied point (slot and block hash)");
+        }
 
         boolean ada = vault.asset().isAda();
         Sums asset = new Sums();
         Sums lovelace = new Sums();
         Map<Hash32, ClaimLeafV1> reserved = new LinkedHashMap<>();
         consensus.reserved().forEach(leaf -> reserved.put(leaf.claimId(), leaf));
-        Set<Hash32> paidOnL1 = new LinkedHashSet<>();
         List<String> notes = new ArrayList<>();
         int foreign = 0;
         int counted = 0;
+        int acceptedOutputs = 0;
         TreeSet<ResolvedOutput.Outpoint> seen = new TreeSet<>();
         List<ResolvedOutput> ordered = new ArrayList<>(scan.outputs());
         ordered.sort((a, b) -> a.outpoint().compareTo(b.outpoint()));
@@ -202,9 +243,7 @@ public final class VaultReconciliation {
             if (PayoutTxBuilder.accepted(out, vault.vaultAddress(), vault.asset())) {
                 asset.accepted = asset.accepted.add(quantity);
                 lovelace.accepted = lovelace.accepted.add(coins);
-                out.inlineDatum().flatMap(GatewayDatums::continuationIds).ifPresent(ids -> ids.forEach(id -> {
-                    if (reserved.containsKey(id)) paidOnL1.add(id);
-                }));
+                acceptedOutputs++;
                 continue;
             }
             Hash32 depositId = GatewayIds.depositId(vault.vaultId(), out.outpoint().txId(), out.outpoint().index());
@@ -226,61 +265,88 @@ public final class VaultReconciliation {
                 lovelace.unattributed = lovelace.unattributed.add(coins);
             }
         }
-        for (Hash32 id : paidOnL1) {
-            ClaimLeafV1 leaf = reserved.get(id);
+        // Thread-authenticated evidence only (D10): a claim may have been paid on L1 only if its shard moved.
+        List<Hash32> pending = new ArrayList<>();
+        for (ClaimLeafV1 leaf : reserved.values()) {
+            if (!consensus.shardsAhead().contains(SettlementBatchV1.shardOf(leaf.claimId()))) continue;
+            pending.add(leaf.claimId());
             if (ada) {
-                lovelace.payouts = lovelace.payouts.add(leaf.value().quantityOf(AssetId.ADA));
+                lovelace.pending = lovelace.pending.add(leaf.value().quantityOf(AssetId.ADA));
             } else {
-                asset.payouts = asset.payouts.add(leaf.value().quantityOf(vault.asset()));
-                lovelace.payouts = lovelace.payouts.add(leaf.vaultLovelace());
+                asset.pending = asset.pending.add(leaf.value().quantityOf(vault.asset()));
+                lovelace.pending = lovelace.pending.add(leaf.vaultLovelace());
             }
         }
         if (foreign > 0) notes.add(foreign + " output(s) carry assets other than the vault's (unattributed, D8d)");
         if (!consensus.shardsAhead().isEmpty()) {
-            notes.add("shards " + consensus.shardsAhead() + " hold nullifier inserts not yet confirmed in committed state");
+            notes.add("shards " + new TreeSet<>(consensus.shardsAhead())
+                    + " hold nullifier inserts not yet confirmed in committed state; " + pending.size()
+                    + " reserved claim(s) there may be paid on L1");
         }
+        BigInteger floor = acceptedOutputs > 0 ? vault.continuationFloor() : BigInteger.ZERO;
+        notes.add(acceptedOutputs > 0
+                ? "lovelace expected includes the operator continuation floor of " + floor + " (D11): operator-owned, "
+                        + "never a liability, so a lovelace shortfall smaller than the floor is still a shortfall"
+                : "no accepted custody yet (not bootstrapped), so no continuation floor is expected");
 
         AssetAccounts.VaultCounters c = consensus.counters();
-        boolean pending = !consensus.shardsAhead().isEmpty();
         List<Unit> units = new ArrayList<>();
         if (ada) {
-            units.add(unit("lovelace", c.available().add(c.reserved()), lovelace, pending));
+            units.add(unit("lovelace", c.available().add(c.reserved()), floor, lovelace));
         } else {
-            units.add(unit(vault.asset().toString(), c.available().add(c.reserved()), asset, pending));
-            units.add(unit("lovelace", c.lovelaceAvailable().add(c.lovelaceReserved()), lovelace, pending));
+            units.add(unit(vault.asset().toString(), c.available().add(c.reserved()), BigInteger.ZERO, asset));
+            units.add(unit("lovelace", c.lovelaceAvailable().add(c.lovelaceReserved()), floor, lovelace));
         }
         Verdict verdict = Verdict.BALANCED;
         for (Unit unit : units) verdict = verdict.worst(unit.verdict());
+        if (verdict == Verdict.IN_FLIGHT || verdict == Verdict.DISCREPANCY) {
+            L1Point point = scan.point().get();
+            notes.add("this node's L1 view (slot " + point.slot() + ", block " + point.blockHash() + ") may lag the "
+                    + "L1 observations committed height " + consensus.height() + " was built from: a deposit credited "
+                    + "from a block this view has not applied yet reads as a shortfall here; compare another "
+                    + "member's report or an independent L1 view before acting");
+        }
         OptionalLong oldest = reserved.values().stream().mapToLong(ClaimLeafV1::reservedAtMs).min();
-        return new Report(vault.vaultId(), vault.asset(), consensus.height(), scan.slot(), verdict, units, counted,
-                reserved.size(), oldest, List.copyOf(paidOnL1), notes);
+        return new Report(vault.vaultId(), vault.asset(), consensus.height(), scan.point(), verdict, units, counted,
+                reserved.size(), oldest, pending, notes);
     }
 
-    private static Unit unit(String name, BigInteger liabilities, Sums sums, boolean shardsAhead) {
+    private static Unit unit(String name, BigInteger liabilities, BigInteger floor, Sums sums) {
         BigInteger backing = sums.accepted.add(sums.credited);
-        BigInteger expected = liabilities.subtract(sums.payouts);
+        BigInteger expected = liabilities.add(floor);
         BigInteger difference = backing.subtract(expected);
         BigInteger total = backing.add(sums.uncredited).add(sums.unattributed).add(sums.inFlight);
+        BigInteger explained = BigInteger.ZERO;
         Verdict verdict;
         String explanation;
+        String floorPart = floor.signum() == 0 ? "" : " (liabilities " + liabilities + " plus the floor " + floor + ")";
         if (difference.signum() == 0) {
             verdict = Verdict.BALANCED;
-            explanation = "custody equals liabilities net of payouts in flight";
+            explanation = "custody equals what is expected" + floorPart;
         } else if (difference.signum() > 0) {
             verdict = Verdict.SURPLUS;
-            explanation = "custody exceeds liabilities by " + difference + ": the operator floor (D11), donations, or "
-                    + "a confirmed payout that rolled back on L1 and is payable again (D10)";
-        } else if (shardsAhead) {
-            verdict = Verdict.IN_FLIGHT;
-            explanation = "custody is short by " + difference.negate() + " while a payout L1 has seen awaits its "
-                    + "confirmation; re-run once its observation is final";
+            explanation = "custody exceeds what is expected" + floorPart + " by " + difference + ": floor top-ups, "
+                    + "donations, or a confirmed payout that rolled back on L1 and is payable again (D10)";
         } else {
-            verdict = Verdict.DISCREPANCY;
-            explanation = "custody is short of liabilities by " + difference.negate() + " with nothing in flight: "
-                    + "raise the alert and submit the governed PAUSE (D15); no balance is changed";
+            BigInteger shortfall = difference.negate();
+            explained = shortfall.min(sums.pending);
+            BigInteger uncovered = shortfall.subtract(explained);
+            if (uncovered.signum() == 0) {
+                verdict = Verdict.IN_FLIGHT;
+                explanation = "custody is short of what is expected" + floorPart + " by " + shortfall + ", within the "
+                        + sums.pending + " reserved in shards ahead of their committed inserts (payouts L1 has "
+                        + "seen, not yet confirmed); re-run once their observations are final";
+            } else {
+                verdict = Verdict.DISCREPANCY;
+                explanation = "custody is short of what is expected" + floorPart + " by " + shortfall + "; payouts in "
+                        + "flight explain " + explained + " and " + uncovered + " is unexplained"
+                        + (floor.signum() > 0 && uncovered.compareTo(floor) <= 0
+                        ? " (no more than the operator floor, which custody must still hold)" : "")
+                        + ": raise the alert and submit the governed PAUSE (D15); no balance is changed";
+            }
         }
-        return new Unit(name, liabilities, sums.accepted, sums.credited, sums.payouts, sums.uncredited,
-                sums.unattributed, sums.inFlight, total, difference, verdict, explanation);
+        return new Unit(name, liabilities, floor, sums.accepted, sums.credited, sums.pending, explained,
+                sums.uncredited, sums.unattributed, sums.inFlight, total, difference, verdict, explanation);
     }
 
     /** Whether two scans name the same outputs, so a caller can tell that the L1 view moved under it. */

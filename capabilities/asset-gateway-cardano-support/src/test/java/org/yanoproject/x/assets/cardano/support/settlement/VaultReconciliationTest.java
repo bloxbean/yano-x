@@ -16,6 +16,7 @@ import org.yanoproject.x.assets.contracts.DepositDatumV1;
 import org.yanoproject.x.assets.contracts.DepositRecordV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.SettlementBatchV1;
 import org.yanoproject.x.assets.contracts.VaultOutputShape;
 
 import java.io.ByteArrayOutputStream;
@@ -26,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -34,8 +34,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * ADR-059 D15 reconciliation over synthetic L1 scans: accepted custody, credited-but-unaccepted, uncredited,
- * unattributed and in-flight outputs; payouts L1 has seen but committed state has not confirmed; a deliberate
- * shortfall that is flagged; and units that never offset each other.
+ * unattributed and in-flight outputs; payouts in flight only from shards ahead of their committed inserts, and only up
+ * to what they explain; the continuation floor expected in lovelace; a deliberate shortfall that is flagged; and
+ * units that never offset each other.
  */
 class VaultReconciliationTest {
     static final AssetId USDM = AssetId.ofHex("f0".repeat(28), "5553444d");
@@ -46,7 +47,11 @@ class VaultReconciliationTest {
     static final byte[] ADDRESS = address(0x02);
     static final byte[] ADA_ADDRESS = address(0x01);
     static final byte[] RECIPIENT = concat(new byte[] {0x60}, filled(28, 0x77));
-    static final VaultReconciliation.Vault VAULT = new VaultReconciliation.Vault(VAULT_ID, USDM, ADDRESS);
+    static final BigInteger FLOOR = BigInteger.valueOf(2_000_000);
+    static final VaultReconciliation.Vault VAULT = new VaultReconciliation.Vault(VAULT_ID, USDM, ADDRESS, FLOOR);
+    static final VaultReconciliation.Vault ADA_VAULT = new VaultReconciliation.Vault(ADA_VAULT_ID, AssetId.ADA,
+            ADA_ADDRESS, FLOOR);
+    static final VaultReconciliation.L1Point POINT = new VaultReconciliation.L1Point(900, "ab".repeat(32));
 
     final Map<Hash32, DepositRecordV1> records = new HashMap<>();
     final List<ResolvedOutput> l1 = new ArrayList<>();
@@ -132,8 +137,16 @@ class VaultReconciliationTest {
 
     Report reconcile(AssetAccounts.VaultCounters counters, List<ClaimLeafV1> reserved, Set<Integer> ahead) {
         return VaultReconciliation.reconcile(VAULT, new Consensus(12, counters,
-                id -> Optional.ofNullable(records.get(id)), reserved, ahead), new L1Scan(OptionalLong.of(900), l1,
+                id -> Optional.ofNullable(records.get(id)), reserved, ahead), new L1Scan(Optional.of(POINT), l1,
                 true));
+    }
+
+    /** A claim whose id routes to {@code shard}: the seed is searched, so the claim's shard is known. */
+    static ClaimLeafV1 claimIn(int shard, long usdm, long vaultLovelace) {
+        for (int seed = 1; ; seed++) {
+            ClaimLeafV1 leaf = claim(seed, usdm, vaultLovelace, 1_000 + seed);
+            if (SettlementBatchV1.shardOf(leaf.claimId()) == shard) return leaf;
+        }
     }
 
     static Unit unit(Report report, String name) {
@@ -143,17 +156,27 @@ class VaultReconciliationTest {
     // ------------------------------------------------------------------ tests
 
     @Test
-    void custodyThatMatchesLiabilitiesBalancesAndTheFloorIsALovelaceSurplus() {
+    void custodyThatMatchesLiabilitiesAndTheFloorBalances() {
         custody(100, 3_500_000); // 100 USDM of liabilities, 1.5 ADA of min-ADA credit, a 2 ADA floor
         Report report = reconcile(counters(100, 0, 60, 40, 1_500_000, 0, 500_000, 1_000_000), List.of(), Set.of());
         assertThat(unit(report, USDM.toString()).verdict()).isEqualTo(Verdict.BALANCED);
+        assertThat(unit(report, USDM.toString()).floor()).isZero();
         Unit lovelace = unit(report, "lovelace");
-        assertThat(lovelace.verdict()).isEqualTo(Verdict.SURPLUS);
-        assertThat(lovelace.difference()).isEqualTo(BigInteger.valueOf(2_000_000));
-        assertThat(lovelace.explanation()).contains("floor");
-        assertThat(report.verdict()).isEqualTo(Verdict.SURPLUS);
+        assertThat(lovelace.verdict()).isEqualTo(Verdict.BALANCED);
+        assertThat(lovelace.floor()).isEqualTo(FLOOR);
+        assertThat(lovelace.difference()).isZero();
+        assertThat(report.verdict()).isEqualTo(Verdict.BALANCED);
         assertThat(report.height()).isEqualTo(12);
-        assertThat(report.l1Slot()).hasValue(900);
+        assertThat(report.l1Point()).contains(POINT);
+        assertThat(report.toMap()).containsEntry("l1Slot", 900L).containsEntry("l1BlockHash", "ab".repeat(32));
+        assertThat(report.notes()).anyMatch(note -> note.contains("continuation floor of 2000000"));
+
+        // A floor top-up above the profile floor is a lovelace surplus.
+        output(ADDRESS, 1_000_000, Map.of(), VaultOutputShape.floorTopUpDatum());
+        Unit topped = unit(reconcile(counters(100, 0, 60, 40, 1_500_000, 0, 500_000, 1_000_000), List.of(), Set.of()),
+                "lovelace");
+        assertThat(topped.verdict()).isEqualTo(Verdict.SURPLUS);
+        assertThat(topped.explanation()).contains("floor top-ups");
     }
 
     @Test
@@ -176,24 +199,66 @@ class VaultReconciliationTest {
         assertThat(usdm.verdict()).isEqualTo(Verdict.BALANCED);
         Unit lovelace = unit(report, "lovelace");
         assertThat(lovelace.unattributed()).isEqualTo(BigInteger.valueOf(1_100_000));
-        assertThat(lovelace.difference()).isEqualTo(BigInteger.valueOf(2_000_000));
+        assertThat(lovelace.difference()).isZero(); // 2 ADA of accepted custody is the floor
         assertThat(report.outputs()).isEqualTo(5);
         assertThat(report.notes()).anyMatch(note -> note.contains("other than the vault's"));
     }
 
     @Test
     void aPayoutL1HasSeenButCommittedStateHasNotConfirmedIsInFlight() {
-        ClaimLeafV1 paid = claim(1, 40, 1_000_000, 5_000);
-        ClaimLeafV1 waiting = claim(2, 10, 0, 4_000);
+        ClaimLeafV1 paid = claimIn(5, 40, 1_000_000);
+        ClaimLeafV1 waiting = claimIn(6, 10, 0);
         custody(60, 2_500_000, paid.claimId()); // the continuation of the Settle that paid `paid`
+        // Only the shard thread authenticates the payout: shard 5 moved past its committed inserts.
         Report report = reconcile(counters(100, 0, 50, 50, 1_500_000, 0, 500_000, 1_000_000),
-                List.of(paid, waiting), Set.of());
-        assertThat(report.claimsPaidOnL1()).containsExactly(paid.claimId());
-        assertThat(unit(report, USDM.toString()).payoutsInFlight()).isEqualTo(BigInteger.valueOf(40));
-        assertThat(unit(report, USDM.toString()).verdict()).isEqualTo(Verdict.BALANCED);
+                List.of(paid, waiting), Set.of(5));
+        assertThat(report.claimsPendingOnL1()).containsExactly(paid.claimId());
+        Unit usdm = unit(report, USDM.toString());
+        assertThat(usdm.pendingPayouts()).isEqualTo(BigInteger.valueOf(40));
+        assertThat(usdm.payoutsInFlight()).isEqualTo(BigInteger.valueOf(40));
+        assertThat(usdm.verdict()).isEqualTo(Verdict.IN_FLIGHT);
         assertThat(unit(report, "lovelace").payoutsInFlight()).isEqualTo(BigInteger.valueOf(1_000_000));
+        assertThat(unit(report, "lovelace").verdict()).isEqualTo(Verdict.IN_FLIGHT);
         assertThat(report.reservedClaims()).isEqualTo(2);
-        assertThat(report.oldestReservedAtMs()).hasValue(4_000);
+        assertThat(report.oldestReservedAtMs()).hasValue(waiting.reservedAtMs() < paid.reservedAtMs()
+                ? waiting.reservedAtMs() : paid.reservedAtMs());
+        assertThat(report.notes()).anyMatch(note -> note.contains("may lag"));
+    }
+
+    @Test
+    void aDonatedContinuationNamingAReservedClaimIsPlainCustodyNotAPayout() {
+        // Codex probe: 40 USDM are missing; anyone can create a clean continuation naming the reserved claim.
+        ClaimLeafV1 reserved = claimIn(5, 40, 0);
+        custody(60, 2_000_000);
+        custody(0, 1_000_000, reserved.claimId()); // donated: 1 ADA, naming the claim
+        Report report = reconcile(counters(100, 0, 60, 40, 0, 0, 0, 0), List.of(reserved), Set.of());
+        Unit usdm = unit(report, USDM.toString());
+        assertThat(report.claimsPendingOnL1()).isEmpty();
+        assertThat(usdm.payoutsInFlight()).isZero();
+        assertThat(usdm.difference()).isEqualTo(BigInteger.valueOf(-40));
+        assertThat(usdm.verdict()).isEqualTo(Verdict.DISCREPANCY);
+        // The donation is custody: a lovelace surplus, never an explanation of the USDM shortfall.
+        assertThat(unit(report, "lovelace").verdict()).isEqualTo(Verdict.SURPLUS);
+        assertThat(report.verdict()).isEqualTo(Verdict.DISCREPANCY);
+    }
+
+    @Test
+    void aShardAheadExplainsOnlyTheClaimsInItAndTheRemainderIsADiscrepancy() {
+        // Fable probe: 99 of 100 USDM missing, one shard ahead holding a claim of 5.
+        ClaimLeafV1 reserved = claimIn(7, 5, 0);
+        custody(1, 2_000_000);
+        Report report = reconcile(counters(100, 0, 95, 5, 0, 0, 0, 0), List.of(reserved), Set.of(7));
+        Unit usdm = unit(report, USDM.toString());
+        assertThat(usdm.difference()).isEqualTo(BigInteger.valueOf(-99));
+        assertThat(usdm.pendingPayouts()).isEqualTo(BigInteger.valueOf(5));
+        assertThat(usdm.payoutsInFlight()).isEqualTo(BigInteger.valueOf(5));
+        assertThat(usdm.verdict()).isEqualTo(Verdict.DISCREPANCY);
+        assertThat(usdm.explanation()).contains("explain 5 and 94 is unexplained");
+        assertThat(report.claimsPendingOnL1()).containsExactly(reserved.claimId());
+        // A claim in a shard that is not ahead explains nothing.
+        Report elsewhere = reconcile(counters(100, 0, 95, 5, 0, 0, 0, 0), List.of(reserved), Set.of(8));
+        assertThat(unit(elsewhere, USDM.toString()).payoutsInFlight()).isZero();
+        assertThat(elsewhere.claimsPendingOnL1()).isEmpty();
     }
 
     @Test
@@ -215,34 +280,53 @@ class VaultReconciliationTest {
     @Test
     void aShortfallWhileAShardIsAheadOfCommittedInsertsIsInFlightNotADiscrepancy() {
         custody(60, 2_000_000); // a payout's continuation already spent by a later one: not in the scan
-        Report report = reconcile(counters(100, 0, 60, 40, 0, 0, 0, 0), List.of(claim(3, 40, 0, 1)), Set.of(3));
+        ClaimLeafV1 paid = claimIn(3, 40, 0);
+        Report report = reconcile(counters(100, 0, 60, 40, 0, 0, 0, 0), List.of(paid), Set.of(3));
         assertThat(unit(report, USDM.toString()).verdict()).isEqualTo(Verdict.IN_FLIGHT);
         assertThat(report.verdict()).isEqualTo(Verdict.IN_FLIGHT);
         assertThat(report.notes()).anyMatch(note -> note.contains("[3]"));
     }
 
     @Test
-    void anIncompleteScanIsUnavailableAndNeverAlerts() {
+    void anIncompleteScanOrAnUnknownL1PointIsUnavailableAndNeverAlerts() {
         custody(1, 2_000_000);
-        Report report = VaultReconciliation.reconcile(VAULT, new Consensus(12,
-                counters(100, 0, 100, 0, 0, 0, 0, 0), id -> Optional.empty(), List.of(), Set.of()),
-                new L1Scan(OptionalLong.of(900), l1, false));
-        assertThat(report.verdict()).isEqualTo(Verdict.UNAVAILABLE);
-        assertThat(report.units()).isEmpty();
+        Consensus owed = new Consensus(12, counters(100, 0, 100, 0, 0, 0, 0, 0), id -> Optional.empty(), List.of(),
+                Set.of());
+        Report incomplete = VaultReconciliation.reconcile(VAULT, owed, new L1Scan(Optional.of(POINT), l1, false));
+        assertThat(incomplete.verdict()).isEqualTo(Verdict.UNAVAILABLE);
+        assertThat(incomplete.units()).isEmpty();
+        // 99 USDM short, but the scan names no L1 point: never a DISCREPANCY.
+        Report unnamed = VaultReconciliation.reconcile(VAULT, owed, new L1Scan(Optional.empty(), l1, true));
+        assertThat(unnamed.verdict()).isEqualTo(Verdict.UNAVAILABLE);
+        assertThat(unnamed.notes()).anyMatch(note -> note.contains("slot and block hash"));
     }
 
     @Test
     void theAdaVaultHasOneUnitAndAFloorTopUpIsAcceptedCustody() {
-        VaultReconciliation.Vault ada = new VaultReconciliation.Vault(ADA_VAULT_ID, AssetId.ADA, ADA_ADDRESS);
         output(ADA_ADDRESS, 30_000_000, Map.of(), continuation());
         output(ADA_ADDRESS, 2_000_000, Map.of(), VaultOutputShape.floorTopUpDatum());
-        Report report = VaultReconciliation.reconcile(ada, new Consensus(3,
+        Report report = VaultReconciliation.reconcile(ADA_VAULT, new Consensus(3,
                 counters(30_000_000, 0, 30_000_000, 0, 0, 0, 0, 0), id -> Optional.empty(), List.of(), Set.of()),
-                new L1Scan(OptionalLong.of(1), l1, true));
+                new L1Scan(Optional.of(new VaultReconciliation.L1Point(1, "cd".repeat(32))), l1, true));
         assertThat(report.units()).extracting(Unit::unit).containsExactly("lovelace");
         assertThat(report.units().getFirst().accepted()).isEqualTo(BigInteger.valueOf(32_000_000));
-        assertThat(report.verdict()).isEqualTo(Verdict.SURPLUS);
-        assertThat(report.toMap()).containsEntry("verdict", "SURPLUS").containsEntry("committedHeight", 3L);
+        assertThat(report.units().getFirst().floor()).isEqualTo(FLOOR);
+        assertThat(report.verdict()).isEqualTo(Verdict.BALANCED);
+        assertThat(report.toMap()).containsEntry("verdict", "BALANCED").containsEntry("committedHeight", 3L);
+    }
+
+    @Test
+    void anAdaVaultShortOnlyByItsFloorIsADiscrepancy() {
+        // Fable probe: the ADA vault holds 10 ADA and owes 10 ADA; its 2 ADA floor is missing.
+        output(ADA_ADDRESS, 10_000_000, Map.of(), continuation());
+        Report report = VaultReconciliation.reconcile(ADA_VAULT, new Consensus(3,
+                counters(10_000_000, 0, 10_000_000, 0, 0, 0, 0, 0), id -> Optional.empty(), List.of(), Set.of()),
+                new L1Scan(Optional.of(POINT), l1, true));
+        Unit lovelace = report.units().getFirst();
+        assertThat(lovelace.difference()).isEqualTo(BigInteger.valueOf(-2_000_000));
+        assertThat(lovelace.verdict()).isEqualTo(Verdict.DISCREPANCY);
+        assertThat(lovelace.explanation()).contains("plus the floor 2000000").contains("operator floor");
+        assertThat(report.verdict()).isEqualTo(Verdict.DISCREPANCY);
     }
 
     @Test

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.LongSupplier;
@@ -40,10 +39,11 @@ import java.util.function.LongSupplier;
  * the vault address in its own L1 view, reads the vault's counters, deposit records and {@code RESERVED} claims from
  * committed state, and the shards' live nullifier roots, and reports {@link VaultReconciliation} per unit.
  *
- * <p>The two sides are read at one point: the committed height and the L1 applied tip are read before and after the
- * scan, and a pass whose state moved under it is read again (at most {@link #ATTEMPTS} times) and otherwise reported
- * {@code UNAVAILABLE}, never compared across two points. An unavailable read is {@code UNAVAILABLE} too, so a partial
- * view never alerts.
+ * <p>The two sides are read at one point: the committed height and the L1 view's applied point, slot <b>and</b> block
+ * hash, are read before and after the scan, and a pass whose state moved under it is read again (at most
+ * {@link #ATTEMPTS} times) and otherwise reported {@code UNAVAILABLE}, never compared across two points. A view that
+ * cannot name its applied point (no slot, or no block hash) is {@code UNAVAILABLE}, never a {@code DISCREPANCY}, and
+ * so is any other unavailable read, so a partial or unnamed view never alerts.
  *
  * <p><b>Outputs.</b> The latest reports ({@link #lastReports()}); the {@link TaskProduct#RECONCILIATION} executor
  * snapshot (a {@code DISCREPANCY} pass is a terminal {@code CONFLICT} failure, an {@code UNAVAILABLE} one retryable)
@@ -108,8 +108,11 @@ final class ReconciliationTask {
     private Report reconcile(VaultPins pins) {
         for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
             Optional<SettlementQueries.CountersView> before = committed.counters(pins.vaultId());
-            OptionalLong tipBefore = l1.appliedTipSlot();
+            Optional<VaultReconciliation.L1Point> pointBefore = l1.appliedPoint();
             if (before.isEmpty()) return unavailable(pins, "the committed counters are unavailable");
+            if (pointBefore.isEmpty()) {
+                return unavailable(pins, "the L1 view names no applied point (slot and block hash)");
+            }
             Optional<List<ResolvedOutput>> outputs = l1.scan(pins.vaultAddress());
             if (outputs.isEmpty()) return unavailable(pins, "the L1 view could not read the whole vault address");
             Optional<CommittedClaims.Index> index = committed.index();
@@ -133,8 +136,11 @@ final class ReconciliationTask {
                 }
             }
             Optional<SettlementQueries.CountersView> after = committed.counters(pins.vaultId());
-            OptionalLong tipAfter = l1.appliedTipSlot();
-            if (after.isEmpty() || after.get().height() != before.get().height() || !tipAfter.equals(tipBefore)) {
+            Optional<VaultReconciliation.L1Point> pointAfter = l1.appliedPoint();
+            if (pointAfter.isEmpty()) {
+                return unavailable(pins, "the L1 view names no applied point (slot and block hash)");
+            }
+            if (after.isEmpty() || after.get().height() != before.get().height() || !pointAfter.equals(pointBefore)) {
                 continue; // committed state or the L1 view moved during the scan: read both again
             }
             List<ClaimLeafV1> reserved = index.get().reserved(pins.vaultId()).stream()
@@ -142,7 +148,7 @@ final class ReconciliationTask {
             return VaultReconciliation.reconcile(VaultReconciliation.Vault.of(pins),
                     new VaultReconciliation.Consensus(before.get().height(), before.get().counters(),
                             id -> records.getOrDefault(id, Optional.empty()), reserved, ahead),
-                    new VaultReconciliation.L1Scan(tipBefore, outputs.get(), true));
+                    new VaultReconciliation.L1Scan(pointBefore, outputs.get(), true));
         }
         return unavailable(pins, "committed state or the L1 view kept moving during the scan");
     }
@@ -156,9 +162,10 @@ final class ReconciliationTask {
         if (report.verdict() == Verdict.DISCREPANCY) {
             for (VaultReconciliation.Unit unit : report.units()) {
                 if (unit.verdict() != Verdict.DISCREPANCY) continue;
-                LOG.warn("asset reconciliation DISCREPANCY: vault {} unit {} at committed height {}, L1 slot {}: {}",
-                        report.vaultId(), unit.unit(), report.height(),
-                        report.l1Slot().isPresent() ? report.l1Slot().getAsLong() : -1, unit.explanation());
+                LOG.warn("asset reconciliation DISCREPANCY: vault {} unit {} at committed height {}, L1 {}: {}",
+                        report.vaultId(), unit.unit(), report.height(), report.l1Point().map(point -> "slot "
+                                + point.slot() + " block " + point.blockHash()).orElse("unknown"),
+                        unit.explanation());
             }
         } else if (previous != report.verdict()) {
             LOG.info("asset reconciliation: vault {} is {} (was {}){}", report.vaultId(), report.verdict(),
