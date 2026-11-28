@@ -926,7 +926,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     // ------------------------------------------------------------------ committed queries (D9)
 
-    /** The {@link SettlementQueries} the settlement executor, the deposit acceptor and the exit relayer read. */
+    /**
+     * The {@link SettlementQueries} the settlement executor, the deposit acceptor, the exit relayer and the
+     * reconciliation (D15) read.
+     */
     @Override
     public byte[] query(String path, byte[] params, AppQueryContext state) {
         AssetAccounts.Store store = StagedStore.readOnly(state);
@@ -947,6 +950,14 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                         SettlementQueries.decodeSequence(request))).orElse(new byte[0]);
                 case SettlementQueries.DEPOSIT -> store.get(depositRecordKey(Hash32.of(request)))
                         .orElse(new byte[0]);
+                case SettlementQueries.VAULT_COUNTERS -> {
+                    Hash32 vaultId = Hash32.of(request);
+                    if (registry(store, vaultId).isEmpty()) {
+                        throw new AppQueryException(AppQueryException.Code.INVALID_REQUEST, "unknown vault");
+                    }
+                    yield SettlementQueries.encodeCounters(state.committedHeight(),
+                            new AssetAccounts(AssetPaymentsContract.PREFIX, store).counters(vaultId));
+                }
                 default -> throw new AppQueryException(AppQueryException.Code.UNSUPPORTED,
                         "unknown asset-payments query " + path);
             };

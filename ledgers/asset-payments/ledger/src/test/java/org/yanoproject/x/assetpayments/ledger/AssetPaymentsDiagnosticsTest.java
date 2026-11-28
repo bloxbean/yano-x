@@ -3,7 +3,10 @@ package org.yanoproject.x.assetpayments.ledger;
 import org.junit.jupiter.api.Test;
 import org.yanoproject.x.assetpayments.contracts.AssetPaymentsContract;
 import org.yanoproject.x.assetpayments.contracts.PaymentsBodies;
+import org.yanoproject.x.assets.contracts.AssetAccounts;
 import org.yanoproject.x.assets.contracts.ClaimLeafV1;
+import org.yanoproject.x.assets.contracts.SettlementQueries;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.walletauth.IntentEnvelopeV1;
 import org.yanoproject.x.walletauth.WalletAuthorizer;
@@ -12,6 +15,7 @@ import java.math.BigInteger;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.yanoproject.x.assetpayments.ledger.AssetPaymentsStateMachineTest.lovelace;
 import static org.yanoproject.x.assetpayments.ledger.AssetPaymentsStateMachineTest.output;
 import static org.yanoproject.x.assetpayments.ledger.AssetPaymentsStateMachineTest.token;
@@ -112,6 +116,21 @@ class AssetPaymentsDiagnosticsTest {
         ledger.writer().put(AssetPaymentsContract.registryKey(USDM_VAULT), registry);
         ledger.block(T0 + 5_000, settlement.settle(leaf, alice.address(), true));
         assertThat(ledger.counters(USDM_VAULT).paid()).isEqualTo(BigInteger.TEN);
+    }
+
+    @Test
+    void theVaultCountersQueryAnswersTheCommittedCountersAndHeightForReconciliation() {
+        ledger.block(T0, intent(owner(alice, env(alice, WalletAuthorizer.REGISTER_ACCOUNT,
+                PaymentsBodies.REGISTER_ACCOUNT))));
+        ledger.block(T0 + 1_000, l1.l1(output(USDM_ADDRESS, alice, lovelace(1_500_000), token(USDM, 100))));
+        var view = SettlementQueries.decodeCounters(ledger.query(SettlementQueries.VAULT_COUNTERS,
+                USDM_VAULT.bytes())).orElseThrow();
+        assertThat(view.height()).isEqualTo(ledger.height);
+        assertThat(view.counters()).isEqualTo(ledger.counters(USDM_VAULT));
+        assertThat(SettlementQueries.decodeCounters(ledger.query(SettlementQueries.VAULT_COUNTERS,
+                EURC_VAULT.bytes())).orElseThrow().counters()).isEqualTo(AssetAccounts.VaultCounters.ZERO);
+        assertThatThrownBy(() -> ledger.query(SettlementQueries.VAULT_COUNTERS, filled(32, 9)))
+                .isInstanceOf(AppQueryException.class);
     }
 
     @Test

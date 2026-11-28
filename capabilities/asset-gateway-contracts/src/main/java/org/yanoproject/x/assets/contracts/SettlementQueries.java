@@ -19,11 +19,14 @@ import java.util.Optional;
  * asset-gateway/claim-count       request empty                 response [count: uint]
  * asset-gateway/claim-by-sequence request [sequence: uint]      response claim_id, or empty
  * asset-gateway/deposit           request deposit_id (32 bytes) response DepositRecordV1 bytes, or empty
+ * asset-gateway/vault-counters    request vault_id (32 bytes)   response [committed_height: uint, VaultCounters bytes]
  * </pre>
  *
  * The claim index is dense: every reserved claim has one sequence, from 0, so a relayer can walk every claim without a
  * range scan. The deposit record is what an {@code Accept} co-signer checks (D8f, D8h §1 step 4): the deposit is
- * {@code CREDITED}, admitted at or below the referenced anchor's height.
+ * {@code CREDITED}, admitted at or below the referenced anchor's height. The vault counters, with the committed height
+ * they were read at, are the consensus side of the node-local reconciliation (D15); a vault with no counters yet
+ * answers {@link AssetAccounts.VaultCounters#ZERO}.
  */
 public final class SettlementQueries {
     public static final String CLAIM = "asset-gateway/claim";
@@ -31,6 +34,7 @@ public final class SettlementQueries {
     public static final String CLAIM_COUNT = "asset-gateway/claim-count";
     public static final String CLAIM_BY_SEQUENCE = "asset-gateway/claim-by-sequence";
     public static final String DEPOSIT = "asset-gateway/deposit";
+    public static final String VAULT_COUNTERS = "asset-gateway/vault-counters";
 
     private SettlementQueries() {
     }
@@ -84,6 +88,28 @@ public final class SettlementQueries {
             if (response == null || response.length == 0) return Optional.empty();
             DepositRecordV1 record = DepositRecordV1.decode(response);
             return record.depositId().equals(depositId) ? Optional.of(record) : Optional.empty();
+        } catch (RuntimeException malformed) {
+            return Optional.empty();
+        }
+    }
+
+    /** One vault's I4 counters at one committed height. */
+    public record CountersView(long height, AssetAccounts.VaultCounters counters) {
+    }
+
+    public static byte[] encodeCounters(long height, AssetAccounts.VaultCounters counters) {
+        Array array = new Array();
+        array.add(AssetCbor.uint(height));
+        array.add(AssetCbor.bstr(counters.encode()));
+        return AssetCbor.encode(array);
+    }
+
+    /** The counters of a {@link #VAULT_COUNTERS} response; empty when it does not decode. */
+    public static Optional<CountersView> decodeCounters(byte[] response) {
+        try {
+            List<DataItem> items = AssetCbor.decodeArray(response, 2).getDataItems();
+            return Optional.of(new CountersView(AssetCbor.uintLong(items.get(0)),
+                    AssetAccounts.VaultCounters.decode(AssetCbor.bytes(items.get(1), 1, 1_024))));
         } catch (RuntimeException malformed) {
             return Optional.empty();
         }
