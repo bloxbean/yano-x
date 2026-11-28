@@ -58,8 +58,9 @@ import java.util.function.Function;
  * a lovelace shortfall smaller than the floor is still a shortfall; it is never absorbed by the floor. Zero is
  * {@link Verdict#BALANCED}; a surplus is {@link Verdict#SURPLUS}, explained by floor top-ups, donations, or a
  * confirmed payout that rolled back on L1 and is payable again (D10); a shortfall no larger than the pending payouts
- * is {@link Verdict#IN_FLIGHT}; any shortfall beyond them is a {@link Verdict#DISCREPANCY}, with the uncovered
- * remainder named.
+ * is {@link Verdict#IN_FLIGHT}; a lovelace remainder no larger than the floor is {@link Verdict#FLOOR_SHORT}: the
+ * users' liabilities are covered and the operator tops up its floor; any shortfall beyond the floor is a
+ * {@link Verdict#DISCREPANCY}, with the uncovered remainder named.
  */
 public final class VaultReconciliation {
     private VaultReconciliation() {
@@ -131,7 +132,7 @@ public final class VaultReconciliation {
     }
 
     public enum Verdict {
-        BALANCED, SURPLUS, IN_FLIGHT, DISCREPANCY, UNAVAILABLE;
+        BALANCED, SURPLUS, IN_FLIGHT, FLOOR_SHORT, DISCREPANCY, UNAVAILABLE;
 
         Verdict worst(Verdict other) {
             return other.ordinal() > ordinal() ? other : this;
@@ -299,7 +300,7 @@ public final class VaultReconciliation {
         }
         Verdict verdict = Verdict.BALANCED;
         for (Unit unit : units) verdict = verdict.worst(unit.verdict());
-        if (verdict == Verdict.IN_FLIGHT || verdict == Verdict.DISCREPANCY) {
+        if (verdict == Verdict.IN_FLIGHT || verdict == Verdict.FLOOR_SHORT || verdict == Verdict.DISCREPANCY) {
             L1Point point = scan.point().get();
             notes.add("this node's L1 view (slot " + point.slot() + ", block " + point.blockHash() + ") may lag the "
                     + "L1 observations committed height " + consensus.height() + " was built from: a deposit credited "
@@ -336,12 +337,16 @@ public final class VaultReconciliation {
                 explanation = "custody is short of what is expected" + floorPart + " by " + shortfall + ", within the "
                         + sums.pending + " reserved in shards ahead of their committed inserts (payouts L1 has "
                         + "seen, not yet confirmed); re-run once their observations are final";
+            } else if (floor.signum() > 0 && uncovered.compareTo(floor) <= 0) {
+                verdict = Verdict.FLOOR_SHORT;
+                explanation = "custody is short of what is expected" + floorPart + " by " + shortfall + "; payouts in "
+                        + "flight explain " + explained + " and the remaining " + uncovered + " is no more than the "
+                        + "operator continuation floor (D11), so the liabilities are covered: top up the floor at the "
+                        + "vault address; no balance is changed";
             } else {
                 verdict = Verdict.DISCREPANCY;
                 explanation = "custody is short of what is expected" + floorPart + " by " + shortfall + "; payouts in "
                         + "flight explain " + explained + " and " + uncovered + " is unexplained"
-                        + (floor.signum() > 0 && uncovered.compareTo(floor) <= 0
-                        ? " (no more than the operator floor, which custody must still hold)" : "")
                         + ": raise the alert and submit the governed PAUSE (D15); no balance is changed";
             }
         }

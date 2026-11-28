@@ -316,17 +316,24 @@ class VaultReconciliationTest {
     }
 
     @Test
-    void anAdaVaultShortOnlyByItsFloorIsADiscrepancy() {
-        // Fable probe: the ADA vault holds 10 ADA and owes 10 ADA; its 2 ADA floor is missing.
+    void anAdaVaultShortOnlyByItsFloorIsFloorShortAndBeyondItADiscrepancy() {
+        // Probe: the ADA vault holds exactly the 10 ADA it owes; its 2 ADA floor is missing.
         output(ADA_ADDRESS, 10_000_000, Map.of(), continuation());
         Report report = VaultReconciliation.reconcile(ADA_VAULT, new Consensus(3,
                 counters(10_000_000, 0, 10_000_000, 0, 0, 0, 0, 0), id -> Optional.empty(), List.of(), Set.of()),
                 new L1Scan(Optional.of(POINT), l1, true));
         Unit lovelace = report.units().getFirst();
         assertThat(lovelace.difference()).isEqualTo(BigInteger.valueOf(-2_000_000));
-        assertThat(lovelace.verdict()).isEqualTo(Verdict.DISCREPANCY);
-        assertThat(lovelace.explanation()).contains("plus the floor 2000000").contains("operator floor");
-        assertThat(report.verdict()).isEqualTo(Verdict.DISCREPANCY);
+        assertThat(lovelace.verdict()).isEqualTo(Verdict.FLOOR_SHORT);
+        assertThat(lovelace.explanation()).contains("plus the floor 2000000").contains("top up the floor")
+                .doesNotContain("PAUSE");
+        assertThat(report.verdict()).isEqualTo(Verdict.FLOOR_SHORT);
+        // One lovelace beyond the floor is a shortfall of the users' liabilities: a DISCREPANCY and a PAUSE.
+        Report beyond = VaultReconciliation.reconcile(ADA_VAULT, new Consensus(3,
+                counters(10_000_001, 0, 10_000_001, 0, 0, 0, 0, 0), id -> Optional.empty(), List.of(), Set.of()),
+                new L1Scan(Optional.of(POINT), l1, true));
+        assertThat(beyond.verdict()).isEqualTo(Verdict.DISCREPANCY);
+        assertThat(beyond.units().getFirst().explanation()).contains("2000001 is unexplained").contains("PAUSE");
     }
 
     @Test
