@@ -62,6 +62,29 @@ identity, so members with different backends disagree at startup. `julc` is the 
 `Exit` caps are unchanged). The members' body checks, the builders and the observers read only the pinned shard hash
 and address, so they serve either backend unchanged.
 
+## CIP-113 vaults (ADR-061)
+
+A vault whose asset is a CIP-113 programmable token sets `vaults.N.custody = cip113` in the deposit and payout
+observers, with the pinned deployment's `vaults.N.cip113.plb-hash` (and, for the deposit observer,
+`vaults.N.cip113.params-policy`). Its `script-hash` is the custody script `h` and its `address` the vault smart wallet
+`base(Script(PLB), Script(h))`; startup fails on any other address. Native vaults keep their settings, claims and
+identity bytes.
+
+- The deposit observer reports every output at a CIP-113 vault's smart wallet as a `ProgrammableDepositClaimV1` of
+  raw facts: the shape by the shared deposit-shaped predicate, the datum and whether its origin is one of the
+  transaction's inputs, the value summary, every script withdrawal with the outer constructor of its reward
+  redeemer, a positive-mint flag for the asset's policy, and the reference inputs. The ledger classifies them.
+- `asset-cip113-wiring-v1` (`params-policy`, `domain.*`, `min-stability-depth`) reports each output carrying the
+  deployment's `ProtocolParams` token, with its L1 position and wiring fields. Its id must sort before the deposit
+  observer's (the ledger's `cip113.wiring-observer-id`), so a block's wiring is recorded before its deposits.
+- The payout observer reads a CIP-113 vault's continuation at the full smart-wallet address and its `BalanceExit`
+  from the custody script's own reward redeemer; its `shard-script-hash` is the shard binding variant
+  (`ShardBackend.deriveProgrammable`).
+
+The CIP-113 transactions themselves are laid out by `ProgrammableVaultTxAssembler` (support library); the user
+deposit by `ProgrammableDepositBuilder`; members check co-signed ones with `ProgrammableBodyCheck`.
+`qa/harness/asset-gateway/Cip113Devnet.java` runs a deposit, an `Accept` and a `Settle` on Yaci DevKit.
+
 ## `Accept` and the exit relayer
 
 Deposits become spendable custody only through `Accept` (ADR-059 D8f). The owner looks for deposit-shaped outputs at
