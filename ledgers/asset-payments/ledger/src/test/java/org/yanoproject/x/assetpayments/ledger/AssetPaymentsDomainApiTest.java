@@ -536,6 +536,27 @@ class AssetPaymentsDomainApiTest {
     }
 
     @Test
+    void aCip113VaultRefusesTheNativeDepositInstructionsAndBuilder() throws Exception {
+        Map<String, String> settings = AssetPaymentsCip113Test.settings();
+        settings.put("machines.asset-payments.payout-observer-id", "payouts");
+        useLedger(settings);
+        ledger.block(T0, register(alice));
+        String programmable = AssetPaymentsSettings.parse(CHAIN, settings).vaults().get(1).vaultId().hex();
+
+        // A deposit following native instructions would carry the three-field datum that CIP-113 admission rejects.
+        JsonNode refused = call(AssetPaymentsDomainApi.DEPOSIT_INSTRUCTIONS, DomainHttpMethod.GET,
+                "vaults/x/deposit-instructions", Map.of("vault_id", programmable),
+                Map.of("address", List.of(HEX.formatHex(alice.address()))), null, 409);
+        assertThat(refused.path("error").asText()).isEqualTo("PROGRAMMABLE_VAULT");
+        Map<String, Object> request = adaDeposit(alice.address(),
+                List.of(cip30Utxo(filled(32, 0x11), 0, alice.address(), 50_000_000, null, 0)));
+        request.put("vaultId", programmable);
+        assertThat(build(request, 409).path("error").asText()).isEqualTo("PROGRAMMABLE_VAULT");
+        // The native vault in the same domain still serves both.
+        instructions(alice.address(), 200);
+    }
+
+    @Test
     void depositsWaitForTheVaultsActivationSlotAndABuildNeedsAKnownTip() throws Exception {
         Map<String, String> settings = settings();
         settings.put("machines.asset-payments.vaults.0.active-from-slot", "6000");

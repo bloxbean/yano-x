@@ -38,8 +38,15 @@ dependencies {
 // artifacts so ShardBackend derives either shard script at runtime without a UPLC toolchain.
 tasks.named('processResources', ProcessResources) {
     from(rootProject.file('capabilities/asset-gateway-onchain/src/main/resources/META-INF/plutus')) {
-        include 'AssetShardValidator.plutus.json', 'AssetShardValidatorAiken.plutus.json'
+        include 'AssetShardValidator.plutus.json', 'AssetShardValidatorAiken.plutus.json',
+                'ProgrammableShardValidator.plutus.json', 'ProgrammableShardValidatorAiken.plutus.json'
         into 'META-INF/yano/asset-gateway/shard-templates'
+    }
+    // The CIP-113 custody scripts' backend templates (ADR-061 D3), for ProgrammableBackend.
+    from(rootProject.file('capabilities/asset-gateway-onchain/src/main/resources/META-INF/plutus')) {
+        include 'ProgrammableVaultExitDelegate.plutus.json', 'ProgrammableVaultValidator.plutus.json',
+                'ProgrammableVaultExitDelegateAiken.plutus.json', 'ProgrammableVaultValidatorAiken.plutus.json'
+        into 'META-INF/yano/asset-gateway/programmable-templates'
     }
 }
 

@@ -9,6 +9,8 @@ import org.yanoproject.x.assetpayments.contracts.PaymentsRecords;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.AssetStatus;
 import org.yanoproject.x.assetpayments.contracts.PaymentsRecords.RegistryEntryV1;
 import org.yanoproject.x.assets.contracts.AssetAccounts;
+import org.yanoproject.x.assets.contracts.Cip113Wiring;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.Hash32;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * The ledger's threshold-governed commands (ADR-059 D14 "{@code ASSET_*}, {@code PAUSE} / {@code RESUME}", D8a),
@@ -48,6 +51,12 @@ import java.util.Optional;
  * vault's {@code Exit} proves (V3), and members stop co-signing {@code Settle} once committed state is not
  * {@code ACTIVE} (D9). A {@code HALTED} leaf (D10 {@code PAID_MISMATCH}) is neither paused nor resumed here.
  *
+ * <p><b>CIP-113 assets</b> (ADR-061 D14, D6). {@code ASSET_HOLD} moves a CIP-113 asset to {@code ISSUER_HOLD} and
+ * {@code ASSET_RESUME} back to {@code ACTIVE}; neither touches the domain status leaf, so proof {@code Exit} keeps no
+ * brake (I47). {@code ASSET_REWIRE} approves the head wiring version of the named deployment ({@code Cip113Wiring}).
+ * {@code ASSET_STATUS} never moves an asset into or out of {@code ISSUER_HOLD}, and keeps a CIP-113 entry's custody
+ * pins.
+ *
  * <p><b>Replay safety.</b> A command names the number of governance commands decided so far; deciding one, applied
  * or refused, advances that number, writes its {@link DecisionV1} history record and voids every open proposal.
  * Every input that does not count (malformed, from a non-member, stale, a repeated approval) changes nothing but the
@@ -68,11 +77,19 @@ final class PaymentsGovernance {
     private final AppChainMembershipView membership;
     private final byte[] domainStatusKey;
     private final long retireAfterWindDownMs;
+    /** The wiring state of the domain's CIP-113 deployment, by its params policy; empty for any other policy. */
+    private final Function<byte[], Optional<Cip113Wiring>> wiring;
 
     PaymentsGovernance(AppChainMembershipView membership, byte[] domainStatusKey, long retireAfterWindDownMs) {
+        this(membership, domainStatusKey, retireAfterWindDownMs, policy -> Optional.empty());
+    }
+
+    PaymentsGovernance(AppChainMembershipView membership, byte[] domainStatusKey, long retireAfterWindDownMs,
+                       Function<byte[], Optional<Cip113Wiring>> wiring) {
         this.membership = membership;
         this.domainStatusKey = domainStatusKey.clone();
         this.retireAfterWindDownMs = retireAfterWindDownMs;
+        this.wiring = wiring;
     }
 
     Result process(AssetAccounts.Store state, byte[] sender, byte[] body, AppBlock block) {
@@ -165,7 +182,45 @@ final class PaymentsGovernance {
                     DomainStatusV1.Status.ACTIVE, DomainStatusV1.Status.PAUSED);
             case PaymentsGovernanceV1.Resume ignored -> domainStatus(state, sequence, bytes, approvers, block,
                     DomainStatusV1.Status.PAUSED, DomainStatusV1.Status.ACTIVE);
+            case PaymentsGovernanceV1.AssetHold hold -> hold(state, sequence, bytes, hold.vaultId(), approvers, block,
+                    true);
+            case PaymentsGovernanceV1.AssetResume resume -> hold(state, sequence, bytes, resume.vaultId(), approvers,
+                    block, false);
+            case PaymentsGovernanceV1.AssetRewire rewire -> rewire(state, sequence, bytes, rewire, approvers, block);
         };
+    }
+
+    /** {@code ASSET_HOLD} ({@code hold}) or {@code ASSET_RESUME} of one CIP-113 asset (ADR-061 D14). */
+    private DecisionV1 hold(AssetAccounts.Store state, long sequence, byte[] bytes, Hash32 vaultId,
+                            List<byte[]> approvers, AppBlock block, boolean hold) {
+        Optional<RegistryEntryV1> entry = state.get(AssetPaymentsContract.registryKey(vaultId))
+                .map(RegistryEntryV1::decode);
+        int from = entry.map(e -> e.status().code()).orElse(AssetStatus.ACTIVE.code());
+        Cip113Governance.Result result = hold ? Cip113Governance.hold(state, vaultId)
+                : Cip113Governance.resume(state, vaultId);
+        if (result != Cip113Governance.Result.APPLIED) {
+            return refused(sequence, bytes, block, approvers, Optional.of(vaultId), from, result.name());
+        }
+        int to = (hold ? AssetStatus.ISSUER_HOLD : AssetStatus.ACTIVE).code();
+        return new DecisionV1(sequence, bytes, block.height(), block.timestamp(), approvers, Optional.of(vaultId),
+                from, to, PaymentsGovernanceV1.Outcome.APPLIED, "");
+    }
+
+    /** {@code ASSET_REWIRE}: the named deployment's head version, approved with the reviewed delegates (D6). */
+    private DecisionV1 rewire(AssetAccounts.Store state, long sequence, byte[] bytes,
+                              PaymentsGovernanceV1.AssetRewire rewire, List<byte[]> approvers, AppBlock block) {
+        Optional<Cip113Wiring> deployment = wiring.apply(rewire.paramsPolicy());
+        if (deployment.isEmpty()) {
+            return refused(sequence, bytes, block, approvers, Optional.empty(), 0, "UNKNOWN_DEPLOYMENT");
+        }
+        Cip113Wiring.Result result = deployment.get().rewire(state, new ProgrammableDepositDatumV1.Outpoint(
+                rewire.versionTxId(), rewire.versionIndex()), rewire.transferDelegate(), rewire.thirdPartyDelegate(),
+                rewire.unfrackingDelegate());
+        if (result != Cip113Wiring.Result.APPROVED) {
+            return refused(sequence, bytes, block, approvers, Optional.empty(), 0, result.name());
+        }
+        return new DecisionV1(sequence, bytes, block.height(), block.timestamp(), approvers, Optional.empty(), 0, 0,
+                PaymentsGovernanceV1.Outcome.APPLIED, "");
     }
 
     private DecisionV1 assetStatus(AssetAccounts.Store state, long sequence, byte[] bytes,
@@ -182,6 +237,10 @@ final class PaymentsGovernance {
         String refusal = null;
         if (from == to) {
             refusal = "NO_CHANGE";
+        } else if (to == AssetStatus.ISSUER_HOLD) {
+            refusal = "USE_ASSET_HOLD";
+        } else if (from == AssetStatus.ISSUER_HOLD) {
+            refusal = "USE_ASSET_RESUME";
         } else if (from == AssetStatus.RETIRED) {
             refusal = "RETIRED_IS_FINAL";
         } else if (to == AssetStatus.RETIRED && from != AssetStatus.WIND_DOWN) {
@@ -203,10 +262,8 @@ final class PaymentsGovernance {
         if (refusal != null) {
             return refused(sequence, bytes, block, approvers, Optional.of(vaultId), from.code(), refusal);
         }
-        RegistryEntryV1 current = entry.get();
-        state.put(AssetPaymentsContract.registryKey(vaultId), new RegistryEntryV1(current.vaultId(), current.asset(),
-                current.scriptHash(), current.vaultAddress(), to, current.activeFromSlot(), current.addedAtHeight(),
-                current.ticker(), current.decimals()).encode());
+        // withStatus keeps every other field, a CIP-113 entry's custody pins included.
+        state.put(AssetPaymentsContract.registryKey(vaultId), entry.get().withStatus(to).encode());
         if (to == AssetStatus.WIND_DOWN) {
             state.put(AssetPaymentsContract.windDownKey(vaultId),
                     PaymentsRecords.encodeU64s(block.height(), block.timestamp()));

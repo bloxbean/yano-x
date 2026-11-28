@@ -62,6 +62,49 @@ identity, so members with different backends disagree at startup. `julc` is the 
 `Exit` caps are unchanged). The members' body checks, the builders and the observers read only the pinned shard hash
 and address, so they serve either backend unchanged.
 
+## CIP-113 vaults (ADR-061)
+
+A vault whose asset is a CIP-113 programmable token sets `vaults.N.custody = cip113` in the deposit and payout
+observers, with the pinned deployment's `vaults.N.cip113.plb-hash` (and, for the deposit observer,
+`vaults.N.cip113.params-policy`). Its `script-hash` is the custody script `h` and its `address` the vault smart wallet
+`base(Script(PLB), Script(h))`; startup fails on any other address. Native vaults keep their settings, claims and
+identity bytes.
+
+- The deposit observer reports every output at a CIP-113 vault's smart wallet as a `ProgrammableDepositClaimV1` of
+  raw facts: the shape by the shared deposit-shaped predicate, the datum and whether its origin is one of the
+  transaction's inputs, the value summary, every script withdrawal with the outer constructor of its reward
+  redeemer, a positive-mint flag for the asset's policy, and the reference inputs. The ledger classifies them.
+- `asset-cip113-wiring-v1` (`params-policy`, `domain.*`, `min-stability-depth`) reports each output carrying the
+  deployment's `ProtocolParams` token, with its L1 position and wiring fields. Its id must sort before the deposit
+  observer's (the ledger's `cip113.wiring-observer-id`), so a block's wiring is recorded before its deposits.
+- The payout observer reads a CIP-113 vault's continuation at the full smart-wallet address and its `BalanceExit`
+  from the custody script's own reward redeemer; its `shard-script-hash` is the shard binding variant
+  (`ShardBackend.deriveProgrammable`).
+
+Every CIP-113 observer also pins `vaults.N.cip113.exit-delegate-hash` (the exit delegate `e`) and, once per domain,
+`programmable-backend` (`julc` by default, or `aiken`); both are part of its consensus identity.
+
+The `asset-settlement` executor runs CIP-113 vaults too. Beside the payout observer's settings, such a vault takes
+`vaults.N.cip113.params-policy`, `cip113.registry-node-policy`, `cip113.max-inline-datum-bytes` (1024),
+`cip113.params-address` and `cip113.registry-address` (where the live protocol-params UTxO and the registry nodes
+sit), `cip113.reference-scripts` (the PLB, dispatcher, transfer-delegate and hook reference-script UTxOs) and
+`cip113.substandard`, and the domain's `exit-key-prefix` (`ap/x/`). At startup the selected backend's `h` and `e`
+for the vault's parameters must be the pinned `script-hash` and `exit-delegate-hash`, and `max-settle-batch` and
+`max-exit-batch` must fit the continuation's 29-id cap, or startup fails.
+
+- The owner's `Settle` and co-signed `Accept` are built by `ProgrammableSettlement` through
+  `ProgrammableVaultTxAssembler`, under the live params UTxO and the approved tuple of its dispatcher read from
+  committed state. Deposits are found by their origin-keyed `DepositId`, so a re-created output is still accepted.
+- Members check a CIP-113 request whole with `ProgrammableBodyCheck` (`checkSettle`, `checkAccept`), and refuse a
+  `Settle` while the asset is in `ISSUER_HOLD`.
+- The reconciliation counts only spendable custody (`VaultReconciliation.reconcileProgrammable`).
+- Not yet in this release: the proved CIP-113 `Accept`, the relayer's CIP-113 `Exit`, live reward-balance reads
+  (the runtime withdraws zero, and a positive balance makes the transaction fail on L1 until it is rebuilt), and an
+  adapter for any substandard other than the Yano X test substandard (`yano-x-test`).
+
+The user deposit is built by `ProgrammableDepositBuilder`. `qa/harness/asset-gateway/Cip113Devnet.java` runs a
+deposit, an `Accept` and a `Settle` on Yaci DevKit.
+
 ## `Accept` and the exit relayer
 
 Deposits become spendable custody only through `Accept` (ADR-059 D8f). The owner looks for deposit-shaped outputs at

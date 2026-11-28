@@ -76,7 +76,8 @@ final class ExitRelayTask {
     }
 
     static boolean idle(String outcome) {
-        return outcome.equals("no reserved claims") || outcome.equals("no claim is EXIT_ELIGIBLE");
+        return outcome.equals("no reserved claims") || outcome.equals("no claim is EXIT_ELIGIBLE")
+                || outcome.startsWith("nothing to relay");
     }
 
     /**
@@ -111,6 +112,9 @@ final class ExitRelayTask {
     }
 
     private String relay(VaultPins pins, Supplier<Optional<CommittedClaims.Index>> claims) throws Exception {
+        // ADR-061: a CIP-113 vault's proof Exit is assembled by the SDK and third-party builders; this release's
+        // relayer does not build it yet.
+        if (pins.cip113()) return "nothing to relay: a CIP-113 proof Exit is not relayed by this release";
         Optional<ResolvedOutput> exitMode = node.l1().exitMode(pins);
         if (exitMode.isEmpty()) return "no exit-mode thread";
         if (!DepositAcceptor.normal(exitMode.get())) return ExitRelayer.EXIT_MODE_REFUSAL;

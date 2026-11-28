@@ -5,14 +5,17 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The Aiken shard backend's committed artifacts (ADR-059 D8c, r23). {@code aiken/plutus.json} is the blueprint
+ * The Aiken backends' committed artifacts: the shard (ADR-059 D8c, r23) and the CIP-113 custody scripts {@code h},
+ * {@code e} and the shard binding variant (ADR-061 D3). {@code aiken/plutus.json} is the blueprint
  * {@code aiken build} writes (Aiken v1.1.21; the {@code verifyAikenShard} task rebuilds it and fails on drift), and
  * {@code META-INF/plutus/AssetShardValidatorAiken.plutus.json} is its spend validator in the text-envelope form a
  * deployment parameterizes. This test needs no Aiken toolchain: it checks that the envelope is exactly the
@@ -51,6 +54,57 @@ class AikenShardArtifactTest {
         assertThat(policy).isPositive();
         assertThat(vault).isGreaterThan(policy);
         assertThat(vault).isLessThan(validator.indexOf("\"compiledCode\""));
+    }
+
+    /**
+     * ADR-061 D3: the Aiken custody backend's envelopes are their blueprint validators, and each Aiken script takes
+     * its julc twin's parameters, in the same order and with the same Data types ({@code byte[]} as
+     * {@code ByteArray}, {@code BigInteger} as {@code Int}).
+     */
+    @Test
+    void theCustodyEnvelopesAreTheBlueprintsValidators() throws Exception {
+        envelope("ProgrammableVaultValidatorAiken", "programmable_vault.programmable_vault.withdraw",
+                "rewarding,certifying", "ProgrammableVaultValidator");
+        envelope("ProgrammableVaultExitDelegateAiken", "programmable_vault_exit.programmable_vault_exit.withdraw",
+                "rewarding,certifying", "ProgrammableVaultExitDelegate");
+        envelope("ProgrammableShardValidatorAiken", "programmable_shard.programmable_shard.spend", "spending",
+                "ProgrammableShardValidator");
+    }
+
+    private static void envelope(String artifact, String title, String purpose, String julc) throws Exception {
+        String blueprint = Files.readString(AIKEN.resolve("plutus.json"));
+        int start = blueprint.indexOf("\"title\": \"" + title + "\"");
+        assertThat(start).as("the blueprint has %s", title).isPositive();
+        String validator = blueprint.substring(start, blueprint.indexOf("\"hash\"", start) + 100);
+        String compiledCode = field(validator, "compiledCode");
+        String hash = field(validator, "hash");
+
+        String envelope = Files.readString(Path.of("src/main/resources/META-INF/plutus/" + artifact + ".plutus.json"));
+        assertThat(field(envelope, "type")).isEqualTo("PlutusScriptV3");
+        assertThat(field(envelope, "purpose")).isEqualTo(purpose);
+        assertThat(field(envelope, "description")).isEqualTo(julc + " (unparameterized template, Aiken)");
+        assertThat(field(envelope, "cborHex")).as("the envelope wraps the blueprint's compiled code once more")
+                .isEqualTo(HexFormat.of().formatHex(cborBytes(HexFormat.of().parseHex(compiledCode))));
+        assertThat(JulcScriptAdapter.scriptHash(JulcScriptAdapter.toProgram(field(envelope, "cborHex"))))
+                .as("the blueprint hash is the template's script hash").isEqualTo(hash);
+
+        List<String> aiken = new ArrayList<>();
+        Matcher parameter = Pattern.compile("\\{\\s*\"title\"\\s*:\\s*\"([a-z0-9_]+)\"\\s*,\\s*\"schema\"\\s*:"
+                + "\\s*\\{\\s*\"\\$ref\"\\s*:\\s*\"#/definitions/([A-Za-z]+)\"").matcher(
+                validator.substring(validator.indexOf("\"parameters\""), validator.indexOf("\"compiledCode\"")));
+        while (parameter.find()) {
+            aiken.add(parameter.group(1).replaceFirst("^_", "") + ":" + parameter.group(2));
+        }
+        List<String> expected = new ArrayList<>();
+        Matcher param = Pattern.compile("@Param\\s+static\\s+(byte\\[]|BigInteger)\\s+(\\w+);").matcher(
+                Files.readString(Path.of("src/main/java/org/yanoproject/x/assets/onchain/" + julc + ".java")));
+        while (param.find()) {
+            String snake = param.group(2).replaceAll("([A-Z])", "_$1").toLowerCase(java.util.Locale.ROOT);
+            expected.add(snake + ":" + (param.group(1).equals("byte[]") ? "ByteArray" : "Int"));
+        }
+        assertThat(expected).as("the julc parameters of %s", julc).isNotEmpty();
+        assertThat(aiken).as("the Aiken parameters of %s, in the julc order and types", title)
+                .containsExactlyElementsOf(expected);
     }
 
     @Test

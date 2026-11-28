@@ -374,6 +374,8 @@ final class AssetPaymentsDomainApi implements DomainApi {
     private DomainApiResponse depositInstructions(Chain chain, Hash32 vaultId, Map<String, List<String>> query) {
         RegistryEntryV1 vault = chain.vault(vaultId).orElse(null);
         if (vault == null) return error(404, "UNKNOWN_VAULT", "no vault with this id is registered");
+        DomainApiResponse programmable = programmableVault(vault);
+        if (programmable != null) return programmable;
         byte[] depositor = PaymentsIntentJson.address(single(query, "address")
                 .orElseThrow(() -> new BadRequest("ADDRESS_REQUIRED", "address (the depositing wallet) is required")));
         Beneficiary beneficiary = beneficiary(chain, depositor, single(query, "account"));
@@ -437,6 +439,8 @@ final class AssetPaymentsDomainApi implements DomainApi {
         Hash32 vaultId = Hash32.of(PaymentsIntentJson.hex(body, "vaultId", 32));
         RegistryEntryV1 vault = chain.vault(vaultId).orElse(null);
         if (vault == null) return error(404, "UNKNOWN_VAULT", "no vault with this id is registered");
+        DomainApiResponse programmable = programmableVault(vault);
+        if (programmable != null) return programmable;
         if (!vault.status().depositsEnabled()) {
             return error(409, "DEPOSITS_PAUSED", "this vault does not credit deposits now");
         }
@@ -760,6 +764,17 @@ final class AssetPaymentsDomainApi implements DomainApi {
         String observer = chain.info().payoutObserverId().isEmpty() ? "payouts" : chain.info().payoutObserverId();
         return new PayoutConfirmation(AssetPaymentsContract.PREFIX, observer, chain.domainId(), 0,
                 ignored -> Optional.empty());
+    }
+
+    /**
+     * ADR-061 D6: a CIP-113 vault credits only an origin-bound programmable deposit, a transfer into its smart wallet
+     * that {@code ProgrammableDepositBuilder} builds against the live wiring. The native instructions and builder
+     * here produce the three-field datum that its admission records as malformed, so they refuse such a vault.
+     */
+    private DomainApiResponse programmableVault(RegistryEntryV1 vault) {
+        if (vault.custody().isEmpty()) return null;
+        return error(409, "PROGRAMMABLE_VAULT", "this vault holds CIP-113 programmable tokens; build the deposit as "
+                + "an origin-bound transfer into its smart wallet (ProgrammableDepositBuilder, ADR-061 D6)");
     }
 
     /**

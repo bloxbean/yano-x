@@ -1,6 +1,7 @@
 package org.yanoproject.x.assets.onchain;
 
 import org.julclang.core.PlutusData;
+import org.julclang.core.Program;
 import org.julclang.core.types.JulcList;
 import org.julclang.ledger.OutputDatum;
 import org.julclang.ledger.ScriptHash;
@@ -59,8 +60,66 @@ class AssetShardBackendDifferentialTest extends GatewayTestBase {
 
     /** Runs both backends on {@code context}; records the verdicts under {@code group} and returns julc's. */
     private boolean agree(String group, String label, PlutusData context) {
-        EvalResult julc = evaluate(shard(), context);
-        EvalResult aiken = evaluate(aikenShard(), context);
+        boolean verdict = compare(group, label, context, shard(), aikenShard());
+        // ADR-061 D5: the CIP-113 shard binding variant, on the same context with the vault input replaced by the
+        // vault script's withdrawal; it must agree with its Aiken twin and with the native shard.
+        boolean programmable = compare("programmable: " + group, label, programmableContext(context),
+                programmableShard(), aikenProgrammableShard());
+        if (programmable != verdict) {
+            synchronized (TALLY) {
+                DISAGREEMENTS.add(group + " / " + label + ": the native shard " + (verdict ? "accepts" : "rejects")
+                        + ", the binding variant " + (programmable ? "accepts" : "rejects"));
+            }
+        }
+        return verdict;
+    }
+
+    private static Program programmableShard() {
+        return program(ProgrammableShardValidator.class, PlutusData.bytes(SHARD_POLICY), PlutusData.bytes(VAULT_HASH));
+    }
+
+    private static Program aikenProgrammableShard() {
+        return PROGRAMMABLE_AIKEN.computeIfAbsent("shard", ignored -> aikenTemplate(java.nio.file.Path.of(
+                "src/main/resources/META-INF/plutus/ProgrammableShardValidatorAiken.plutus.json")).applyParams(
+                PlutusData.bytes(SHARD_POLICY), PlutusData.bytes(VAULT_HASH)));
+    }
+
+    private static final Map<String, Program> PROGRAMMABLE_AIKEN = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * {@code context} as a CIP-113 vault transaction: every input at the vault script (or another vault script) is
+     * replaced by that script's withdrawal, as PLB spends a CIP-113 vault's inputs and {@code h} runs as a withdrawal.
+     */
+    static PlutusData programmableContext(PlutusData context) {
+        List<PlutusData> c = ((PlutusData.ConstrData) context).fields();
+        List<PlutusData> info = new ArrayList<>(((PlutusData.ConstrData) c.get(0)).fields());
+        List<PlutusData> inputs = new ArrayList<>();
+        List<PlutusData.Pair> withdrawals = new ArrayList<>(((PlutusData.MapData) info.get(6)).entries());
+        List<PlutusData> removed = new ArrayList<>();
+        for (PlutusData input : ((PlutusData.ListData) info.get(0)).items()) {
+            List<PlutusData> f = ((PlutusData.ConstrData) input).fields();
+            PlutusData payment = ((PlutusData.ConstrData) ((PlutusData.ConstrData) ((PlutusData.ConstrData) f.get(1))
+                    .fields().get(0)).fields().get(0));
+            byte[] hash = ((PlutusData.BytesData) ((PlutusData.ConstrData) payment).fields().get(0)).value();
+            if (((PlutusData.ConstrData) payment).tag() == 1
+                    && (Arrays.equals(hash, VAULT_HASH) || Arrays.equals(hash, OTHER_VAULT_HASH))) {
+                withdrawals.add(new PlutusData.Pair(payment, PlutusData.integer(0)));
+                removed.add(PlutusData.constr(1, f.get(0)));
+            } else {
+                inputs.add(input);
+            }
+        }
+        List<PlutusData.Pair> redeemers = new ArrayList<>(((PlutusData.MapData) info.get(9)).entries());
+        redeemers.removeIf(pair -> removed.contains(pair.key()));
+        info.set(0, PlutusData.list(inputs.toArray(new PlutusData[0])));
+        info.set(6, new PlutusData.MapData(withdrawals));
+        info.set(9, new PlutusData.MapData(redeemers));
+        return PlutusData.constr(0, new PlutusData.ConstrData(0, info), c.get(1), c.get(2));
+    }
+
+    private boolean compare(String group, String label, PlutusData context, Program julcShard, Program aikenShard) {
+        EvalResult julc = evaluate(julcShard, context);
+        EvalResult aiken = evaluate(aikenShard, context);
         boolean j = julc.isSuccess();
         boolean a = aiken.isSuccess();
         synchronized (TALLY) {

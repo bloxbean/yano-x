@@ -7,6 +7,8 @@ import org.yanoproject.x.assets.cardano.support.ObserverIdentity;
 import org.yanoproject.x.assets.cardano.support.OutputValues;
 import org.yanoproject.x.assets.cardano.support.ValidTransactions;
 import org.yanoproject.x.assets.contracts.AssetDepositClaimV1;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositClaimV1;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1;
 import org.yanoproject.x.assets.contracts.DepositAdmission;
 import org.yanoproject.x.assets.contracts.DepositDatumV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
@@ -21,6 +23,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -92,6 +95,19 @@ final class AssetVaultDepositObserver implements L1Observer {
                 AssetVaultDepositSettings.Vault vault = output == null || output.getAddress() == null
                         ? null : vaultsByAddress.get(output.getAddress());
                 if (vault == null) continue;
+                if (vault.cip113().isPresent()) {
+                    // ADR-061 D6: a CIP-113 vault's outputs, every shape, with the transaction's raw facts.
+                    byte[] programmable;
+                    try {
+                        programmable = programmableClaim(vault, txId, index, slot, blockId, output, transaction,
+                                block, indexed.blockIndex()).encode();
+                    } catch (RuntimeException unreadable) {
+                        continue; // deterministic on every member; never a halt (I2)
+                    }
+                    observations.add(L1Observation.transaction(observerId, txId.bytes(), index, slot, blockHash,
+                            programmable));
+                    continue;
+                }
                 AssetDepositClaimV1 claim;
                 try {
                     claim = claim(vault, txId, index, slot, blockId, output);
@@ -138,6 +154,53 @@ final class AssetVaultDepositObserver implements L1Observer {
         return new AssetDepositClaimV1(GatewayIds.depositId(vault.vaultId(), txId, index), vault.vaultId(), txId,
                 index, slot, blockId, shape, beneficiary, summary.registeredQuantity(), summary.lovelace(),
                 summary.otherAssetCount(), summary.valueHash());
+    }
+
+    /**
+     * ADR-061 D6: the raw facts of one output at a CIP-113 vault's smart wallet, read from the block alone: the shape
+     * by the shared deposit-shaped predicate, the datum and {@code originSpent}, the value summary, every script
+     * withdrawal with the outer constructor of its reward redeemer (located by its withdrawal's ledger position), the
+     * positive-mint flag of the vault asset's policy and the reference-input outpoints. Lists over their caps are
+     * {@code OVERFLOW}.
+     */
+    private ProgrammableDepositClaimV1 programmableClaim(AssetVaultDepositSettings.Vault vault, Hash32 txId, int index,
+                                                         long slot, Hash32 blockId, TransactionOutput output,
+                                                         TransactionBody transaction, Block block, int blockIndex) {
+        byte[] plb = vault.cip113().orElseThrow().plbHash();
+        byte[] datum = inlineDatum(output.getInlineDatum());
+        ProgrammableDepositClaimV1.Shape shape = ProgrammableDepositClaimV1.Shape.of(datum, plb,
+                settings.addressNetworkId());
+        OutputValues.Summary summary = OutputValues.summary(OutputValues.of(output.getAmounts()), vault.asset());
+        List<ProgrammableDepositDatumV1.Outpoint> inputs = new ArrayList<>();
+        if (transaction.getInputs() != null) {
+            for (var input : transaction.getInputs()) {
+                Hash32 id = txId(input.getTransactionId());
+                if (id != null) inputs.add(new ProgrammableDepositDatumV1.Outpoint(id, input.getIndex()));
+            }
+        }
+        Optional<ProgrammableDepositClaimV1.Deposit> deposit = Optional.empty();
+        if (shape == ProgrammableDepositClaimV1.Shape.DEPOSIT) {
+            ProgrammableDepositDatumV1 decoded = ProgrammableDepositDatumV1.depositShaped(datum, plb,
+                    settings.addressNetworkId()).orElseThrow();
+            deposit = Optional.of(new ProgrammableDepositClaimV1.Deposit(decoded, decoded.originSpent(inputs, index)));
+        }
+        List<ProgrammableDepositDatumV1.Outpoint> references = new ArrayList<>();
+        if (transaction.getReferenceInputs() != null) {
+            for (var input : transaction.getReferenceInputs()) {
+                Hash32 id = txId(input.getTransactionId());
+                if (id != null) references.add(new ProgrammableDepositDatumV1.Outpoint(id, input.getIndex()));
+            }
+        }
+        references.sort(java.util.Comparator.comparing((ProgrammableDepositDatumV1.Outpoint o) -> o.txId().hex())
+                .thenComparingLong(ProgrammableDepositDatumV1.Outpoint::index));
+        List<L1Tx.Token> mint = L1Tx.tokensOf(transaction.getMint(),
+                HexFormat.of().formatHex(vault.asset().policyId()));
+        boolean positiveMint = mint != null && mint.stream().anyMatch(token -> token.quantity().signum() > 0);
+        return new ProgrammableDepositClaimV1(vault.vaultId(), txId, index, slot, blockId, shape, deposit,
+                summary.registeredQuantity(), summary.lovelace(), summary.otherAssetCount(), summary.valueHash(),
+                L1Tx.scriptWithdrawals(transaction, block, blockIndex, ProgrammableDepositClaimV1.MAX_WITHDRAWALS),
+                positiveMint, references.size() > ProgrammableDepositClaimV1.MAX_REFERENCE_INPUTS
+                        ? Optional.empty() : Optional.of(references));
     }
 
     /** The inline datum bytes, or null when there is none or it is not hex (then the shape is OTHER). */

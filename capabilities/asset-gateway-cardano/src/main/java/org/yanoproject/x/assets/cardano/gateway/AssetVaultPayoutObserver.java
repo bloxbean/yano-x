@@ -172,11 +172,32 @@ final class AssetVaultPayoutObserver implements L1Observer {
         if (ids.isEmpty() || ids.get().isEmpty()) return null;
         PayoutClaimV1.Continuation continuation = continuation(vault, continuationIndex, continuationOutput);
 
-        List<byte[]> redeemers = L1Tx.spendRedeemers(block, blockIndex);
-        // Unreadable, or no spend redeemer at all (a vault spend always has one): the discriminator is unknown, so
-        // never guess (D10).
-        if (redeemers == null || redeemers.isEmpty()) return null;
-        Optional<byte[]> holder = balanceExitHolder(vault, redeemers, ids.get().getFirst());
+        Optional<byte[]> holder;
+        if (vault.programmable()) {
+            // ADR-061 D4: a CIP-113 vault's action is the custody script's own reward redeemer, located exactly by
+            // the position of Script(h) among the withdrawals in ledger order; the escape binding is the second test.
+            List<byte[]> accounts = L1Tx.rewardAccounts(transaction);
+            java.util.Map<Integer, byte[]> rewards = L1Tx.rewardRedeemers(block, blockIndex);
+            if (accounts == null || rewards == null) return null;
+            int position = -1;
+            for (int i = 0; i < accounts.size(); i++) {
+                byte[] account = accounts.get(i);
+                if (((account[0] & 0xff) >>> 4) == 0xf
+                        && java.util.Arrays.equals(java.util.Arrays.copyOfRange(account, 1, 29), vault.scriptHash())) {
+                    position = i;
+                }
+            }
+            if (position < 0 || !rewards.containsKey(position)) return null; // the custody did not run
+            holder = GatewayDatums.balanceExitHolderId(rewards.get(position))
+                    .filter(candidate -> GatewayIds.escapeNullifier(vault.vaultId(), candidate)
+                            .equals(ids.get().getFirst()));
+        } else {
+            List<byte[]> redeemers = L1Tx.spendRedeemers(block, blockIndex);
+            // Unreadable, or no spend redeemer at all (a vault spend always has one): the discriminator is unknown,
+            // so never guess (D10).
+            if (redeemers == null || redeemers.isEmpty()) return null;
+            holder = balanceExitHolder(vault, redeemers, ids.get().getFirst());
+        }
         if (holder.isPresent()) {
             // The continuation lists an escape nullifier, which only a BalanceExit writes, and always at output 1.
             if (continuationIndex != 1 || ids.get().size() != 1) return null;

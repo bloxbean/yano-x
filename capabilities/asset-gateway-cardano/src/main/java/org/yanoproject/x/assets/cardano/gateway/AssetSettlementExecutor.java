@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import org.yanoproject.x.assets.cardano.support.settlement.PayoutTxBuilder;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableSettlement;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableVaultTxAssembler;
 import org.yanoproject.x.assets.cardano.support.settlement.ResolvedOutput;
 import org.yanoproject.x.assets.cardano.support.settlement.ShardMirror;
 import org.yanoproject.x.assets.cardano.support.settlement.VaultPins;
@@ -333,6 +335,10 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         if (committed.domainStatus().map(DomainStatusV1::status).orElse(null) != DomainStatusV1.Status.ACTIVE) {
             return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "domain not ACTIVE");
         }
+        if (pins.cip113() && !committed.held(pins.vaultId()).map(held -> !held).orElse(false)) {
+            // ADR-061 D14: members refuse a held asset's Settle; its claims stay RESERVED for Exit.
+            return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "asset in ISSUER_HOLD (or its hold unreadable)");
+        }
         Optional<ResolvedOutput> exitMode = l1.exitMode(pins);
         Optional<ResolvedOutput> shardInput = l1.shard(pins, batch.shardIndex());
         AssetSettlementSettings.ScriptRefs refs = settings.scriptRefs().get(pins.vaultId());
@@ -340,6 +346,23 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         Optional<ResolvedOutput> shardRef = l1.resolve(refs.shard());
         if (exitMode.isEmpty() || shardInput.isEmpty() || vaultRef.isEmpty() || shardRef.isEmpty()) {
             return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "L1 inputs unavailable");
+        }
+        // ADR-061: a CIP-113 vault's Settle runs the deployment's scripts too, under the live wiring.
+        List<ResolvedOutput> scriptRefs = List.of(vaultRef.get(), shardRef.get());
+        ProgrammableSettlement.Cip113 cip113 = null;
+        if (pins.cip113()) {
+            Optional<List<ResolvedOutput>> refsCip113 = Cip113Runtime.referenceScripts(pins, l1, refs, true);
+            if (refsCip113.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "L1 inputs unavailable");
+            scriptRefs = refsCip113.get();
+            try {
+                cip113 = Cip113Runtime.context(pins, l1, committed).orElse(null);
+            } catch (ProgrammableVaultTxAssembler.Drift drift) {
+                // D10 rule 6: protocol-level drift in the fields a vault transaction uses; resumes after ASSET_REWIRE.
+                return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "CIP-113 wiring drift: " + drift.getMessage());
+            }
+            if (cip113 == null) {
+                return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "the live CIP-113 params UTxO is unavailable");
+            }
         }
         Set<ResolvedOutput.Outpoint> pendingSpends = assembly.held(l1);
         if (pendingSpends.contains(shardInput.get().outpoint())) {
@@ -369,7 +392,7 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
         if (funding.isEmpty()) return outcome(EffectExecution.retry(WAIT_FOR_ANCHOR), "no fee wallet funds");
         long slot = settings.slots().slotAt(clock.getAsLong());
         PayoutTxBuilder.Context context = new PayoutTxBuilder.Context(pins, vaultUtxos,
-                shardInput.get(), anchor.get().output(), exitMode.get(), List.of(vaultRef.get(), shardRef.get()),
+                shardInput.get(), anchor.get().output(), exitMode.get(), scriptRefs,
                 new PayoutTxBuilder.Funding(funding, wallet.address()), Math.max(0, slot - 60),
                 slot + settings.validityWindowSlots(), pp, settings.maxVaultInputs());
         // The executor's cap, whatever the ledger's batch size; the rest stays RESERVED and is re-queued at close.
@@ -381,8 +404,11 @@ final class AssetSettlementExecutor implements AppEffectExecutor {
                 return outcome(EffectExecution.retry(LEFT_FOR_EXIT), "no claim fits one transaction");
             }
             try {
-                built = PayoutTxBuilder.settle(context, claims.subList(0, size), mirror.get(),
-                        signerKeys.stream().map(Blake2bUtil::blake2bHash224).toList(), evaluator);
+                List<byte[]> required = signerKeys.stream().map(Blake2bUtil::blake2bHash224).toList();
+                built = cip113 != null
+                        ? ProgrammableSettlement.settle(context, cip113, claims.subList(0, size), mirror.get(),
+                        required, evaluator)
+                        : PayoutTxBuilder.settle(context, claims.subList(0, size), mirror.get(), required, evaluator);
                 break;
             } catch (PayoutTxBuilder.LimitExceeded tooLarge) {
                 if (size == 1) {

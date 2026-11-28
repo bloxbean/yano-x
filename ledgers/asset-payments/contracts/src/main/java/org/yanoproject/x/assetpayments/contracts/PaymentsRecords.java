@@ -28,7 +28,13 @@ public final class PaymentsRecords {
      * changes it. {@code WIND_DOWN} allows withdrawals and settlement only; {@code RETIRED} is terminal.
      */
     public enum AssetStatus {
-        ACTIVE(0), DEPOSITS_PAUSED(1), TRANSFERS_PAUSED(2), WIND_DOWN(3), RETIRED(4);
+        ACTIVE(0), DEPOSITS_PAUSED(1), TRANSFERS_PAUSED(2), WIND_DOWN(3), RETIRED(4),
+        /**
+         * ADR-061 D14: a governed {@code ASSET_HOLD} after an attributed issuer event on a CIP-113 asset. Deposits are
+         * recorded {@code UNCREDITED(ASSET_HELD)}; transfers and voluntary withdrawals of the asset are refused, and
+         * members refuse co-signed {@code Settle}. {@code Accept}, forced withdrawals and proof {@code Exit} continue.
+         */
+        ISSUER_HOLD(5);
 
         private final int code;
 
@@ -42,6 +48,11 @@ public final class PaymentsRecords {
 
         public boolean depositsEnabled() {
             return this == ACTIVE || this == TRANSFERS_PAUSED;
+        }
+
+        /** ADR-061 D14: the asset is held after an issuer event. */
+        public boolean held() {
+            return this == ISSUER_HOLD;
         }
 
         public boolean transfersEnabled() {
@@ -78,14 +89,168 @@ public final class PaymentsRecords {
         }
     }
 
+    /** ADR-061 D14: the trust labels an asset carries, next to the domain's. */
+    public enum TrustLabel {
+        FEDERATED_COSIGNED_WITH_ESCAPE_HATCH,
+        /**
+         * The issuer (and its admin set) can freeze the vault, seize or burn its tokens, and change the token's
+         * transfer, third-party and unfracking logic for tokens already deposited; the deployment's CIP-113 upgrade
+         * authority can re-point the dispatcher and delegates; a token can never be de-registered; payouts go only
+         * to smart wallets and the issuer may refuse a recipient, which cannot be re-targeted; the escape hatch does
+         * not override the issuer; after a seizure only the co-signed path pauses, so the loss falls on the last to
+         * exit; every asset under one policy shares one freeze.
+         */
+        ISSUER_CONTROLLED
+    }
+
+    /**
+     * ADR-061 D12: the genesis-fixed pins of a CIP-113 vault's custody, {@code [deployment, token, custody,
+     * substandard, wiring0, baseline]}:
+     * <ul>
+     *   <li>the deployment identity: bootstrap transaction hash, params policy, PLB hash, registry node policy and
+     *       {@code maxInlineDatumBytes};</li>
+     *   <li>the custody backend ({@code julc} or {@code aiken}) and the exit delegate's hash ({@code e}; the
+     *       registry entry's {@code script_hash} is {@code h} and its address the smart wallet);</li>
+     *   <li>the substandard's id and version;</li>
+     *   <li>wiring version 0: the params outpoint live at registration, its fields (dispatcher, issuance logic,
+     *       transfer and third-party credentials) and that dispatcher's delegate hashes (transfer, third party,
+     *       unfracking);</li>
+     *   <li>the registry-node baseline (the transfer logic and {@code global_state_cs} at registration), for the
+     *       drift flag only;</li>
+     *   <li>{@code wiringKeys}: the bitmap of the wiring-0 fields that are verification-key credentials (bit 1 for a
+     *       key issuance logic, which the pinned params validator accepts), encoded as a 21st element only when it is
+     *       not zero.</li>
+     * </ul>
+     */
+    public record Cip113Custody(byte[] bootstrapTxHash, byte[] paramsPolicy, byte[] plbHash, byte[] registryNodePolicy,
+                                int maxInlineDatumBytes, String backend, byte[] exitDelegateHash, String substandard,
+                                int substandardVersion, Hash32 params0TxId, int params0Index, byte[] dispatcher,
+                                byte[] issuanceLogic, byte[] transferCredential, byte[] thirdPartyCredential,
+                                byte[] transferDelegate, byte[] thirdPartyDelegate, byte[] unfrackingDelegate,
+                                byte[] baselineTransferLogic, byte[] baselineGlobalStateCs, int wiringKeys) {
+        /** Wiring-0 fields that are all script credentials. */
+        public Cip113Custody(byte[] bootstrapTxHash, byte[] paramsPolicy, byte[] plbHash, byte[] registryNodePolicy,
+                             int maxInlineDatumBytes, String backend, byte[] exitDelegateHash, String substandard,
+                             int substandardVersion, Hash32 params0TxId, int params0Index, byte[] dispatcher,
+                             byte[] issuanceLogic, byte[] transferCredential, byte[] thirdPartyCredential,
+                             byte[] transferDelegate, byte[] thirdPartyDelegate, byte[] unfrackingDelegate,
+                             byte[] baselineTransferLogic, byte[] baselineGlobalStateCs) {
+            this(bootstrapTxHash, paramsPolicy, plbHash, registryNodePolicy, maxInlineDatumBytes, backend,
+                    exitDelegateHash, substandard, substandardVersion, params0TxId, params0Index, dispatcher,
+                    issuanceLogic, transferCredential, thirdPartyCredential, transferDelegate, thirdPartyDelegate,
+                    unfrackingDelegate, baselineTransferLogic, baselineGlobalStateCs, 0);
+        }
+
+        /** Wiring version 0's fields, credential kinds included. */
+        public org.yanoproject.x.assets.contracts.Cip113WiringClaimV1.Fields wiring0() {
+            return new org.yanoproject.x.assets.contracts.Cip113WiringClaimV1.Fields(dispatcher, issuanceLogic,
+                    transferCredential, thirdPartyCredential, wiringKeys);
+        }
+
+        public Cip113Custody {
+            bootstrapTxHash = fixed(bootstrapTxHash, 32, "bootstrap tx hash");
+            paramsPolicy = fixed(paramsPolicy, 28, "params policy");
+            plbHash = fixed(plbHash, 28, "PLB hash");
+            registryNodePolicy = fixed(registryNodePolicy, 28, "registry node policy");
+            exitDelegateHash = fixed(exitDelegateHash, 28, "exit delegate hash");
+            dispatcher = fixed(dispatcher, 28, "dispatcher");
+            issuanceLogic = fixed(issuanceLogic, 28, "issuance logic");
+            transferCredential = fixed(transferCredential, 28, "transfer credential");
+            thirdPartyCredential = fixed(thirdPartyCredential, 28, "third-party credential");
+            transferDelegate = fixed(transferDelegate, 28, "transfer delegate");
+            thirdPartyDelegate = fixed(thirdPartyDelegate, 28, "third-party delegate");
+            unfrackingDelegate = fixed(unfrackingDelegate, 28, "unfracking delegate");
+            baselineTransferLogic = fixed(baselineTransferLogic, 28, "baseline transfer logic");
+            baselineGlobalStateCs = Objects.requireNonNull(baselineGlobalStateCs, "baseline global state").clone();
+            Objects.requireNonNull(params0TxId, "params outpoint");
+            if (maxInlineDatumBytes < 40 || maxInlineDatumBytes > 65_536 || params0Index < 0
+                    || !("julc".equals(backend) || "aiken".equals(backend))
+                    || substandard == null || substandard.isEmpty() || substandard.length() > 32
+                    || substandardVersion < 0 || baselineGlobalStateCs.length > 28
+                    // The dispatcher is a withdrawal script, so it is never a key credential.
+                    || wiringKeys < 0 || wiringKeys > 0b1110) {
+                throw new IllegalArgumentException("invalid CIP-113 custody pins");
+            }
+        }
+
+        private static byte[] fixed(byte[] value, int length, String name) {
+            if (value == null || value.length != length) throw new IllegalArgumentException(name + " size");
+            return value.clone();
+        }
+
+        Array encode() {
+            Array array = new Array();
+            for (byte[] value : List.of(bootstrapTxHash, paramsPolicy, plbHash, registryNodePolicy)) {
+                array.add(AssetCbor.bstr(value));
+            }
+            array.add(AssetCbor.uint(maxInlineDatumBytes));
+            array.add(new UnicodeString(backend));
+            array.add(AssetCbor.bstr(exitDelegateHash));
+            array.add(new UnicodeString(substandard));
+            array.add(AssetCbor.uint(substandardVersion));
+            array.add(AssetCbor.bstr(params0TxId.bytes()));
+            array.add(AssetCbor.uint(params0Index));
+            for (byte[] value : List.of(dispatcher, issuanceLogic, transferCredential, thirdPartyCredential,
+                    transferDelegate, thirdPartyDelegate, unfrackingDelegate, baselineTransferLogic,
+                    baselineGlobalStateCs)) {
+                array.add(AssetCbor.bstr(value));
+            }
+            if (wiringKeys != 0) array.add(AssetCbor.uint(wiringKeys));
+            return array;
+        }
+
+        static Cip113Custody decode(DataItem item) {
+            List<DataItem> f = AssetCbor.array(item, 20, 21).getDataItems();
+            long keys = f.size() == 21 ? AssetCbor.uintLong(f.get(20)) : 0;
+            if (f.size() == 21 && (keys == 0 || keys > 0b1110)) throw AssetCbor.malformed("CIP-113 wiring kinds");
+            return new Cip113Custody(AssetCbor.bytes(f.get(0), 32, 32), AssetCbor.bytes(f.get(1), 28, 28),
+                    AssetCbor.bytes(f.get(2), 28, 28), AssetCbor.bytes(f.get(3), 28, 28),
+                    (int) AssetCbor.uintLong(f.get(4)), AssetCbor.text(f.get(5), 8), AssetCbor.bytes(f.get(6), 28, 28),
+                    AssetCbor.text(f.get(7), 32), (int) AssetCbor.uintLong(f.get(8)),
+                    Hash32.of(AssetCbor.bytes(f.get(9), 32, 32)), (int) AssetCbor.uintLong(f.get(10)),
+                    AssetCbor.bytes(f.get(11), 28, 28), AssetCbor.bytes(f.get(12), 28, 28),
+                    AssetCbor.bytes(f.get(13), 28, 28), AssetCbor.bytes(f.get(14), 28, 28),
+                    AssetCbor.bytes(f.get(15), 28, 28), AssetCbor.bytes(f.get(16), 28, 28),
+                    AssetCbor.bytes(f.get(17), 28, 28), AssetCbor.bytes(f.get(18), 28, 28),
+                    AssetCbor.bytes(f.get(19), 0, 28), (int) keys);
+        }
+    }
+
     /**
      * {@code [1, vault_id, asset, script_hash(28), vault_address: tstr, status, active_from_slot,
-     * added_at_height, ticker: tstr, decimals]}. Ticker and decimals are display data only.
+     * added_at_height, ticker: tstr, decimals]}, and for a CIP-113 vault (ADR-061 D1) an eleventh element, its
+     * {@link Cip113Custody} pins. A native vault's entry is byte for byte the ten-element form. Ticker and decimals
+     * are display data only.
      */
     public record RegistryEntryV1(Hash32 vaultId, AssetId asset, byte[] scriptHash, String vaultAddress,
                                   AssetStatus status, long activeFromSlot, long addedAtHeight, String ticker,
-                                  int decimals) {
+                                  int decimals, Optional<Cip113Custody> custody) {
+        /** A native vault's entry. */
+        public RegistryEntryV1(Hash32 vaultId, AssetId asset, byte[] scriptHash, String vaultAddress,
+                               AssetStatus status, long activeFromSlot, long addedAtHeight, String ticker,
+                               int decimals) {
+            this(vaultId, asset, scriptHash, vaultAddress, status, activeFromSlot, addedAtHeight, ticker, decimals,
+                    Optional.empty());
+        }
+
+        /** The asset's trust labels: the domain's, and {@code ISSUER_CONTROLLED} for a CIP-113 asset (D14). */
+        public List<TrustLabel> trustLabels() {
+            return custody.isPresent()
+                    ? List.of(TrustLabel.FEDERATED_COSIGNED_WITH_ESCAPE_HATCH, TrustLabel.ISSUER_CONTROLLED)
+                    : List.of(TrustLabel.FEDERATED_COSIGNED_WITH_ESCAPE_HATCH);
+        }
+
+        /** The same entry with {@code next} as its status ({@code ASSET_HOLD}, {@code ASSET_RESUME}). */
+        public RegistryEntryV1 withStatus(AssetStatus next) {
+            return new RegistryEntryV1(vaultId, asset, scriptHash, vaultAddress, next, activeFromSlot, addedAtHeight,
+                    ticker, decimals, custody);
+        }
+
         public RegistryEntryV1 {
+            Objects.requireNonNull(custody, "custody");
+            if (status == AssetStatus.ISSUER_HOLD && custody.isEmpty()) {
+                throw new IllegalArgumentException("ISSUER_HOLD applies to CIP-113 assets only");
+            }
             Objects.requireNonNull(vaultId, "vault id");
             Objects.requireNonNull(asset, "asset");
             Objects.requireNonNull(status, "status");
@@ -126,18 +291,20 @@ public final class PaymentsRecords {
             array.add(AssetCbor.uint(addedAtHeight));
             array.add(new UnicodeString(ticker));
             array.add(AssetCbor.uint(decimals));
+            custody.ifPresent(pins -> array.add(pins.encode()));
             return AssetCbor.encode(array);
         }
 
         public static RegistryEntryV1 decode(byte[] bytes) {
-            List<DataItem> items = AssetCbor.decodeArray(bytes, 10).getDataItems();
+            List<DataItem> items = AssetCbor.decodeArray(bytes, 10, 11).getDataItems();
             if (AssetCbor.uintLong(items.get(0)) != 1) throw AssetCbor.malformed("registry entry version");
             try {
                 return new RegistryEntryV1(Hash32.of(AssetCbor.bytes(items.get(1), 32, 32)),
                         PaymentsBodies.asset(items.get(2)), AssetCbor.bytes(items.get(3), 28, 28),
                         AssetCbor.text(items.get(4), 128), AssetStatus.fromCode(AssetCbor.uintLong(items.get(5))),
                         AssetCbor.uintLong(items.get(6)), AssetCbor.uintLong(items.get(7)),
-                        AssetCbor.text(items.get(8), 64), (int) Math.min(AssetCbor.uintLong(items.get(9)), 64));
+                        AssetCbor.text(items.get(8), 64), (int) Math.min(AssetCbor.uintLong(items.get(9)), 64),
+                        items.size() == 11 ? Optional.of(Cip113Custody.decode(items.get(10))) : Optional.empty());
             } catch (IllegalArgumentException invalid) {
                 throw AssetCbor.malformed(invalid.getMessage());
             }

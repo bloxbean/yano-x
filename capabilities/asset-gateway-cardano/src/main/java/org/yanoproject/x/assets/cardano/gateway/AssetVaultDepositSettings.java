@@ -2,6 +2,7 @@ package org.yanoproject.x.assets.cardano.gateway;
 
 import org.yanoproject.x.assets.cardano.support.DatumPreflight;
 import org.yanoproject.x.assets.cardano.support.VaultAddresses;
+import org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend;
 import org.yanoproject.x.assets.contracts.AssetId;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
@@ -14,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.asset;
@@ -38,6 +40,12 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
  * vaults.N.script-hash        56 lowercase hex
  * vaults.N.address            canonical bech32 enterprise script address of that hash
  * vaults.N.vault-id           optional; must equal the derived VaultId
+ * vaults.N.custody            native (default) | cip113 (ADR-061)
+ * vaults.N.cip113.plb-hash    56 hex: the pinned deployment's base script; the address is then the vault smart
+ *                             wallet base(Script(plb), Script(script-hash))
+ * vaults.N.cip113.params-policy  56 hex: the deployment's params policy
+ * vaults.N.cip113.exit-delegate-hash  56 hex: the exit delegate e the custody script h takes
+ * programmable-backend        julc | aiken, default julc: the custody backend of every CIP-113 vault (ADR-061 D3)
  * datum.max-bytes             default 16384
  * datum.max-depth             default 16
  * min-stability-depth         1..100000, default 1; the consuming machine checks the chain's l1.stability-depth
@@ -49,15 +57,21 @@ import static org.yanoproject.x.assets.cardano.gateway.SettingsValues.required;
 public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic, String chainId, Hash32 genesisId,
                                         String applicationId, String profileId, long profileVersion,
                                         Hash32 domainId, List<Vault> vaults, DatumPreflight datumBounds,
-                                        int minStabilityDepth) {
+                                        int minStabilityDepth, ProgrammableBackend programmableBackend) {
     public static final int MAX_VAULTS = 16;
     public static final String DEFAULT_APPLICATION_ID = "asset-payments";
     public static final String DEFAULT_PROFILE_ID = "anchored-claim-vault-v1";
 
     /** One configured vault: its id, asset, script hash and canonical bech32 address. */
-    public record Vault(Hash32 vaultId, AssetId asset, String assetSetting, byte[] scriptHash, String address) {
+    public record Vault(Hash32 vaultId, AssetId asset, String assetSetting, byte[] scriptHash, String address,
+                        Optional<Cip113> cip113) {
         public Vault {
             scriptHash = scriptHash.clone();
+            Objects.requireNonNull(cip113, "cip113");
+        }
+
+        public Vault(Hash32 vaultId, AssetId asset, String assetSetting, byte[] scriptHash, String address) {
+            this(vaultId, asset, assetSetting, scriptHash, address, Optional.empty());
         }
 
         @Override
@@ -69,7 +83,7 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
         public boolean equals(Object other) {
             return other instanceof Vault that && vaultId.equals(that.vaultId) && asset.equals(that.asset)
                     && assetSetting.equals(that.assetSetting) && Arrays.equals(scriptHash, that.scriptHash)
-                    && address.equals(that.address);
+                    && address.equals(that.address) && cip113.equals(that.cip113);
         }
 
         @Override
@@ -81,6 +95,42 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
         public String toString() {
             return "Vault[vaultId=" + vaultId + ", asset=" + asset + ", scriptHash="
                     + HexFormat.of().formatHex(scriptHash) + ", address=" + address + "]";
+        }
+    }
+
+    /** ADR-061: a CIP-113 vault's pins: the base script, the params policy and its exit delegate {@code e}. */
+    public record Cip113(byte[] plbHash, byte[] paramsPolicy, byte[] exitDelegateHash) {
+        public Cip113 {
+            plbHash = plbHash.clone();
+            paramsPolicy = paramsPolicy.clone();
+            exitDelegateHash = exitDelegateHash.clone();
+        }
+
+        @Override
+        public byte[] exitDelegateHash() {
+            return exitDelegateHash.clone();
+        }
+
+        @Override
+        public byte[] plbHash() {
+            return plbHash.clone();
+        }
+
+        @Override
+        public byte[] paramsPolicy() {
+            return paramsPolicy.clone();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Cip113 that && Arrays.equals(plbHash, that.plbHash)
+                    && Arrays.equals(paramsPolicy, that.paramsPolicy)
+                    && Arrays.equals(exitDelegateHash, that.exitDelegateHash);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(plbHash) * 31 + Arrays.hashCode(paramsPolicy);
         }
     }
 
@@ -114,15 +164,42 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
                 throw new IllegalArgumentException(prefix + "ordinal must be 0 in v1");
             }
             byte[] scriptHash = hex(required(settings, prefix + "script-hash"), 28, prefix + "script-hash");
-            String address = VaultAddresses.requireEnterpriseScript(required(settings, prefix + "address"),
-                    scriptHash, networkId);
+            String custody = optional(settings, prefix + "custody", "native");
+            Optional<Cip113> cip113;
+            String address;
+            if (custody.equals("cip113")) {
+                if (asset.isAda()) throw new IllegalArgumentException(prefix + "a CIP-113 vault holds a native asset");
+                cip113 = Optional.of(new Cip113(hex(required(settings, prefix + "cip113.plb-hash"), 28,
+                        prefix + "cip113.plb-hash"), hex(required(settings, prefix + "cip113.params-policy"), 28,
+                        prefix + "cip113.params-policy"), hex(required(settings, prefix + "cip113.exit-delegate-hash"),
+                        28, prefix + "cip113.exit-delegate-hash")));
+                address = required(settings, prefix + "address");
+                byte[] expected = org.yanoproject.x.assets.cardano.support.settlement.ProgrammableBackend
+                        .smartWallet(cip113.get().plbHash(), scriptHash, networkId);
+                byte[] actual;
+                try {
+                    actual = new com.bloxbean.cardano.client.address.Address(address).getBytes();
+                } catch (RuntimeException invalid) {
+                    throw new IllegalArgumentException(prefix + "address is not a bech32 Shelley address", invalid);
+                }
+                if (!Arrays.equals(actual, expected)) {
+                    throw new IllegalArgumentException(prefix + "address must be the vault smart wallet "
+                            + "base(Script(plb), Script(script-hash))");
+                }
+            } else if (custody.equals("native")) {
+                cip113 = Optional.empty();
+                address = VaultAddresses.requireEnterpriseScript(required(settings, prefix + "address"),
+                        scriptHash, networkId);
+            } else {
+                throw new IllegalArgumentException(prefix + "custody must be native or cip113");
+            }
             if (!addresses.add(address)) throw new IllegalArgumentException("vault addresses must be distinct");
             Hash32 vaultId = GatewayIds.vaultId(domainId, asset, 0);
             String declared = settings.get(prefix + "vault-id");
             if (declared != null && !declared.trim().equals(vaultId.hex())) {
                 throw new IllegalArgumentException(prefix + "vault-id differs from the derived VaultId " + vaultId);
             }
-            vaults.add(new Vault(vaultId, asset, assetSetting, scriptHash, address));
+            vaults.add(new Vault(vaultId, asset, assetSetting, scriptHash, address, cip113));
         }
         if (vaults.isEmpty()) throw new IllegalArgumentException("at least one vault (vaults.0.*) is required");
         for (String key : settings.keySet()) {
@@ -136,7 +213,8 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
                     index = -1;
                 }
                 if (index < 0 || index >= vaults.size()
-                        || !Set.of("asset", "ordinal", "script-hash", "address", "vault-id")
+                        || !Set.of("asset", "ordinal", "script-hash", "address", "vault-id", "custody",
+                        "cip113.plb-hash", "cip113.params-policy", "cip113.exit-delegate-hash")
                         .contains(rest.substring(dot + 1))) {
                     throw new IllegalArgumentException("unknown vault setting " + key);
                 }
@@ -151,7 +229,8 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
         int minDepth = (int) bounded(optional(settings, "min-stability-depth", "1"), 1, 100_000,
                 "min-stability-depth");
         return new AssetVaultDepositSettings(networkId, magic, chainId, genesis, applicationId, profileId,
-                profileVersion, domainId, vaults, bounds, minDepth);
+                profileVersion, domainId, vaults, bounds, minDepth,
+                ProgrammableBackend.parse(settings.get("programmable-backend")));
     }
 
     /** Every consensus-relevant value in a fixed order and normalized form. */
@@ -171,6 +250,19 @@ public record AssetVaultDepositSettings(int addressNetworkId, long networkMagic,
             fields.put("vaults." + index + ".asset", vault.asset().toString());
             fields.put("vaults." + index + ".script-hash", HexFormat.of().formatHex(vault.scriptHash()));
             fields.put("vaults." + index + ".address", vault.address());
+            // A native vault's identity is unchanged; a CIP-113 vault adds its custody and deployment pins.
+            vault.cip113().ifPresent(pins -> {
+                fields.put("vaults." + vault.vaultId().hex() + ".custody", "cip113");
+                fields.put("vaults." + vault.vaultId().hex() + ".cip113.plb-hash",
+                        HexFormat.of().formatHex(pins.plbHash()));
+                fields.put("vaults." + vault.vaultId().hex() + ".cip113.params-policy",
+                        HexFormat.of().formatHex(pins.paramsPolicy()));
+                fields.put("vaults." + vault.vaultId().hex() + ".cip113.exit-delegate-hash",
+                        HexFormat.of().formatHex(pins.exitDelegateHash()));
+            });
+        }
+        if (vaults.stream().anyMatch(vault -> vault.cip113().isPresent())) {
+            fields.put("programmable-backend", programmableBackend.id());
         }
         fields.put("datum.max-bytes", String.valueOf(datumBounds.maxBytes()));
         fields.put("datum.max-depth", String.valueOf(datumBounds.maxDepth()));

@@ -1,0 +1,85 @@
+; =============================================================================
+; ADR-061 asset gateway: on-chain ABI of a CIP-113 vault, version 1
+; =============================================================================
+; Extends asset-gateway-onchain-v1.cddl, whose definitions (claim, exit_claim,
+; inclusion_proof, absence_proof, sweep_asset, vault_continuation_v1,
+; floor_top_up_v1, sweep_paid_v1, shard_datum_v1, insert, shard_redeemer) apply
+; unchanged. Everything here is Plutus Data. Constr(i, fields) is written
+; #6.(121+i)([...]) for i < 7.
+
+hash32 = bytes .size 32
+hash28 = bytes .size 28
+
+; ---------------------------------------------------------------------------
+; Custody (D1, D2)
+; ---------------------------------------------------------------------------
+; A CIP-113 asset's vault is a smart wallet of the pinned CIP-113 deployment:
+;   vault smart wallet = base(Script(PLB), Inline(Script(h)))
+; Its custody is every UTxO at that address; PLB spends each of them with the
+; pinned deployment's base_spend_redeemer below. Two scripts, both multi-purpose
+; Plutus V3 withdraw validators with permanently registered credentials:
+;   e = ProgrammableVaultExitDelegate(vault parameters, plb_hash, max_inline_datum_bytes)
+;   h = ProgrammableVaultValidator(vault parameters, plb_hash, max_inline_datum_bytes, e)
+; Their handlers: withdraw runs the actions; publish accepts only
+; RegisterCredential (TxCert constructor 0); spend and every other purpose fail.
+
+; The pinned CIP-113 base script's spend redeemer (not ours; listed for builders).
+base_spend_redeemer = #6.121([params_idx: uint, wdrl_idx: uint])
+
+; ---------------------------------------------------------------------------
+; h's redeemer: asset-gateway-onchain-v1's vault_redeemer, constructors 0 to 8
+; (Follow, 9, is rejected). Constructors 5 to 8 are EXIT-only and delegated to e.
+; ---------------------------------------------------------------------------
+custody_redeemer = vault_redeemer        ; minus #6.1282([]) Follow
+
+; e's redeemer: h's own action, mirrored. h requires e's withdrawal with exactly
+; this redeemer for constructors 5 to 8; e learns h from it and requires h's
+; withdrawal (D2, I46).
+delegated_action_v1 = #6.121([custody_hash: hash28, action: custody_redeemer])
+
+; For a deposit-shaped swept input, SweepExit's withdrawal key is its origin-keyed
+; deposit_id (raw 32 bytes, below) instead of the outpoint, and `assets` carries the
+; native entries followed by one entry #6.121([h'', h'', committed_lovelace]); the
+; claim's asset_value is the native entries and its vault_lovelace the committed
+; lovelace, which must not exceed the input's lovelace. Output 0 pays the native
+; assets exactly and at least the input's lovelace. Any other input is swept as in
+; asset-gateway-onchain-v1, by outpoint.
+
+; ---------------------------------------------------------------------------
+; ProgrammableDepositDatumV1 (D6)
+; ---------------------------------------------------------------------------
+programmable_deposit_datum_v1 = #6.121([
+  beneficiary: hash28,
+  refund_address: bytes .size 57,        ; a key-owned smart wallet of the pinned deployment:
+                                         ; header 0x10 | network, PLB hash, stake key hash
+  refund_key_hash: hash28,
+  origin: #6.121([origin_tx_id: hash32, origin_index: uint .size 8, output_index: uint .size 8])])
+; Deposit-shaped (the one total predicate, on chain and in admission): an inline
+; datum that decodes as exactly this, judged on the decoded Plutus Data, so any
+; list encoding is accepted. Any other datum is not deposit-shaped; decoding never
+; fails a script.
+
+; deposit_id = blake2b-256("deposit-cip113\0" || CBOR [vault_id, [origin_tx_id, origin_index], output_index])
+; (strict deterministic CBOR of asset-gateway-v1.cddl). The record deposit/<deposit_id>
+; keeps the original outpoint as history.
+
+; ---------------------------------------------------------------------------
+; Rules
+; ---------------------------------------------------------------------------
+; V14 vault inputs: every input at exactly the vault smart wallet; at least one.
+; V15 no output has h or e as its payment credential; only the continuation sits at
+;     the full vault smart wallet. Other payment parts with Script(h) as stake are
+;     not custody and are allowed.
+; V16 a continuation's ids number at most floor((max_inline_datum_bytes - 6) / 34),
+;     29 at 1,024 bytes (and at most 64).
+; V17 no certificates and no mint; withdrawals are not restricted by the script.
+; V5  a payout carrying the asset pays a key-owned smart wallet of the pinned
+;     deployment; a lovelace-only payout may also pay a key-payment address. No datum
+;     hash, no reference script.
+
+; ---------------------------------------------------------------------------
+; Shard binding variant (D5)
+; ---------------------------------------------------------------------------
+; ProgrammableShardValidator(shard_thread_policy_id, h): asset-gateway-onchain-v1's
+; shard with one predicate replaced: Script(h) is among the withdrawals (the custody
+; handler ran) instead of an input with h as its payment credential.

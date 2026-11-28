@@ -6,6 +6,9 @@ import org.yanoproject.x.assets.contracts.ClaimLeafV1;
 import org.yanoproject.x.assets.contracts.DepositRecordV1;
 import org.yanoproject.x.assets.contracts.GatewayIds;
 import org.yanoproject.x.assets.contracts.Hash32;
+import org.yanoproject.x.assets.contracts.ProgrammableReconciliation;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositClaimV1;
 import org.yanoproject.x.assets.contracts.SettlementBatchV1;
 import org.yanoproject.x.assets.contracts.VaultOutputShape;
 
@@ -310,6 +313,83 @@ public final class VaultReconciliation {
         OptionalLong oldest = reserved.values().stream().mapToLong(ClaimLeafV1::reservedAtMs).min();
         return new Report(vault.vaultId(), vault.asset(), consensus.height(), scan.point(), verdict, units, counted,
                 reserved.size(), oldest, pending, notes);
+    }
+
+    /**
+     * ADR-061 D6, D14(a): the reconciliation of a CIP-113 vault's asset. Its L1 side counts as backing only what a vault
+     * action can spend ({@link ProgrammableReconciliation}): accepted custody by the V10 predicate, and deposit-shaped
+     * outputs holding only the asset whose origin-keyed {@code DepositId} is {@code CREDITED}. Copies holding a
+     * foreign token, a top-up holding the asset, and other shapes are <b>unavailable</b>, never backing; an
+     * {@code UNCREDITED} id counts once, at its recorded value; a re-created output whose id is absent is donor dust.
+     * {@code consensus.deposits()} answers by origin-keyed id. A shortfall within the claims of shards ahead of their
+     * committed inserts is {@link Verdict#IN_FLIGHT}; any other shortfall is a {@link Verdict#DISCREPANCY}. Reward
+     * balances are never counted, and the lovelace unit is not reconciled for a CIP-113 vault in this release.
+     */
+    public static Report reconcileProgrammable(Vault vault, Consensus consensus, L1Scan scan, byte[] plbHash,
+                                               int networkId) {
+        Objects.requireNonNull(vault, "vault");
+        if (!scan.complete()) return Report.unavailable(vault.vaultId(), vault.asset(), "the L1 scan is incomplete");
+        if (scan.point().isEmpty()) {
+            return Report.unavailable(vault.vaultId(), vault.asset(),
+                    "the L1 view names no applied point (slot and block hash)");
+        }
+        List<ProgrammableReconciliation.LiveOutput> live = new ArrayList<>();
+        TreeSet<ResolvedOutput.Outpoint> seen = new TreeSet<>();
+        for (ResolvedOutput out : scan.outputs()) {
+            if (!out.sameAddress(vault.vaultAddress()) || !seen.add(out.outpoint())) continue;
+            byte[] datum = out.inlineDatum().orElse(null);
+            ProgrammableDepositClaimV1.Shape shape = ProgrammableDepositClaimV1.Shape.of(datum, plbHash, networkId);
+            Optional<Hash32> depositId = shape == ProgrammableDepositClaimV1.Shape.DEPOSIT
+                    ? ProgrammableDepositDatumV1.depositShaped(datum, plbHash, networkId)
+                    .map(d -> d.depositId(vault.vaultId())) : Optional.empty();
+            long others = out.assets().keySet().stream().filter(id -> !id.equals(vault.asset())).count();
+            live.add(new ProgrammableReconciliation.LiveOutput(new ProgrammableDepositDatumV1.Outpoint(
+                    out.outpoint().txId(), out.outpoint().index()), shape, depositId, out.quantityOf(vault.asset()),
+                    out.lovelace(), others));
+        }
+        AssetAccounts.VaultCounters c = consensus.counters();
+        BigInteger liabilities = c.available().add(c.reserved());
+        ProgrammableReconciliation.Report programmable = ProgrammableReconciliation.reconcile(live,
+                consensus.deposits(), liabilities);
+        List<Hash32> pending = new ArrayList<>();
+        BigInteger pendingAsset = BigInteger.ZERO;
+        for (ClaimLeafV1 leaf : consensus.reserved()) {
+            if (!consensus.shardsAhead().contains(SettlementBatchV1.shardOf(leaf.claimId()))) continue;
+            pending.add(leaf.claimId());
+            pendingAsset = pendingAsset.add(leaf.value().quantityOf(vault.asset()));
+        }
+        BigInteger difference = programmable.backing().subtract(liabilities);
+        BigInteger explained = difference.signum() < 0 ? difference.negate().min(pendingAsset) : BigInteger.ZERO;
+        Verdict verdict;
+        String explanation;
+        if (difference.signum() == 0) {
+            verdict = Verdict.BALANCED;
+            explanation = "spendable custody equals the liabilities";
+        } else if (difference.signum() > 0) {
+            verdict = Verdict.SURPLUS;
+            explanation = "spendable custody exceeds the liabilities by " + difference;
+        } else if (explained.equals(difference.negate())) {
+            verdict = Verdict.IN_FLIGHT;
+            explanation = "spendable custody is short by " + difference.negate() + ", within the " + pendingAsset
+                    + " reserved in shards ahead of their committed inserts";
+        } else {
+            verdict = Verdict.DISCREPANCY;
+            explanation = "spendable custody is short by " + difference.negate() + "; payouts in flight explain "
+                    + explained + "; " + programmable.unavailable() + " is unavailable (not spendable as custody)"
+                    + ": attribute it (third-party action or burn: ASSET_HOLD) or raise the alert (D14)";
+        }
+        List<Unit> units = List.of(new Unit(vault.asset().toString(), liabilities, BigInteger.ZERO,
+                programmable.backing(), BigInteger.ZERO, pendingAsset, explained, programmable.unattributed(),
+                programmable.unavailable(), programmable.donorDust(), programmable.backing()
+                .add(programmable.unavailable()).add(programmable.unattributed()).add(programmable.donorDust()),
+                difference, verdict, explanation));
+        List<String> notes = new ArrayList<>();
+        notes.add("CIP-113 vault (ADR-061): unavailable " + programmable.unavailable() + ", unattributed "
+                + programmable.unattributed() + ", donor dust " + programmable.donorDust()
+                + "; reward balances are never counted; the lovelace unit is not reconciled in this release");
+        OptionalLong oldest = consensus.reserved().stream().mapToLong(ClaimLeafV1::reservedAtMs).min();
+        return new Report(vault.vaultId(), vault.asset(), consensus.height(), scan.point(), verdict, units,
+                seen.size(), consensus.reserved().size(), oldest, pending, notes);
     }
 
     private static Unit unit(String name, BigInteger liabilities, BigInteger floor, Sums sums) {

@@ -54,6 +54,31 @@ public final class CardanoAddresses {
     }
 
     /**
+     * ADR-061 D7: true when {@code raw} is a key-owned smart wallet of the CIP-113 deployment whose base script hash is
+     * {@code plbHash}, on {@code networkId}: a 57-byte base address with a script payment part and a key stake part
+     * (header {@code 0x10 | network}), and {@code plbHash} as the payment credential. Pointer, enterprise and reward
+     * forms, and smart wallets owned by a script, are not payable (Q1). The custody scripts apply the same rule to
+     * token payouts and refund addresses.
+     */
+    public static boolean payableSmartWallet(byte[] raw, byte[] plbHash, int networkId) {
+        if (raw == null || plbHash == null || plbHash.length != HASH_BYTES || networkId < 0 || networkId > 15) {
+            return false;
+        }
+        return raw.length == 1 + 2 * HASH_BYTES && (raw[0] & 0xff) == (0x10 | networkId)
+                && Arrays.equals(Arrays.copyOfRange(raw, 1, 1 + HASH_BYTES), plbHash);
+    }
+
+    /**
+     * ADR-061 D7 feasibility of a recipient of a CIP-113 vault: a claim that carries the asset must pay a key-owned
+     * smart wallet ({@link #payableSmartWallet}); a lovelace-only claim may also pay an ordinary key recipient
+     * ({@link #payableRecipient}).
+     */
+    public static boolean payableProgrammableRecipient(byte[] raw, byte[] plbHash, int networkId,
+                                                       boolean carriesAsset) {
+        return payableSmartWallet(raw, plbHash, networkId) || (!carriesAsset && payableRecipient(raw, networkId));
+    }
+
+    /**
      * The bytes the vault script compares with a claim's recipient for an output paying {@code raw}. The script never
      * sees output address bytes: it rebuilds them from the ledger's Plutus view of the address
      * ({@code GatewayCodec.addressBytes}), and for a pointer address (header type 4 or 5) it writes slot, transaction
