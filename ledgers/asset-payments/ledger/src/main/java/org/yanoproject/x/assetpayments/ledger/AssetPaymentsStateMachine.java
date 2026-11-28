@@ -51,10 +51,15 @@ import org.yanoproject.x.walletauth.SessionGrantV1;
 import org.yanoproject.x.walletauth.WalletAuthException;
 import org.yanoproject.x.walletauth.WalletAuthorizer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -98,8 +103,15 @@ import java.util.Optional;
  * and nothing that a user or L1 sends can make {@code apply} throw (I2). An intent that does not
  * authenticate, has expired, or was already used writes nothing; an authenticated, unused intent
  * writes {@code used/<IntentId>} and exactly one receipt, accepted or rejected (D14).
+ *
+ * <p><b>Diagnostics</b> (D15a). {@link #operationalStatus()} reports node-local counts of what this node executed
+ * (deposits credited, uncredited or unattributed by reason, payouts paid, no-op or mismatched by reason, intents by
+ * outcome, governance decisions, settlement batches), the reservation-to-{@code PAID} latency, the per-vault withdrawal
+ * backlog and the domain status. A {@code RuntimeException} that a transition drops (its staged writes discarded, so
+ * the chain continues, I2) is counted under {@code dropped.*} and logged at WARN; it never changes the outcome.
  */
 final class AssetPaymentsStateMachine implements AppStateMachine {
+    private static final Logger LOG = LoggerFactory.getLogger(AssetPaymentsStateMachine.class);
     private final AssetPaymentsSettings settings;
     private final WalletAuthorizer authorizer;
     private final long maxForwardSkewMs;
@@ -108,6 +120,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     /** The claims of one batch: {@code settlement.batch-size}, bounded by what the effect payload limit admits. */
     private final int batchCap;
     private final PaymentsGovernance governance;
+    private final LedgerDiagnostics diagnostics = new LedgerDiagnostics();
 
     AssetPaymentsStateMachine(AssetPaymentsSettings settings, long maxForwardSkewMs, boolean batching, int batchCap,
                               AppChainMembershipView membership) {
@@ -222,6 +235,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     @Override
     public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
         AppBlock block = context.block();
+        diagnostics.begin(block.height());
         AssetAccounts.Store state = StagedStore.over(writer);
         ensureGenesis(state);
         pruneUsedIntents(state, block.timestamp());
@@ -245,6 +259,49 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             // Every other topic (framework '~' topics included) is not this ledger's.
         }
         flushSettlementBatches(state, block, effects);
+        recordBacklog(state);
+    }
+
+    @Override
+    public Map<String, Object> operationalStatus() {
+        return diagnostics.snapshot();
+    }
+
+    /** Diagnostics only: the vaults' reserved value and queue depth, and the domain status, after this block. */
+    private void recordBacklog(AssetAccounts.Store state) {
+        try {
+            AssetAccounts accounts = new AssetAccounts(AssetPaymentsContract.PREFIX, state);
+            Map<String, Object> vaults = new LinkedHashMap<>();
+            for (RegistryEntryV1 vault : settings.vaults()) {
+                AssetAccounts.VaultCounters counters = accounts.counters(vault.vaultId());
+                long queued = 0;
+                for (int shard = 0; shard < SettlementBatchV1.SHARDS; shard++) {
+                    Optional<byte[]> meta = state.get(AssetPaymentsContract.settleQueueMetaKey(vault.vaultId(), shard));
+                    if (meta.isPresent()) {
+                        long[] headTail = PaymentsRecords.decodeU64s(meta.get(), 2);
+                        queued += Math.max(0, headTail[1] - headTail[0]);
+                    }
+                }
+                String status = registry(state, vault.vaultId()).map(entry -> entry.status().name()).orElse("UNKNOWN");
+                Map<String, Object> backlog = new LinkedHashMap<>(LedgerDiagnostics.backlog(vault.ticker(),
+                        counters.reserved(), counters.lovelaceReserved(), counters.available(), queued));
+                backlog.put("status", status);
+                vaults.put(vault.vaultId().hex(), backlog);
+            }
+            String domain = state.get(AssetPaymentsContract.domainStatusKey())
+                    .map(bytes -> DomainStatusV1.decode(bytes).status().name()).orElse("UNKNOWN");
+            diagnostics.end(vaults, domain);
+        } catch (RuntimeException unreadable) {
+            diagnostics.end(Map.of(), "UNKNOWN");
+            dropped("backlog", -1, unreadable);
+        }
+    }
+
+    /** A transition dropped an unexpected exception: count it and say so, never silently (D15a). */
+    private void dropped(String path, long height, RuntimeException failure) {
+        diagnostics.count("dropped." + path);
+        LOG.warn("asset-payments dropped a {} transition at height {} (its staged writes are discarded): {}", path,
+                height, failure.toString());
     }
 
     private void ensureGenesis(AssetAccounts.Store state) {
@@ -298,10 +355,12 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
     private void processGovernance(AssetAccounts.Store state, AppMessage message, AppBlock block) {
         StagedStore staged = new StagedStore(state);
         try {
-            governance.process(staged, message.getSender(), message.getBody(), block);
+            PaymentsGovernance.Result result = governance.process(staged, message.getSender(), message.getBody(), block);
             staged.commit();
+            diagnostics.count("governance." + result.name());
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; the staged writes are dropped and the chain continues.
+            dropped("governance", block.height(), unexpected);
         }
     }
 
@@ -325,9 +384,25 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     account(staged, credit.beneficiary()).orElseThrow().keyHash(), credit.amount(),
                     credit.minAdaCredit()));
             staged.commit();
+            diagnostics.count(depositKey(outcome));
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; the staged writes are dropped and the chain continues (I2).
+            dropped("deposit", height, unexpected);
         }
+    }
+
+    private static String depositKey(DepositAdmission.Outcome outcome) {
+        return switch (outcome.disposition()) {
+            case RECORDED -> outcome.record().map(record -> switch (record.status()) {
+                case CREDITED -> "deposits.credited";
+                case OPERATIONAL -> "deposits.operational";
+                case UNCREDITED -> "deposits.uncredited." + record.reason().name();
+                case UNATTRIBUTED -> "deposits.unattributed." + record.reason().name();
+            }).orElse("deposits.recorded");
+            case DUPLICATE -> "deposits.duplicate";
+            case IGNORED -> "deposits.ignored";
+            case VAULT_CUSTODY -> "deposits.vaultCustody";
+        };
     }
 
     // ------------------------------------------------------------------ payouts (D10)
@@ -346,12 +421,33 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     settings.payoutObserverId().orElseThrow(), settings.domainId(), settings.exitDelayMs(),
                     vaultId -> registry(staged, vaultId).map(entry ->
                             new PayoutConfirmation.VaultBinding(entry.vaultId(), entry.asset())));
-            confirmation.apply(staged, new PayoutConfirmation.ObservedPayout(observation.observerId(), anchor,
-                    observation.eventOrdinal(), observation.slot(), observation.blockHash(), observation.claim()),
-                    block.height(), block.timestamp());
+            PayoutConfirmation.Result result = confirmation.apply(staged, new PayoutConfirmation.ObservedPayout(
+                    observation.observerId(), anchor, observation.eventOrdinal(), observation.slot(),
+                    observation.blockHash(), observation.claim()), block.height(), block.timestamp());
             staged.commit();
+            countPayout(result, block.timestamp());
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; the staged writes are dropped and the chain continues (I2).
+            dropped("payout", block.height(), unexpected);
+        }
+    }
+
+    private void countPayout(PayoutConfirmation.Result result, long blockTimeMs) {
+        if (result.disposition() != PayoutConfirmation.Disposition.RECORDED) {
+            diagnostics.count("payouts." + result.disposition().name().toLowerCase(java.util.Locale.ROOT));
+            return;
+        }
+        if (result.claims().isEmpty()) diagnostics.count("payouts.balanceExit");
+        if (result.halted()) diagnostics.count("payouts.halted");
+        for (PayoutConfirmation.ClaimResult claim : result.claims()) {
+            switch (claim.outcome()) {
+                case PAID -> {
+                    diagnostics.count("payouts.paid");
+                    claim.leaf().ifPresent(leaf -> diagnostics.paidAfter(blockTimeMs - leaf.reservedAtMs()));
+                }
+                case NO_OP -> diagnostics.count("payouts.noop." + claim.reason().name());
+                case PAID_MISMATCH -> diagnostics.count("payouts.mismatch." + claim.reason().name());
+            }
         }
     }
 
@@ -396,11 +492,13 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
             try {
                 authorized = authorize(PaymentsMessageV1.decode(body), staged, block.timestamp(), true);
             } catch (RuntimeException unauthenticated) {
+                diagnostics.count("intents.unauthenticated");
                 return; // unauthenticated, expired or malformed: nothing is written (D14)
             }
             Hash32 intentId = authorized.intentId();
             if (staged.get(AssetPaymentsContract.usedKey(intentId)).isPresent()
                     || staged.get(AssetPaymentsContract.receiptKey(intentId)).isPresent()) {
+                diagnostics.count("intents.replayed");
                 return; // replayed: skipped, so a receipt is never overwritten
             }
             IntentEnvelopeV1 envelope = authorized.envelope();
@@ -418,8 +516,11 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     result.rejection().isEmpty() ? PaymentsRecords.Outcome.ACCEPTED : PaymentsRecords.Outcome.REJECTED,
                     result.rejection(), block.height()).encode());
             staged.commit();
+            diagnostics.count(result.rejection().isEmpty() ? "intents.accepted." + envelope.action()
+                    : "intents.rejected." + result.rejection());
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; nothing of this intent is written and the chain continues.
+            dropped("intent", block.height(), unexpected);
         }
     }
 
@@ -719,6 +820,8 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                     staged.commit();
                 } catch (RuntimeException refused) {
                     // Deterministic on every member; this shard's staged writes are dropped and the next shard runs.
+                    // A per-block effect limit lands here by design, so it is counted but not logged as a failure.
+                    diagnostics.count("batches.notEmitted");
                 }
             }
         }
@@ -763,6 +866,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                 .build());
         state.put(AssetPaymentsContract.settleBatchKey(sequence), batch.encode());
         state.put(AssetPaymentsContract.settleBatchSequenceKey(), PaymentsRecords.encodeU64s(sequence + 1));
+        diagnostics.count("batches.emitted");
         return true;
     }
 
@@ -779,6 +883,7 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         if (!SettlementBatchV1.EFFECT_TYPE.equals(result.type())) return;
         long sequence = SettlementBatchV1.sequenceOf(result.scope());
         if (sequence < 0) return;
+        diagnostics.begin(context.block().height());
         AssetAccounts.Store state = StagedStore.over(writer);
         StagedStore staged = new StagedStore(state);
         try {
@@ -796,8 +901,10 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                 }
             }
             staged.commit();
+            diagnostics.count("batches.closed." + result.outcome().name());
         } catch (RuntimeException unexpected) {
             // Deterministic on every member; nothing is written.
+            dropped("effect-result", context.block().height(), unexpected);
         }
     }
 
