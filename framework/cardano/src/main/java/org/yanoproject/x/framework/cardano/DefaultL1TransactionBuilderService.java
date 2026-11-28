@@ -16,6 +16,7 @@ import org.yanoproject.api.utxo.UtxoState;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -75,8 +76,10 @@ public final class DefaultL1TransactionBuilderService
             throw new IllegalStateException("L1 pricing parameters lack " + String.join(", ", missing));
         }
         try {
+            OptionalLong maxValueSize = params.getMaxValSize() == null ? OptionalLong.empty()
+                    : OptionalLong.of(Long.parseLong(params.getMaxValSize().trim()));
             return new PricingParameters(params.getMinFeeA(), params.getMinFeeB(),
-                    Long.parseLong(params.getCoinsPerUtxoSize().trim()), params.getMaxTxSize());
+                    Long.parseLong(params.getCoinsPerUtxoSize().trim()), params.getMaxTxSize(), maxValueSize);
         } catch (IllegalArgumentException invalid) {
             throw new IllegalStateException("L1 pricing parameters are invalid", invalid);
         }

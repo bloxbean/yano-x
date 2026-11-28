@@ -45,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.yanoproject.x.assetpayments.ledger.PaymentsHarness.*;
@@ -574,6 +575,16 @@ class AssetPaymentsDomainApiTest {
         pricing = null;
         assertThat(build(adaDeposit(alice.address(), utxos), 409).path("error").asText())
                 .isEqualTo("L1_PARAMETERS_UNAVAILABLE");
+    }
+
+    @Test
+    void theHostsMaxValueSizeIsPassedThroughAndDefaultsWhenAbsent() {
+        var reported = new L1TransactionBuilderService.PricingParameters(44, 155_381, 4_310, 16_384,
+                OptionalLong.of(6_000));
+        assertThat(DepositTransactionBuilder.FeeParameters.from(reported).protocolParams().getMaxValSize())
+                .isEqualTo("6000");
+        assertThat(DepositTransactionBuilder.FeeParameters.from(MAINNET_PRICING).protocolParams().getMaxValSize())
+                .isEqualTo("5000");
     }
 
     @Test

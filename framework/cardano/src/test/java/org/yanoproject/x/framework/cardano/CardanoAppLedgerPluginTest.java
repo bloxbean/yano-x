@@ -95,6 +95,9 @@ class CardanoAppLedgerPluginTest {
                 () -> 10);
         assertThat(service.pricingParameters()).isEqualTo(
                 new L1TransactionBuilderService.PricingParameters(47, 160_000, 4_310, 16_384));
+        host.setMaxValSize("5000");
+        assertThat(service.pricingParameters().maxValueSize()).hasValue(5_000);
+        host.setMaxValSize(null);
         host.setCoinsPerUtxoSize(null);
         assertThatThrownBy(service::pricingParameters).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("coinsPerUtxoSize");
