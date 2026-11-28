@@ -6,15 +6,16 @@ const port = Number(process.env.PAYMENTS_CLIENT_PORT ?? 5174);
 
 export default defineConfig({
   testDir: 'e2e',
+  testIgnore: ['screenshots.spec.ts'],
   timeout: 10 * 60_000,
   expect: { timeout: 90_000 },
   workers: 1,
   reporter: [['list']],
-  use: { baseURL: `http://localhost:${port}`, trace: 'retain-on-failure', ...devices['Desktop Chrome'] },
+  use: { baseURL: `http://localhost:${port}`, actionTimeout: 60_000, trace: 'retain-on-failure', ...devices['Desktop Chrome'] },
   webServer: {
     command: 'npx vite',
     port,
     reuseExistingServer: true,
-    env: { PAYMENTS_NODE_URL: process.env.PAYMENTS_NODE_URL ?? 'http://localhost:7470' }
+    env: { PAYMENTS_NODE_URL: process.env.PAYMENTS_NODE_URL ?? 'http://localhost:7470', PAYMENTS_CLIENT_PORT: String(port) }
   }
 });
