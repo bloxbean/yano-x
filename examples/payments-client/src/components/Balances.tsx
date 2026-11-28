@@ -42,7 +42,7 @@ export function BalanceCard({ balance, view, vault }: { balance: Balance; view: 
               title="Not every claim was scanned; the reserved total may be higher.">partial</Badge>}
           </dt>
           <dd className="font-mono text-ink" data-testid="reserved" title={partial ? 'not every claim was scanned' : undefined}>
-            {formatUnits(balance.reserved, balance.decimals)}{partial ? ' (partial)' : ''}
+            {formatUnits(balance.reserved, balance.decimals)} {vaultLabel(balance)}{partial ? ' (partial)' : ''}
           </dd>
         </div>
         <div className="rounded-xl border border-line/70 bg-surface-2 px-3 py-2">
