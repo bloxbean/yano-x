@@ -75,7 +75,8 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                              String applicationId, String profileId, long profileVersion, Hash32 domainId,
                              String depositObserverId, Optional<String> payoutObserverId, long maxIntentTtlMs,
                              int minStabilityDepth, long exitDelayMs, List<PaymentsRecords.RegistryEntryV1> vaults,
-                             long minAdaPayout, long payoutLovelaceCap, Settlement settlement) {
+                             long minAdaPayout, long payoutLovelaceCap, Settlement settlement,
+                             Optional<String> wiringObserverId) {
     /** D7 step 4: how reserved claims are batched into {@code asset.settlement.batch} effects. */
     record Settlement(int batchSize, long batchWaitMs, long expiryBlocks, long minQueuedVaultLovelace) {
         Settlement {
@@ -95,8 +96,14 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
     static final long MIN_EXIT_DELAY_MS = 6L * 3_600_000;
     static final long MAX_EXIT_DELAY_MS = 30L * 24 * 3_600_000;
     static final long DEFAULT_EXIT_DELAY_MS = 24L * 3_600_000;
+    static final String WIRING_OBSERVER_TYPE = "asset-cip113-wiring-v1";
     private static final Set<String> VAULT_SETTINGS = Set.of("asset", "script-hash", "address", "status", "ticker",
-            "decimals", "active-from-slot");
+            "decimals", "active-from-slot", "custody", "cip113.bootstrap-tx", "cip113.params-policy", "cip113.plb-hash",
+            "cip113.registry-node-policy", "cip113.max-inline-datum-bytes", "cip113.backend",
+            "cip113.exit-delegate-hash", "cip113.substandard", "cip113.substandard-version", "cip113.params-outpoint",
+            "cip113.dispatcher", "cip113.issuance-logic", "cip113.transfer", "cip113.third-party",
+            "cip113.transfer-delegate", "cip113.third-party-delegate", "cip113.unfracking-delegate",
+            "cip113.baseline-transfer-logic", "cip113.baseline-global-state");
 
     AssetPaymentsSettings {
         vaults = List.copyOf(vaults);
@@ -166,12 +173,14 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
             } catch (IllegalArgumentException invalid) {
                 throw new IllegalArgumentException(prefix + "status is not a registry status", invalid);
             }
+            Optional<PaymentsRecords.Cip113Custody> custody = custody(settings, prefix, asset);
             vaults.add(new PaymentsRecords.RegistryEntryV1(GatewayIds.vaultId(domainId, asset, 0), asset,
                     scriptHash, address, status,
                     bounded(optional(settings, prefix + "active-from-slot", "0"), 0, Long.MAX_VALUE,
                             prefix + "active-from-slot"),
                     0, optional(settings, prefix + "ticker", ""),
-                    (int) bounded(optional(settings, prefix + "decimals", "0"), 0, 19, prefix + "decimals")));
+                    (int) bounded(optional(settings, prefix + "decimals", "0"), 0, 19, prefix + "decimals"),
+                    custody));
         }
         if (vaults.isEmpty()) throw new IllegalArgumentException(PREFIX + "vaults.0.* is required");
         // A gapped index (vaults.0, vaults.2) or a misspelt suffix would otherwise be silently ignored.
@@ -189,13 +198,73 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                 throw new IllegalArgumentException("unknown vault setting " + PREFIX + key);
             }
         }
+        boolean programmable = vaults.stream().anyMatch(vault -> vault.custody().isPresent());
+        Optional<String> wiringId = programmable
+                ? Optional.of(required(settings, "cip113.wiring-observer-id")) : Optional.empty();
+        // I48: every wiring observation of a block is recorded before its deposits are admitted, which the
+        // canonical order of observations by observer id gives only when the wiring observer sorts first.
+        if (wiringId.isPresent() && wiringId.get().compareTo(observerId) >= 0) {
+            throw new IllegalArgumentException(PREFIX + "cip113.wiring-observer-id must sort before "
+                    + "deposit-observer-id (ADR-061 I48)");
+        }
         AssetPaymentsSettings parsed = new AssetPaymentsSettings(chainId, networkId, magic, genesis, applicationId,
                 profileId, profileVersion, domainId, observerId,
                 payoutId.isEmpty() ? Optional.empty() : Optional.of(payoutId), ttl, minDepth, exitDelay, vaults,
-                minAdaPayout, payoutLovelaceCap, settlement);
+                minAdaPayout, payoutLovelaceCap, settlement, wiringId);
         parsed.checkObserver(all, observerId, OBSERVER_TYPE);
+        wiringId.ifPresent(id -> parsed.checkObserver(all, id, WIRING_OBSERVER_TYPE));
         parsed.payoutObserverId.ifPresent(id -> parsed.checkObserver(all, id, PAYOUT_OBSERVER_TYPE));
         return parsed;
+    }
+
+    /**
+     * ADR-061 D1, D12: a vault's custody, {@code native} (the default) or {@code cip113} with the genesis-fixed pins
+     * of the deployment, the custody, the substandard, wiring version 0 and the registry-node baseline.
+     */
+    private static Optional<PaymentsRecords.Cip113Custody> custody(Map<String, String> settings, String prefix,
+                                                                   AssetId asset) {
+        String kind = optional(settings, prefix + "custody", "native");
+        if (kind.equals("native")) {
+            for (String key : settings.keySet()) {
+                if (key.startsWith(prefix + "cip113.")) {
+                    throw new IllegalArgumentException(PREFIX + key + " needs " + prefix + "custody = cip113");
+                }
+            }
+            return Optional.empty();
+        }
+        if (!kind.equals("cip113")) throw new IllegalArgumentException(prefix + "custody must be native or cip113");
+        if (asset.isAda()) throw new IllegalArgumentException(prefix + "a CIP-113 vault holds a native asset");
+        String c = prefix + "cip113.";
+        String outpoint = required(settings, c + "params-outpoint");
+        int hash = outpoint.indexOf('#');
+        if (hash != 64) throw new IllegalArgumentException(c + "params-outpoint must be <tx id hex>#<index>");
+        return Optional.of(new PaymentsRecords.Cip113Custody(hex(required(settings, c + "bootstrap-tx"), 32,
+                c + "bootstrap-tx"), hex(required(settings, c + "params-policy"), 28, c + "params-policy"),
+                hex(required(settings, c + "plb-hash"), 28, c + "plb-hash"),
+                hex(required(settings, c + "registry-node-policy"), 28, c + "registry-node-policy"),
+                (int) bounded(optional(settings, c + "max-inline-datum-bytes", "1024"), 40, 65_536,
+                        c + "max-inline-datum-bytes"),
+                optional(settings, c + "backend", "julc"),
+                hex(required(settings, c + "exit-delegate-hash"), 28, c + "exit-delegate-hash"),
+                required(settings, c + "substandard"),
+                (int) bounded(optional(settings, c + "substandard-version", "1"), 0, Integer.MAX_VALUE,
+                        c + "substandard-version"),
+                Hash32.of(hex(outpoint.substring(0, 64), 32, c + "params-outpoint")),
+                (int) bounded(outpoint.substring(65), 0, 65_535, c + "params-outpoint"),
+                hex(required(settings, c + "dispatcher"), 28, c + "dispatcher"),
+                hex(required(settings, c + "issuance-logic"), 28, c + "issuance-logic"),
+                hex(required(settings, c + "transfer"), 28, c + "transfer"),
+                hex(required(settings, c + "third-party"), 28, c + "third-party"),
+                hex(required(settings, c + "transfer-delegate"), 28, c + "transfer-delegate"),
+                hex(required(settings, c + "third-party-delegate"), 28, c + "third-party-delegate"),
+                hex(optional(settings, c + "unfracking-delegate", "00".repeat(28)), 28, c + "unfracking-delegate"),
+                hex(required(settings, c + "baseline-transfer-logic"), 28, c + "baseline-transfer-logic"),
+                HexFormat.of().parseHex(optional(settings, c + "baseline-global-state", ""))));
+    }
+
+    /** The CIP-113 wiring topic, when a CIP-113 vault is registered. */
+    Optional<String> wiringTopic() {
+        return wiringObserverId.map(id -> "~l1/" + id);
     }
 
     IntentEnvelopeV1.Domain intentDomain() {
@@ -261,7 +330,9 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
         expected.put("domain.profile-version", String.valueOf(profileVersion));
         // The observer's depth is part of its consensus identity; it must be the depth this ledger enforces.
         expected.put("min-stability-depth", String.valueOf(minStabilityDepth));
-        for (int index = 0; index < vaults.size(); index++) {
+        // ADR-061 D6: the wiring observer pins only the deployment's params policy, never the vaults or the wiring.
+        boolean wiring = type.equals(WIRING_OBSERVER_TYPE);
+        for (int index = 0; !wiring && index < vaults.size(); index++) {
             PaymentsRecords.RegistryEntryV1 vault = vaults.get(index);
             expected.put("vaults." + index + ".asset", vault.asset().toString());
             expected.put("vaults." + index + ".script-hash", HexFormat.of().formatHex(vault.scriptHash()));
@@ -277,7 +348,7 @@ record AssetPaymentsSettings(String chainId, int addressNetworkId, long networkM
                 throw new IllegalArgumentException(observer + key + " differs from " + PREFIX + key);
             }
         });
-        if (all.containsKey(observer + "vaults." + vaults.size() + ".asset")) {
+        if (!wiring && all.containsKey(observer + "vaults." + vaults.size() + ".asset")) {
             throw new IllegalArgumentException(observer + "vaults lists more vaults than the ledger registry");
         }
     }

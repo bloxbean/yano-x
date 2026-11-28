@@ -16,6 +16,11 @@ import org.yanoproject.x.assets.contracts.AssetValue;
 import org.yanoproject.x.assets.contracts.CardanoAddresses;
 import org.yanoproject.x.assets.contracts.ClaimKind;
 import org.yanoproject.x.assets.contracts.ClaimLeafV1;
+import org.yanoproject.x.assets.contracts.Cip113Wiring;
+import org.yanoproject.x.assets.contracts.Cip113WiringClaimV1;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositAdmission;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositClaimV1;
+import org.yanoproject.x.assets.contracts.ProgrammableDepositDatumV1;
 import org.yanoproject.x.assets.contracts.DepositAdmission;
 import org.yanoproject.x.assets.contracts.DomainStatusV1;
 import org.yanoproject.x.assets.contracts.ExitLeafV1;
@@ -52,6 +57,7 @@ import org.yanoproject.x.walletauth.WalletAuthorizer;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 
@@ -204,6 +210,11 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
                 context.l1ObservationAt(context.originalMessageIndex(visible))
                         .map(SequencedL1Observation::observation)
                         .ifPresent(observation -> creditDeposit(state, observation, block.height()));
+            } else if (settings.wiringTopic().filter(topic::equals).isPresent()) {
+                // ADR-061 I48: the canonical order puts a block's wiring observations before its deposits.
+                context.l1ObservationAt(context.originalMessageIndex(visible))
+                        .map(SequencedL1Observation::observation)
+                        .ifPresent(observation -> recordWiring(state, observation));
             } else if (settings.payoutTopic().filter(topic::equals).isPresent()) {
                 context.l1ObservationAt(context.originalMessageIndex(visible))
                         .map(SequencedL1Observation::observation)
@@ -221,6 +232,18 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         state.put(AssetPaymentsContract.domainKey(), domainRecord);
         for (RegistryEntryV1 vault : settings.vaults()) {
             state.put(AssetPaymentsContract.registryKey(vault.vaultId()), vault.encode());
+            // ADR-061 D12: wiring version 0 of a CIP-113 vault's deployment, and its approved tuple.
+            vault.custody().ifPresent(custody -> {
+                Cip113WiringClaimV1.Fields fields = new Cip113WiringClaimV1.Fields(custody.dispatcher(),
+                        custody.issuanceLogic(), custody.transferCredential(), custody.thirdPartyCredential());
+                Cip113Wiring wiring = wiring(custody);
+                if (wiring.head(state).isEmpty()) {
+                    wiring.genesis(state, new Cip113Wiring.Version(new ProgrammableDepositDatumV1.Outpoint(
+                            custody.params0TxId(), custody.params0Index()), 0, 0, Optional.of(fields)),
+                            new Cip113Wiring.ApprovedTuple(fields, custody.transferDelegate(),
+                                    custody.thirdPartyDelegate(), custody.unfrackingDelegate()));
+                }
+            });
         }
         state.put(AssetPaymentsContract.domainStatusKey(),
                 new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 0, 0, settings.exitDelayMs()).encode());
@@ -264,9 +287,73 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
 
     // ------------------------------------------------------------------ deposits (D6)
 
+    /** The wiring state of a CIP-113 deployment, keyed by its params policy. */
+    private Cip113Wiring wiring(PaymentsRecords.Cip113Custody custody) {
+        byte[] prefix = new byte[AssetPaymentsContract.PREFIX.length + 3 + 28];
+        System.arraycopy(AssetPaymentsContract.PREFIX, 0, prefix, 0, AssetPaymentsContract.PREFIX.length);
+        System.arraycopy("cw/".getBytes(java.nio.charset.StandardCharsets.US_ASCII), 0, prefix,
+                AssetPaymentsContract.PREFIX.length, 3);
+        System.arraycopy(custody.paramsPolicy(), 0, prefix, AssetPaymentsContract.PREFIX.length + 3, 28);
+        return new Cip113Wiring(prefix, settings.wiringObserverId().orElseThrow());
+    }
+
+    /** ADR-061 D6: records one wiring version for every CIP-113 deployment the registry pins. */
+    private void recordWiring(AssetAccounts.Store state, L1Observation observation) {
+        StagedStore staged = new StagedStore(state);
+        try {
+            byte[] anchor = observation.anchor() instanceof L1Observation.TransactionAnchor tx
+                    ? tx.transactionHash() : null;
+            DepositAdmission.ObservedDeposit observed = new DepositAdmission.ObservedDeposit(observation.observerId(),
+                    anchor, observation.eventOrdinal(), observation.slot(), observation.blockHash(),
+                    observation.claim());
+            java.util.Set<String> deployments = new java.util.HashSet<>();
+            for (RegistryEntryV1 vault : settings.vaults()) {
+                vault.custody().filter(custody -> deployments.add(HexFormat.of().formatHex(custody.paramsPolicy())))
+                        .ifPresent(custody -> wiring(custody).record(staged, observed));
+            }
+            staged.commit();
+        } catch (RuntimeException unexpected) {
+            // Deterministic on every member; the staged writes are dropped and the chain continues (I2).
+        }
+    }
+
+    /** ADR-061 D6: a CIP-113 vault's deposit claim, admitted outpoint first and classified by its wiring version. */
+    private boolean creditProgrammableDeposit(StagedStore staged, L1Observation observation, long height) {
+        ProgrammableDepositClaimV1 claim;
+        try {
+            claim = ProgrammableDepositClaimV1.decode(observation.claim());
+        } catch (IllegalArgumentException | ArithmeticException notProgrammable) {
+            return false;
+        }
+        Optional<RegistryEntryV1> entry = registry(staged, claim.vaultId());
+        if (entry.isEmpty() || entry.get().custody().isEmpty()) return false;
+        PaymentsRecords.Cip113Custody custody = entry.get().custody().get();
+        long slot = observation.slot();
+        ProgrammableDepositAdmission admission = new ProgrammableDepositAdmission(AssetPaymentsContract.PREFIX,
+                settings.depositObserverId(), vaultId -> registry(staged, vaultId)
+                .filter(found -> found.custody().isPresent())
+                .map(found -> new ProgrammableDepositAdmission.VaultBinding(found.vaultId(), found.asset(),
+                        found.status().depositsEnabled() && slot >= found.activeFromSlot(), found.status().held())),
+                wiring(custody));
+        AssetAccounts accounts = new AssetAccounts(AssetPaymentsContract.PREFIX, staged);
+        byte[] anchor = observation.anchor() instanceof L1Observation.TransactionAnchor tx
+                ? tx.transactionHash() : null;
+        ProgrammableDepositAdmission.Outcome outcome = admission.admit(staged, new DepositAdmission.ObservedDeposit(
+                observation.observerId(), anchor, observation.eventOrdinal(), slot, observation.blockHash(),
+                observation.claim()), height, candidate -> refuseCredit(staged, accounts, candidate));
+        outcome.credit().ifPresent(credit -> accounts.credit(credit.vaultId(), credit.beneficiary(),
+                account(staged, credit.beneficiary()).orElseThrow().keyHash(), credit.amount(),
+                credit.minAdaCredit()));
+        return true;
+    }
+
     private void creditDeposit(AssetAccounts.Store state, L1Observation observation, long height) {
         StagedStore staged = new StagedStore(state);
         try {
+            if (creditProgrammableDeposit(staged, observation, height)) {
+                staged.commit();
+                return;
+            }
             byte[] anchor = observation.anchor() instanceof L1Observation.TransactionAnchor tx
                     ? tx.transactionHash() : null;
             long slot = observation.slot();
@@ -589,9 +676,16 @@ final class AssetPaymentsStateMachine implements AppStateMachine {
         if (entry.get().status() == PaymentsRecords.AssetStatus.RETIRED) {
             return Result.rejected("ASSET_RETIRED").about(asset, amount);
         }
+        // ADR-061 D14: voluntary withdrawals of a held asset are refused; forced withdrawals are not.
+        if (entry.get().status().held()) return Result.rejected("ASSET_HELD").about(asset, amount);
         // Feasibility (D7 step 1): a Shelley key-payment address on this network; a pointer only in canonical form
-        // within the Conway limits.
-        if (!CardanoAddresses.payableRecipient(body.recipient(), settings.addressNetworkId())) {
+        // within the Conway limits. For a CIP-113 vault (ADR-061 D7): a key-owned smart wallet of the pinned
+        // deployment for a claim that carries the asset; a lovelace-only claim may also pay a key address.
+        boolean feasible = entry.get().custody().isPresent()
+                ? CardanoAddresses.payableProgrammableRecipient(body.recipient(), entry.get().custody().get().plbHash(),
+                settings.addressNetworkId(), amount.signum() > 0)
+                : CardanoAddresses.payableRecipient(body.recipient(), settings.addressNetworkId());
+        if (!feasible) {
             return Result.rejected("INFEASIBLE_RECIPIENT").about(asset, amount);
         }
         BigInteger minAda = BigInteger.valueOf(settings.minAdaPayout());
