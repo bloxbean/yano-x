@@ -19,6 +19,17 @@ final class FlatTemplates {
 
     /** The parameterized flat program. */
     static byte[] applyBytes(byte[] template, byte[]... params) {
+        byte[][] data = new byte[params.length][];
+        for (int i = 0; i < params.length; i++) data[i] = cborBytes(params[i]);
+        return applyData(template, data);
+    }
+
+    /**
+     * The flat program with each parameter a {@code data} constant given by its Plutus Data CBOR ({@code B} or
+     * {@code I} values for the gateway scripts), as {@code Program.applyParams} encodes it.
+     */
+    static byte[] applyData(byte[] template, byte[]... dataCbor) {
+        byte[][] params = dataCbor;
         if (template.length < 4 || template[0] != 1 || template[1] != 1 || template[2] != 0) {
             throw new IllegalArgumentException("not a Plutus 1.1.0 flat program");
         }
@@ -38,7 +49,7 @@ final class FlatTemplates {
             writer.bits(0b1, 1);    // type list: one tag
             writer.bits(0b1000, 4); // data
             writer.bits(0b0, 1);    // end of the type list
-            writer.byteString(cborBytes(param));
+            writer.byteString(param);
         }
         writer.filler();
         return writer.toByteArray();

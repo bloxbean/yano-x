@@ -26,8 +26,8 @@ import java.util.regex.Pattern;
  * The templates are the on-chain module's committed artifacts, copied into this library at build time.
  */
 public enum ShardBackend {
-    JULC("julc", "AssetShardValidator.plutus.json"),
-    AIKEN("aiken", "AssetShardValidatorAiken.plutus.json");
+    JULC("julc", "AssetShardValidator.plutus.json", "ProgrammableShardValidator.plutus.json"),
+    AIKEN("aiken", "AssetShardValidatorAiken.plutus.json", "ProgrammableShardValidatorAiken.plutus.json");
 
     /** The backend when {@code shard-backend} is not set. */
     public static final ShardBackend DEFAULT = JULC;
@@ -37,11 +37,14 @@ public enum ShardBackend {
 
     private final String id;
     private final String resource;
+    private final String programmableResource;
     private volatile byte[] template;
+    private volatile byte[] programmableTemplate;
 
-    ShardBackend(String id, String resource) {
+    ShardBackend(String id, String resource, String programmableResource) {
         this.id = id;
         this.resource = TEMPLATE_DIRECTORY + resource;
+        this.programmableResource = TEMPLATE_DIRECTORY + programmableResource;
     }
 
     /** The setting value: {@code julc} or {@code aiken}. */
@@ -104,6 +107,26 @@ public enum ShardBackend {
             throw new IllegalArgumentException("address network id is 0..15");
         }
         byte[] flat = FlatTemplates.applyBytes(template(), shardPolicyId, vaultScriptHash);
+        byte[] hash = scriptHash(flat);
+        byte[] address = new byte[29];
+        address[0] = (byte) (0x70 | addressNetworkId);
+        System.arraycopy(hash, 0, address, 1, 28);
+        return new ShardScript(this, flat, hash, address);
+    }
+
+    /**
+     * The shard binding variant of a CIP-113 vault (ADR-061 D5, D2 step 7): this backend's
+     * {@code ProgrammableShardValidator} applied to {@code (shardPolicyId, custodyScriptHash)}, which binds to the
+     * custody script's withdrawal instead of a vault input. The native shard is unchanged.
+     */
+    public ShardScript deriveProgrammable(byte[] shardPolicyId, byte[] custodyScriptHash, int addressNetworkId) {
+        if (shardPolicyId == null || shardPolicyId.length != 28 || custodyScriptHash == null
+                || custodyScriptHash.length != 28 || addressNetworkId < 0 || addressNetworkId > 15) {
+            throw new IllegalArgumentException("shard policy id and custody hash are 28 bytes, network 0..15");
+        }
+        byte[] loaded = programmableTemplate;
+        if (loaded == null) programmableTemplate = loaded = load(programmableResource);
+        byte[] flat = FlatTemplates.applyBytes(loaded, shardPolicyId, custodyScriptHash);
         byte[] hash = scriptHash(flat);
         byte[] address = new byte[29];
         address[0] = (byte) (0x70 | addressNetworkId);
