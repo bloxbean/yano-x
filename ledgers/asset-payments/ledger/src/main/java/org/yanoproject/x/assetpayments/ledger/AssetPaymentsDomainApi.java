@@ -464,7 +464,8 @@ final class AssetPaymentsDomainApi implements DomainApi {
             fees = DepositTransactionBuilder.FeeParameters.from(context.l1Transactions().pricingParameters());
         } catch (RuntimeException unavailable) {
             return error(409, "L1_PARAMETERS_UNAVAILABLE",
-                    "this node has no current L1 protocol parameters to price the deposit with");
+                    "this node has no current L1 protocol parameters to price the deposit with ("
+                            + unavailable.getMessage() + ")");
         }
         DepositTransactionBuilder.Built built;
         try {

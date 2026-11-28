@@ -72,19 +72,19 @@ public interface L1TransactionBuilderService {
 
     /**
      * The node's current L1 protocol parameters that price a plain payment:
-     * the linear fee rule and the min-UTxO rule. A domain plugin that builds
-     * its own unsigned transaction uses these so its fee matches L1.
+     * the linear fee rule, the min-UTxO rule and the transaction size limit.
+     * A domain plugin that builds its own unsigned transaction uses these so
+     * its fee matches L1.
      */
     record PricingParameters(
             long minFeeA,
             long minFeeB,
             long coinsPerUtxoByte,
-            long maxTxSize,
-            long maxValueSize
+            long maxTxSize
     ) {
         public PricingParameters {
             if (minFeeA < 0 || minFeeB < 0 || coinsPerUtxoByte < 1
-                    || maxTxSize < 1 || maxValueSize < 1) {
+                    || maxTxSize < 1) {
                 throw new IllegalArgumentException("invalid L1 pricing parameters");
             }
         }

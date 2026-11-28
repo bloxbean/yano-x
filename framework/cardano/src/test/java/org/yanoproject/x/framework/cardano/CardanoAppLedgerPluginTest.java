@@ -90,12 +90,14 @@ class CardanoAppLedgerPluginTest {
         host.setMinFeeB(160_000);
         host.setCoinsPerUtxoSize("4310");
         host.setMaxTxSize(16_384);
-        host.setMaxValSize("5000");
         AtomicReference<ProtocolParams> current = new AtomicReference<>(host);
         L1TransactionBuilderService service = new DefaultL1TransactionBuilderService(() -> null, current::get,
                 () -> 10);
         assertThat(service.pricingParameters()).isEqualTo(
-                new L1TransactionBuilderService.PricingParameters(47, 160_000, 4_310, 16_384, 5_000));
+                new L1TransactionBuilderService.PricingParameters(47, 160_000, 4_310, 16_384));
+        host.setCoinsPerUtxoSize(null);
+        assertThatThrownBy(service::pricingParameters).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("coinsPerUtxoSize");
         current.set(null);
         assertThatThrownBy(service::pricingParameters).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> L1TransactionBuilderService.unavailable().pricingParameters())

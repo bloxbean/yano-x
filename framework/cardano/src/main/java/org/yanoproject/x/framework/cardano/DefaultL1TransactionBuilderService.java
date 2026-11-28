@@ -65,15 +65,18 @@ public final class DefaultL1TransactionBuilderService
     @Override
     public PricingParameters pricingParameters() {
         ProtocolParams params = protocolParams.get();
-        if (params == null || params.getMinFeeA() == null || params.getMinFeeB() == null
-                || params.getCoinsPerUtxoSize() == null || params.getMaxTxSize() == null
-                || params.getMaxValSize() == null) {
-            throw new IllegalStateException("L1 pricing parameters are unavailable");
+        if (params == null) throw new IllegalStateException("L1 pricing parameters are unavailable");
+        List<String> missing = new java.util.ArrayList<>();
+        if (params.getMinFeeA() == null) missing.add("minFeeA");
+        if (params.getMinFeeB() == null) missing.add("minFeeB");
+        if (params.getCoinsPerUtxoSize() == null) missing.add("coinsPerUtxoSize");
+        if (params.getMaxTxSize() == null) missing.add("maxTxSize");
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("L1 pricing parameters lack " + String.join(", ", missing));
         }
         try {
             return new PricingParameters(params.getMinFeeA(), params.getMinFeeB(),
-                    Long.parseLong(params.getCoinsPerUtxoSize().trim()), params.getMaxTxSize(),
-                    Long.parseLong(params.getMaxValSize().trim()));
+                    Long.parseLong(params.getCoinsPerUtxoSize().trim()), params.getMaxTxSize());
         } catch (IllegalArgumentException invalid) {
             throw new IllegalStateException("L1 pricing parameters are invalid", invalid);
         }

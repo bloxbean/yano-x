@@ -72,9 +72,15 @@ final class DepositTransactionBuilder {
     };
 
     /** The linear fee and min-UTxO parameters a payment needs: the host's current L1 protocol parameters. */
-    record FeeParameters(long minFeeA, long minFeeB, long coinsPerUtxoByte, long maxTxSize, long maxValueSize) {
+    record FeeParameters(long minFeeA, long minFeeB, long coinsPerUtxoByte, long maxTxSize) {
+        /**
+         * CCL's own output value-size check only. A deposit output holds one asset, far below any max-value-size L1
+         * has used, and L1 still enforces its real limit; it never changes the fee or the min-UTxO.
+         */
+        static final long MAX_VALUE_SIZE = 5_000;
+
         FeeParameters {
-            if (minFeeA < 0 || minFeeB < 0 || coinsPerUtxoByte < 1 || maxTxSize < 1 || maxValueSize < 1
+            if (minFeeA < 0 || minFeeB < 0 || coinsPerUtxoByte < 1 || maxTxSize < 1
                     || minFeeA > Integer.MAX_VALUE || minFeeB > Integer.MAX_VALUE || maxTxSize > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("invalid deposit fee parameters");
             }
@@ -82,7 +88,7 @@ final class DepositTransactionBuilder {
 
         static FeeParameters from(L1TransactionBuilderService.PricingParameters pricing) {
             return new FeeParameters(pricing.minFeeA(), pricing.minFeeB(), pricing.coinsPerUtxoByte(),
-                    pricing.maxTxSize(), pricing.maxValueSize());
+                    pricing.maxTxSize());
         }
 
         ProtocolParams protocolParams() {
@@ -91,7 +97,7 @@ final class DepositTransactionBuilder {
             params.setMinFeeB((int) minFeeB);
             params.setCoinsPerUtxoSize(Long.toString(coinsPerUtxoByte));
             params.setMaxTxSize((int) maxTxSize);
-            params.setMaxValSize(Long.toString(maxValueSize));
+            params.setMaxValSize(Long.toString(MAX_VALUE_SIZE));
             params.setKeyDeposit("2000000");
             params.setPoolDeposit("500000000");
             params.setMinFeeRefScriptCostPerByte(java.math.BigDecimal.valueOf(15));

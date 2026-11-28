@@ -74,7 +74,7 @@ class AssetPaymentsDomainApiTest {
     L1TransactionBuilderService.PricingParameters pricing = MAINNET_PRICING;
 
     static final L1TransactionBuilderService.PricingParameters MAINNET_PRICING =
-            new L1TransactionBuilderService.PricingParameters(44, 155_381, 4_310, 16_384, 5_000);
+            new L1TransactionBuilderService.PricingParameters(44, 155_381, 4_310, 16_384);
 
     static Map<String, String> settings() {
         Map<String, String> settings = new LinkedHashMap<>(PaymentsHarness.settings());
@@ -568,7 +568,7 @@ class AssetPaymentsDomainApiTest {
         ledger.block(T0, register(alice));
         List<String> utxos = List.of(cip30Utxo(filled(32, 0x11), 0, alice.address(), 50_000_000, null, 0));
         long mainnet = build(adaDeposit(alice.address(), utxos), 200).path("fee").asLong();
-        pricing = new L1TransactionBuilderService.PricingParameters(44, 200_000, 4_310, 16_384, 5_000);
+        pricing = new L1TransactionBuilderService.PricingParameters(44, 200_000, 4_310, 16_384);
         long raised = build(adaDeposit(alice.address(), utxos), 200).path("fee").asLong();
         assertThat(raised - mainnet).isEqualTo(200_000 - 155_381);
         pricing = null;
