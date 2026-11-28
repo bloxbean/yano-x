@@ -21,6 +21,73 @@ from the node and refuses a wallet whose `getNetworkId()` doesn't match the
 chain's address network id. The same build works against a devnet, preview,
 preprod or mainnet node.
 
+## Screens
+
+The client is a single-page React app styled as a sibling of the Yano X client
+showcase: the same light Yano X brand tokens, type (Inter, Space Grotesk,
+JetBrains Mono), cards, badges and header.
+
+| Screen | What it shows |
+|---|---|
+| Welcome | The chain, its network badge (from the intent domain) and the assets in the vault registry, with a Connect button. |
+| Wallet picker | Every CIP-30 wallet injected into the page (`yano`, `yacidevkit`, Eternl, Lace, ...), the stake-key option, and the "Unsupported wallet" message for a wallet without `signData` or on another network. |
+| Onboarding | Registration as one step: sign a message, no L1 transaction and no fee. |
+| Dashboard | The account, per-asset balance cards (available, reserved with a "partial" badge, min-ADA credit, registry status, the full asset id and a **Verify proof** button), action buttons, and tabs for sessions, withdrawals and the ledger (intent domain and vault registry, each vault with its proof). |
+| Activity | Every action this tab submitted, followed to its receipt (`ACCEPTED`, `REJECTED <reason>` with a readable explanation, or `EXPIRED`) or deposit record, with a **Verify receipt** button. |
+| Deposit | Asset and amount, then the review decoded from the transaction, `signTx`, and a status that follows the deposit to `CREDITED`. |
+| Send | Recipient (account id or address), asset and amount, then the review. |
+| Session | Limits and expiry, one wallet prompt. The session card shows used and remaining limits, pays without a prompt, and has **Revoke**. |
+| Withdraw | Amount (or everything available), destination address and the `RESERVED` -> `SETTLING` -> `PAID` tracker, with the L1 payout tx link. |
+| Pay request | Paste a payment request link (or its QR payload) to preview and pay it, or make a link for your own account. |
+| Review sheet | The last step before every wallet prompt (see below). |
+
+| | |
+|---|---|
+| ![Welcome](docs/screenshots/01-welcome.png) | ![Wallet picker with the unsupported-wallet message](docs/screenshots/02-wallet-picker.png) |
+| ![Onboarding](docs/screenshots/03-onboarding.png) | ![Register review](docs/screenshots/04-review-register.png) |
+| ![Dashboard](docs/screenshots/10-dashboard.png) | ![Withdrawals](docs/screenshots/11-withdrawals.png) |
+| ![Deposit review, decoded from the transaction](docs/screenshots/06-review-deposit.png) | ![Deposit credited](docs/screenshots/07-deposit-credited.png) |
+| ![Transfer review](docs/screenshots/08-review-transfer.png) | ![Authorize a session](docs/screenshots/09-session-authorize.png) |
+| ![Withdraw](docs/screenshots/12-withdraw.png) | ![Pay request](docs/screenshots/13-pay-request.png) |
+
+![Phone width](docs/screenshots/14-phone.png)
+
+### Payment requests
+
+A payment request is a link that asks for an exact amount of one asset to one
+account on one chain:
+
+```
+<client>#/pay?v=1&chain=<chainId>&to=<accountId>&asset=<lovelace | policyId.assetNameHex>&amount=<base units>&memo=<text>
+```
+
+The amount is in base units and the asset is the full asset id, so a link
+doesn't depend on the node's display metadata. The client refuses a link for
+another chain, for an asset this ledger has no vault for, or for your own
+account. Paying it is an ordinary owner-signed transfer with the usual review.
+The memo is the requester's own text: it appears as "unverified" and isn't
+signed. Opening the client with such a link opens the pay sheet once the
+account is registered.
+
+## Stack and layout
+
+React 19, Vite, Tailwind CSS 4 (`@tailwindcss/vite`), TanStack Query,
+lucide-react and clsx, with TypeScript, at the exact versions in
+`package.json`. The UI never decides what is signed: that logic is plain
+TypeScript.
+
+| Path | Role |
+|---|---|
+| `src/lib/` | The tested logic: the intent encoder, CBOR, COSE, deposit verification, CIP-30 wallet access, session keys, proof binding, configuration and the API client. Also readable error codes (`errors.ts`) and payment request links (`payrequest.ts`). |
+| `src/flows.ts` | Every action, independent of the UI: the intent pipeline (encode, cross-check, review, sign, pre-check, submit), deposit build and verification, sessions, proofs. |
+| `src/state.tsx` | Configuration, chain, wallet and account state, the polled views, the activity this tab submitted, toasts and the pending review. |
+| `src/components/` | Screens, flow sheets and the review sheet. |
+| `src/ui.tsx`, `src/index.css` | UI primitives and design tokens, adapted from the client showcase. |
+
+Every read goes through TanStack Query. Receipts, deposit records and
+withdrawals keep polling, also in a background tab, until they reach a terminal
+state (a receipt, a deposit record, `PAID`), so a status never stops half way.
+
 ## How an action is signed
 
 1. The client encodes the `IntentEnvelopeV1` itself (`src/lib/intents.ts`). The
@@ -28,14 +95,15 @@ preprod or mainnet node.
    `ledgers/asset-payments/ledger/src/test/resources/asset-payments/intent-vectors-v1.json`.
 2. It asks the node's `intents/encode` route to encode the same intent, and
    refuses to sign if the two encodings differ.
-3. It shows a review dialog with the fields that matter: action, the amount in
+3. It shows the review sheet with the fields that matter: action, the amount in
    display units and in base units, the full asset id (`policyId.assetName`
    hex), the recipient, the account, the chain id, genesis id and network of the
    intent domain, and the expiry. The base units and asset id are what the
    ledger executes, so a node that lies about a ticker or decimals shows up here.
    The exact bytes are under a disclosure.
    Wallets show a `signData` payload as hex, not as a Cardano transaction. Check
-   the fields in this dialog before you approve.
+   the fields in this sheet before you approve. Values are never shortened in
+   the review.
 4. The wallet signs (`signData(address, envelopeHex)`). Before submitting, the
    client checks that the COSE_Sign1 payload is exactly the envelope and that its
    protected `address` is the account's signing address.
@@ -48,8 +116,12 @@ preprod or mainnet node.
    authorizes the intent again. The domain API can't submit: the host gives
    domain APIs no submission.
 7. The client polls `receipts/{intentId}` until the receipt is committed. A
-   receipt is `ACCEPTED` or `REJECTED` with a reason. An intent that never
-   executes has no receipt and expires.
+   receipt is `ACCEPTED` or `REJECTED` with a reason, shown with a readable
+   explanation (`src/lib/errors.ts`). An intent that never executes has no
+   receipt and expires.
+
+A session payment skips steps 3 and 4: the browser's session key signs, with no
+review and no wallet prompt, and the grant's limits bound it.
 
 Session keys are WebCrypto Ed25519 keys with a non-extractable private key. They
 are kept in this browser profile's IndexedDB. A grant allows only `TRANSFER`,
@@ -129,9 +201,15 @@ You need Node 22 and npm.
 ```bash
 cd examples/payments-client
 npm ci --legacy-peer-deps
-npm test                    # unit tests, including the Java intent vectors
+npm test                    # unit and component tests, including the Java intent vectors
+npm run check               # tsc --noEmit
+npm run build               # type-check and build into dist/
 PAYMENTS_NODE_URL=http://localhost:7470 npm run dev   # http://localhost:5174
 ```
+
+`--legacy-peer-deps` works around an npm 10 resolver error on this dependency
+set; it changes no version. Set `PAYMENTS_CLIENT_PORT` to use another port than
+5174.
 
 The dev server proxies `/api` to `PAYMENTS_NODE_URL`, so the node needs no CORS
 setup. Configuration lives in the deployed `public/payments-client.json`. A built
@@ -194,19 +272,38 @@ the client from the same origin as the node's API, or set `nodeUrl` and allow
 the client's origin in the node's CORS configuration. Eternl and Lace inject
 `window.cardano.eternl` and `window.cardano.lace`.
 
+## Tests
+
+`npm test` runs the unit tests (vitest) and the component tests
+(Testing Library with jsdom): the intent encoder against the Java vectors,
+deposit verification, the proof binding, session pruning, configuration,
+payment request links and error texts; the intent pipeline refusing an intent
+the node encodes differently or a prepared message that isn't the signed one;
+the review sheet showing the decoded values in full (base units, asset id,
+chain, genesis); and the wallet picker's unsupported-wallet messages.
+
 ## End-to-end test
 
 `e2e/payments.spec.ts` drives the client with the DevKit wallet. It covers
 registering two accounts, a 25 ADA deposit (`signTx`) credited by the observer,
-a transfer, a session (one payment without a wallet prompt, one refused with
-`SESSION_LIMIT`, then a revoke), a withdrawal shown as reserved, a verified
-balance proof, and the unsupported-wallet message. It skips itself when DevKit
-or the node isn't reachable.
+a transfer, a payment request made by one account and paid by the other, a
+session (one payment without a wallet prompt, one refused with
+`SESSION_LIMIT`, then a revoke), a withdrawal shown as reserved, verified
+balance and receipt proofs, and the unsupported-wallet message. It skips itself
+when DevKit or the node isn't reachable. Wait until the node has caught up with
+DevKit's L1 tip before you run it (compare `GET /api/v1/node/tip` with DevKit's
+tip); a node that is still syncing refuses deposits with `L1_TIP_UNKNOWN` or
+credits them late.
 
 ```bash
 npx playwright install chromium   # once
 PAYMENTS_NODE_URL=http://localhost:7470 npm run test:e2e
+PAYMENTS_NODE_URL=http://localhost:7470 npm run screenshots   # refreshes docs/screenshots
 ```
+
+The screenshot run (`e2e/screenshots.spec.ts`) expects the E2E to have run
+first, so DevKit accounts 0 and 1 are registered; it leaves account 2
+unregistered for the onboarding screen.
 
 ## Wallet compatibility
 
@@ -245,8 +342,13 @@ wallet signs with, so they can't own an account.
 - The account view sums reserved amounts from up to 8 pages of 64 matching
   claims, at most 2,048 claims scanned per page. `reservedFrom.complete` says
   whether that covered every claim; the client labels an incomplete total
-  "(partial)".
+  "partial".
+- Activity lives in this browser tab's memory: a reload starts an empty feed
+  (balances, sessions and withdrawals are read from the ledger again).
+- A payment request is shown as a link to copy; the client doesn't draw QR
+  codes (any QR generator can encode the link).
 - No owner rotation UI. `ROTATE_OWNER` needs two wallets to sign the same
   envelope; the encoder and the API support it. After a rotation, connect the new
-  owner's wallet and enter the account id under **Use this account**. The client
+  owner's wallet, open **Account details** from the account menu and enter the
+  account id under **Act for another account**. The client
   acts for it only if the account's committed owner is the connected credential.
