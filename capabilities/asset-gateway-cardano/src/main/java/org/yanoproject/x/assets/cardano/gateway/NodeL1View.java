@@ -113,6 +113,28 @@ final class NodeL1View {
         return custody;
     }
 
+    /**
+     * Every output at the address, for the reconciliation (D15): empty unless the whole address was read, so a view
+     * that is unavailable, a read that fails, an output this node cannot represent, or more than
+     * {@link #MAX_CUSTODY_SCAN} outputs never pass for a complete scan.
+     */
+    Optional<List<ResolvedOutput>> scan(byte[] rawAddress) {
+        UtxoState state = view.get();
+        if (state == null) return Optional.empty();
+        String bech32 = new Address(rawAddress).toBech32();
+        List<ResolvedOutput> out = new ArrayList<>();
+        try {
+            for (int page = 1; page <= MAX_CUSTODY_SCAN / PAGE; page++) {
+                List<Utxo> utxos = state.getUtxosByAddress(bech32, page, PAGE);
+                for (Utxo utxo : utxos) out.add(convert(utxo));
+                if (utxos.size() < PAGE) return Optional.of(out);
+            }
+        } catch (RuntimeException unavailable) {
+            return Optional.empty();
+        }
+        return Optional.empty();
+    }
+
     /** The first {@link #MAX_PAGES} pages of outputs at the address. */
     List<ResolvedOutput> at(byte[] rawAddress) {
         return window(rawAddress, 1).outputs();

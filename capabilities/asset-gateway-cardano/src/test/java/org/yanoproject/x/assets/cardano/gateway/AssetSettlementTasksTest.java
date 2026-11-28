@@ -379,9 +379,14 @@ class AssetSettlementTasksTest {
         /** How often the claim index was walked (its count read). */
         final java.util.concurrent.atomic.AtomicInteger indexWalks = new java.util.concurrent.atomic.AtomicInteger();
         DomainStatusV1 domain = new DomainStatusV1(DomainStatusV1.Status.ACTIVE, 50, 0, DAY);
+        /** The vault's I4 counters and the committed height, for the reconciliation (D15). */
+        org.yanoproject.x.assets.contracts.AssetAccounts.VaultCounters counters =
+                org.yanoproject.x.assets.contracts.AssetAccounts.VaultCounters.ZERO;
+        long height = 1_000;
 
         byte[] answer(String path, byte[] request) {
             return switch (path) {
+                case SettlementQueries.VAULT_COUNTERS -> SettlementQueries.encodeCounters(height, counters);
                 case SettlementQueries.CLAIM -> {
                     Hash32 id = Hash32.of(request);
                     yield SettlementQueries.encodeClaim(Optional.ofNullable(leaves.get(id)).map(ClaimLeafV1::encode),
@@ -725,7 +730,9 @@ class AssetSettlementTasksTest {
         } finally {
             now = at;
         }
-        assertThat(products).hasSize(1);
+        // The product that owns the tasks first, then one task product per task that runs here (D15a).
+        assertThat(products.getFirst().id()).isEqualTo(AssetSettlementExecutorFactory.SCHEME);
+        assertThat(products.subList(1, products.size())).allMatch(TaskProduct.class::isInstance);
         return products.getFirst();
     }
 
@@ -1174,6 +1181,38 @@ class AssetSettlementTasksTest {
                 .contains("; relayed 1 on shard 3");
         assertThat(paidBy(submitted.getLast())).containsExactly(claim.claimId());
         assertThat(relayerNode.ledger.indexWalks).hasValue(1);
+
+        // Each task's pass reaches the status and metrics through its own product (D15a): one vault failed, the
+        // other acted, so the pass is a success.
+        assertThat(products).extracting(AppEffectExecutor::id).containsExactly(AssetSettlementExecutorFactory.SCHEME,
+                TaskProduct.ACCEPT, TaskProduct.EXIT_RELAY, TaskProduct.RECONCILIATION);
+        for (AppEffectExecutor task : products.subList(1, 3)) {
+            assertThat(task.operationalSnapshot().attempts()).as(task.id()).isEqualTo(1);
+            assertThat(task.operationalSnapshot().successes()).as(task.id()).isEqualTo(1);
+        }
+        // A pass that cannot act (no live anchor) is a retryable failure; a pass with nothing to do is not counted.
+        synchronized (l1) {
+            l1.keySet().removeIf(key -> key.startsWith("63".repeat(32)));
+        }
+        product.relayer().orElseThrow().runOnce();
+        assertThat(products.get(2).operationalSnapshot().retryableFailures()).isEqualTo(1);
+    }
+
+    @Test
+    void taskPassesAreClassifiedByTheirMostSignificantVaultOutcome() {
+        assertThat(TaskProduct.worst(List.of("nothing to accept", "accepted (proved) 1 deposits in x"),
+                DepositAcceptor::acted, DepositAcceptor::idle)).isEqualTo(TaskProduct.Pass.ACTED);
+        assertThat(TaskProduct.worst(List.of("nothing to accept"), DepositAcceptor::acted, DepositAcceptor::idle))
+                .isEqualTo(TaskProduct.Pass.IDLE);
+        assertThat(TaskProduct.worst(List.of("no live anchor", "nothing to accept"), DepositAcceptor::acted,
+                DepositAcceptor::idle)).isEqualTo(TaskProduct.Pass.WAITING);
+        assertThat(TaskProduct.worst(List.of("vault 00 failed: boom", "no live anchor"), ExitRelayTask::acted,
+                ExitRelayTask::idle)).isEqualTo(TaskProduct.Pass.FAILED);
+        assertThat(TaskProduct.worst(List.of("shard 2: short, relayed 1 on shard 4 in tx"), ExitRelayTask::acted,
+                ExitRelayTask::idle)).isEqualTo(TaskProduct.Pass.ACTED);
+        TaskProduct idle = new TaskProduct(TaskProduct.ACCEPT);
+        idle.record(TaskProduct.Pass.IDLE);
+        assertThat(idle.operationalSnapshot().attempts()).isZero();
     }
 
     /** Fable P3-3: an Error thrown by a pass is logged; the timer keeps running the later passes. */
