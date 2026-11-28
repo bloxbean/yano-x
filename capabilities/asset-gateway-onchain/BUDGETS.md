@@ -251,7 +251,13 @@ The CIP-113 core's own share per transaction: PLB about 57,000 memory per vault 
 the transfer delegate 186,000 to 982,000 (it scans every input and output), and the test hook 72,000 to 362,000.
 The shard's share is the same as for the native vault.
 
-**Not yet measured:** whole-transaction sizes. The native suite serializes each transaction (`TxSizes`); for a
+**Measured on Yaci DevKit** (`qa/harness/asset-gateway/Cip113Devnet.java`, signed transactions assembled by
+`ProgrammableVaultTxAssembler`, every script referenced): a user deposit 1,397 bytes; `AcceptCosigned` of one deposit
+1,387 bytes; `Settle` of one claim over a continuation and a floor top-up, with its shard, 1,912 bytes and a fee of
+993,661 lovelace (the reference-script fee for PLB, the dispatcher, the transfer delegate, the hook, `h` and the
+shard dominates).
+
+**Not yet measured:** whole-transaction sizes at the batch caps. The native suite serializes each transaction (`TxSizes`); for a
 CIP-113 vault that needs the assembler's output, so the batch caps of ADR-061 D9 (provisional: `Settle` 16, `Exit`
 8, `AcceptCosigned` 16, `AcceptProved` 12) are not yet replaced by measured ones. By units alone every provisional
 cap fits (`Settle` 16 at 57.3 % and `Exit` 8 at 53.4 % of the memory limit); sizes, with the larger base addresses
