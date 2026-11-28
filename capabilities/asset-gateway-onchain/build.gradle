@@ -54,16 +54,20 @@ tasks.withType(Test).configureEach {
     }
 }
 
-// The Aiken shard backend (ADR-059 D8c, r23). aiken/plutus.json and META-INF/plutus/AssetShardValidatorAiken.plutus.json
-// are what ships: the ordinary build never runs the Aiken compiler, and AikenShardArtifactTest checks on every build
-// that the envelope is the blueprint's validator. With the pinned toolchain installed, this task runs the module's
-// Aiken tests and rebuilds the blueprint, failing if it differs from the committed one:
+// The Aiken backends: the shard (ADR-059 D8c, r23) and the CIP-113 custody scripts h, e and the shard binding variant
+// (ADR-061 D3), one Aiken project. aiken/plutus.json and the META-INF/plutus/*Aiken.plutus.json envelopes
+// (AssetShardValidatorAiken, ProgrammableVaultValidatorAiken, ProgrammableVaultExitDelegateAiken,
+// ProgrammableShardValidatorAiken) are what ships: the ordinary build never runs the Aiken compiler, and
+// AikenShardArtifactTest checks on every build that each envelope is its blueprint validator. With the pinned
+// toolchain installed, this task runs the project's Aiken tests and rebuilds the blueprint of every validator, failing
+// if it differs from the committed one:
 //   ./gradlew :capabilities:asset-gateway-onchain:verifyAikenShard [-Paiken=/path/to/aiken-v1.1.21]
 def aikenProject = layout.projectDirectory.dir('aiken').asFile
 def aikenBinary = providers.gradleProperty('aiken').orElse(providers.environmentVariable('AIKEN')).orElse('aiken')
 tasks.register('verifyAikenShard') {
     group = 'verification'
-    description = 'Runs aiken check on the Aiken shard backend and fails if aiken build drifts from aiken/plutus.json'
+    description = 'Runs aiken check on the Aiken backends (shard, CIP-113 custody) and fails if aiken build drifts ' +
+            'from aiken/plutus.json'
     def binary = aikenBinary
     def directory = aikenProject
     doLast {
@@ -77,16 +81,18 @@ tasks.register('verifyAikenShard') {
         }
         def version = run([binary.get(), '--version']).trim()
         if (!version.startsWith('aiken v1.1.21')) {
-            throw new GradleException("The Aiken shard is pinned to aiken v1.1.21, not '${version}' (set -Paiken=...)")
+            throw new GradleException("The Aiken backends are pinned to aiken v1.1.21, not '${version}' (set -Paiken=...)")
         }
-        run([binary.get(), 'check', '-D'])
+        def checked = run([binary.get(), 'check', '-D'])
         run([binary.get(), 'build', '-D', '-o', 'build/verify-plutus.json'])
         def rebuilt = new File(directory, 'build/verify-plutus.json')
         if (rebuilt.bytes != new File(directory, 'plutus.json').bytes) {
             throw new GradleException('aiken build differs from the committed aiken/plutus.json; regenerate the '
-                    + 'blueprint and META-INF/plutus/AssetShardValidatorAiken.plutus.json (see README.md)')
+                    + 'blueprint and the META-INF/plutus/*Aiken.plutus.json envelopes (see README.md)')
         }
-        logger.lifecycle('Aiken shard verified: {}; aiken check passed and the blueprint is reproducible', version)
+        def tests = (checked =~ /"passed":\s*(\d+)/)
+        logger.lifecycle('Aiken backends verified: {}; aiken check passed{} and the blueprint is reproducible', version,
+                tests.find() ? " (${tests.group(1)} tests)" : '')
     }
 }
 

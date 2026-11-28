@@ -262,3 +262,111 @@ CIP-113 vault that needs the assembler's output, so the batch caps of ADR-061 D9
 8, `AcceptCosigned` 16, `AcceptProved` 12) are not yet replaced by measured ones. By units alone every provisional
 cap fits (`Settle` 16 at 57.3 % and `Exit` 8 at 53.4 % of the memory limit); sizes, with the larger base addresses
 and a spend redeemer per vault input, are expected to bind first.
+
+### The Aiken backend (ADR-061 D3)
+
+A deployment may select the Aiken custody backend (`programmable-backend: aiken`):
+`aiken/validators/programmable_vault.ak` (`h`), `programmable_vault_exit.ak` (`e`) and `programmable_shard.ak` (the
+shard binding variant), compiled with Aiken v1.1.21 (stdlib v2.2.0, default build without traces) in the same Aiken
+project as the Aiken shard. `ProgrammableVaultSizeTest` measures them applied with the julc scripts' parameters, and
+`ProgrammableVaultBackendDifferentialTest` measures the custody scripts on the honest transactions of
+`ProgrammableVaultCompositionTest` (`UNITS|` lines). Rerun with:
+
+```bash
+./gradlew :capabilities:asset-gateway-onchain:test --tests '*ProgrammableVault*' -i | grep -E 'UNITS\||SIZE\||DIFF\|'
+```
+
+| Script | Template bytes | Applied bytes | julc applied bytes |
+|---|---:|---:|---:|
+| `ProgrammableVaultValidatorAiken` (`h`) | 10,179 | 10,772 | 15,200 |
+| `ProgrammableVaultExitDelegateAiken` (`e`) | 7,590 | 8,149 | 10,244 |
+| `ProgrammableShardValidatorAiken` | 5,020 | 5,089 | 4,586 |
+
+The Aiken `h` is 4,428 bytes smaller than the julc one and has 4,728 bytes of headroom under the 15,500-byte guard;
+the Aiken shard variant is 503 bytes larger than the julc one, as the native Aiken shard is.
+
+The custody scripts' units, each on the same script context under both backends (the shard holds 5 paid ids):
+
+| Transaction | k | Vault inputs | Script | julc CPU | julc memory | Aiken CPU | Aiken memory |
+|---|---:|---:|---|---:|---:|---:|---:|
+| `Settle` | 1 | 1 | `h` | 514,682,051 | 1,664,417 | 386,662,560 | 1,048,999 |
+| `Settle` | 1 | 1 | `shard` | 120,293,111 | 410,749 | 110,644,668 | 328,626 |
+| `Settle` | 4 | 1 | `h` | 713,100,680 | 2,310,857 | 617,725,965 | 1,745,281 |
+| `Settle` | 4 | 1 | `shard` | 225,037,754 | 803,974 | 232,115,019 | 739,641 |
+| `Settle` | 8 | 1 | `h` | 977,678,228 | 3,172,889 | 925,829,881 | 2,673,769 |
+| `Settle` | 8 | 1 | `shard` | 431,732,904 | 1,564,184 | 475,825,465 | 1,548,303 |
+| `Settle` | 16 | 1 | `h` | 1,506,899,756 | 4,897,337 | 1,542,104,145 | 4,531,129 |
+| `Settle` | 16 | 1 | `shard` | 854,020,711 | 3,133,422 | 971,576,174 | 3,208,043 |
+| `Exit` | 1 | 1 | `h` | 704,034,674 | 2,301,364 | 560,445,689 | 1,605,496 |
+| `Exit` | 1 | 1 | `shard` | 152,977,783 | 525,491 | 150,958,516 | 457,434 |
+| `Exit` | 4 | 1 | `h` | 1,204,338,053 | 3,922,114 | 1,076,952,575 | 3,181,807 |
+| `Exit` | 4 | 1 | `shard` | 292,548,323 | 1,041,980 | 314,380,038 | 1,001,681 |
+| `Exit` | 8 | 1 | `h` | 1,915,955,091 | 6,229,508 | 1,799,844,356 | 5,396,981 |
+| `Exit` | 8 | 1 | `shard` | 464,231,687 | 1,679,414 | 515,929,522 | 1,676,501 |
+| `Exit` (EXIT) | 2 | 1 | `h` | 685,682,576 | 2,208,898 | 601,131,731 | 1,748,004 |
+| `Exit` (EXIT) | 2 | 1 | `shard` | 154,547,160 | 540,216 | 150,601,953 | 464,823 |
+| `AcceptCosigned` | 1 | 1 | `h` | 421,674,774 | 1,279,922 | 266,981,715 | 721,930 |
+| `AcceptCosigned` | 4 | 4 | `h` | 670,962,747 | 1,742,435 | 386,562,264 | 1,046,134 |
+| `AcceptCosigned` | 8 | 8 | `h` | 1,003,346,711 | 2,359,119 | 546,002,996 | 1,478,406 |
+| `AcceptProved` | 1 | 1 | `h` | 499,022,956 | 1,543,137 | 340,839,717 | 954,075 |
+| `AcceptProved` | 4 | 4 | `h` | 1,057,975,775 | 3,048,586 | 714,224,299 | 2,075,613 |
+| `AcceptProved` | 8 | 8 | `h` | 1,758,062,274 | 4,901,795 | 1,184,535,826 | 3,478,293 |
+| `AcceptProved` (EXIT) | 2 | 2 | `h` | 564,711,453 | 1,640,544 | 388,192,417 | 1,123,900 |
+| `SweepExit` (outpoint) | 1 | 1 | `h` | 684,151,346 | 2,222,386 | 534,096,083 | 1,509,008 |
+| `SweepExit` (outpoint) | 1 | 1 | `shard` | 114,649,814 | 392,309 | 104,958,614 | 312,182 |
+| `SweepExit` (`DepositId`) | 1 | 1 | `h` | 714,277,550 | 2,191,046 | 538,021,616 | 1,540,400 |
+| `SweepExit` (`DepositId`) | 1 | 1 | `shard` | 115,310,646 | 393,917 | 105,427,446 | 312,590 |
+| `RefundUncredited` | 1 | 1 | `h` | 126,491,088 | 420,841 | 83,908,820 | 207,100 |
+| `RefundUncredited` | 1 | 1 | `e` | 337,925,694 | 977,160 | 247,774,470 | 700,874 |
+| `RefundAbsent` | 1 | 1 | `h` | 125,045,301 | 420,841 | 82,463,033 | 207,100 |
+| `RefundAbsent` | 1 | 1 | `e` | 290,180,922 | 817,275 | 227,945,084 | 647,526 |
+| `BalanceExit` | 1 | 1 | `h` | 132,966,424 | 431,091 | 90,429,376 | 215,952 |
+| `BalanceExit` | 1 | 1 | `e` | 435,771,150 | 1,364,508 | 339,611,000 | 911,764 |
+| `BalanceExit` | 1 | 1 | `shard` | 122,135,995 | 416,971 | 112,682,211 | 334,750 |
+| `BalanceExit` | 1 | 4 | `h` | 151,376,452 | 463,437 | 108,927,064 | 243,804 |
+| `BalanceExit` | 1 | 4 | `e` | 540,471,396 | 1,659,684 | 422,220,755 | 1,091,491 |
+| `BalanceExit` | 1 | 4 | `shard` | 129,210,157 | 429,958 | 120,510,642 | 347,032 |
+| `Consolidate` | 2 | 2 | `h` | 128,208,566 | 431,623 | 85,655,518 | 216,384 |
+| `Consolidate` | 2 | 2 | `e` | 269,949,868 | 815,321 | 199,884,538 | 501,360 |
+| `Consolidate` | 4 | 4 | `h` | 140,481,918 | 453,187 | 97,987,310 | 234,952 |
+| `Consolidate` | 4 | 4 | `e` | 342,267,938 | 1,002,822 | 250,158,988 | 613,364 |
+| `Consolidate` | 8 | 8 | `h` | 165,028,622 | 496,315 | 122,650,894 | 272,088 |
+| `Consolidate` | 8 | 8 | `e` | 486,904,078 | 1,377,824 | 350,707,888 | 837,372 |
+
+The whole transactions with the Aiken scripts in place of the julc ones (the CIP-113 core, the hooks and the
+transaction are the same):
+
+| Transaction | k | Vault inputs | julc CPU % | julc memory % | Aiken CPU % | Aiken memory % |
+|---|---:|---:|---:|---:|---:|---:|
+| `Settle` | 1 | 1 | 7.9 | 15.2 | 6.6 | 11.0 |
+| `Settle` | 4 | 1 | 11.7 | 22.7 | 10.8 | 18.9 |
+| `Settle` | 8 | 1 | 17.4 | 34.2 | 17.3 | 31.0 |
+| `Settle` | 16 | 1 | 28.9 | 57.3 | 30.4 | 55.5 |
+| `Exit` | 1 | 1 | 10.2 | 19.8 | 8.7 | 15.2 |
+| `Exit` | 4 | 1 | 17.3 | 33.9 | 16.2 | 29.2 |
+| `Exit` | 8 | 1 | 27.1 | 53.4 | 26.5 | 48.3 |
+| `Exit` (EXIT) | 2 | 1 | 10.2 | 19.7 | 9.3 | 16.4 |
+| `AcceptCosigned` | 1 | 1 | 5.4 | 9.8 | 3.9 | 6.4 |
+| `AcceptCosigned` | 4 | 4 | 9.2 | 14.9 | 6.4 | 10.7 |
+| `AcceptCosigned` | 8 | 8 | 14.3 | 21.6 | 9.8 | 16.3 |
+| `AcceptProved` | 1 | 1 | 6.2 | 11.4 | 4.6 | 7.8 |
+| `AcceptProved` | 4 | 4 | 13.1 | 22.8 | 9.7 | 16.9 |
+| `AcceptProved` | 8 | 8 | 21.9 | 37.0 | 16.1 | 28.4 |
+| `AcceptProved` (EXIT) | 2 | 2 | 7.3 | 12.7 | 5.5 | 9.6 |
+| `SweepExit` (outpoint) | 1 | 1 | 9.4 | 18.3 | 7.8 | 13.5 |
+| `SweepExit` (`DepositId`) | 1 | 1 | 9.6 | 17.9 | 7.8 | 13.5 |
+| `RefundUncredited` | 1 | 1 | 6.4 | 11.5 | 5.1 | 8.6 |
+| `RefundAbsent` | 1 | 1 | 5.9 | 10.6 | 4.9 | 8.2 |
+| `BalanceExit` | 1 | 1 | 8.5 | 16.1 | 7.0 | 11.5 |
+| `BalanceExit` | 1 | 4 | 11.0 | 20.0 | 9.3 | 14.8 |
+| `Consolidate` | 2 | 2 | 5.6 | 10.3 | 4.5 | 7.0 |
+| `Consolidate` | 4 | 4 | 7.3 | 12.9 | 5.9 | 9.2 |
+| `Consolidate` | 8 | 8 | 10.6 | 18.2 | 8.8 | 13.6 |
+
+- The Aiken `h` and `e` use less memory than the julc ones in every measured transaction: about half for the
+  delegated actions' `h` (the mirror check only), 56% to 93% for the actions `h` runs, 61% to 79% for `e`. The gap
+  narrows with the batch: at `Settle` k = 16 the Aiken `h` uses 93% of the julc `h`'s memory and about 2% more CPU.
+- The Aiken shard variant uses less memory for small batches and slightly more for large ones (102% of the julc
+  variant's memory and 14% more CPU at 16 inserts), as the native Aiken shard does.
+- No whole transaction uses more of the memory limit under the Aiken backend; the largest CPU difference is `Settle`
+  k = 16, 30.4% of the limit against 28.9%. The provisional caps of ADR-061 D9 fit under either backend by units.

@@ -19,6 +19,7 @@ with `-Dyano.regenerate.plutus=true`). The on-chain ABI (datums and redeemers) i
 | `ProgrammableVaultExitDelegate` | `e`, the EXIT-only actions of a CIP-113 vault (ADR-061 D2) | the vault's, then the pinned PLB hash and `maxInlineDatumBytes` |
 | `ProgrammableVaultValidator` | `h`, the custody script of a CIP-113 vault (ADR-061 D2, D5) | the same as `e`, then `e`'s hash |
 | `ProgrammableShardValidator` | the shard binding variant of a CIP-113 vault (ADR-061 D5) | shard thread policy id, `h` |
+| `ProgrammableVaultExitDelegateAiken`, `ProgrammableVaultValidatorAiken`, `ProgrammableShardValidatorAiken` | the same three scripts, Aiken backend (`aiken/validators/programmable_vault_exit.ak`, `programmable_vault.ak`, `programmable_shard.ak`, ADR-061 D3) | as their julc twins |
 
 The vault's redeemers are `Settle` (co-signed by a threshold of the referenced v2 anchor's members), `Exit` (per-claim
 proof against the anchor root, or the frozen root in exit mode), `SweepExit` (`SWEEP_UNATTRIBUTED`: one unaccepted
@@ -65,6 +66,45 @@ Each `@OnchainLibrary` call stays small, but a julc `@MultiValidator` with one `
 to about 4,300 bytes more than one entrypoint dispatching on the script purpose itself, so the custody scripts use
 one entrypoint.
 
+### The Aiken custody backend (ADR-061 D3)
+
+The custody scripts have two interchangeable backends, selected together by `programmable-backend: julc | aiken`
+(julc by default). The backend determines `e`, `h` and with them the vault smart wallet and the shard variant.
+
+- **julc**: `ProgrammableVaultValidator`, `ProgrammableVaultExitDelegate`, `ProgrammableShardValidator`.
+- **aiken**: `aiken/validators/programmable_vault.ak` (`h`), `programmable_vault_exit.ak` (`e`) and
+  `programmable_shard.ak` (the shard variant), in the same Aiken project as `asset_shard.ak` and with its pinned
+  toolchain (Aiken v1.1.21, stdlib v2.2.0). The lib modules are Yano X ports of what the julc scripts use:
+  `yano_x/state_proof` (`MpfOnChainVerifier.verifyInclusion` and `verifyAbsence`, with the same bounds and
+  proof-shape rules), `yano_x/anchor` (`MpfAnchorLib.acceptedAnchorStateIn` and `signedByThreshold`),
+  `yano_x/codec` and `yano_x/gateway_tx` (`GatewayCodec`, `GatewayTx`, the value readers) and `yano_x/programmable`
+  (`ProgrammableVaultLib`). The shard variant shares the native Aiken shard's rules through `yano_x/shard`, which
+  leaves `asset_shard`'s compiled bytes unchanged.
+
+Each Aiken script takes its julc twin's parameters in the same order and Data types (`byte[]` as `ByteArray`,
+`BigInteger` as `Int`; parameters a script does not read are named with a leading `_`), has the same handlers, and
+reads redeemers, datums and proofs positionally, checking a constructor tag only where the julc script does, so both
+accept the same encodings. The deposit-shaped predicate and the V10 acceptance rule are total in both: julc reads
+Data kinds from the canonical serialization, Aiken with `choose_data`.
+
+`ProgrammableVaultBackendDifferentialTest` builds every transaction once with the julc scripts and runs each Aiken
+script on exactly its julc twin's script context (the Aiken `h` applied with the julc `e`'s hash, the Aiken shard
+variant with the julc `h`'s), and fails on any differing verdict (I40). It covers every action and alternative
+honest values, every negative of `ProgrammableVaultNegativeTest`, the state-proof verifier (honest inclusion at 23
+trie sizes, absence at every terminal kind and cursor parity, absence proofs of present keys, systematic and random
+proof changes), systematic and random changes of every redeemer, of the shard redeemer, of every datum the scripts
+read and of the transaction (inputs, outputs, values, addresses, reference inputs, signers, validity range,
+withdrawals, mint, certificates), and lenient encodings both accept. `AssetShardBackendDifferentialTest` also runs
+both shard variants on each of its cases with the vault input turned into the vault script's withdrawal. Sizes and
+units of the Aiken backend are in [`BUDGETS.md`](BUDGETS.md#the-aiken-backend-adr-061-d3).
+
+The artifacts follow the Aiken shard's pattern (below): `aiken/plutus.json` holds every Aiken validator, and
+`META-INF/plutus/ProgrammableVaultValidatorAiken.plutus.json`, `ProgrammableVaultExitDelegateAiken.plutus.json` and
+`ProgrammableShardValidatorAiken.plutus.json` wrap the blueprint's `programmable_vault.programmable_vault.withdraw`,
+`programmable_vault_exit.programmable_vault_exit.withdraw` and `programmable_shard.programmable_shard.spend`
+`compiledCode` in one more CBOR byte string. `AikenShardArtifactTest` checks each envelope against its blueprint
+validator and its parameters against the julc `@Param` order on every build.
+
 ## Shard backends (ADR-059 D8c, r23)
 
 The nullifier shard has two interchangeable backends. Both take the same parameters, datum and redeemer and
@@ -84,8 +124,8 @@ on the same transactions (honest inserts at 26 trie sizes and 6 batch sizes cove
 the conformance proof shapes, systematic and random proof changes, lenient encodings, and every transaction-shape
 rule) and fails on any differing verdict. Their costs are in [`BUDGETS.md`](BUDGETS.md).
 
-The checked Aiken artifacts are `aiken/plutus.json` (the blueprint) and
-`src/main/resources/META-INF/plutus/AssetShardValidatorAiken.plutus.json` (its spend validator, one more CBOR
+The checked Aiken artifacts are `aiken/plutus.json` (the blueprint, which also holds the CIP-113 custody validators)
+and `src/main/resources/META-INF/plutus/AssetShardValidatorAiken.plutus.json` (its spend validator, one more CBOR
 byte-string layer, the envelope deployments parameterize). The ordinary build never runs the Aiken compiler;
 `AikenShardArtifactTest` checks on every build that the envelope is the blueprint's validator and that the toolchain
 and library are pinned. With Aiken v1.1.21 installed, run the module's Aiken tests and check that the blueprint is
@@ -96,9 +136,9 @@ reproducible:
 # or, in capabilities/asset-gateway-onchain/aiken: aiken check && aiken build
 ```
 
-After changing the Aiken sources, run `aiken build` there, rewrite the envelope from the blueprint's
-`asset_shard.asset_shard.spend` `compiledCode` (wrapped in one more CBOR byte string), and rerun the differential and
-budget tests.
+After changing the Aiken sources, run `aiken build` there, rewrite each envelope from its blueprint validator's
+`compiledCode` (wrapped in one more CBOR byte string: `asset_shard.asset_shard.spend` for the shard, and the three
+custody validators above), and rerun the differential and budget tests.
 
 Implementation notes:
 
