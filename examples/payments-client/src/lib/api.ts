@@ -34,6 +34,8 @@ export interface VaultView {
   address: string;
   depositsEnabled: boolean;
   transfersEnabled: boolean;
+  /** A display-only trust label (e.g. an issuer attestation), when a registry carries one. */
+  trustLabel?: string;
   proof: ProofRef;
 }
 
