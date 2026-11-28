@@ -63,6 +63,23 @@ public final class DefaultL1TransactionBuilderService
     }
 
     @Override
+    public PricingParameters pricingParameters() {
+        ProtocolParams params = protocolParams.get();
+        if (params == null || params.getMinFeeA() == null || params.getMinFeeB() == null
+                || params.getCoinsPerUtxoSize() == null || params.getMaxTxSize() == null
+                || params.getMaxValSize() == null) {
+            throw new IllegalStateException("L1 pricing parameters are unavailable");
+        }
+        try {
+            return new PricingParameters(params.getMinFeeA(), params.getMinFeeB(),
+                    Long.parseLong(params.getCoinsPerUtxoSize().trim()), params.getMaxTxSize(),
+                    Long.parseLong(params.getMaxValSize().trim()));
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalStateException("L1 pricing parameters are invalid", invalid);
+        }
+    }
+
+    @Override
     public SpendableInput selectSpendableInput(String sourceAddress) {
         String address = requireAddress(sourceAddress);
         Utxo selected = utxos.getPage(address, 40, 0, null).stream()
